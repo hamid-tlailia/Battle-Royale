@@ -1,7 +1,7 @@
 import type { WeaponId } from '@lw/shared';
 
 /**
- * All sounds are synthesised with WebAudio (no audio files to download or license).
+ * Real recorded samples (gunshots, footsteps, reload, wind — see CREDITS.md) with WebAudio synthesis fallbacks.
  * Positional: volume falls with distance, far shots are muffled, stereo pan from direction.
  */
 export class Sfx {
@@ -31,13 +31,39 @@ export class Sfx {
   /** Real recorded gunshots (CC-BY 3.0, Vincent Sevedge / OpenGameArt — see CREDITS.md). */
   private async loadSamples() {
     const ctx = this.ctx!;
-    await Promise.all(['pistol', 'rifle', 'shotgun', 'sniper'].map(async (n) => {
+    const names = ['pistol', 'rifle', 'shotgun', 'sniper', 'reload', 'clip', 'wind',
+      ...[1, 2, 3, 4, 5, 6].flatMap((i) => [`step${i}`, `stone${i}`])];
+    await Promise.all(names.map(async (n) => {
       try {
         const buf = await (await fetch(`/sfx/${n}.mp3`)).arrayBuffer();
         this.samples.set(n, await ctx.decodeAudioData(buf));
       } catch { /* keep synth fallback */ }
     }));
+    this.startWind();
   }
+
+  /** play a recorded sample through a positional chain; false if not loaded */
+  private sample(name: string, vol: number, dist: number, pan: number, rate = 1): boolean {
+    const buf = this.samples.get(name);
+    if (!buf) return false;
+    const d = this.chain(vol, dist, pan);
+    if (!d) return true;
+    const src = this.ctx!.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+    src.connect(d); src.start();
+    return true;
+  }
+
+  /** quiet looping mountain wind (CC-BY 4.0, Anderson dos Santos) */
+  private windGain: GainNode | null = null;
+  private startWind() {
+    const buf = this.samples.get('wind'); const ctx = this.ctx;
+    if (!buf || !ctx || this.windGain) return;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.playbackRate.value = 0.8;
+    this.windGain = ctx.createGain(); this.windGain.gain.value = this.enabled ? 0.06 : 0;
+    src.connect(this.windGain).connect(this.master); src.start();
+  }
+  /** louder wind high up (sky-diving) */
+  setWind(level: number) { if (this.windGain) this.windGain.gain.value = this.enabled ? 0.06 + level * 0.3 : 0; }
 
   /** dist in metres, pan -1..1 */
   private chain(vol: number, dist: number, pan: number): AudioNode | null {
@@ -97,7 +123,10 @@ export class Sfx {
     }
   }
 
-  step(dist: number, pan: number, soft = false) {
+  step(dist: number, pan: number, soft = false, stone = false) {
+    // recorded footsteps (CC0, Fantozzi): grass/sand outdoors, stone on house floors
+    const n = `${stone ? 'stone' : 'step'}${1 + Math.floor(Math.random() * 6)}`;
+    if (this.sample(n, soft ? 0.45 : 0.9, dist, pan, 0.92 + Math.random() * 0.16)) return;
     const d = this.chain(soft ? 0.18 : 0.35, dist, pan);
     if (!d) return;
     const t = this.ctx!.currentTime;
@@ -130,6 +159,7 @@ export class Sfx {
   hurt() { const d = this.chain(0.6, 0, 0); if (d) { const t = this.ctx!.currentTime; this.thump(d, t, 220, 70, 0.8, 0.15); } }
 
   reload() {
+    if (this.sample('reload', 0.8, 0, 0.3)) return; // CC0 gun reload (StarNinjas)
     const d = this.chain(0.4, 0, 0.3); if (!d) return;
     const t = this.ctx!.currentTime;
     this.burst(d, t, 0.05, 3000, 3, 0.8, 0.04);
@@ -137,6 +167,7 @@ export class Sfx {
   }
 
   pickup() {
+    if (this.sample('clip', 0.5, 0, 0)) return; // CC0 clip load (Raassh)
     const ctx = this.ctx; if (!ctx || !this.enabled) return;
     const t = ctx.currentTime;
     const o = ctx.createOscillator(); o.type = 'sine';

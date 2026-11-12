@@ -6,10 +6,10 @@ export interface ZonePhase { wait: number; shrink: number; radius: number; dps: 
 
 /** seconds / metres / damage per second outside the zone */
 export const ZONE_PHASES: ZonePhase[] = [
-  { wait: 75, shrink: 35, radius: 85, dps: 1 }, // first wait includes the plane + parachute drop
-  { wait: 35, shrink: 30, radius: 50, dps: 2 },
-  { wait: 30, shrink: 25, radius: 26, dps: 4 },
-  { wait: 20, shrink: 20, radius: 10, dps: 7 },
+  { wait: 80, shrink: 45, radius: 120, dps: 1 }, // first wait includes the plane + parachute drop
+  { wait: 40, shrink: 35, radius: 70, dps: 2 },
+  { wait: 35, shrink: 30, radius: 36, dps: 4 },
+  { wait: 25, shrink: 25, radius: 14, dps: 7 },
   { wait: 15, shrink: 20, radius: 0, dps: 12 },
 ];
 export const ZONE_START_RADIUS = MAP.playRadius + 15;

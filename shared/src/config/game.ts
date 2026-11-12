@@ -27,9 +27,9 @@ export const PLAYER = {
 
 export const MAP = {
   seed: 20261112,
-  size: 300,       // metres, square
-  cells: 100,      // terrain grid cells per side
-  playRadius: 125, // boundary of walkable valley
+  size: 440,       // metres, square
+  cells: 140,      // terrain grid cells per side (~3.1 m)
+  playRadius: 185, // boundary of walkable valley
   snowHeight: 34,
 } as const;
 

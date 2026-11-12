@@ -29,6 +29,7 @@ const lines = [
   'they were converted (rescaled, re-textured at lower resolution, compressed, split, animations retargeted).', '',
   '| Asset | Used for | Author | License | Source |', '|---|---|---|---|---|',
   ...credits.map((c) => `| ${c.name} | ${c.use} | [${c.author}](${c.profile}) | [${c.license}](${c.licenseUrl}) | ${c.url} |`),
+  '', fs.readFileSync('scripts/assets/sounds-credits.md', 'utf8'),
   '', 'Game code, map generation, terrain and UI are original work.', '',
 ];
 fs.writeFileSync('CREDITS.md', lines.join('\n'));

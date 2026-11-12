@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox,
+  BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox, terrainHeight,
   type Hitbox, type InputCmd, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
 import { buildMapView } from '../render/mapView';
@@ -450,6 +450,7 @@ export class Game {
     }
     this.plane.update(dt, planeOn, this.planePos.x, this.planePos.y, this.planePos.z, this.planeYaw);
     this.hud.setPlaneHint(me.alive && me.move.air === 1, me.move.air >= 2);
+    sfx.setWind(me.move.air === 2 ? 1 : me.move.air === 3 ? 0.4 : 0);
     const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
     this.controls.scopedView = scopedView;
     this.scopeMode = !scopedView ? 'none' : slot.id === 'sniper' ? 'x8' : slot.id === 'rifle' && me.scope ? (me.scope >= 4 ? 'x4' : 'x2') : 'reddot';
@@ -484,7 +485,7 @@ export class Game {
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 40) {
         v.stepAcc += p.speed * dt;
         const stride = p.move.crouch ? 1.4 : 2.0;
-        if (v.stepAcc > stride) { v.stepAcc = 0; sfx.step(p.id === this.myId ? 0 : dist, this.panOf(this.v1.set(x, y, z)), p.move.crouch); }
+        if (v.stepAcc > stride) { v.stepAcc = 0; sfx.step(p.id === this.myId ? 0 : dist, this.panOf(this.v1.set(x, y, z)), p.move.crouch, y - halfTotalOf(p.move) > terrainHeight(this.sim.map, x, z) + 0.3); }
       }
       if (p.id === this.myId && p.alive && p.move.grounded && !v.wasGrounded) sfx.land();
       v.wasGrounded = p.move.grounded;

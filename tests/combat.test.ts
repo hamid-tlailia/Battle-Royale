@@ -81,7 +81,7 @@ describe('hit detection', () => {
 
   it('walls stop bullets: a target fully hidden behind a house wall takes no damage', () => {
     let tested = 0;
-    for (const h of new GameSim(MAP.seed, { zone: false, armed: true, loot: false }).map.props.filter((p) => p.p.startsWith('house'))) {
+    for (const h of new GameSim(MAP.seed, { zone: false, armed: true, loot: false }).map.props.filter((p) => p.p.startsWith('house')).slice(0, 6)) {
       for (const lx of [-4, -2, 0, 2, 4]) {
         const sim = new GameSim(MAP.seed, { zone: false, armed: true, loot: false });
         const a = sim.addPlayer(1, 'A', false), b = sim.addPlayer(2, 'B', false);

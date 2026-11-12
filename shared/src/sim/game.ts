@@ -215,7 +215,7 @@ export class GameSim {
         place(x, fy + 0.05, z); n++;
       }
     }
-    for (let k = 0, n = 0; k < 400 && n < 70; k++) {
+    for (let k = 0, n = 0; k < 900 && n < Math.round(70 * (MAP.playRadius / 125) ** 2); k++) {
       const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (MAP.playRadius - 8);
       const x = Math.cos(a) * d, z = Math.sin(a) * d, y = this.phys.groundHeight(x, z);
       if (!free(x, y, z)) continue;

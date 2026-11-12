@@ -26,14 +26,16 @@ export interface MapData {
 export function generateMap(seed: number = MAP.seed): MapData {
   const { size, cells } = MAP;
   const rnd = mulberry32(seed);
+  /** feature counts / distances scale with the valley (tuned at radius 125) */
+  const K = MAP.playRadius / 125, A = K * K;
   const half = size / 2;
   const cell = size / cells;
   const n = cells + 1;
 
   // A few interior peaks for verticality.
   const peaks: { x: number; z: number; h: number; r: number }[] = [];
-  for (let i = 0; i < 3; i++) {
-    const a = rnd() * Math.PI * 2, d = 40 + rnd() * 60;
+  for (let i = 0; i < 5; i++) {
+    const a = rnd() * Math.PI * 2, d = (40 + rnd() * 60) * K;
     peaks.push({ x: Math.cos(a) * d, z: Math.sin(a) * d, h: 12 + rnd() * 10, r: 18 + rnd() * 10 });
   }
 
@@ -72,7 +74,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
   // ---------- Houses (imported enterable models on a stone foundation) ----------
   const houseTypes: PrefabName[] = ['house_a', 'house_b', 'house_c'];
   let houses = 0;
-  for (let tries = 0; tries < 800 && houses < 12; tries++) {
+  for (let tries = 0; tries < 2500 && houses < Math.round(12 * A * 0.95); tries++) {
     const p = randInValley(MAP.playRadius - 22);
     const type = houseTypes[houses % houseTypes.length];
     const rotIdx = Math.floor(rnd() * 4);
@@ -96,7 +98,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
 
   // ---------- Abandoned cars ----------
   const carTypes: PrefabName[] = ['car1', 'car2', 'car3', 'car4'];
-  for (let i = 0, tries = 0; i < 14 && tries < 600; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(14 * A) && tries < 1500; tries++) {
     const p = randInValley(MAP.playRadius - 12);
     if (!free(p.x, p.z, 3.4)) continue;
     const g = Math.min(...[[-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]].map(([a, b]) => groundAt(p.x + a, p.z + b)));
@@ -107,7 +109,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
   }
 
   // ---------- Fences ----------
-  for (let i = 0, tries = 0; i < 6 && tries < 400; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(6 * A) && tries < 1000; tries++) {
     const p = randInValley(MAP.playRadius - 15);
     if (!free(p.x, p.z, 6.5)) continue;
     const g = groundAt(p.x, p.z);
@@ -119,7 +121,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
   }
 
   // ---------- Crates & low walls (cover) ----------
-  for (let i = 0, tries = 0; i < 45 && tries < 800; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(45 * A) && tries < 2000; tries++) {
     const p = randInValley(MAP.playRadius - 8);
     if (!free(p.x, p.z, 2)) continue;
     occupied.push({ x: p.x, z: p.z, r: 1.6 });
@@ -137,7 +139,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
 
   // ---------- Pine trees ----------
   const pines: PrefabName[] = ['pine1', 'pine2', 'pine4', 'pine5'];
-  for (let i = 0, tries = 0; i < 300 && tries < 3500; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(260 * A) && tries < 8000; tries++) {
     const p = randInValley(MAP.playRadius + 15);
     const g = groundAt(p.x, p.z);
     if (g > MAP.snowHeight - 4) continue;
@@ -149,7 +151,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
 
   // ---------- Rocks, stumps & bushes ----------
   const rocks: PrefabName[] = ['rock1', 'rock2', 'rock3', 'rock4'];
-  for (let i = 0, tries = 0; i < 80 && tries < 2000; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(80 * A) && tries < 5000; tries++) {
     const p = randInValley(MAP.playRadius + 20);
     const s = 0.6 + rnd() * 0.9;
     if (!free(p.x, p.z, 2 * s)) continue;
@@ -157,7 +159,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
     data.props.push({ p: rocks[i % rocks.length], x: p.x, y: groundAt(p.x, p.z) - 0.25 * s, z: p.z, rot: rnd() * Math.PI * 2, s });
     i++;
   }
-  for (let i = 0, tries = 0; i < 25 && tries < 600; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(25 * A) && tries < 1500; tries++) {
     const p = randInValley(MAP.playRadius);
     if (!free(p.x, p.z, 0.8)) continue;
     occupied.push({ x: p.x, z: p.z, r: 0.6 });
@@ -165,7 +167,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
     i++;
   }
   // Bushes have no collider: good for hiding.
-  for (let i = 0, tries = 0; i < 110 && tries < 1500; tries++) {
+  for (let i = 0, tries = 0; i < Math.round(110 * A) && tries < 4000; tries++) {
     const p = randInValley(MAP.playRadius + 5);
     if (!free(p.x, p.z, 0.8)) continue;
     data.props.push({ p: i % 2 ? 'bush1' : 'bush2', x: p.x, y: groundAt(p.x, p.z) - 0.15, z: p.z, rot: rnd() * Math.PI * 2, s: 0.7 + rnd() * 0.6 });
@@ -173,7 +175,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
   }
 
   // ---------- Spawn points ----------
-  for (let tries = 0; tries < 2000 && data.spawns.length < 40; tries++) {
+  for (let tries = 0; tries < 2000 && data.spawns.length < 60; tries++) {
     const p = randInValley(MAP.playRadius - 15);
     if (!free(p.x, p.z, 1.5)) continue;
     if (data.spawns.some((s) => (s.x - p.x) ** 2 + (s.z - p.z) ** 2 < 15 * 15)) continue;
