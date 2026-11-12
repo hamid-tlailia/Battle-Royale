@@ -114,7 +114,7 @@ export class Game {
     sun.position.set(80, 140, 50);
     this.scene.add(sun);
 
-    this.sim = this.net ? this.net.sim : new GameSim(MAP.seed, { lobby: true });
+    this.sim = this.net ? this.net.sim : new GameSim(MAP.seed, { lobby: true, skyDrop: !new URLSearchParams(location.search).has('nodrop') });
     if (this.net) this.myId = this.net.myId;
     const mapView = buildMapView(this.sim.map, assets);
     this.sky = mapView.children.find((o) => (o as THREE.Mesh).material && ((o as THREE.Mesh).material as THREE.Material).side === THREE.BackSide) ?? null;
@@ -478,6 +478,7 @@ export class Game {
       v.firingT = Math.max(0, v.firingT - dt);
       const want = p.weapons[p.slot].id as GunName;
       if (want !== v.gun) { v.gun = want; v.view.setGun(this.assets, want); }
+      v.view.ownView = p.id === this.myId;
       v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
       // footsteps
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 40) {
@@ -565,6 +566,8 @@ export class Game {
       const hit = this.sim.phys.rayWorld(this.pivot.x, this.pivot.y, this.pivot.z, dir.x, dir.y, dir.z, len + 0.2);
       const finalLen = hit !== null ? Math.max(0.3, hit - 0.25) : len;
       this.camPos.copy(this.pivot).addScaledVector(dir, finalLen);
+      // under a parachute the canopy hangs ~4-7 m overhead: keep the camera below it so turning never hides the player
+      if (move.air === 3 && this.camPos.y > this.pivot.y + 1.6) this.camPos.y = this.pivot.y + 1.6;
       this.camera.position.copy(this.camPos);
       if (scoped) fov = Math.max(w.scopeFov, 45);
     }
@@ -626,7 +629,7 @@ export class Game {
     this.running = false;
     this.net?.leave();
     window.removeEventListener('resize', this.onResize);
-    this.renderer.dispose();
+    this.renderer.dispose(); this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
     this.hudEl.innerHTML = '';
   }

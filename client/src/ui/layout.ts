@@ -3,7 +3,8 @@
  * Positions are stored as fractions of the screen so they survive rotation / other phones.
  */
 type Layout = Record<string, { x: number; y: number; size: number }>;
-const KEY = 'lw.layout.v1';
+/** v2: new default layout (old custom layouts are reset once) */
+const KEY = 'lw.layout.v2';
 
 function load(): Layout {
   try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }

@@ -54,18 +54,19 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .btn svg { width: 56%; height: 56%; }
 .btn { color: #fff; }
 .btn svg { width: 58%; height: 58%; }
-.btn small { position: absolute; bottom: -14px; font-size: 9px; opacity: .8; }
-.btn-fire { width: 92px; height: 92px; right: calc(26px + env(safe-area-inset-right)); bottom: 128px;
+.btn small { position: absolute; top: 100%; margin-top: 1px; font-size: 8.5px; font-weight: 800; letter-spacing: .6px; white-space: nowrap; opacity: .9; text-shadow: 0 1px 2px #000, 0 0 3px #000; pointer-events: none; }
+.btn svg { pointer-events: none; }
+.btn-fire { width: 84px; height: 84px; right: calc(26px + env(safe-area-inset-right)); bottom: 108px;
   background: rgba(200, 40, 30, .35); border-color: rgba(255, 140, 120, .8); }
 .btn-fire.pressed { background: rgba(255, 70, 50, .6); }
-.btn-fire-left { width: 62px; height: 62px; left: calc(36px + env(safe-area-inset-left)); top: 34%;
+.btn-fire-left { width: 60px; height: 60px; left: calc(30px + env(safe-area-inset-left)); top: 30%;
   background: rgba(200, 40, 30, .28); border-color: rgba(255, 140, 120, .7); }
-.btn-jump { width: 70px; height: 70px; right: calc(22px + env(safe-area-inset-right)); bottom: 30px; }
-.btn-crouch { width: 60px; height: 60px; right: calc(108px + env(safe-area-inset-right)); bottom: 22px; }
-.btn-reload { width: 54px; height: 54px; right: calc(132px + env(safe-area-inset-right)); bottom: 100px; font-size: 9px; }
-.btn-scope { width: 58px; height: 58px; right: calc(134px + env(safe-area-inset-right)); bottom: 178px; }
-.btn-prone { width: 52px; height: 52px; right: calc(184px + env(safe-area-inset-right)); bottom: 18px; }
-.btn-sprint { width: 52px; height: 52px; left: calc(150px + env(safe-area-inset-left)); bottom: 196px; }
+.btn-jump { width: 64px; height: 64px; right: calc(24px + env(safe-area-inset-right)); bottom: 26px; }
+.btn-crouch { width: 54px; height: 54px; right: calc(104px + env(safe-area-inset-right)); bottom: 22px; }
+.btn-reload { width: 50px; height: 50px; right: calc(128px + env(safe-area-inset-right)); bottom: 100px; font-size: 9px; }
+.btn-scope { width: 52px; height: 52px; right: calc(122px + env(safe-area-inset-right)); bottom: 164px; }
+.btn-prone { width: 50px; height: 50px; right: calc(176px + env(safe-area-inset-right)); bottom: 20px; }
+.btn-sprint { width: 52px; height: 52px; left: calc(168px + env(safe-area-inset-left)); bottom: 176px; }
 .sprint-lock { position: absolute; left: 92px; bottom: 236px; width: 44px; height: 44px; border-radius: 50%; color: #fff; display: flex;
   align-items: center; justify-content: center; background: rgba(0,0,0,.3); border: 2px dashed rgba(255,255,255,.45); opacity: .0; transition: opacity .15s; }
 .sprint-lock svg { width: 60%; }
@@ -111,8 +112,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 @keyframes blink { 50% { opacity: .55; } }
 
 .minimap { position: absolute; top: calc(6px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right));
-  width: 110px; height: 110px; border-radius: 8px; border: 2px solid rgba(255,255,255,.5); }
-.killfeed { position: absolute; top: calc(40px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+  width: 132px; height: 132px; border-radius: 10px; border: 2px solid rgba(255,255,255,.55); pointer-events: auto; }
+.minimap.big { left: 50% !important; top: 50% !important; right: auto !important; bottom: auto !important;
+  width: min(84vh, 420px) !important; height: min(84vh, 420px) !important; transform: translate(-50%, -50%) !important; z-index: 30; border-width: 3px; }
+.killfeed { position: absolute; top: calc(54px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
   display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: 11px; }
 .kf { background: rgba(0,0,0,.45); padding: 2px 8px; border-radius: 5px; white-space: nowrap; animation: kfIn .2s; }
 .kf.mine { background: rgba(200,150,30,.55); }
@@ -228,8 +231,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .wait-lobby button.share { background: #ffd34d; }
 
 /* ---------- loot / items HUD ---------- */
-.btn-heal { width: 54px; height: 54px; left: calc(150px + env(safe-area-inset-left)); bottom: 126px; }
-.btn-frost { width: 54px; height: 54px; right: calc(196px + env(safe-area-inset-right)); bottom: 196px; }
+.btn-heal { width: 50px; height: 50px; left: calc(190px + env(safe-area-inset-left)); bottom: 70px; }
+.btn-frost { width: 48px; height: 48px; right: calc(196px + env(safe-area-inset-right)); bottom: 164px; }
 .btn-heal b, .btn-frost b { position: absolute; right: -4px; top: -4px; min-width: 18px; height: 18px; border-radius: 9px; font-size: 11px;
   background: #ffd34d; color: #13200f; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
 .btn.empty { opacity: .45; }
@@ -267,8 +270,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 
 /* ---------- weapon pictures, backpack, holster ---------- */
 .slot img { width: 50px; height: 19px; object-fit: contain; filter: drop-shadow(0 1px 1px #000); }
-.btn-holster { width: 48px; height: 48px; right: calc(200px + env(safe-area-inset-right)); bottom: 110px; }
-.btn-bag { width: 46px; height: 46px; left: calc(150px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); }
+.btn-holster { width: 46px; height: 46px; right: calc(196px + env(safe-area-inset-right)); bottom: 96px; }
+.btn-bag { width: 42px; height: 42px; left: calc(104px + env(safe-area-inset-left)); top: calc(6px + env(safe-area-inset-top)); }
 .bag-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, 86vw); max-height: 78vh; pointer-events: auto; z-index: 25;
   background: rgba(12,20,12,.94); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; display: flex; flex-direction: column; }
 .bag-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.12); letter-spacing: 2px; }

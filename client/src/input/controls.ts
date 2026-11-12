@@ -125,8 +125,10 @@ export class Controls {
   /** returns the queued backpack drop once */
   takeDrop(): number | undefined { const d = this.dropQueued; this.dropQueued = 0; return d || undefined; }
   frost() { this.frostQueued = 3; }
-  toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) this.proneToggle = false; }
-  toggleProne() { this.proneToggle = !this.proneToggle; if (this.proneToggle) this.crouchToggle = false; }
+  /** crouching / lying down stops auto-run (otherwise the player keeps walking) */
+  private stopRun() { if (this.sprintToggle) { this.sprintToggle = false; this.onSprintChange(false); } }
+  toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) { this.proneToggle = false; this.stopRun(); } }
+  toggleProne() { this.proneToggle = !this.proneToggle; if (this.proneToggle) { this.crouchToggle = false; this.stopRun(); } }
   toggleSprint() { this.sprintToggle = !this.sprintToggle; if (this.sprintToggle) { this.crouchToggle = false; this.proneToggle = false; this.scoped = false; } this.onSprintChange(this.sprintToggle); }
   setScope(v: boolean) { this.scoped = v; }
 

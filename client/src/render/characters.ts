@@ -86,6 +86,7 @@ export class CharacterView {
       if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
       this.actions.set(clip.name as Clip, a);
     }
+    this.shoulder = this.model.getObjectByName('mixamorigRightArm') ?? this.model.getObjectByName('mixamorig:RightArm') ?? null;
     this.play('idle_rifle', 0);
     this.setGun(assets, gunName);
 
@@ -120,7 +121,11 @@ export class CharacterView {
     this.current = name;
   }
 
+  private shoulder: THREE.Object3D | null = null;
+  private tmpV = new THREE.Vector3();
   private chute: THREE.Group | null = null;
+  /** the local player's own canopy is see-through so it never hides the soldier */
+  ownView = false;
   /** Original parachute: striped canopy + lines, built once per character on first use. */
   private buildChute() {
     const g = new THREE.Group();
@@ -128,7 +133,7 @@ export class CharacterView {
     for (let i = 0; i < 8; i++) {
       const seg = new THREE.Mesh(
         new THREE.SphereGeometry(3.2, 3, 6, (i / 8) * Math.PI * 2, (Math.PI * 2) / 8, 0, Math.PI * 0.42),
-        new THREE.MeshLambertMaterial({ color: cols[i % 2], side: THREE.DoubleSide }),
+        new THREE.MeshLambertMaterial({ color: cols[i % 2], side: THREE.DoubleSide, transparent: this.ownView, opacity: this.ownView ? 0.4 : 1, depthWrite: !this.ownView }),
       );
       seg.scale.set(1, 0.55, 1);
       g.add(seg);
@@ -217,12 +222,19 @@ export class CharacterView {
       gun.position.set(0.12, 0.28, -0.55);
       gun.rotation.set(st.pitch ?? 0, 0, 0, 'YXZ');
     } else {
-      const chest = st.crouch ? 0.98 : 1.34;
+      // follow the real shoulder height of the current pose (crouch / crouch-walk lean forward and down)
+      let chest = st.crouch ? 0.98 : 1.34, fwd = -0.32;
+      if (this.shoulder) {
+        this.root.updateMatrixWorld(true);
+        const v = this.root.worldToLocal(this.shoulder.getWorldPosition(this.tmpV));
+        chest = THREE.MathUtils.clamp(v.y - 0.1, 0.7, 1.5);
+        fwd = Math.min(-0.32, v.z - 0.3);
+      }
       if (running) {
         gun.position.set(0.12, chest - 0.12, -0.3);
         gun.rotation.set(-0.35, 0.55, 0.45, 'YXZ'); // carried diagonally while sprinting
       } else {
-        gun.position.set(0.17, chest, -0.32);
+        gun.position.set(0.17, chest, fwd);
         gun.rotation.set(st.pitch ?? 0, 0.03, 0, 'YXZ');
       }
     }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MAP, MAX_ARMOR, MAX_HP, WEAPONS, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
 
+const MINI_PX = 360;
 const el = (cls: string, parent: HTMLElement, html = '') => {
   const d = document.createElement('div');
   d.className = cls;
@@ -76,8 +77,16 @@ export class Hud {
     this.mini = document.createElement('canvas');
     this.mini.className = 'minimap';
     this.mini.dataset.hud = 'map'; this.mini.dataset.scale = '1';
-    this.mini.width = this.mini.height = 220;
+    this.mini.width = this.mini.height = MINI_PX;
     hud.appendChild(this.mini);
+    // tap the minimap to open the big map, tap again to close
+    const toggleMap = (e: Event) => {
+      if (hud.classList.contains('editing')) return;
+      e.preventDefault(); e.stopPropagation();
+      this.mini.classList.toggle('big');
+    };
+    this.mini.addEventListener('touchstart', toggleMap, { passive: false });
+    this.mini.addEventListener('mousedown', toggleMap);
     this.miniBg = this.renderMiniBg();
     this.feed = el('killfeed', hud);
     this.feed.dataset.hud = 'feed'; this.feed.dataset.scale = '1';
@@ -108,19 +117,19 @@ export class Hud {
 
   private renderMiniBg(): HTMLCanvasElement {
     const c = document.createElement('canvas');
-    c.width = c.height = 220;
+    c.width = c.height = MINI_PX;
     const g = c.getContext('2d')!;
-    const k = 220 / MAP.size;
+    const k = MINI_PX / MAP.size;
     // terrain shading by height
     const n = this.map.cells + 1;
     for (let iz = 0; iz < n - 1; iz++) for (let ix = 0; ix < n - 1; ix++) {
       const h = this.map.heights[iz * n + ix];
       const l = Math.max(18, Math.min(80, 38 + h * 1.2));
       g.fillStyle = h > MAP.snowHeight ? '#dfe6ea' : h > 18 ? `hsl(90,8%,${l}%)` : `hsl(${100 - h},40%,${l * 0.8}%)`;
-      g.fillRect(ix * (220 / this.map.cells), iz * (220 / this.map.cells), 220 / this.map.cells + 1, 220 / this.map.cells + 1);
+      g.fillRect(ix * (MINI_PX / this.map.cells), iz * (MINI_PX / this.map.cells), MINI_PX / this.map.cells + 1, MINI_PX / this.map.cells + 1);
     }
     g.fillStyle = '#e8d9c0';
-    for (const p of this.map.props) if (p.p.startsWith('house')) g.fillRect((p.x + MAP.size / 2) * k - 3, (p.z + MAP.size / 2) * k - 3, 6, 6);
+    for (const p of this.map.props) if (p.p.startsWith('house')) g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8);
     return c;
   }
 
@@ -195,15 +204,15 @@ export class Hud {
 
   private drawMini(zone: ZoneState, me: { x: number; z: number; yaw: number }) {
     const g = this.mini.getContext('2d')!;
-    const k = 220 / MAP.size, o = MAP.size / 2;
-    g.clearRect(0, 0, 220, 220);
+    const k = MINI_PX / MAP.size, o = MAP.size / 2;
+    g.clearRect(0, 0, MINI_PX, MINI_PX);
     g.drawImage(this.miniBg, 0, 0);
     // outside zone tint
     g.save();
     g.fillStyle = 'rgba(40,90,200,0.35)';
-    g.beginPath(); g.rect(0, 0, 220, 220); g.arc((zone.cx + o) * k, (zone.cz + o) * k, zone.r * k, 0, Math.PI * 2, true); g.fill('evenodd');
+    g.beginPath(); g.rect(0, 0, MINI_PX, MINI_PX); g.arc((zone.cx + o) * k, (zone.cz + o) * k, zone.r * k, 0, Math.PI * 2, true); g.fill('evenodd');
     g.restore();
-    g.lineWidth = 2;
+    g.lineWidth = 3;
     g.strokeStyle = '#4fb0ff'; g.beginPath(); g.arc((zone.cx + o) * k, (zone.cz + o) * k, zone.r * k, 0, Math.PI * 2); g.stroke();
     g.strokeStyle = '#fff'; g.setLineDash([5, 4]); g.beginPath(); g.arc((zone.nx + o) * k, (zone.nz + o) * k, Math.max(0.5, zone.nr * k), 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
     // who shot me recently
@@ -211,13 +220,13 @@ export class Hud {
     this.hitMarks = this.hitMarks.filter((m) => m.until > now);
     for (const m of this.hitMarks) {
       g.fillStyle = `rgba(255,40,40,${Math.min(1, (m.until - now) / 1000)})`;
-      g.beginPath(); g.arc((m.x + o) * k, (m.z + o) * k, 6, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc((m.x + o) * k, (m.z + o) * k, 9, 0, Math.PI * 2); g.fill();
     }
     // me
     const px = (me.x + o) * k, pz = (me.z + o) * k;
     g.save(); g.translate(px, pz); g.rotate(-me.yaw);
     g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 1.5;
-    g.beginPath(); g.moveTo(0, -9); g.lineTo(6, 6); g.lineTo(0, 3); g.lineTo(-6, 6); g.closePath(); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(0, -14); g.lineTo(9, 9); g.lineTo(0, 4); g.lineTo(-9, 9); g.closePath(); g.fill(); g.stroke();
     g.restore();
   }
 

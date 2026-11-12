@@ -52,6 +52,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   const canvas = el.querySelector('.lobby-3d') as HTMLCanvasElement;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  // if the phone drops the 3D context (too many open), let it come back instead of staying blank
+  canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xe6f4ff, 0x3f5a30, 1.9));
   const sun = new THREE.DirectionalLight(0xfff0d0, 2.2); sun.position.set(3, 5, 4); scene.add(sun);
@@ -115,7 +117,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     if (!profile.name) profile.name = `Soldier${Math.floor(Math.random() * 900 + 100)}`;
     saveProfile(profile);
     alive = false;
-    renderer.dispose();
+    renderer.dispose(); renderer.forceContextLoss();
     el.remove();
     onAction(a, profile);
   };
