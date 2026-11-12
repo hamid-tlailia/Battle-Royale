@@ -17,6 +17,8 @@ export interface InputCmd {
   aimPitch?: number;
   /** desired weapon slot */
   weapon?: number;
+  /** (fractional) server tick the client was rendering other players at — for lag compensation */
+  viewTick?: number;
 }
 
 /** Collision shape of the character. */
@@ -25,6 +27,8 @@ export const SHAPE = {
   CROUCH: { hh: PLAYER.crouchHalfHeight, r: PLAYER.radius },
   /** small sphere used while vaulting through windows / over obstacles */
   BALL: { hh: 0.001, r: 0.27 },
+  /** lying down: low sphere at the torso */
+  PRONE: { hh: 0.001, r: 0.3 },
 } as const;
 
 export interface MoveState {
@@ -36,6 +40,7 @@ export interface MoveState {
   crouch: boolean;
   /** true while using the small vault shape */
   ball: boolean;
+  prone: boolean;
   yaw: number;
   pitch: number;
   /** remaining vault ticks (0 = not vaulting) */
@@ -45,12 +50,12 @@ export interface MoveState {
 }
 
 export const newMoveState = (x: number, y: number, z: number): MoveState => ({
-  x, y, z, vx: 0, vz: 0, vy: 0, grounded: false, crouch: false, ball: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0,
+  x, y, z, vx: 0, vz: 0, vy: 0, grounded: false, crouch: false, ball: false, prone: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0,
 });
 
 export const copyMoveState = (s: MoveState): MoveState => ({ ...s });
 
-export const shapeOf = (s: MoveState) => (s.ball ? SHAPE.BALL : s.crouch ? SHAPE.CROUCH : SHAPE.STAND);
+export const shapeOf = (s: MoveState) => (s.ball ? SHAPE.BALL : s.prone ? SHAPE.PRONE : s.crouch ? SHAPE.CROUCH : SHAPE.STAND);
 /** Distance from capsule centre to feet. */
 export const halfTotalOf = (s: MoveState) => { const sh = shapeOf(s); return sh.hh + sh.r; };
 export const feetY = (s: MoveState) => s.y - halfTotalOf(s);
@@ -77,13 +82,19 @@ export function sanitizeInput(i: InputCmd): InputCmd {
   let aimPitch = Number.isFinite(i.aimPitch) ? clampP(i.aimPitch as number) : pitch;
   if (Math.abs(aimPitch - pitch) > 0.35) aimPitch = pitch + Math.sign(aimPitch - pitch) * 0.35;
   const weapon = Number.isFinite(i.weapon) ? Math.max(0, Math.min(3, (i.weapon as number) | 0)) : undefined;
-  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xff, aimYaw, aimPitch, weapon };
+  const viewTick = Number.isFinite(i.viewTick) ? (i.viewTick as number) : undefined;
+  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xff, aimYaw, aimPitch, weapon, viewTick };
 }
 
-function setShape(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState, shape: 'stand' | 'crouch' | 'ball') {
+type ShapeName = 'stand' | 'crouch' | 'ball' | 'prone';
+const SHAPES: Record<ShapeName, { hh: number; r: number }> = { stand: SHAPE.STAND, crouch: SHAPE.CROUCH, ball: SHAPE.BALL, prone: SHAPE.PRONE };
+const shapeName = (s: MoveState): ShapeName => (s.ball ? 'ball' : s.prone ? 'prone' : s.crouch ? 'crouch' : 'stand');
+
+function setShape(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState, shape: ShapeName) {
   const feet = feetY(s);
   s.crouch = shape === 'crouch';
   s.ball = shape === 'ball';
+  s.prone = shape === 'prone';
   const sh = shapeOf(s);
   col.setHalfHeight(sh.hh);
   col.setRadius(sh.r);
@@ -156,22 +167,23 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
     return;
   }
 
-  // ---------------- Shape changes (crouch / recover from vault) ----------------
+  // ---------------- Shape changes: stand / crouch / prone (and recovering from a vault) ----------------
   const wantCrouch = (input.buttons & BTN.CROUCH) !== 0;
-  const feet = feetY(s);
-  if (s.ball) {
-    // After a vault: grow back as soon as there is room
-    if (!wantCrouch && fits(phys, col, s, SHAPE.STAND, feet)) setShape(phys, col, s, 'stand');
-    else if (fits(phys, col, s, SHAPE.CROUCH, feet)) setShape(phys, col, s, 'crouch');
-  } else if (wantCrouch && !s.crouch) {
-    setShape(phys, col, s, 'crouch');
-  } else if (!wantCrouch && s.crouch) {
-    if (fits(phys, col, s, SHAPE.STAND, feet)) setShape(phys, col, s, 'stand');
+  const wantProne = (input.buttons & BTN.PRONE) !== 0;
+  const target: ShapeName = wantProne ? 'prone' : wantCrouch ? 'crouch' : 'stand';
+  const cur = shapeName(s);
+  if (cur !== target) {
+    const feet = feetY(s);
+    // growing needs head room; if standing is blocked, settle for crouching
+    for (const cand of target === 'stand' ? (['stand', 'crouch'] as ShapeName[]) : [target]) {
+      if (cand === cur) break;
+      if (fits(phys, col, s, SHAPES[cand], feet)) { setShape(phys, col, s, cand); break; }
+    }
   }
   col.setTranslation({ x: s.x, y: s.y, z: s.z });
 
   // ---------------- Jump or vault ----------------
-  if (s.grounded && (input.buttons & BTN.JUMP) && !s.crouch && !s.ball) {
+  if (s.grounded && (input.buttons & BTN.JUMP) && !s.crouch && !s.ball && !s.prone) {
     const v = findVault(phys, col, s);
     if (v) {
       const f = feetY(s);
@@ -190,7 +202,8 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   }
 
   // ---------------- Walk ----------------
-  const speed = s.crouch || s.ball ? PLAYER.crouchSpeed : PLAYER.walkSpeed;
+  const sprint = (input.buttons & BTN.SPRINT) !== 0 && input.mz > 0.5 && !s.crouch && !s.ball && !s.prone;
+  const speed = s.prone ? PLAYER.proneSpeed : s.crouch || s.ball ? PLAYER.crouchSpeed : sprint ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
   // forward = (-sin, -cos), right = (cos, -sin)  (three.js camera convention)
   const tx = (-sin * input.mz + cos * input.mx) * speed;
   const tz = (-cos * input.mz - sin * input.mx) * speed;
@@ -219,4 +232,14 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
 }
 
 /** Eye / camera pivot height above the capsule centre. */
-export const eyeOffset = (s: MoveState) => (s.ball ? 0.1 : s.crouch ? PLAYER.eyeAboveCenter - (PLAYER.halfHeight - PLAYER.crouchHalfHeight) : PLAYER.eyeAboveCenter);
+export const eyeOffset = (s: MoveState) => (s.ball ? 0.1 : s.prone ? 0.08 : s.crouch ? PLAYER.eyeAboveCenter - (PLAYER.halfHeight - PLAYER.crouchHalfHeight) : PLAYER.eyeAboveCenter);
+
+/** Make the physics collider match a (server-provided) movement state: shape + position. */
+export function syncCollider(phys: PhysicsWorld, id: number, s: MoveState) {
+  const col = phys.players.get(id);
+  if (!col) return;
+  const sh = shapeOf(s);
+  col.setHalfHeight(sh.hh);
+  col.setRadius(sh.r);
+  col.setTranslation({ x: s.x, y: s.y, z: s.z });
+}

@@ -16,4 +16,12 @@ they were converted (rescaled, re-textured at lower resolution, compressed, spli
 | Low Poly Trees Grass and Rocks | Rocks, bushes, stump | [olehlila](https://sketchfab.com/olehlila) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/low-poly-trees-grass-and-rocks-4e0463f5df36420bb53079f9de35e81f |
 | Low Poly wood fence on grass | Wooden fence | [cattleya](https://sketchfab.com/cattleya) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/low-poly-wood-fence-on-grass-d35a038f74ea47819459cabae8c28c62 |
 
+## Sounds
+
+| Sound | Author | License | Source |
+|---|---|---|---|
+| Gunshots (cz, sks, shotty, mosin → pistol, rifle, shotgun, sniper), trimmed & normalised | Vincent Sevedge ("Tabasco") | [CC-BY 3.0](http://creativecommons.org/licenses/by/3.0/) (listed as CC0 on OpenGameArt; the archive states CC-BY 3.0, so attribution is given) | https://opengameart.org/content/gunshot-sounds |
+
+Footsteps, hit markers, reload and UI sounds are synthesised in code (original).
+
 Game code, map generation, terrain and UI are original work.

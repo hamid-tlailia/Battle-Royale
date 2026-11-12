@@ -10,6 +10,11 @@ export class Controls {
   mx = 0;
   mz = 0;
   crouchToggle = false;
+  proneToggle = false;
+  sprintToggle = false;
+  /** joystick pushed past its rim toward the top: auto-sprint while held */
+  sprintLock = false;
+  onSprintLock: (on: boolean) => void = () => {};
   scoped = false;
   jumpQueued = 0; // ticks remaining to send jump
   reloadQueued = 0;
@@ -56,6 +61,7 @@ export class Controls {
       if (e.code === 'Space') this.jump();
       if (e.code === 'KeyC' || e.code === 'ControlLeft') this.toggleCrouch();
       if (e.code === 'KeyR') this.reload();
+      if (e.code === 'KeyZ') this.toggleProne();
       if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) this.weapon = n; }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -102,7 +108,9 @@ export class Controls {
 
   jump() { this.jumpQueued = 3; }
   reload() { this.reloadQueued = 3; }
-  toggleCrouch() { this.crouchToggle = !this.crouchToggle; }
+  toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) this.proneToggle = false; }
+  toggleProne() { this.proneToggle = !this.proneToggle; if (this.proneToggle) this.crouchToggle = false; }
+  toggleSprint() { this.sprintToggle = !this.sprintToggle; if (this.sprintToggle) { this.crouchToggle = false; this.proneToggle = false; } }
   setScope(v: boolean) { this.scoped = v; }
 
   private look(dx: number, dy: number) {
@@ -141,6 +149,10 @@ export class Controls {
         const clen = Math.max(1e-6, Math.hypot(dx, dy));
         this.mx = (dx / clen) * mapped;
         this.mz = (-dy / clen) * mapped;
+        // raw distance (not clamped): pushing well past the rim upward locks sprint
+        const rawDx = t.clientX - this.joyOrigin.x, rawDy = t.clientY - this.joyOrigin.y;
+        const lock = Math.hypot(rawDx, rawDy) > this.JOY_R * 1.35 && rawDy < 0 && Math.abs(rawDx) < -rawDy * 0.7;
+        if (lock !== this.sprintLock) { this.sprintLock = lock; this.onSprintLock(lock); }
       } else if (t.identifier === this.lookId) {
         this.look(t.clientX - this.lookLast.x, t.clientY - this.lookLast.y);
         this.lookLast = { x: t.clientX, y: t.clientY };
@@ -154,6 +166,7 @@ export class Controls {
       if (up) { up(); this.buttonTouches.delete(t.identifier); }
       if (t.identifier === this.joyId) {
         this.joyId = null; this.mx = 0; this.mz = 0;
+        if (this.sprintLock) { this.sprintLock = false; this.onSprintLock(false); }
         this.showJoystickIdle();
       } else if (t.identifier === this.lookId) this.lookId = null;
     }
@@ -177,6 +190,8 @@ export class Controls {
     if (this.jumpQueued > 0) { this.jumpQueued--; b |= BTN.JUMP; }
     if (this.reloadQueued > 0) { this.reloadQueued--; b |= BTN.RELOAD; }
     if (this.crouchToggle) b |= BTN.CROUCH;
+    if (this.proneToggle) b |= BTN.PRONE;
+    if ((this.sprintLock || this.sprintToggle || this.keys.has('ShiftLeft')) && !this.fireHeld && !this.scoped) b |= BTN.SPRINT;
     if (this.scoped) b |= BTN.SCOPE;
     if (this.fireHeld) b |= BTN.FIRE;
     return b;

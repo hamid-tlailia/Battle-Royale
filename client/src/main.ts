@@ -1,44 +1,84 @@
 import './ui/style.css';
 import { GAME_TITLE, initPhysics } from '@lw/shared';
 import { sfx } from './audio/sfx';
+import type { GameAssets } from './render/assets';
+
+/** Game server (Colyseus). Set at build time with VITE_SERVER_URL; ?server= overrides for testing. */
+const params = new URLSearchParams(location.search);
+const SERVER_URL = params.get('server') || (import.meta.env.VITE_SERVER_URL as string | undefined) || '';
+/** Network conditioner for testing on a real phone: ?lag=100&loss=0.05 (one-way ms, loss ratio). */
+const COND = { latencyMs: +(params.get('lag') ?? 0), jitterMs: +(params.get('jitter') ?? 0), loss: +(params.get('loss') ?? 0) };
 
 const app = document.getElementById('app')!;
 app.innerHTML = `
   <div id="game"></div>
   <div id="hud"></div>
-  <div id="menu" class="menu">
+  <div id="boot" class="menu">
     <h1>${GAME_TITLE}</h1>
-    <p class="sub">Milestone 2 · Weapons, combat &amp; zone</p>
-    <button id="play" class="play" disabled>LOADING…</button>
+    <p class="sub">Loading…</p>
     <div class="bar"><div id="bar"></div></div>
-    <p class="note">Offline match: you vs 15 bots. Last one standing wins.</p>
   </div>
   <div id="rotate" class="rotate"><div>⟳</div><p>Rotate your phone to landscape</p></div>
 `;
 
-const play = document.getElementById('play') as HTMLButtonElement;
 const bar = document.getElementById('bar') as HTMLDivElement;
-const assetsReady = import('./render/assets').then((m) => m.loadAssets((f) => { bar.style.width = `${Math.round(f * 100)}%`; }));
-const ready = Promise.all([initPhysics(), assetsReady]).then(([, assets]) => {
-  play.disabled = false;
-  play.textContent = 'PLAY';
-  return assets;
-}).catch((e) => {
-  play.textContent = 'LOAD FAILED';
-  console.error(e);
-  throw e;
-});
+const assetsP = import('./render/assets').then((m) => m.loadAssets((f) => { bar.style.width = `${Math.round(f * 100)}%`; }));
 
-play.addEventListener('click', async () => {
-  // Fullscreen + landscape lock where supported (Android Chrome)
+async function checkServer(): Promise<boolean> {
+  if (!SERVER_URL) return false;
+  try {
+    const ctl = new AbortController();
+    setTimeout(() => ctl.abort(), 70000); // free hosts can take ~1 min to wake up
+    const r = await fetch(`${SERVER_URL.replace(/\/$/, '')}/health`, { signal: ctl.signal });
+    return r.ok;
+  } catch { return false; }
+}
+
+async function enterFullscreen() {
   try {
     await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
     await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
-  } catch { /* not supported — fine */ }
-  sfx.unlock();
-  const assets = await ready;
-  document.getElementById('menu')!.remove();
-  const { Game } = await import('./game/Game');
-  const start = () => new Game(document.getElementById('game')!, document.getElementById('hud')!, assets, start);
-  start();
-});
+  } catch { /* not supported */ }
+}
+
+async function boot() {
+  const [, assets] = await Promise.all([initPhysics(), assetsP]);
+  document.getElementById('boot')!.remove();
+  showMenu(assets);
+}
+
+function showMenu(assets: GameAssets) {
+  const invite = params.get('room');
+  void import('./ui/lobby').then(({ showLobby }) => showLobby(app, assets, checkServer(), invite, async (action, profile) => {
+    void enterFullscreen();
+    sfx.unlock();
+    const { Game } = await import('./game/Game');
+    const back = () => showMenu(assets);
+    const gameEl = document.getElementById('game')!, hudEl = document.getElementById('hud')!;
+    if (action.kind === 'offline') {
+      const again = () => new Game(gameEl, hudEl, assets, back, { name: profile.name, skin: profile.skin, slot: profile.slot });
+      again();
+      return;
+    }
+    const status = document.createElement('div');
+    status.className = 'menu';
+    status.innerHTML = `<h2>Connecting…</h2><p class="note">The free server may need up to a minute to wake up.</p>`;
+    app.appendChild(status);
+    try {
+      const { NetSession } = await import('./net/session');
+      const net = new NetSession(SERVER_URL, COND);
+      const ready = new Promise<void>((res) => { net.onReady = res; });
+      const opts = { skin: profile.skin, slot: profile.slot };
+      if (action.kind === 'join') await net.join(profile.name, opts, action.room);
+      else await net.join(profile.name, opts, undefined, action.kind === 'create');
+      await ready;
+      status.remove();
+      new Game(gameEl, hudEl, assets, () => { history.replaceState(null, '', location.pathname); back(); }, { net, name: profile.name, skin: profile.skin, slot: profile.slot });
+    } catch (e) {
+      status.innerHTML = `<h2>Could not join</h2><p class="note">${String((e as Error)?.message ?? e).slice(0, 120)}</p><button class="play">BACK</button>`;
+      status.querySelector('button')!.addEventListener('click', () => { status.remove(); back(); });
+    }
+  }));
+}
+
+void boot();

@@ -8,8 +8,10 @@ export const PLAYER = {
   radius: 0.4,
   halfHeight: 0.5,        // capsule segment half height (standing). Total height = 2*(hh+r) = 1.8m
   crouchHalfHeight: 0.2,  // total crouched height = 1.2m
-  walkSpeed: 5.5,
-  crouchSpeed: 2.6,
+  walkSpeed: 4.6,
+  sprintSpeed: 6.6,
+  crouchSpeed: 2.4,
+  proneSpeed: 1.1,
   jumpVelocity: 7.2,
   gravity: -22,
   maxFallSpeed: 40,
@@ -42,4 +44,6 @@ export const BTN = {
   FIRE: 4,
   SCOPE: 8,
   RELOAD: 16,
+  SPRINT: 32,
+  PRONE: 64,
 } as const;

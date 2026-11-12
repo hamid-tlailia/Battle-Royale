@@ -41,8 +41,14 @@ export class Hud {
     this.root = hud;
     this.vignette = el('zone-vignette', hud);
     this.hurt = el('hurt-flash', hud);
-    this.scope = el('scope-overlay', hud, '<div class="scope-lens"></div>');
-    this.reddot = el('reddot-overlay', hud);
+    this.scope = el('scope-overlay', hud, `<div class="scope-lens">
+      <svg class="reticle" viewBox="-100 -100 200 200">
+        <path d="M-100 0H-14M14 0H100M0 -100V-14M0 14V100" stroke="#000" stroke-width="1.2"/>
+        <path d="M-100 0H-60M60 0H100M0 60V100" stroke="#000" stroke-width="5"/>
+        ${[-40, -30, -20, 20, 30, 40].map((x) => `<circle cx="${x}" cy="0" r="1.6" fill="#000"/><circle cx="0" cy="${x}" r="1.6" fill="#000"/>`).join('')}
+        <circle class="dot" cx="0" cy="0" r="1.8"/>
+      </svg></div>`);
+    this.reddot = el('reddot-overlay', hud, '<div class="holo"><i></i></div>');
     this.cross = el('crosshair', hud);
     const top = el('top-info', hud);
     this.alive = el('alive', top);
@@ -175,7 +181,11 @@ export class Hud {
   }
 
   /** crosshair turns red while it is over an enemy */
-  setOnEnemy(on: boolean) { this.cross.classList.toggle('enemy', on); }
+  setOnEnemy(on: boolean) {
+    this.cross.classList.toggle('enemy', on);
+    this.reddot.classList.toggle('enemy', on);
+    this.scope.classList.toggle('enemy', on);
+  }
 
   update(dt: number, camera: THREE.Camera) {
     const w = window.innerWidth, h = window.innerHeight;

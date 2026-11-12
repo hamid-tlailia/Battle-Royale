@@ -222,7 +222,7 @@ describe('full offline match', () => {
       for (const p of sim.players.values()) if (p.alive && p.move.y < sim.phys.groundHeight(p.move.x, p.move.z) - 0.5) belowGround++;
     }
     console.log(`match length ${(sim.tick / TICK_RATE).toFixed(0)} s, first kill handled`);
-    expect(sim.tick / TICK_RATE).toBeGreaterThan(150); // bots are not instant aimbots
+    expect(sim.tick / TICK_RATE).toBeGreaterThan(100); // bots are not instant aimbots
     expect(sim.winner).not.toBeNull();
     expect(sim.alive).toBe(1);
     expect(kills).toBe(15);

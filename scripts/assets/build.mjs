@@ -217,7 +217,7 @@ async function buildSoldier() {
   const corrRot = qMul(qInv(rT), rA); // anim armature space -> target armature space
 
   // --- Keep / rename native clips
-  const keep = { jump_up: 'jump', standing_firing: 'fire', crouch_firing: 'crouch_fire', walking_firing: 'walk_fire', death_from_front_headshot: 'death', crouch_death: 'death_crouch' };
+  const keep = { jump_up: 'jump', standing_firing: 'fire', crouch_firing: 'crouch_fire', walking_firing: 'walk_fire', death_from_front_headshot: 'death', crouch_death: 'death_crouch', prone_firing: 'prone', prone_death: 'death_prone' };
   for (const a of root.listAnimations()) {
     if (keep[a.getName()]) a.setName(keep[a.getName()]); else a.dispose();
   }

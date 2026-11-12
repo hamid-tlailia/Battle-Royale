@@ -1,3 +1,4 @@
+import { ICONS } from './icons';
 /** Small settings panel (gear button): look sensitivity, scope sensitivity, aim assist, sound. Saved per device. */
 export interface Settings { sens: number; scopeSens: number; aimAssist: boolean; sound: boolean }
 const KEY = 'lw.settings.v1';
@@ -8,10 +9,10 @@ export function loadSettings(): Settings {
 }
 function save(s: Settings) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private mode */ } }
 
-export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Settings) => void) {
+export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Settings) => void, onEditLayout?: () => void) {
   const btn = document.createElement('button');
   btn.className = 'gear-btn';
-  btn.textContent = '⚙';
+  btn.innerHTML = ICONS.settings;
   const panel = document.createElement('div');
   panel.className = 'settings-panel';
   panel.style.display = 'none';
@@ -24,12 +25,14 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
     ${slider('Scope sensitivity', 'scopeSens')}
     <label class="row"><input type="checkbox" data-c="aimAssist" ${s.aimAssist ? 'checked' : ''}> Aim assist</label>
     <label class="row"><input type="checkbox" data-c="sound" ${s.sound ? 'checked' : ''}> Sound</label>
+    <button class="layout">CUSTOMIZE BUTTON LAYOUT</button>
     <button class="close">CLOSE</button>`;
   const toggle = (e: Event) => { e.preventDefault(); e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; };
   btn.addEventListener('touchstart', toggle, { passive: false });
   btn.addEventListener('click', toggle);
   panel.querySelector('.close')!.addEventListener('click', toggle);
   panel.querySelector('.close')!.addEventListener('touchend', toggle);
+  panel.querySelector('.layout')!.addEventListener('click', (e) => { toggle(e); onEditLayout?.(); });
   panel.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
   panel.querySelectorAll<HTMLInputElement>('input[type=range]').forEach((inp) => inp.addEventListener('input', () => {
     const k = inp.dataset.k as 'sens' | 'scopeSens';

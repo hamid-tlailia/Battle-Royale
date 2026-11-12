@@ -12,6 +12,8 @@ export interface Hitbox {
   /** head sphere */
   hx: number; hy: number; hz: number;
   hr: number;
+  /** history: tick this hitbox belongs to */
+  tick?: number;
 }
 
 export function hitboxOf(s: MoveState, out: Hitbox = {} as Hitbox): Hitbox {
@@ -19,6 +21,16 @@ export function hitboxOf(s: MoveState, out: Hitbox = {} as Hitbox): Hitbox {
   // head is slightly forward of the body centre (the model leans into the rifle)
   const fx = -Math.sin(s.yaw) * 0.06, fz = -Math.cos(s.yaw) * 0.06;
   let bodyLo: number, bodyHi: number, head: number;
+  if (s.prone) {
+    // lying along the facing direction
+    const dx = -Math.sin(s.yaw), dz = -Math.cos(s.yaw);
+    out.ax = s.x - dx * 0.6; out.ay = f + 0.22; out.az = s.z - dz * 0.6;
+    out.bx = s.x + dx * 0.35; out.by = f + 0.25; out.bz = s.z + dz * 0.35;
+    out.br = 0.22;
+    out.hx = s.x + dx * 0.68; out.hy = f + 0.3; out.hz = s.z + dz * 0.68;
+    out.hr = 0.15;
+    return out;
+  }
   if (s.ball) { bodyLo = f + 0.25; bodyHi = f + 0.35; head = f + 0.62; }
   else if (s.crouch) { bodyLo = f + 0.3; bodyHi = f + 0.82; head = f + 1.05; }
   else { bodyLo = f + 0.35; bodyHi = f + 1.28; head = f + 1.6; }

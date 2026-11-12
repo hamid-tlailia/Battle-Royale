@@ -9,3 +9,4 @@ export * from './config/weapons';
 export * from './sim/combat';
 export * from './sim/zone';
 export * from './sim/game';
+export * from './net/protocol';

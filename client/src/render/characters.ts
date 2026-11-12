@@ -1,18 +1,28 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { PLAYER } from '@lw/shared';
+import { SHAPE } from '@lw/shared';
 import type { GameAssets, GunName } from './assets';
 
-type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'jump' | 'fire' | 'crouch_idle' | 'crouch_walk' | 'crouch_fire' | 'death' | 'death_crouch';
+type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'jump' | 'fire' | 'crouch_idle' | 'crouch_walk' | 'crouch_fire' | 'death' | 'death_crouch' | 'prone' | 'death_prone';
 
-const TINTS = [0xffffff, 0xd8e4ff, 0xffe2c8, 0xd9ffd9, 0xf0d8ff, 0xfff4c0, 0xc8f4ff, 0xffd0d0];
+/** Outfit colours (multiplied over the camo texture). Index 0 = original woodland camo. Chosen in the lobby. */
+export const SKINS = [
+  { name: 'Woodland', color: 0xffffff },
+  { name: 'Desert', color: 0xffe2b0 },
+  { name: 'Arctic', color: 0xdfeeff },
+  { name: 'Night', color: 0x8a90a8 },
+  { name: 'Jungle', color: 0xbfe8a8 },
+  { name: 'Crimson', color: 0xffb0a8 },
+  { name: 'Royal', color: 0xc8b8ff },
+  { name: 'Gold', color: 0xffe07a },
+];
 const LOD_DISTANCE = 14;
 /** Speed (m/s) at which each locomotion clip looks right — used to scale playback rate. */
-const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 1.6, walk_fire: 1.7, run: 5.2, crouch_walk: 1.6 };
+const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 1.6, walk_fire: 2.6, run: 6.0, crouch_walk: 1.6 };
 
 export interface CharacterState {
   x: number; y: number; z: number; yaw: number;
-  speed: number; crouch: boolean; grounded: boolean;
+  speed: number; crouch: boolean; grounded: boolean; prone?: boolean; ball?: boolean;
   firing?: boolean; dead?: boolean; pitch?: number;
   /** world horizontal velocity, used for directional locomotion */
   vx?: number; vz?: number;
@@ -31,7 +41,6 @@ export class CharacterView {
   private body: THREE.SkinnedMesh | null = null;
   private bodyLod: THREE.SkinnedMesh | null = null;
   private gun: THREE.Object3D | null = null;
-  private hand: THREE.Bone | null = null;
   private wasGrounded = true;
   private bodyOffset = 0;
   private airTime = 0;
@@ -39,7 +48,7 @@ export class CharacterView {
   private skipAcc = 0;
   readonly radius = 1.2;
 
-  constructor(assets: GameAssets, index: number, gunName: GunName = 'rifle') {
+  constructor(assets: GameAssets, skin: number, gunName: GunName = 'rifle') {
     this.model = SkeletonUtils.clone(assets.soldier.scene);
     // Normalise height to 1.8 m and put feet at y=0 (measured on the skinned rest pose).
     this.model.updateMatrixWorld(true);
@@ -51,19 +60,18 @@ export class CharacterView {
     this.model.rotation.y = Math.PI; // asset faces +Z, game forward is -Z
     this.root.add(this.model);
 
-    const tint = new THREE.Color(TINTS[index % TINTS.length]);
+    const skinIdx = ((skin % SKINS.length) + SKINS.length) % SKINS.length;
+    const tint = new THREE.Color(SKINS[skinIdx].color);
     this.model.traverse((o) => {
       const sm = o as THREE.SkinnedMesh;
       if (!sm.isSkinnedMesh) return;
       sm.frustumCulled = false;
-      if (index % TINTS.length !== 0) {
+      if (skinIdx !== 0) {
         const mat = (sm.material as THREE.MeshLambertMaterial).clone();
         mat.color.copy(tint);
         sm.material = mat;
       }
       if (sm.name.includes('lod')) this.bodyLod = sm; else this.body = sm;
-      const b = sm.skeleton.bones.find((x) => x.name.includes('RightHand'));
-      if (b) this.hand = b;
     });
     if (this.bodyLod) this.bodyLod.visible = false;
 
@@ -110,7 +118,9 @@ export class CharacterView {
 
   /** dist = distance to camera (for LOD and animation rate). */
   update(st: CharacterState, dt: number, dist: number, visible: boolean) {
-    const halfTotal = (st.crouch ? PLAYER.crouchHalfHeight : PLAYER.halfHeight) + PLAYER.radius;
+    // capsule centre -> feet, for every collision shape (stand / crouch / prone / vault sphere)
+    const sh = st.ball ? SHAPE.BALL : st.prone ? SHAPE.PRONE : st.crouch ? SHAPE.CROUCH : SHAPE.STAND;
+    const halfTotal = sh.hh + sh.r;
     this.root.position.set(st.x, st.y - halfTotal, st.z);
     this.root.rotation.y = st.yaw;
     this.root.visible = visible;
@@ -118,10 +128,11 @@ export class CharacterView {
     // choose clip
     if (!st.grounded) this.airTime += dt; else this.airTime = 0;
     let clip: Clip;
-    if (st.dead) clip = st.crouch ? 'death_crouch' : 'death';
+    if (st.dead) clip = st.prone ? 'death_prone' : st.crouch ? 'death_crouch' : 'death';
+    else if (st.prone) clip = 'prone';
     else if (this.airTime > 0.15) clip = 'jump';
     else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
-    else if (st.speed > 3.6) clip = 'run';
+    else if (st.speed > 5.2) clip = 'run';
     else if (st.speed > 0.4) clip = 'walk_fire';
     else clip = st.firing ? 'fire' : 'idle_rifle';
     if (clip === 'jump' && this.wasGrounded) this.actions.get('jump')?.reset();
@@ -153,22 +164,32 @@ export class CharacterView {
     if (this.skipFrames === 0 || Math.random() < 1 / (this.skipFrames + 1)) {
       this.mixer.update(this.skipAcc);
       this.skipAcc = 0;
-      if (visible && this.gun && this.hand) this.placeGun(st);
     }
+    if (visible && this.gun) this.placeGun(st);
   }
 
-  private tmp = new THREE.Vector3();
+  /**
+   * The gun is held at a fixed, always-visible spot in front of the right shoulder (not glued to the
+   * hand bone, whose pose varies per animation and could bury the gun in the body), aimed with the view.
+   */
   private placeGun(st: CharacterState) {
     const gun = this.gun!;
     gun.visible = !st.dead;
     if (st.dead) return;
-    this.root.updateMatrixWorld(true);
-    this.hand!.getWorldPosition(this.tmp);
-    this.root.worldToLocal(this.tmp);
-    gun.position.copy(this.tmp);
-    gun.position.y -= 0.02;
     const running = this.current === 'run';
-    gun.rotation.set(running ? -0.5 : (st.pitch ?? 0), running ? 0.5 : 0.06, running ? 0.4 : 0, 'YXZ');
+    if (st.prone) {
+      gun.position.set(0.12, 0.28, -0.55);
+      gun.rotation.set(st.pitch ?? 0, 0, 0, 'YXZ');
+    } else {
+      const chest = st.crouch ? 0.98 : 1.34;
+      if (running) {
+        gun.position.set(0.12, chest - 0.12, -0.3);
+        gun.rotation.set(-0.35, 0.55, 0.45, 'YXZ'); // carried diagonally while sprinting
+      } else {
+        gun.position.set(0.17, chest, -0.32);
+        gun.rotation.set(st.pitch ?? 0, 0.03, 0, 'YXZ');
+      }
+    }
   }
 
   dispose() {

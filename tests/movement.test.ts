@@ -174,6 +174,41 @@ describe('movement & collision', () => {
     expect(s.crouch).toBe(false);
   });
 
+  it('sprint is faster than walking, only when moving forward and standing', () => {
+    const phys = new PhysicsWorld(map);
+    const lane = map.spawns[3];
+    const run = (buttons: number, mz: number, mx = 0) => {
+      const s = spawn(phys, 77, lane.x, lane.z);
+      for (let i = 0; i < 10; i++) simulateMove(phys, 77, s, cmd(), DT);
+      const x0 = s.x, z0 = s.z;
+      for (let i = 0; i < 30; i++) { simulateMove(phys, 77, s, cmd({ mz, mx, buttons }), DT); phys.updateQueries(); }
+      phys.removePlayer(77);
+      return Math.hypot(s.x - x0, s.z - z0);
+    };
+    const walk = run(0, 1), sprint = run(BTN.SPRINT, 1), sideSprint = run(BTN.SPRINT, 0, 1), crouchSprint = run(BTN.SPRINT | BTN.CROUCH, 1);
+    expect(sprint).toBeGreaterThan(walk * 1.25);
+    expect(sprint).toBeLessThanOrEqual(PLAYER.sprintSpeed + 0.05);
+    expect(sideSprint).toBeLessThanOrEqual(PLAYER.walkSpeed + 0.05);
+    expect(crouchSprint).toBeLessThanOrEqual(PLAYER.crouchSpeed + 0.05);
+  });
+
+  it('prone lies down (low, slow) and stands back up', () => {
+    const phys = new PhysicsWorld(map);
+    const s = spawn(phys, 1, 30, -30);
+    for (let i = 0; i < 20; i++) simulateMove(phys, 1, s, cmd(), DT);
+    const feet0 = s.y - halfTotalOf(s);
+    simulateMove(phys, 1, s, cmd({ buttons: BTN.PRONE }), DT);
+    expect(s.prone).toBe(true);
+    expect(halfTotalOf(s) * 2).toBeLessThan(0.7);
+    expect(Math.abs(s.y - halfTotalOf(s) - feet0)).toBeLessThan(0.05); // feet stay on the ground
+    const x0 = s.x;
+    for (let i = 0; i < 30; i++) simulateMove(phys, 1, s, cmd({ buttons: BTN.PRONE, mz: 1, yaw: -Math.PI / 2 }), DT);
+    expect(Math.abs(s.x - x0)).toBeLessThanOrEqual(PLAYER.proneSpeed + 0.05);
+    simulateMove(phys, 1, s, cmd(), DT);
+    expect(s.prone).toBe(false);
+    expect(s.crouch).toBe(false);
+  });
+
   it('20 bots for 60s (zone off, no friendly fire limits): nobody falls through the world, overlaps, or exceeds speed', () => {
     const sim = new GameSim(MAP.seed, { zone: false });
     for (let i = 0; i < 20; i++) sim.addPlayer(i, `bot${i}`, true);

@@ -51,7 +51,7 @@ export class BotBrain {
       this.scanCooldown = 8 + Math.floor(this.rnd() * 4);
       const eye = sim.eye(p);
       // early game: explore/loot, only fight at close range
-      let best: SimPlayer | null = null, bestD = sim.tick < 45 * TICK_RATE ? 14 : sim.tick < 90 * TICK_RATE ? 30 : 45;
+      let best: SimPlayer | null = null, bestD = sim.liveTicks < 60 * TICK_RATE ? 8 : sim.liveTicks < 100 * TICK_RATE ? 25 : 45;
       for (const q of sim.players.values()) {
         if (q === p || !q.alive) continue;
         const d = Math.hypot(q.move.x - s.x, q.move.z - s.z);
@@ -73,7 +73,7 @@ export class BotBrain {
     const distToZone = Math.hypot(s.x - zone.nx, s.z - zone.nz);
     const mustRun = distToZone > zone.nr * 0.85 && (zone.shrinking || zone.timer < 20) || Math.hypot(s.x - zone.cx, s.z - zone.cz) > zone.r - 3;
 
-    if (target && target.alive && !mustRun) {
+    if (target && target.alive && !mustRun && sim.phase === 'live') {
       // ---------- combat ----------
       this.seenTicks++;
       const eye = sim.eye(p);
@@ -120,6 +120,7 @@ export class BotBrain {
       yaw = Math.atan2(-dx, -dz);
       if (this.rnd() < 0.01) this.pace = this.rnd() < 0.7 ? 1 : 0.55; // sometimes walk instead of run
       mz = mustRun ? 1 : this.pace;
+      if (mustRun) buttons |= BTN.SPRINT;
       // top up the magazine while walking
       const slot = p.weapons[p.slot];
       if (slot.mag < 8 && slot.reserve > 0 && !p.reloadEndTick && this.rnd() < 0.05) buttons |= BTN.RELOAD;

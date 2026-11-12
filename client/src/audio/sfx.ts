@@ -20,10 +20,23 @@ export class Sfx {
     this.master.gain.value = 0.8;
     const comp = this.ctx.createDynamicsCompressor();
     this.master.connect(comp).connect(this.ctx.destination);
+    void this.loadSamples();
     const len = this.ctx.sampleRate * 1.5;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+
+  private samples = new Map<string, AudioBuffer>();
+  /** Real recorded gunshots (CC-BY 3.0, Vincent Sevedge / OpenGameArt — see CREDITS.md). */
+  private async loadSamples() {
+    const ctx = this.ctx!;
+    await Promise.all(['pistol', 'rifle', 'shotgun', 'sniper'].map(async (n) => {
+      try {
+        const buf = await (await fetch(`/sfx/${n}.mp3`)).arrayBuffer();
+        this.samples.set(n, await ctx.decodeAudioData(buf));
+      } catch { /* keep synth fallback */ }
+    }));
   }
 
   /** dist in metres, pan -1..1 */
@@ -62,9 +75,20 @@ export class Sfx {
   }
 
   shot(w: WeaponId, dist: number, pan: number) {
-    const d = this.chain(w === 'sniper' ? 1.3 : w === 'shotgun' ? 1.1 : 0.8, dist, pan);
+    const d = this.chain(w === 'sniper' ? 1.3 : w === 'shotgun' ? 1.1 : 0.9, dist, pan);
     if (!d) return;
     const t = this.ctx!.currentTime;
+    const sample = this.samples.get(w);
+    if (sample) {
+      const src = this.ctx!.createBufferSource();
+      src.buffer = sample;
+      src.playbackRate.value = 0.94 + Math.random() * 0.12; // no two shots identical
+      src.connect(d);
+      src.start(t);
+      // distant shots get a low rumble tail (echo off the mountains)
+      if (dist > 40) this.burst(d, t + 0.05, 0.8, 300, 0.5, 0.35, 0.7);
+      return;
+    }
     switch (w) {
       case 'pistol': this.burst(d, t, 0.15, 2200, 0.8, 1, 0.12); this.thump(d, t, 180, 60, 0.6, 0.08); break;
       case 'rifle': this.burst(d, t, 0.2, 1500, 0.7, 1, 0.16); this.thump(d, t, 140, 45, 0.9, 0.11); break;
