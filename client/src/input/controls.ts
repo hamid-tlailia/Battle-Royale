@@ -12,6 +12,9 @@ export class Controls {
   crouchToggle = false;
   scoped = false;
   jumpQueued = 0; // ticks remaining to send jump
+  reloadQueued = 0;
+  fireHeld = false;
+  weapon = 1;
   sensitivity = 1;
 
   private keys = new Set<string>();
@@ -36,15 +39,17 @@ export class Controls {
     this.showJoystickIdle();
 
     surface.addEventListener('touchstart', this.onTouchStart, { passive: false });
-    surface.addEventListener('touchmove', this.onTouchMove, { passive: false });
-    surface.addEventListener('touchend', this.onTouchEnd, { passive: false });
-    surface.addEventListener('touchcancel', this.onTouchEnd, { passive: false });
+    window.addEventListener('touchmove', this.onTouchMove, { passive: false });
+    window.addEventListener('touchend', this.onTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', this.onTouchEnd, { passive: false });
 
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
       if (e.code === 'Space') this.jump();
       if (e.code === 'KeyC' || e.code === 'ControlLeft') this.toggleCrouch();
+      if (e.code === 'KeyR') this.reload();
+      if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) this.weapon = n; }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -52,7 +57,9 @@ export class Controls {
       if (this.isTouch) return;
       if (!this.pointerLocked) { surface.requestPointerLock?.(); return; }
       if (e.button === 2) this.setScope(!this.scoped);
+      if (e.button === 0) this.fireHeld = true;
     });
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.fireHeld = false; });
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => { this.pointerLocked = document.pointerLockElement === surface; });
     document.addEventListener('mousemove', (e) => {
@@ -71,7 +78,23 @@ export class Controls {
     el.addEventListener('mouseup', up);
   }
 
+  /** Button that also acts as a look-drag area while held (the FIRE button). */
+  bindLookButton(el: HTMLElement, onDown: () => void, onUp: () => void) {
+    el.addEventListener('touchstart', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('pressed');
+      onDown();
+      const t = e.changedTouches[0];
+      if (this.lookId === null) { this.lookId = t.identifier; this.lookLast = { x: t.clientX, y: t.clientY }; }
+      this.buttonTouches.set(t.identifier, () => { el.classList.remove('pressed'); onUp(); });
+    }, { passive: false });
+    el.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); onDown(); });
+    el.addEventListener('mouseup', (e) => { e.preventDefault(); e.stopPropagation(); onUp(); });
+  }
+  private buttonTouches = new Map<number, () => void>();
+
   jump() { this.jumpQueued = 3; }
+  reload() { this.reloadQueued = 3; }
   toggleCrouch() { this.crouchToggle = !this.crouchToggle; }
   setScope(v: boolean) { this.scoped = v; }
 
@@ -97,7 +120,7 @@ export class Controls {
   };
 
   private onTouchMove = (e: TouchEvent) => {
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
       if (t.identifier === this.joyId) {
         let dx = t.clientX - this.joyOrigin.x, dy = t.clientY - this.joyOrigin.y;
@@ -119,6 +142,8 @@ export class Controls {
 
   private onTouchEnd = (e: TouchEvent) => {
     for (const t of Array.from(e.changedTouches)) {
+      const up = this.buttonTouches.get(t.identifier);
+      if (up) { up(); this.buttonTouches.delete(t.identifier); }
       if (t.identifier === this.joyId) {
         this.joyId = null; this.mx = 0; this.mz = 0;
         this.showJoystickIdle();
@@ -142,8 +167,10 @@ export class Controls {
   sampleButtons(): number {
     let b = 0;
     if (this.jumpQueued > 0) { this.jumpQueued--; b |= BTN.JUMP; }
+    if (this.reloadQueued > 0) { this.reloadQueued--; b |= BTN.RELOAD; }
     if (this.crouchToggle) b |= BTN.CROUCH;
     if (this.scoped) b |= BTN.SCOPE;
+    if (this.fireHeld) b |= BTN.FIRE;
     return b;
   }
 

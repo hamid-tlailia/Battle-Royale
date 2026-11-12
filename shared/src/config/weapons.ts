@@ -1,0 +1,70 @@
+import { TICK_RATE } from './game';
+
+export type WeaponId = 'pistol' | 'rifle' | 'shotgun' | 'sniper';
+export const WEAPON_IDS: WeaponId[] = ['pistol', 'rifle', 'shotgun', 'sniper'];
+
+/** Data-driven weapon definitions. Server and client read the same table. */
+export interface WeaponDef {
+  id: WeaponId;
+  name: string;
+  /** damage per bullet/pellet at close range */
+  damage: number;
+  headMult: number;
+  rpm: number;
+  auto: boolean;
+  mag: number;
+  /** seconds */
+  reloadTime: number;
+  /** metres: bullets stop here */
+  range: number;
+  /** damage starts dropping after this distance… */
+  falloffStart: number;
+  /** …down to this fraction at max range */
+  minDamageFrac: number;
+  /** cone half-angle (radians) when firing from the hip */
+  hipSpread: number;
+  /** cone half-angle when scoped / aiming down sights */
+  adsSpread: number;
+  pellets: number;
+  /** vertical fov (degrees) while scoped */
+  scopeFov: number;
+  /** spare ammo carried at spawn (offline sandbox) */
+  startReserve: number;
+}
+
+export const WEAPONS: Record<WeaponId, WeaponDef> = {
+  pistol: {
+    id: 'pistol', name: 'Pistol', damage: 24, headMult: 1.8, rpm: 320, auto: false, mag: 12, reloadTime: 1.3,
+    range: 70, falloffStart: 20, minDamageFrac: 0.5, hipSpread: 0.025, adsSpread: 0.01, pellets: 1, scopeFov: 52, startReserve: 48,
+  },
+  rifle: {
+    id: 'rifle', name: 'Assault Rifle', damage: 19, headMult: 1.8, rpm: 600, auto: true, mag: 30, reloadTime: 2.2,
+    range: 140, falloffStart: 45, minDamageFrac: 0.6, hipSpread: 0.04, adsSpread: 0.012, pellets: 1, scopeFov: 40, startReserve: 120,
+  },
+  shotgun: {
+    id: 'shotgun', name: 'Shotgun', damage: 12, headMult: 1.5, rpm: 70, auto: false, mag: 5, reloadTime: 2.6,
+    range: 35, falloffStart: 7, minDamageFrac: 0.25, hipSpread: 0.085, adsSpread: 0.065, pellets: 9, scopeFov: 55, startReserve: 25,
+  },
+  sniper: {
+    id: 'sniper', name: 'Sniper', damage: 86, headMult: 2.2, rpm: 40, auto: false, mag: 5, reloadTime: 3.0,
+    range: 320, falloffStart: 160, minDamageFrac: 0.85, hipSpread: 0.07, adsSpread: 0.0, pellets: 1, scopeFov: 12, startReserve: 20,
+  },
+};
+
+/** Ticks between shots. */
+export const fireInterval = (w: WeaponDef) => Math.max(1, Math.round((60 / w.rpm) * TICK_RATE));
+
+/** Damage after distance falloff (per bullet/pellet). */
+export function damageAt(w: WeaponDef, dist: number, head: boolean): number {
+  let f = 1;
+  if (dist > w.falloffStart) {
+    const t = Math.min(1, (dist - w.falloffStart) / Math.max(1, w.range - w.falloffStart));
+    f = 1 - (1 - w.minDamageFrac) * t;
+  }
+  return w.damage * f * (head ? w.headMult : 1);
+}
+
+export const MAX_HP = 100;
+export const MAX_ARMOR = 100;
+/** Fraction of incoming damage absorbed by armor while it lasts. */
+export const ARMOR_ABSORB = 0.5;

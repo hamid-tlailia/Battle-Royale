@@ -82,6 +82,18 @@ export class CharacterView {
     // placed at the right hand and aimed along the player's view direction.
     this.gun = assets.guns[gunName].clone();
     this.root.add(this.gun);
+    const box = new THREE.Box3().setFromObject(assets.guns[gunName]);
+    this.muzzleLocal.set(0, (box.min.y + box.max.y) / 2 + 0.02, box.min.z);
+  }
+  private muzzleLocal = new THREE.Vector3();
+
+  /** World position of the gun muzzle (falls back to chest height). */
+  muzzleWorld(out: THREE.Vector3): THREE.Vector3 {
+    if (this.gun && this.gun.visible && this.root.visible) {
+      this.gun.updateWorldMatrix(true, false);
+      return out.copy(this.muzzleLocal).applyMatrix4(this.gun.matrixWorld);
+    }
+    return out.set(0, 1.35, -0.5).applyMatrix4(this.root.matrixWorld);
   }
 
   private play(name: Clip, fade = 0.2) {

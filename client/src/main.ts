@@ -1,5 +1,6 @@
 import './ui/style.css';
 import { GAME_TITLE, initPhysics } from '@lw/shared';
+import { sfx } from './audio/sfx';
 
 const app = document.getElementById('app')!;
 app.innerHTML = `
@@ -7,10 +8,10 @@ app.innerHTML = `
   <div id="hud"></div>
   <div id="menu" class="menu">
     <h1>${GAME_TITLE}</h1>
-    <p class="sub">Milestone 1.5 · Real models &amp; performance</p>
+    <p class="sub">Milestone 2 · Weapons, combat &amp; zone</p>
     <button id="play" class="play" disabled>LOADING…</button>
     <div class="bar"><div id="bar"></div></div>
-    <p class="note">Offline test: you + 15 wandering bots.</p>
+    <p class="note">Offline match: you vs 15 bots. Last one standing wins.</p>
   </div>
   <div id="rotate" class="rotate"><div>⟳</div><p>Rotate your phone to landscape</p></div>
 `;
@@ -34,8 +35,10 @@ play.addEventListener('click', async () => {
     await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
     await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
   } catch { /* not supported — fine */ }
+  sfx.unlock();
   const assets = await ready;
   document.getElementById('menu')!.remove();
-  const { OfflineGame } = await import('./game/OfflineGame');
-  new OfflineGame(document.getElementById('game')!, document.getElementById('hud')!, assets);
+  const { Game } = await import('./game/Game');
+  const start = () => new Game(document.getElementById('game')!, document.getElementById('hud')!, assets, start);
+  start();
 });

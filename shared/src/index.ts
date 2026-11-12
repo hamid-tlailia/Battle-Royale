@@ -5,3 +5,7 @@ export * from './sim/physics';
 export * from './sim/movement';
 export * from './sim/bot';
 export * from './map/prefabs';
+export * from './config/weapons';
+export * from './sim/combat';
+export * from './sim/zone';
+export * from './sim/game';

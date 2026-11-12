@@ -1,0 +1,124 @@
+import type { WeaponId } from '@lw/shared';
+
+/**
+ * All sounds are synthesised with WebAudio (no audio files to download or license).
+ * Positional: volume falls with distance, far shots are muffled, stereo pan from direction.
+ */
+export class Sfx {
+  private ctx: AudioContext | null = null;
+  private master!: GainNode;
+  private noise!: AudioBuffer;
+  enabled = true;
+
+  /** Must be called from a user gesture (tap) on mobile. */
+  unlock() {
+    if (this.ctx) { void this.ctx.resume(); return; }
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC({ latencyHint: 'interactive' });
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.8;
+    const comp = this.ctx.createDynamicsCompressor();
+    this.master.connect(comp).connect(this.ctx.destination);
+    const len = this.ctx.sampleRate * 1.5;
+    this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = this.noise.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+
+  /** dist in metres, pan -1..1 */
+  private chain(vol: number, dist: number, pan: number): AudioNode | null {
+    const ctx = this.ctx;
+    if (!ctx || !this.enabled) return null;
+    const att = vol / (1 + (dist / 12) ** 1.4);
+    if (att < 0.004) return null;
+    const g = ctx.createGain(); g.gain.value = att;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.value = Math.max(900, 16000 / (1 + dist / 25));
+    const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));
+    lp.connect(g).connect(p).connect(this.master);
+    return lp;
+  }
+
+  private burst(dest: AudioNode, t: number, dur: number, f: number, q: number, peak: number, decay: number) {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource(); src.buffer = this.noise;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    src.connect(bp).connect(g).connect(dest);
+    src.start(t, Math.random() * 0.5, dur);
+  }
+
+  private thump(dest: AudioNode, t: number, f0: number, f1: number, peak: number, decay: number) {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + decay);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    o.connect(g).connect(dest); o.start(t); o.stop(t + decay + 0.02);
+  }
+
+  shot(w: WeaponId, dist: number, pan: number) {
+    const d = this.chain(w === 'sniper' ? 1.3 : w === 'shotgun' ? 1.1 : 0.8, dist, pan);
+    if (!d) return;
+    const t = this.ctx!.currentTime;
+    switch (w) {
+      case 'pistol': this.burst(d, t, 0.15, 2200, 0.8, 1, 0.12); this.thump(d, t, 180, 60, 0.6, 0.08); break;
+      case 'rifle': this.burst(d, t, 0.2, 1500, 0.7, 1, 0.16); this.thump(d, t, 140, 45, 0.9, 0.11); break;
+      case 'shotgun': this.burst(d, t, 0.4, 900, 0.5, 1, 0.32); this.thump(d, t, 110, 35, 1, 0.22); break;
+      case 'sniper': this.burst(d, t, 0.6, 2600, 0.6, 1, 0.08); this.burst(d, t + 0.01, 0.8, 700, 0.4, 0.7, 0.6); this.thump(d, t, 160, 30, 1, 0.3); break;
+    }
+  }
+
+  step(dist: number, pan: number, soft = false) {
+    const d = this.chain(soft ? 0.18 : 0.35, dist, pan);
+    if (!d) return;
+    const t = this.ctx!.currentTime;
+    this.burst(d, t, 0.08, 300 + Math.random() * 250, 1.2, 1, 0.07);
+    this.thump(d, t, 90 + Math.random() * 20, 50, 0.4, 0.06);
+  }
+
+  land() { const d = this.chain(0.5, 0, 0); if (d) this.thump(d, this.ctx!.currentTime, 120, 40, 1, 0.12); }
+
+  hitMarker(head: boolean) {
+    const ctx = this.ctx; if (!ctx || !this.enabled) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'square';
+    o.frequency.value = head ? 1700 : 1100;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.07);
+  }
+
+  kill() {
+    const ctx = this.ctx; if (!ctx || !this.enabled) return;
+    const t = ctx.currentTime;
+    for (const [i, f] of [880, 1320].entries()) {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.08);
+      g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.08 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.08 + 0.25);
+      o.connect(g).connect(this.master); o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.3);
+    }
+  }
+
+  hurt() { const d = this.chain(0.6, 0, 0); if (d) { const t = this.ctx!.currentTime; this.thump(d, t, 220, 70, 0.8, 0.15); } }
+
+  reload() {
+    const d = this.chain(0.4, 0, 0.3); if (!d) return;
+    const t = this.ctx!.currentTime;
+    this.burst(d, t, 0.05, 3000, 3, 0.8, 0.04);
+    this.burst(d, t + 0.35, 0.05, 2400, 3, 0.9, 0.05);
+  }
+
+  zoneTick() {
+    const ctx = this.ctx; if (!ctx || !this.enabled) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 110;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.3);
+  }
+}
+
+export const sfx = new Sfx();

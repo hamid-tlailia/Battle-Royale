@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  BTN, DT, PLAYER, BotBrain, PhysicsWorld, generateMap, initPhysics, newMoveState, simulateMove, terrainHeight,
-  PREFABS, type InputCmd, type MapData, type MoveState, type PropInst,
+  BTN, DT, MAP, PLAYER, GameSim, PhysicsWorld, generateMap, initPhysics, newMoveState, simulateMove, terrainHeight,
+  PREFABS, shapeOf, halfTotalOf, type InputCmd, type MapData, type MoveState, type PropInst,
 } from '../shared/src';
 
 let map: MapData;
@@ -174,28 +174,23 @@ describe('movement & collision', () => {
     expect(s.crouch).toBe(false);
   });
 
-  it('20 wandering bots for 60s: nobody falls through the world, overlaps, or exceeds speed', () => {
-    const phys = new PhysicsWorld(map);
-    const bots: { s: MoveState; brain: BotBrain }[] = [];
-    for (let i = 0; i < 20; i++) {
-      const sp = map.spawns[i];
-      bots.push({ s: spawn(phys, i, sp.x, sp.z), brain: new BotBrain(i + 1) });
-    }
-    phys.updateQueries();
+  it('20 bots for 60s (zone off, no friendly fire limits): nobody falls through the world, overlaps, or exceeds speed', () => {
+    const sim = new GameSim(MAP.seed, { zone: false });
+    for (let i = 0; i < 20; i++) sim.addPlayer(i, `bot${i}`, true);
     let maxStep = 0, maxOverlap = 0, minAboveGround = Infinity;
+    const prev = new Map<number, { x: number; z: number }>();
     for (let t = 0; t < 30 * 60; t++) {
-      for (let i = 0; i < bots.length; i++) {
-        const b = bots[i];
-        const px = b.s.x, pz = b.s.z;
-        simulateMove(phys, i, b.s, b.brain.think(b.s, DT), DT);
-        maxStep = Math.max(maxStep, Math.hypot(b.s.x - px, b.s.z - pz));
-        const ht = (b.s.crouch ? PLAYER.crouchHalfHeight : PLAYER.halfHeight) + PLAYER.radius;
-        minAboveGround = Math.min(minAboveGround, b.s.y - ht - terrainHeight(map, b.s.x, b.s.z));
+      for (const p of sim.players.values()) prev.set(p.id, { x: p.move.x, z: p.move.z });
+      sim.step();
+      const alive = [...sim.players.values()].filter((p) => p.alive);
+      for (const p of alive) {
+        const q = prev.get(p.id)!;
+        maxStep = Math.max(maxStep, Math.hypot(p.move.x - q.x, p.move.z - q.z));
+        minAboveGround = Math.min(minAboveGround, p.move.y - halfTotalOf(p.move) - terrainHeight(map, p.move.x, p.move.z));
       }
-      phys.updateQueries();
-      for (let i = 0; i < bots.length; i++) for (let j = i + 1; j < bots.length; j++) {
-        const a = bots[i].s, c = bots[j].s;
-        if (Math.abs(a.y - c.y) < 0.8) maxOverlap = Math.max(maxOverlap, PLAYER.radius * 2 - Math.hypot(a.x - c.x, a.z - c.z));
+      for (let i = 0; i < alive.length; i++) for (let j = i + 1; j < alive.length; j++) {
+        const a = alive[i].move, c = alive[j].move;
+        if (Math.abs(a.y - c.y) < 0.5) maxOverlap = Math.max(maxOverlap, shapeOf(a).r + shapeOf(c).r - Math.hypot(a.x - c.x, a.z - c.z));
       }
     }
     expect(maxStep).toBeLessThanOrEqual(PLAYER.walkSpeed * DT * 2); // allow slope/step slide, catch teleports

@@ -132,6 +132,8 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
           m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s));
           im.setMatrixAt(i, m);
         });
+        const tint = tintFor(type, part.material.name);
+        if (tint) inst.forEach((p, i) => im.setColorAt(i, tint[hashProp(p) % tint.length]));
         im.computeBoundingSphere();
         im.name = type;
         out.push(im);
@@ -158,4 +160,31 @@ function buildSky(): THREE.Mesh {
   sky.renderOrder = -1;
   sky.frustumCulled = false;
   return sky;
+}
+
+// ---------------------------------------------------------------- variety
+const C = (h: number) => new THREE.Color(h);
+/** Per-material colour palettes (multiplied with the texture) so houses/cars don't all look the same. */
+const HOUSE_WALLS = [0xffffff, 0xffe9b8, 0xffd6c4, 0xd8e6ff, 0xfff4d6, 0xe6ffd0, 0xffc98f, 0xe0d0ff].map(C);
+const HOUSE_ROOF = [0xffffff, 0x9c6b5a, 0x7a8a99, 0xc98a5a, 0x8a5a4a, 0x6f7f5f].map(C);
+const HOUSE_WOOD = [0xffffff, 0x6fa86f, 0x6f8fd0, 0xd06f5f, 0x9a7a5a, 0x5f5f5f].map(C);
+const CAR_PAINT = [0xffffff, 0xff8a7a, 0x8ab4ff, 0xa8e08a, 0xffe08a, 0xb0b0b0, 0x8a6a5a].map(C);
+
+function tintFor(type: string, materialName: string): THREE.Color[] | null {
+  if (type.startsWith('house')) {
+    const n = materialName.toLowerCase();
+    if (n.includes('telha')) return HOUSE_ROOF;
+    if (n.includes('madeira')) return HOUSE_WOOD;
+    if (n.includes('pedra')) return null;
+    return HOUSE_WALLS;
+  }
+  if (type.startsWith('car')) return CAR_PAINT;
+  return null;
+}
+
+/** Stable per-instance hash (same house -> same colours on every device). */
+function hashProp(p: PropInst): number {
+  let h = Math.imul(Math.round(p.x * 10), 73856093) ^ Math.imul(Math.round(p.z * 10), 19349663);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
 }

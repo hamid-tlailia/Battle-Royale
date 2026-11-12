@@ -21,7 +21,7 @@ optimized GLBs (meshopt + WebP) to `client/public/assets/` and collision shapes 
 ## Milestones
 - [x] M1 offline: map, movement, touch controls, physics
 - [x] M1.5 real CC-BY models (soldier w/ 12 animations, houses, guns, cars, trees), performance pass
-- [ ] M2 weapons, shooting, damage (offline vs bots)
+- [x] M2 weapons, shooting, damage, real scope, vault, safe zone, sounds, kill feed, winner screen (offline vs bots)
 - [ ] M3 multiplayer server, prediction, interpolation, lag compensation
 - [ ] M4 loot, safe zone, match flow, winner screen
 - [ ] M5 menus, polish, sound

@@ -1,3 +1,4 @@
+import RAPIER from '@dimforge/rapier3d-compat';
 import { BTN, PLAYER } from '../config/game';
 import type { PhysicsWorld } from './physics';
 
@@ -7,27 +8,54 @@ export interface InputCmd {
   mx: number;
   /** forward -1..1 (forward positive) */
   mz: number;
+  /** body/camera orientation */
   yaw: number;
   pitch: number;
   buttons: number;
+  /** precise shot direction (eye -> crosshair target). Server clamps it near yaw/pitch. */
+  aimYaw?: number;
+  aimPitch?: number;
+  /** desired weapon slot */
+  weapon?: number;
 }
+
+/** Collision shape of the character. */
+export const SHAPE = {
+  STAND: { hh: PLAYER.halfHeight, r: PLAYER.radius },
+  CROUCH: { hh: PLAYER.crouchHalfHeight, r: PLAYER.radius },
+  /** small sphere used while vaulting through windows / over obstacles */
+  BALL: { hh: 0.001, r: 0.27 },
+} as const;
 
 export interface MoveState {
   x: number; y: number; z: number;
   vy: number;
   grounded: boolean;
   crouch: boolean;
+  /** true while using the small vault shape */
+  ball: boolean;
   yaw: number;
   pitch: number;
+  /** remaining vault ticks (0 = not vaulting) */
+  vault: number;
+  vaultLift: number;
+  vaultSide: number;
 }
 
 export const newMoveState = (x: number, y: number, z: number): MoveState => ({
-  x, y, z, vy: 0, grounded: false, crouch: false, yaw: 0, pitch: 0,
+  x, y, z, vy: 0, grounded: false, crouch: false, ball: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0,
 });
 
 export const copyMoveState = (s: MoveState): MoveState => ({ ...s });
 
-const CROUCH_DROP = PLAYER.halfHeight - PLAYER.crouchHalfHeight;
+export const shapeOf = (s: MoveState) => (s.ball ? SHAPE.BALL : s.crouch ? SHAPE.CROUCH : SHAPE.STAND);
+/** Distance from capsule centre to feet. */
+export const halfTotalOf = (s: MoveState) => { const sh = shapeOf(s); return sh.hh + sh.r; };
+export const feetY = (s: MoveState) => s.y - halfTotalOf(s);
+
+const VAULT_LIFT_TICKS = 5;
+const VAULT_FWD_TICKS = 9;
+const VAULT_DIST = 1.9;
 const scratch = { x: 0, y: 0, z: 0 };
 
 /** Sanitise untrusted input (server uses this; client too so prediction matches). */
@@ -37,14 +65,63 @@ export function sanitizeInput(i: InputCmd): InputCmd {
   const len = Math.hypot(mx, mz);
   if (len > 1) { mx /= len; mz /= len; }
   const yaw = Number.isFinite(i.yaw) ? i.yaw % (Math.PI * 2) : 0;
-  const pitch = Number.isFinite(i.pitch) ? Math.max(-PLAYER.maxPitch, Math.min(PLAYER.maxPitch, i.pitch)) : 0;
-  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xff };
+  const clampP = (p: number) => Math.max(-PLAYER.maxPitch, Math.min(PLAYER.maxPitch, p));
+  const pitch = Number.isFinite(i.pitch) ? clampP(i.pitch) : 0;
+  // Aim direction may differ slightly from the body (third-person parallax) but not arbitrarily.
+  let aimYaw = Number.isFinite(i.aimYaw) ? (i.aimYaw as number) : yaw;
+  let dy = aimYaw - yaw;
+  dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  if (Math.abs(dy) > 0.35) aimYaw = yaw + Math.sign(dy) * 0.35;
+  let aimPitch = Number.isFinite(i.aimPitch) ? clampP(i.aimPitch as number) : pitch;
+  if (Math.abs(aimPitch - pitch) > 0.35) aimPitch = pitch + Math.sign(aimPitch - pitch) * 0.35;
+  const weapon = Number.isFinite(i.weapon) ? Math.max(0, Math.min(3, (i.weapon as number) | 0)) : undefined;
+  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xff, aimYaw, aimPitch, weapon };
+}
+
+function setShape(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState, shape: 'stand' | 'crouch' | 'ball') {
+  const feet = feetY(s);
+  s.crouch = shape === 'crouch';
+  s.ball = shape === 'ball';
+  const sh = shapeOf(s);
+  col.setHalfHeight(sh.hh);
+  col.setRadius(sh.r);
+  s.y = feet + sh.hh + sh.r;
+  void phys;
+}
+
+/** Can a shape stand with its feet at `feet`? */
+function fits(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState, sh: { hh: number; r: number }, feet: number) {
+  return !phys.shapeBlocked(s.x, feet + sh.hh + sh.r, s.z, sh.hh, sh.r, col);
+}
+
+/**
+ * Looks for a gap in front of the player that the small vault sphere can pass through
+ * (window, low wall, crate, car bonnet). Returns lift height (centre above feet) and lateral offset.
+ */
+function findVault(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState): { h: number; side: number } | null {
+  const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+  const rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
+  const feet = feetY(s);
+  // Must be something directly in front, otherwise it's a normal jump.
+  const near = (h: number) => phys.rayWorld(s.x, feet + h, s.z, fx, 0, fz, PLAYER.radius + 0.9);
+  if (near(0.35) === null && near(1.0) === null && near(1.6) === null) return null;
+  const r = SHAPE.BALL.r;
+  for (let h = 0.5; h <= 2.3; h += 0.15) {
+    for (const side of [0, 0.12, -0.12, 0.24, -0.24, 0.36, -0.36]) {
+      const cx = s.x + rx * side, cy = feet + h, cz = s.z + rz * side;
+      // vertical clearance from current spot up to the gap height
+      if (phys.sphereCast(s.x, feet + r + 0.05, s.z, 0, 1, 0, Math.max(0, cy - (feet + r + 0.05)), r * 0.95, col) !== null) continue;
+      if (phys.shapeBlocked(cx, cy, cz, SHAPE.BALL.hh, r * 0.95, col)) continue;
+      if (phys.sphereCast(cx, cy, cz, fx, 0, fz, VAULT_DIST, r * 0.95, col) !== null) continue;
+      return { h, side };
+    }
+  }
+  return null;
 }
 
 /**
  * Deterministic single-tick movement. Identical code runs on server (authoritative)
- * and client (prediction / reconciliation replay).
- * Mutates `s` and moves the player's collider.
+ * and client (prediction / reconciliation replay). Mutates `s` and moves the player's collider.
  */
 export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: InputCmd, dt: number): void {
   const col = phys.players.get(id);
@@ -52,55 +129,86 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   const input = sanitizeInput(raw);
   s.yaw = input.yaw;
   s.pitch = input.pitch;
+  col.setTranslation({ x: s.x, y: s.y, z: s.z });
+  const sin = Math.sin(s.yaw), cos = Math.cos(s.yaw);
 
-  // ---- Crouch (keep feet planted) ----
-  const wantCrouch = (input.buttons & BTN.CROUCH) !== 0;
-  if (wantCrouch && !s.crouch) {
-    s.crouch = true;
-    col.setHalfHeight(PLAYER.crouchHalfHeight);
-    s.y -= CROUCH_DROP;
-  } else if (!wantCrouch && s.crouch) {
-    if (!phys.capsuleBlocked(s.x, s.y + CROUCH_DROP, s.z, PLAYER.halfHeight, col)) {
-      s.crouch = false;
-      col.setHalfHeight(PLAYER.halfHeight);
-      s.y += CROUCH_DROP;
+  // ---------------- Vault in progress ----------------
+  if (s.vault > 0) {
+    const step = VAULT_LIFT_TICKS + VAULT_FWD_TICKS - s.vault;
+    if (step < VAULT_LIFT_TICKS) {
+      scratch.x = (cos * s.vaultSide) / VAULT_LIFT_TICKS;
+      scratch.y = s.vaultLift / VAULT_LIFT_TICKS;
+      scratch.z = (-sin * s.vaultSide) / VAULT_LIFT_TICKS;
+    } else {
+      scratch.x = (-sin * VAULT_DIST) / VAULT_FWD_TICKS;
+      scratch.y = 0;
+      scratch.z = (-cos * VAULT_DIST) / VAULT_FWD_TICKS;
     }
+    phys.controller.computeColliderMovement(col, scratch);
+    const mv = phys.controller.computedMovement();
+    s.x += mv.x; s.y += mv.y; s.z += mv.z;
+    s.vy = 0;
+    s.grounded = false;
+    s.vault--;
+    col.setTranslation({ x: s.x, y: s.y, z: s.z });
+    return;
+  }
+
+  // ---------------- Shape changes (crouch / recover from vault) ----------------
+  const wantCrouch = (input.buttons & BTN.CROUCH) !== 0;
+  const feet = feetY(s);
+  if (s.ball) {
+    // After a vault: grow back as soon as there is room
+    if (!wantCrouch && fits(phys, col, s, SHAPE.STAND, feet)) setShape(phys, col, s, 'stand');
+    else if (fits(phys, col, s, SHAPE.CROUCH, feet)) setShape(phys, col, s, 'crouch');
+  } else if (wantCrouch && !s.crouch) {
+    setShape(phys, col, s, 'crouch');
+  } else if (!wantCrouch && s.crouch) {
+    if (fits(phys, col, s, SHAPE.STAND, feet)) setShape(phys, col, s, 'stand');
   }
   col.setTranslation({ x: s.x, y: s.y, z: s.z });
 
-  // ---- Horizontal ----
-  const speed = s.crouch ? PLAYER.crouchSpeed : PLAYER.walkSpeed;
-  const sin = Math.sin(s.yaw), cos = Math.cos(s.yaw);
-  // forward = (-sin, -cos), right = (cos, -sin)  (three.js camera convention)
-  const vx = (-sin * input.mz + cos * input.mx) * speed;
-  const vz = (-cos * input.mz - sin * input.mx) * speed;
-
-  // ---- Vertical ----
-  if (s.grounded && (input.buttons & BTN.JUMP) && !s.crouch) {
+  // ---------------- Jump or vault ----------------
+  if (s.grounded && (input.buttons & BTN.JUMP) && !s.crouch && !s.ball) {
+    const v = findVault(phys, col, s);
+    if (v) {
+      const f = feetY(s);
+      setShape(phys, col, s, 'ball');
+      s.y = f + SHAPE.BALL.r + SHAPE.BALL.hh;
+      col.setTranslation({ x: s.x, y: s.y, z: s.z });
+      s.vault = VAULT_LIFT_TICKS + VAULT_FWD_TICKS;
+      s.vaultLift = v.h - (s.y - f);
+      s.vaultSide = v.side;
+      s.vy = 0;
+      s.grounded = false;
+      return;
+    }
     s.vy = PLAYER.jumpVelocity;
     s.grounded = false;
   }
+
+  // ---------------- Walk ----------------
+  const speed = s.crouch || s.ball ? PLAYER.crouchSpeed : PLAYER.walkSpeed;
+  // forward = (-sin, -cos), right = (cos, -sin)  (three.js camera convention)
+  const vx = (-sin * input.mz + cos * input.mx) * speed;
+  const vz = (-cos * input.mz - sin * input.mx) * speed;
   s.vy = Math.max(-PLAYER.maxFallSpeed, s.vy + PLAYER.gravity * dt);
 
   scratch.x = vx * dt; scratch.y = s.vy * dt; scratch.z = vz * dt;
-  phys.controller.computeColliderMovement(col, scratch, undefined, undefined);
+  phys.controller.computeColliderMovement(col, scratch);
   const mv = phys.controller.computedMovement();
   const grounded = phys.controller.computedGrounded();
-
-  // Hit ceiling while rising
-  if (s.vy > 0 && mv.y < scratch.y * 0.5) s.vy = 0;
+  if (s.vy > 0 && mv.y < scratch.y * 0.5) s.vy = 0; // hit ceiling
   s.grounded = grounded;
   if (grounded && s.vy < 0) s.vy = 0;
-
   s.x += mv.x; s.y += mv.y; s.z += mv.z;
 
-  // ---- Safety net: never below the terrain ----
-  const halfTotal = (s.crouch ? PLAYER.crouchHalfHeight : PLAYER.halfHeight) + PLAYER.radius;
-  const floor = phys.groundHeight(s.x, s.z) + halfTotal;
+  // ---------------- Safety net: never below the terrain ----------------
+  const floor = phys.groundHeight(s.x, s.z) + halfTotalOf(s);
   if (s.y < floor - 0.5) { s.y = floor + 0.05; s.vy = 0; }
 
   col.setTranslation({ x: s.x, y: s.y, z: s.z });
 }
 
 /** Eye / camera pivot height above the capsule centre. */
-export const eyeOffset = (s: MoveState) => PLAYER.eyeAboveCenter - (s.crouch ? CROUCH_DROP : 0);
+export const eyeOffset = (s: MoveState) => (s.ball ? 0.1 : s.crouch ? PLAYER.eyeAboveCenter - (PLAYER.halfHeight - PLAYER.crouchHalfHeight) : PLAYER.eyeAboveCenter);

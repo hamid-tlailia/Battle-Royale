@@ -112,16 +112,37 @@ export class PhysicsWorld {
     return terrainHeight(this.map, x, z);
   }
 
-  /** True if a standing player capsule at (x,y,z) overlaps anything except `exclude`. */
+  /** True if a player capsule at (x,y,z) overlaps anything except `exclude`. */
   capsuleBlocked(x: number, y: number, z: number, halfHeight: number, exclude?: RAPIER.Collider): boolean {
+    return this.shapeBlocked(x, y, z, halfHeight, PLAYER.radius, exclude);
+  }
+
+  private shapeCache = new Map<string, RAPIER.Capsule>();
+  private capsule(hh: number, r: number) {
+    const k = `${hh},${r}`;
+    let c = this.shapeCache.get(k);
+    if (!c) { c = new RAPIER.Capsule(hh, r); this.shapeCache.set(k, c); }
+    return c;
+  }
+
+  shapeBlocked(x: number, y: number, z: number, hh: number, r: number, exclude?: RAPIER.Collider): boolean {
     let hit = false;
     this.world.intersectionsWithShape(
-      { x, y, z }, { x: 0, y: 0, z: 0, w: 1 },
-      new RAPIER.Capsule(halfHeight, PLAYER.radius),
+      { x, y, z }, { x: 0, y: 0, z: 0, w: 1 }, this.capsule(hh, r),
       () => { hit = true; return false; },
       undefined, undefined, exclude,
     );
     return hit;
+  }
+
+  /** Sweep a sphere; returns hit distance or null. Hits world AND players (except `exclude`). */
+  sphereCast(x: number, y: number, z: number, dx: number, dy: number, dz: number, dist: number, r: number, exclude?: RAPIER.Collider): number | null {
+    if (dist <= 0) return null;
+    const hit = this.world.castShape(
+      { x, y, z }, { x: 0, y: 0, z: 0, w: 1 }, { x: dx, y: dy, z: dz }, this.capsule(0.001, r),
+      0, dist, true, undefined, undefined, exclude,
+    );
+    return hit ? hit.time_of_impact : null;
   }
 
   /** Find a free standing position near (x,z). */
