@@ -1,0 +1,52 @@
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; touch-action: none;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; overscroll-behavior: none; }
+#game, #game canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#hud { position: fixed; inset: 0; pointer-events: none; }
+
+.menu { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 30%, #3f6b3a 0%, #1d2b1f 70%); z-index: 10; gap: 8px; text-align: center; padding: 16px; }
+.menu h1 { font-size: clamp(40px, 10vw, 84px); margin: 0; letter-spacing: 6px; font-weight: 900;
+  text-shadow: 0 4px 0 #0e160f, 0 0 30px rgba(140, 220, 120, .35); }
+.menu .sub { margin: 0 0 12px; opacity: .8; }
+.menu .note { opacity: .6; font-size: 13px; margin-top: 10px; }
+.play { font-size: 26px; font-weight: 800; padding: 14px 64px; border: none; border-radius: 14px; color: #13200f;
+  background: linear-gradient(#b8f27c, #6fc23c); box-shadow: 0 5px 0 #3d7a1c; letter-spacing: 3px; }
+.play:disabled { filter: grayscale(1); opacity: .6; }
+.play:active { transform: translateY(3px); box-shadow: 0 2px 0 #3d7a1c; }
+
+.rotate { display: none; position: fixed; inset: 0; background: #1d2b1f; z-index: 50; align-items: center;
+  justify-content: center; flex-direction: column; font-size: 18px; }
+.rotate div { font-size: 64px; animation: spin 2s linear infinite; }
+@keyframes spin { to { transform: rotate(90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
+
+.joy-base { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255,255,255,.5);
+  background: rgba(0,0,0,.18); pointer-events: none; transition: opacity .15s; }
+.joy-knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%;
+  background: rgba(255,255,255,.75); }
+
+.btn { position: absolute; pointer-events: auto; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.55); font-weight: 800;
+  font-size: 11px; letter-spacing: .5px; touch-action: none; }
+.btn.pressed { background: rgba(255,255,255,.35); transform: scale(.94); }
+.btn.active { background: rgba(120, 200, 90, .55); border-color: #b8f27c; }
+.btn-jump { width: 74px; height: 74px; right: calc(24px + env(safe-area-inset-right)); bottom: 28px; }
+.btn-crouch { width: 60px; height: 60px; right: calc(112px + env(safe-area-inset-right)); bottom: 18px; }
+.btn-scope { width: 56px; height: 56px; right: calc(34px + env(safe-area-inset-right)); bottom: 120px; }
+
+.crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; }
+.crosshair::before, .crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,.9); box-shadow: 0 0 2px #000; }
+.crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+.crosshair::after { top: 10px; left: 0; height: 2px; width: 22px; }
+
+.help { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; opacity: .8;
+  background: rgba(0,0,0,.35); padding: 6px 12px; border-radius: 8px; white-space: nowrap; }
+
+.dbg-btn { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+  pointer-events: auto; font-size: 10px; font-weight: 700; padding: 5px 7px; border-radius: 6px; border: 1px solid rgba(255,255,255,.3);
+  background: rgba(0,0,0,.25); color: rgba(255,255,255,.7); }
+.dbg-panel { position: absolute; top: calc(38px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+  background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 8px; font: 11px/1.45 ui-monospace, monospace; min-width: 170px; }
+.dbg-panel div { display: flex; justify-content: space-between; gap: 12px; }
+.dbg-panel b { color: #b8f27c; font-weight: 600; }
