@@ -29,6 +29,8 @@ export const SHAPE = {
 
 export interface MoveState {
   x: number; y: number; z: number;
+  /** horizontal velocity (m/s) — accelerates smoothly instead of snapping to full speed */
+  vx: number; vz: number;
   vy: number;
   grounded: boolean;
   crouch: boolean;
@@ -43,7 +45,7 @@ export interface MoveState {
 }
 
 export const newMoveState = (x: number, y: number, z: number): MoveState => ({
-  x, y, z, vy: 0, grounded: false, crouch: false, ball: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0,
+  x, y, z, vx: 0, vz: 0, vy: 0, grounded: false, crouch: false, ball: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0,
 });
 
 export const copyMoveState = (s: MoveState): MoveState => ({ ...s });
@@ -147,7 +149,7 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
     phys.controller.computeColliderMovement(col, scratch);
     const mv = phys.controller.computedMovement();
     s.x += mv.x; s.y += mv.y; s.z += mv.z;
-    s.vy = 0;
+    s.vy = 0; s.vx = 0; s.vz = 0;
     s.grounded = false;
     s.vault--;
     col.setTranslation({ x: s.x, y: s.y, z: s.z });
@@ -190,11 +192,15 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   // ---------------- Walk ----------------
   const speed = s.crouch || s.ball ? PLAYER.crouchSpeed : PLAYER.walkSpeed;
   // forward = (-sin, -cos), right = (cos, -sin)  (three.js camera convention)
-  const vx = (-sin * input.mz + cos * input.mx) * speed;
-  const vz = (-cos * input.mz - sin * input.mx) * speed;
+  const tx = (-sin * input.mz + cos * input.mx) * speed;
+  const tz = (-cos * input.mz - sin * input.mx) * speed;
+  // accelerate toward the target velocity (fast on the ground, weak in the air)
+  const accel = (s.grounded ? PLAYER.groundAccel : PLAYER.airAccel) * dt;
+  const ddx = tx - s.vx, ddz = tz - s.vz, dl = Math.hypot(ddx, ddz);
+  if (dl <= accel) { s.vx = tx; s.vz = tz; } else { s.vx += (ddx / dl) * accel; s.vz += (ddz / dl) * accel; }
   s.vy = Math.max(-PLAYER.maxFallSpeed, s.vy + PLAYER.gravity * dt);
 
-  scratch.x = vx * dt; scratch.y = s.vy * dt; scratch.z = vz * dt;
+  scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;
   phys.controller.computeColliderMovement(col, scratch);
   const mv = phys.controller.computedMovement();
   const grounded = phys.controller.computedGrounded();
@@ -202,6 +208,8 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   s.grounded = grounded;
   if (grounded && s.vy < 0) s.vy = 0;
   s.x += mv.x; s.y += mv.y; s.z += mv.z;
+  // keep the velocity we actually achieved (no speed build-up against walls)
+  s.vx = mv.x / dt; s.vz = mv.z / dt;
 
   // ---------------- Safety net: never below the terrain ----------------
   const floor = phys.groundHeight(s.x, s.z) + halfTotalOf(s);

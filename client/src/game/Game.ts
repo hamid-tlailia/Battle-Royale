@@ -12,6 +12,7 @@ import { Controls } from '../input/controls';
 import { DebugOverlay } from '../ui/debug';
 import { Hud } from '../ui/hud';
 import { sfx } from '../audio/sfx';
+import { loadSettings, settingsPanel, type Settings } from '../ui/settings';
 
 const BOT_COUNT = 15;
 const BOT_NAMES = ['Falcon', 'Viper', 'Ghost', 'Raven', 'Cobra', 'Nomad', 'Atlas', 'Blaze', 'Storm', 'Shadow', 'Hunter', 'Titan', 'Fox', 'Wolf', 'Echo', 'Saber', 'Onyx', 'Jackal', 'Rook'];
@@ -67,6 +68,7 @@ export class Game {
   private dir = new THREE.Vector3();
   private aim = new THREE.Vector3();
   private hb = {} as Hitbox;
+  private settings: Settings = loadSettings();
 
   constructor(container: HTMLElement, private hudEl: HTMLElement, private assets: GameAssets, private onRestart: () => void) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
@@ -98,6 +100,11 @@ export class Game {
     this.hud = new Hud(hudEl, this.sim.map);
     this.hud.onSlot = (i) => { this.controls.weapon = i; };
     this.debug = new DebugOverlay(hudEl);
+    const applySettings = (st: Settings) => {
+      this.controls.sensitivity = st.sens; this.controls.scopeSensitivity = st.scopeSens; sfx.enabled = st.sound;
+    };
+    applySettings(this.settings);
+    settingsPanel(hudEl, this.settings, applySettings);
     this.fx = new Effects(this.scene);
     this.buildButtons();
 
@@ -298,9 +305,13 @@ export class Game {
     lerp(focusV);
     // Weapon / scope modes
     const slot = me.weapons[me.slot];
-    const scopedSniper = me.alive && this.controls.scoped && slot.id === 'sniper' && !me.reloadEndTick;
-    this.hud.setScope(!me.alive ? 'none' : scopedSniper ? 'scope' : this.controls.scoped ? 'ads' : 'none');
-    this.updateCamera(dt, focusV, focusV === meV ? this.controls.yaw : focusV.p.move.yaw, focusV === meV ? this.controls.pitch : focusV.p.move.pitch, scopedSniper);
+    // Scoped = first-person through the optic (red dot for pistol/AR/shotgun, full scope for the sniper)
+    const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault;
+    this.controls.scopedView = scopedView;
+    this.hud.setScope(!scopedView ? 'none' : slot.id === 'sniper' ? 'scope' : 'reddot');
+    if (me.alive) this.aimAssist(dt, me);
+    this.updateCamera(dt, focusV, focusV === meV ? this.controls.yaw : focusV.p.move.yaw, focusV === meV ? this.controls.pitch : focusV.p.move.pitch, scopedView);
+    this.controls.fovScale = this.camera.fov / 70;
     this.camera.updateMatrixWorld();
     this.projScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projScreen);
@@ -315,12 +326,12 @@ export class Game {
       const dist = this.camera.position.distanceTo(this.v1.set(x, y, z));
       this.sphere.center.set(x, y, z); this.sphere.radius = 1.3;
       let visible = dist < 240 && this.frustum.intersectsSphere(this.sphere);
-      if (p.id === ME && scopedSniper) visible = false; // first-person scope
+      if (p.id === ME && scopedView) visible = false; // first-person scope
       if (visible) drawn++;
       v.firingT = Math.max(0, v.firingT - dt);
       const want = p.weapons[p.slot].id as GunName;
       if (want !== v.gun) { v.gun = want; v.view.setGun(this.assets, want); }
-      v.view.update({ x, y, z, yaw, pitch: p.id === ME ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, crouch: p.move.crouch, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
+      v.view.update({ x, y, z, yaw, pitch: p.id === ME ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
       // footsteps
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 40) {
         v.stepAcc += p.speed * dt;
@@ -377,7 +388,7 @@ export class Game {
     let fov = 70;
     if (firstPerson) {
       this.camDist = 0;
-      this.camera.position.copy(this.pivot);
+      this.camera.position.copy(this.pivot).addScaledVector(fwd, 0.25);
       fov = w.scopeFov;
     } else {
       const targetDist = scoped ? 1.6 : 3.6;
@@ -396,10 +407,55 @@ export class Game {
     this.aim.copy(this.pivot).addScaledVector(right, firstPerson ? 0 : this.controls.scoped ? 0.55 : 0.65).addScaledVector(fwd, 100);
     this.camera.lookAt(this.aim);
     if (Math.abs(this.camera.fov - fov) > 0.05) {
-      this.camera.fov = firstPerson ? fov : this.camera.fov + (fov - this.camera.fov) * Math.min(1, dt * 14);
+      this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 20);
+      if (Math.abs(this.camera.fov - fov) < 0.3) this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
-    this.controls.sensitivity = this.camera.fov / 70;
+  }
+
+  /**
+   * Mobile-style aim assist (client-side input help, like most mobile shooters):
+   * - crosshair turns red over an enemy
+   * - friction: look slows down while on target
+   * - magnetism: while firing/scoped the view is gently pulled toward the nearest enemy near the crosshair
+   */
+  private aimAssist(dt: number, me: SimPlayer) {
+    const cam = this.camera.position;
+    const yaw = this.controls.yaw, pitch = this.controls.pitch;
+    this.fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    // 1) is the crosshair on an enemy right now?
+    let onEnemy = false;
+    const wall = this.sim.phys.rayWorld(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, 250) ?? 250;
+    for (const q of this.sim.players.values()) {
+      if (q === me || !q.alive) continue;
+      if (rayHitbox(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, hitboxOf(q.move, this.hb), wall)) { onEnemy = true; break; }
+    }
+    this.hud.setOnEnemy(onEnemy);
+    this.controls.friction = onEnemy && this.settings.aimAssist ? 0.55 : 1;
+    if (!this.settings.aimAssist) return;
+    // 2) magnetism toward the closest enemy inside a small cone
+    const engaged = this.controls.fireHeld || this.controls.scoped;
+    if (!engaged) return;
+    let best: { dy: number; dp: number; ang: number } | null = null;
+    for (const q of this.sim.players.values()) {
+      if (q === me || !q.alive) continue;
+      const tx = q.move.x, ty = q.move.y + 0.15, tz = q.move.z;
+      const dx = tx - cam.x, dy = ty - cam.y, dz = tz - cam.z;
+      const dist = Math.hypot(dx, dy, dz);
+      if (dist > 110) continue;
+      let dyaw = Math.atan2(-dx, -dz) - yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+      const dp = Math.atan2(dy, Math.hypot(dx, dz)) - pitch;
+      const ang = Math.hypot(dyaw, dp);
+      const cone = Math.max(0.05, Math.atan(1.0 / dist)) * (this.controls.scoped ? 1.2 : 1.8);
+      if (ang > cone || (best && ang > best.ang)) continue;
+      if (!this.sim.los(cam.x, cam.y, cam.z, tx, ty, tz)) continue;
+      best = { dy: dyaw, dp, ang };
+    }
+    if (!best) return;
+    const rate = this.controls.fireHeld ? 7 : 3.5;
+    const k = Math.min(1, rate * dt);
+    this.controls.yaw += best.dy * k;
+    this.controls.pitch += best.dp * k * 0.6;
   }
 
   dispose() {

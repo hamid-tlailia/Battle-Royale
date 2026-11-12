@@ -14,6 +14,8 @@ export interface CharacterState {
   x: number; y: number; z: number; yaw: number;
   speed: number; crouch: boolean; grounded: boolean;
   firing?: boolean; dead?: boolean; pitch?: number;
+  /** world horizontal velocity, used for directional locomotion */
+  vx?: number; vz?: number;
 }
 
 /**
@@ -31,6 +33,7 @@ export class CharacterView {
   private gun: THREE.Object3D | null = null;
   private hand: THREE.Bone | null = null;
   private wasGrounded = true;
+  private bodyOffset = 0;
   private airTime = 0;
   private skipFrames = 0;
   private skipAcc = 0;
@@ -124,9 +127,23 @@ export class CharacterView {
     if (clip === 'jump' && this.wasGrounded) this.actions.get('jump')?.reset();
     this.wasGrounded = st.grounded;
     this.play(clip);
+    // Directional locomotion: turn the legs/body toward the movement direction (no sideways sliding),
+    // play the walk backwards when retreating. The gun keeps pointing at the aim direction.
+    let targetOffset = 0, reverse = false;
+    if (!st.dead && st.speed > 0.4 && st.vx !== undefined && st.vz !== undefined && clip !== 'jump') {
+      const moveYaw = Math.atan2(-st.vx, -st.vz!);
+      let rel = moveYaw - st.yaw;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      if (Math.abs(rel) <= 1.95) targetOffset = THREE.MathUtils.clamp(rel, -1.15, 1.15);
+      else { reverse = true; let b = rel - Math.sign(rel) * Math.PI; b = Math.atan2(Math.sin(b), Math.cos(b)); targetOffset = THREE.MathUtils.clamp(b, -1.15, 1.15); }
+    }
+    let d = targetOffset - this.bodyOffset;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    this.bodyOffset += d * Math.min(1, dt * 10);
+    this.model.rotation.y = Math.PI + this.bodyOffset;
     const ref = CLIP_SPEED[clip];
     const act = this.actions.get(clip);
-    if (act) act.timeScale = ref ? THREE.MathUtils.clamp(st.speed / ref, 0.6, 1.6) : 1;
+    if (act) act.timeScale = (ref ? THREE.MathUtils.clamp(st.speed / ref, 0.6, 1.6) : 1) * (reverse ? -1 : 1);
 
     // LOD + animation throttling for distant / hidden characters
     const far = dist > LOD_DISTANCE;

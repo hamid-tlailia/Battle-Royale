@@ -21,6 +21,10 @@ export class BotBrain {
   private strafe = 1; private strafeTicks = 0;
   private burst = 0; private burstPause = 0;
   private crouchTicks = 0;
+  /** current smoothed view direction (bots turn at a human-like rate) */
+  private viewYaw: number | null = null;
+  private viewPitch = 0;
+  private pace = 1;
   /** skill 0..1 (accuracy & reaction) */
   private skill: number;
 
@@ -46,7 +50,8 @@ export class BotBrain {
     if (--this.scanCooldown <= 0) {
       this.scanCooldown = 8 + Math.floor(this.rnd() * 4);
       const eye = sim.eye(p);
-      let best: SimPlayer | null = null, bestD = 50;
+      // early game: explore/loot, only fight at close range
+      let best: SimPlayer | null = null, bestD = sim.tick < 45 * TICK_RATE ? 14 : sim.tick < 90 * TICK_RATE ? 30 : 45;
       for (const q of sim.players.values()) {
         if (q === p || !q.alive) continue;
         const d = Math.hypot(q.move.x - s.x, q.move.z - s.z);
@@ -76,17 +81,22 @@ export class BotBrain {
       const dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
       const flat = Math.hypot(dx, dz);
       // error decays while tracking
-      const decay = 0.985 - this.skill * 0.015;
+      const decay = 0.99 - this.skill * 0.012;
       this.aimErrYaw *= decay; this.aimErrPitch *= decay;
-      const wobble = (1.2 - this.skill) * 0.06;
+      const wobble = (1.2 - this.skill) * 0.1;
       yaw = Math.atan2(-dx, -dz) + this.aimErrYaw + (this.rnd() - 0.5) * wobble;
       pitch = Math.atan2(dy, flat) + this.aimErrPitch + (this.rnd() - 0.5) * wobble;
       weapon = flat < 10 ? 2 : flat < 55 ? 1 : 3;
       if (p.weapons[weapon].mag + p.weapons[weapon].reserve === 0) weapon = 0;
       // strafe & occasionally crouch
-      if (--this.strafeTicks <= 0) { this.strafe = this.rnd() < 0.5 ? -1 : 1; this.strafeTicks = 15 + Math.floor(this.rnd() * 40); }
-      mx = this.strafe * 0.8;
-      mz = flat > 30 ? 0.6 : flat < 6 ? -0.4 : 0;
+      // calm movement while fighting: mostly stand/crouch and shoot, sometimes a slow side-step
+      if (--this.strafeTicks <= 0) {
+        const r = this.rnd();
+        this.strafe = r < 0.3 ? -1 : r < 0.6 ? 1 : 0;
+        this.strafeTicks = 40 + Math.floor(this.rnd() * 70);
+      }
+      mx = this.strafe * 0.45;
+      mz = flat > 35 ? 0.5 : flat < 5 ? -0.35 : 0;
       if (this.crouchTicks > 0) { this.crouchTicks--; buttons |= BTN.CROUCH; mx = 0; }
       else if (this.rnd() < 0.004) this.crouchTicks = 40;
       // reaction time, then bursts
@@ -108,7 +118,8 @@ export class BotBrain {
       const dx = this.tx - s.x, dz = this.tz - s.z;
       if (Math.hypot(dx, dz) < 2.5) this.pickTarget(zone.nx, zone.nz, Math.min(zone.nr, MAP.playRadius - 10) * 0.9);
       yaw = Math.atan2(-dx, -dz);
-      mz = 1;
+      if (this.rnd() < 0.01) this.pace = this.rnd() < 0.7 ? 1 : 0.55; // sometimes walk instead of run
+      mz = mustRun ? 1 : this.pace;
       // top up the magazine while walking
       const slot = p.weapons[p.slot];
       if (slot.mag < 8 && slot.reserve > 0 && !p.reloadEndTick && this.rnd() < 0.05) buttons |= BTN.RELOAD;
@@ -126,6 +137,18 @@ export class BotBrain {
     }
     if (this.jumpTicks > 0) { this.jumpTicks--; buttons |= BTN.JUMP; }
 
+    // human-like turn rate (no instant 180° snaps)
+    if (this.viewYaw === null) this.viewYaw = s.yaw;
+    let dyaw = yaw - this.viewYaw;
+    dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+    const maxTurn = (this.targetId !== null ? 7 : 3.5) * dt;
+    this.viewYaw += Math.max(-maxTurn, Math.min(maxTurn, dyaw));
+    this.viewPitch += Math.max(-maxTurn, Math.min(maxTurn, pitch - this.viewPitch));
+    // don't shoot until roughly facing the target
+    if (Math.abs(dyaw) > 0.25) buttons &= ~BTN.FIRE;
+    // don't walk sideways into the turn while travelling
+    if (this.targetId === null && Math.abs(dyaw) > 1.2) mz *= 0.3;
+    yaw = this.viewYaw; pitch = this.viewPitch;
     return { seq: ++this.seq, mx, mz, yaw, pitch, buttons, aimYaw: yaw, aimPitch: pitch, weapon };
   }
 }

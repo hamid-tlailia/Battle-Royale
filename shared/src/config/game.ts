@@ -18,6 +18,9 @@ export const PLAYER = {
   controllerOffset: 0.02,
   maxSlopeDeg: 50,
   autostepHeight: 0.45,
+  /** m/s² — reach full speed in ~0.15 s on the ground */
+  groundAccel: 40,
+  airAccel: 10,
 } as const;
 
 export const MAP = {

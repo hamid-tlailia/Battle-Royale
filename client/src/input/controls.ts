@@ -15,7 +15,14 @@ export class Controls {
   reloadQueued = 0;
   fireHeld = false;
   weapon = 1;
+  /** user setting (settings panel) */
   sensitivity = 1;
+  scopeSensitivity = 1;
+  /** set by the game: current fov / 70 (zoomed views turn slower) */
+  fovScale = 1;
+  /** aim-assist friction (<1 while the crosshair is on an enemy) */
+  friction = 1;
+  scopedView = false;
 
   private keys = new Set<string>();
   private joyId: number | null = null;
@@ -64,7 +71,7 @@ export class Controls {
     document.addEventListener('pointerlockchange', () => { this.pointerLocked = document.pointerLockElement === surface; });
     document.addEventListener('mousemove', (e) => {
       if (!this.pointerLocked) return;
-      this.look(e.movementX * 1.2, e.movementY * 1.2);
+      this.look(e.movementX * 0.25, e.movementY * 0.25);
     });
   }
 
@@ -99,7 +106,8 @@ export class Controls {
   setScope(v: boolean) { this.scoped = v; }
 
   private look(dx: number, dy: number) {
-    const k = 0.0042 * this.sensitivity * (this.scoped ? 0.45 : 1);
+    // radians per CSS pixel: ~360° for a 570 px swipe at default sensitivity
+    const k = 0.011 * this.sensitivity * this.fovScale * (this.scopedView ? this.scopeSensitivity : 1) * this.friction;
     this.yaw -= dx * k;
     this.pitch = Math.max(-PLAYER.maxPitch, Math.min(PLAYER.maxPitch, this.pitch - dy * k));
   }
@@ -134,7 +142,7 @@ export class Controls {
         this.mx = (dx / clen) * mapped;
         this.mz = (-dy / clen) * mapped;
       } else if (t.identifier === this.lookId) {
-        this.look((t.clientX - this.lookLast.x) * 1.6, (t.clientY - this.lookLast.y) * 1.6);
+        this.look(t.clientX - this.lookLast.x, t.clientY - this.lookLast.y);
         this.lookLast = { x: t.clientX, y: t.clientY };
       }
     }

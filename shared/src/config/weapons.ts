@@ -35,15 +35,15 @@ export interface WeaponDef {
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
   pistol: {
     id: 'pistol', name: 'Pistol', damage: 24, headMult: 1.8, rpm: 320, auto: false, mag: 12, reloadTime: 1.3,
-    range: 70, falloffStart: 20, minDamageFrac: 0.5, hipSpread: 0.025, adsSpread: 0.01, pellets: 1, scopeFov: 52, startReserve: 48,
+    range: 70, falloffStart: 20, minDamageFrac: 0.5, hipSpread: 0.025, adsSpread: 0.01, pellets: 1, scopeFov: 50, startReserve: 48,
   },
   rifle: {
     id: 'rifle', name: 'Assault Rifle', damage: 19, headMult: 1.8, rpm: 600, auto: true, mag: 30, reloadTime: 2.2,
-    range: 140, falloffStart: 45, minDamageFrac: 0.6, hipSpread: 0.04, adsSpread: 0.012, pellets: 1, scopeFov: 40, startReserve: 120,
+    range: 140, falloffStart: 45, minDamageFrac: 0.6, hipSpread: 0.04, adsSpread: 0.012, pellets: 1, scopeFov: 34, startReserve: 120,
   },
   shotgun: {
     id: 'shotgun', name: 'Shotgun', damage: 12, headMult: 1.5, rpm: 70, auto: false, mag: 5, reloadTime: 2.6,
-    range: 35, falloffStart: 7, minDamageFrac: 0.25, hipSpread: 0.085, adsSpread: 0.065, pellets: 9, scopeFov: 55, startReserve: 25,
+    range: 35, falloffStart: 7, minDamageFrac: 0.25, hipSpread: 0.085, adsSpread: 0.065, pellets: 9, scopeFov: 52, startReserve: 25,
   },
   sniper: {
     id: 'sniper', name: 'Sniper', damage: 86, headMult: 2.2, rpm: 40, auto: false, mag: 5, reloadTime: 3.0,

@@ -27,6 +27,8 @@ export class Hud {
   private cross: HTMLDivElement;
   private hitTimer = 0;
   private scope: HTMLDivElement;
+  private reddot: HTMLDivElement;
+  private scopeMode = 'none';
   private vignette: HTMLDivElement;
   private hurt: HTMLDivElement;
   private mini: HTMLCanvasElement;
@@ -40,6 +42,7 @@ export class Hud {
     this.vignette = el('zone-vignette', hud);
     this.hurt = el('hurt-flash', hud);
     this.scope = el('scope-overlay', hud, '<div class="scope-lens"></div>');
+    this.reddot = el('reddot-overlay', hud);
     this.cross = el('crosshair', hud);
     const top = el('top-info', hud);
     this.alive = el('alive', top);
@@ -163,11 +166,16 @@ export class Hud {
     this.hurt.classList.remove('on'); void this.hurt.offsetWidth; this.hurt.classList.add('on');
   }
 
-  setScope(mode: 'none' | 'ads' | 'scope') {
+  setScope(mode: 'none' | 'reddot' | 'scope') {
+    if (mode === this.scopeMode) return;
+    this.scopeMode = mode;
     this.scope.style.display = mode === 'scope' ? 'block' : 'none';
-    this.cross.style.display = mode === 'scope' ? 'none' : 'block';
-    this.cross.classList.toggle('ads', mode === 'ads');
+    this.reddot.style.display = mode === 'reddot' ? 'block' : 'none';
+    this.cross.style.display = mode === 'none' ? 'block' : 'none';
   }
+
+  /** crosshair turns red while it is over an enemy */
+  setOnEnemy(on: boolean) { this.cross.classList.toggle('enemy', on); }
 
   update(dt: number, camera: THREE.Camera) {
     const w = window.innerWidth, h = window.innerHeight;

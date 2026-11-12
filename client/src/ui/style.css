@@ -140,3 +140,22 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .end-btns button { font-size: 16px; font-weight: 800; padding: 10px 20px; border-radius: 10px; border: none; color: #13200f; background: linear-gradient(#b8f27c, #6fc23c); }
 .end-btns .spec { background: rgba(255,255,255,.2); color: #fff; }
 .help { bottom: 92px; }
+.gear-btn { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: calc(56px + env(safe-area-inset-left)); pointer-events: auto;
+  font-size: 15px; width: 30px; height: 26px; border-radius: 6px; border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.25); color: #fff; padding: 0; }
+.settings-panel { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); width: min(340px, 80vw); pointer-events: auto; z-index: 30;
+  background: rgba(10,20,10,.92); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; padding: 10px 16px; font-size: 13px; }
+.settings-panel h3 { margin: 0 0 6px; }
+.settings-panel label { display: block; margin: 8px 0; }
+.settings-panel label b { float: right; color: #b8f27c; }
+.settings-panel input[type=range] { width: 100%; }
+.settings-panel .row input { margin-right: 8px; transform: scale(1.3); }
+.settings-panel .close { width: 100%; margin-top: 6px; padding: 8px; border-radius: 8px; border: none; font-weight: 800; background: #6fc23c; color: #13200f; }
+.crosshair.enemy::before, .crosshair.enemy::after { background: #ff2d2d; box-shadow: 0 0 3px #000; }
+.reddot-overlay { display: none; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0 34vh, rgba(0,0,0,.35) 46vh); }
+.reddot-overlay::before { content: ''; position: absolute; left: 50%; top: 50%; width: 30vh; height: 30vh; transform: translate(-50%,-50%);
+  border: 3px solid rgba(20,20,20,.85); border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.reddot-overlay::after { content: ''; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%;
+  background: #ff2a2a; box-shadow: 0 0 6px #ff2a2a; }
+.scope-overlay, .reddot-overlay { animation: scopeIn .12s ease-out; }
+@keyframes scopeIn { from { opacity: 0; transform: scale(1.15); } }
