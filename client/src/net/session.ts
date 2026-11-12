@@ -172,9 +172,12 @@ export class NetSession {
       if (b.length > 40) b.shift();
       const p = this.sim.players.get(r.id);
       if (p) {
-        p.alive = r.alive; p.slot = r.slot;
+        p.alive = r.alive; p.hp = r.hp; p.armor = r.armor;
+        p.holstered = r.slot === 4;
+        if (r.slot < 4) p.slot = r.slot;
+        p.weapons.forEach((w, i) => { w.owned = i === r.slot; }); // remote: only what's in hand is known
         // keep the remote collider near its latest position so my prediction collides with it
-        if (r.alive) { Object.assign(this.tmpMove, p.move, { x: r.x, y: r.y, z: r.z, crouch: r.crouch, ball: r.ball, prone: r.prone }); syncCollider(this.sim.phys, r.id, this.tmpMove); }
+        if (r.alive) { Object.assign(this.tmpMove, p.move, { x: r.x, y: r.y, z: r.z, crouch: r.crouch, ball: r.ball, prone: r.prone, air: r.air }); syncCollider(this.sim.phys, r.id, this.tmpMove); }
         else this.sim.phys.removePlayer(r.id);
       }
     }
@@ -257,12 +260,12 @@ export class NetSession {
           x: a.s.x + (c.s.x - a.s.x) * f, y: a.s.y + (c.s.y - a.s.y) * f, z: a.s.z + (c.s.z - a.s.z) * f,
           yaw: a.s.yaw + dy * f, pitch: a.s.pitch + (c.s.pitch - a.s.pitch) * f,
           vx: a.s.vx + (c.s.vx - a.s.vx) * f, vz: a.s.vz + (c.s.vz - a.s.vz) * f,
-          alive: f < 0.5 ? a.s.alive : c.s.alive, crouch: f < 0.5 ? a.s.crouch : c.s.crouch, ball: f < 0.5 ? a.s.ball : c.s.ball, prone: f < 0.5 ? a.s.prone : c.s.prone,
+          alive: f < 0.5 ? a.s.alive : c.s.alive, air: f < 0.5 ? a.s.air : c.s.air, crouch: f < 0.5 ? a.s.crouch : c.s.crouch, ball: f < 0.5 ? a.s.ball : c.s.ball, prone: f < 0.5 ? a.s.prone : c.s.prone,
         };
       }
       const m = p.move;
       m.x = st.x; m.y = st.y; m.z = st.z; m.yaw = st.yaw; m.pitch = st.pitch; m.vx = st.vx; m.vz = st.vz;
-      m.crouch = st.crouch; m.ball = st.ball; m.prone = st.prone; m.grounded = st.grounded;
+      m.crouch = st.crouch; m.ball = st.ball; m.prone = st.prone; m.grounded = st.grounded; m.air = st.air;
       p.speed = Math.hypot(st.vx, st.vz);
     }
   }

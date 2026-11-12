@@ -26,6 +26,8 @@ export interface CharacterState {
   firing?: boolean; dead?: boolean; pitch?: number;
   /** false = empty-handed (no weapon looted yet) */
   armed?: boolean;
+  /** 0 ground, 1 in plane, 2 free-fall, 3 parachute */
+  air?: number;
   /** world horizontal velocity, used for directional locomotion */
   vx?: number; vz?: number;
 }
@@ -118,8 +120,38 @@ export class CharacterView {
     this.current = name;
   }
 
+  private chute: THREE.Group | null = null;
+  /** Original parachute: striped canopy + lines, built once per character on first use. */
+  private buildChute() {
+    const g = new THREE.Group();
+    const cols = [0xd8432e, 0xf2f2f2];
+    for (let i = 0; i < 8; i++) {
+      const seg = new THREE.Mesh(
+        new THREE.SphereGeometry(3.2, 3, 6, (i / 8) * Math.PI * 2, (Math.PI * 2) / 8, 0, Math.PI * 0.42),
+        new THREE.MeshLambertMaterial({ color: cols[i % 2], side: THREE.DoubleSide }),
+      );
+      seg.scale.set(1, 0.55, 1);
+      g.add(seg);
+    }
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; pts.push(new THREE.Vector3(0, -4.2, 0), new THREE.Vector3(Math.cos(a) * 2.9, 0.4, Math.sin(a) * 2.9)); }
+    g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x333333 })));
+    g.position.y = 6;
+    this.root.add(g);
+    return g;
+  }
+
   /** dist = distance to camera (for LOD and animation rate). */
   update(st: CharacterState, dt: number, dist: number, visible: boolean) {
+    const air = st.air ?? 0;
+    if (air === 1) { this.root.visible = false; return; } // inside the plane
+    this.model.rotation.x = air === 2 ? -1.25 : 0; // sky-diving pose
+    if (air === 3 && !this.chute) this.chute = this.buildChute();
+    if (this.chute) {
+      const k = this.chute.scale.x + ((air === 3 ? 1 : 0) - this.chute.scale.x) * Math.min(1, dt * 4);
+      this.chute.scale.setScalar(Math.max(0.001, k));
+      this.chute.visible = k > 0.02;
+    }
     // capsule centre -> feet, for every collision shape (stand / crouch / prone / vault sphere)
     const sh = st.ball ? SHAPE.BALL : st.prone ? SHAPE.PRONE : st.crouch ? SHAPE.CROUCH : SHAPE.STAND;
     const halfTotal = sh.hh + sh.r;
@@ -132,6 +164,8 @@ export class CharacterView {
     let clip: Clip;
     if (st.dead) clip = st.prone ? 'death_prone' : st.crouch ? 'death_crouch' : 'death';
     else if (st.prone) clip = 'prone';
+    else if (air === 2) clip = 'idle';
+    else if (air === 3) clip = 'idle';
     else if (this.airTime > 0.15) clip = 'jump';
     else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
     else if (st.speed > 5.2) clip = 'run';

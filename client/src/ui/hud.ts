@@ -41,7 +41,11 @@ export class Hud {
   private overlay: HTMLDivElement | null = null;
   onSlot: (i: number) => void = () => {};
 
-  constructor(hud: HTMLElement, private map: MapData) {
+  onDrop: (code: number) => void = () => {};
+  private bag: HTMLDivElement | null = null;
+  private bagKey = '';
+
+  constructor(hud: HTMLElement, private map: MapData, private icons: Partial<Record<string, string>> = {}) {
     this.root = hud;
     this.vignette = el('zone-vignette', hud);
     this.hurt = el('hurt-flash', hud);
@@ -66,20 +70,25 @@ export class Hud {
     this.reddot = el('reddot-overlay', hud, '<div class="holo"><i></i></div>');
     this.cross = el('crosshair', hud);
     const top = el('top-info', hud);
+    top.dataset.hud = 'info'; top.dataset.scale = '1';
     this.alive = el('alive', top);
     this.zoneTxt = el('zone-txt', top);
     this.mini = document.createElement('canvas');
     this.mini.className = 'minimap';
+    this.mini.dataset.hud = 'map'; this.mini.dataset.scale = '1';
     this.mini.width = this.mini.height = 220;
     hud.appendChild(this.mini);
     this.miniBg = this.renderMiniBg();
     this.feed = el('killfeed', hud);
+    this.feed.dataset.hud = 'feed'; this.feed.dataset.scale = '1';
     this.dmgLayer = el('dmg-layer', hud);
 
     const bottom = el('bottom-bar', hud);
+    bottom.dataset.hud = 'weapons'; bottom.dataset.scale = '1';
     const slotRow = el('slots', bottom);
     ['pistol', 'rifle', 'shotgun', 'sniper'].forEach((w, i) => {
-      const s = el('slot', slotRow, `<b>${i + 1}</b><span>${['Pistol', 'AR', 'Shotgun', 'Sniper'][i]}</span><i></i>`);
+      const pic = this.icons[w] ? `<img src="${this.icons[w]}" alt="">` : `<span>${['Pistol', 'AR', 'Shotgun', 'Sniper'][i]}</span>`;
+      const s = el('slot', slotRow, `<b>${i + 1}</b>${pic}<i></i>`);
       const pick = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onSlot(i); };
       s.addEventListener('touchstart', pick, { passive: false });
       s.addEventListener('mousedown', pick);
@@ -115,7 +124,40 @@ export class Hud {
     return c;
   }
 
+  /** Backpack: everything you carry, each with a DROP button. */
+  toggleBag() {
+    if (this.bag) { this.bag.remove(); this.bag = null; return; }
+    this.bag = el('bag-panel', this.root);
+    this.bag.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    this.bagKey = '';
+  }
+
+  private renderBag(p: SimPlayer) {
+    if (!this.bag) return;
+    const key = JSON.stringify([p.weapons, p.meds, p.frost, p.scope, p.armor]);
+    if (key === this.bagKey) return;
+    this.bagKey = key;
+    const names = ['Pistol', 'Assault Rifle', 'Shotgun', 'Sniper'];
+    const row = (img: string, label: string, sub: string, code: number) =>
+      `<div class="bag-row">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div>${code ? `<button data-drop="${code}">DROP</button>` : ''}</div>`;
+    let html = '<div class="bag-head"><b>BACKPACK</b><button class="bag-close">✕</button></div><div class="bag-list">';
+    p.weapons.forEach((w, i) => {
+      const img = this.icons[w.id] ? `<img src="${this.icons[w.id]}" alt="">` : '<i class="ph"></i>';
+      if (w.owned) html += row(img, names[i], `${w.mag} in magazine`, 1 + i);
+      if (w.reserve > 0) html += row('<i class="ammo-ic"></i>', `${names[i]} ammo`, `${w.reserve} rounds`, 11 + i);
+    });
+    if (p.meds) html += row('<i class="med-ic">✚</i>', 'Medkit', `× ${p.meds} (+50 HP each)`, 20);
+    if (p.frost) html += row('<i class="frost-ic">❄</i>', 'Ice wall', `× ${p.frost}`, 21);
+    if (p.scope) html += row('<i class="scope-ic">◎</i>', `×${p.scope} scope`, 'fits the assault rifle', 22);
+    html += row('<i class="armor-ic">🛡</i>', 'Armor', `${Math.round(p.armor)} / 100`, 0);
+    html += '</div>';
+    this.bag.innerHTML = html;
+    this.bag.querySelector('.bag-close')!.addEventListener('click', () => this.toggleBag());
+    this.bag.querySelectorAll<HTMLButtonElement>('[data-drop]').forEach((b) => b.addEventListener('click', () => this.onDrop(+b.dataset.drop!)));
+  }
+
   setSlots(p: SimPlayer, reloadFrac: number, healFrac = 0) {
+    this.renderBag(p);
     this.armorTxt.textContent = String(Math.round(p.armor));
     this.healBtn?.querySelector('b')?.replaceChildren(String(p.meds));
     this.frostBtn?.querySelector('b')?.replaceChildren(String(p.frost));
@@ -164,12 +206,47 @@ export class Hud {
     g.lineWidth = 2;
     g.strokeStyle = '#4fb0ff'; g.beginPath(); g.arc((zone.cx + o) * k, (zone.cz + o) * k, zone.r * k, 0, Math.PI * 2); g.stroke();
     g.strokeStyle = '#fff'; g.setLineDash([5, 4]); g.beginPath(); g.arc((zone.nx + o) * k, (zone.nz + o) * k, Math.max(0.5, zone.nr * k), 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    // who shot me recently
+    const now = performance.now();
+    this.hitMarks = this.hitMarks.filter((m) => m.until > now);
+    for (const m of this.hitMarks) {
+      g.fillStyle = `rgba(255,40,40,${Math.min(1, (m.until - now) / 1000)})`;
+      g.beginPath(); g.arc((m.x + o) * k, (m.z + o) * k, 6, 0, Math.PI * 2); g.fill();
+    }
     // me
     const px = (me.x + o) * k, pz = (me.z + o) * k;
     g.save(); g.translate(px, pz); g.rotate(-me.yaw);
     g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(0, -9); g.lineTo(6, 6); g.lineTo(0, 3); g.lineTo(-6, 6); g.closePath(); g.fill(); g.stroke();
     g.restore();
+  }
+
+  private hitMarks: { x: number; z: number; until: number }[] = [];
+  private planeHint: HTMLDivElement | null = null;
+  private specEl: HTMLDivElement | null = null;
+
+  /** Red arc pointing toward whoever is shooting you (+ red dot on the minimap for 3 s). */
+  damageFrom(angle: number, ax: number, az: number) {
+    const arc = el('dmg-dir', this.root);
+    arc.style.transform = `translate(-50%, -50%) rotate(${-angle}rad)`;
+    setTimeout(() => arc.remove(), 1400);
+    this.hitMarks.push({ x: ax, z: az, until: performance.now() + 3000 });
+    this.miniTimer = 0;
+  }
+
+  setPlaneHint(inPlane: boolean, falling: boolean) {
+    const text = inPlane ? 'Tap <b>JUMP</b> to drop' : falling ? 'Push forward to dive · parachute opens automatically' : '';
+    if (!text) { this.planeHint?.remove(); this.planeHint = null; return; }
+    if (!this.planeHint) this.planeHint = el('plane-hint', this.root);
+    if (this.planeHint.innerHTML !== text) this.planeHint.innerHTML = text;
+    this.root.classList.toggle('in-plane', inPlane);
+  }
+
+  setSpectating(name: string | null) {
+    if (!name) { this.specEl?.remove(); this.specEl = null; return; }
+    if (!this.specEl) this.specEl = el('spec-banner', this.root);
+    const t = `SPECTATING · <b>${name}</b>`;
+    if (this.specEl.innerHTML !== t) this.specEl.innerHTML = t;
   }
 
   /** Short pickup / info message above the weapon bar. */

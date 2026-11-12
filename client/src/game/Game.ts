@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  BTN, DT, LOOT, MAP, WEAPONS, GameSim, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox,
+  BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox,
   type Hitbox, type InputCmd, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
 import { buildMapView } from '../render/mapView';
@@ -28,7 +28,9 @@ export function shareRoom(code: string) {
 }
 import { loadSettings, settingsPanel, type Settings } from '../ui/settings';
 import { ICONS } from '../ui/icons';
+import { createHudButtons } from '../ui/buttons';
 import { LootView } from '../render/lootView';
+import { PlaneView } from '../render/planeView';
 import { applyLayout, editLayout } from '../ui/layout';
 
 const BOT_COUNT = 15;
@@ -88,6 +90,9 @@ export class Game {
   private settings: Settings = loadSettings();
   private scopeMode: 'none' | 'reddot' | 'x2' | 'x4' | 'x8' = 'none';
   private loot!: LootView;
+  private plane!: PlaneView;
+  private planePos = new THREE.Vector3();
+  private planeYaw = 0;
   private lootTimer = 0;
 
   private myId = 0;
@@ -109,7 +114,7 @@ export class Game {
     sun.position.set(80, 140, 50);
     this.scene.add(sun);
 
-    this.sim = this.net ? this.net.sim : new GameSim(MAP.seed);
+    this.sim = this.net ? this.net.sim : new GameSim(MAP.seed, { lobby: true });
     if (this.net) this.myId = this.net.myId;
     const mapView = buildMapView(this.sim.map, assets);
     this.sky = mapView.children.find((o) => (o as THREE.Mesh).material && ((o as THREE.Mesh).material as THREE.Material).side === THREE.BackSide) ?? null;
@@ -123,7 +128,7 @@ export class Game {
     this.scene.add(this.zoneWall);
 
     this.controls = new Controls(this.renderer.domElement, hudEl);
-    this.hud = new Hud(hudEl, this.sim.map);
+    this.hud = new Hud(hudEl, this.sim.map, assets.icons);
     this.hud.onSlot = (i) => { this.controls.weapon = i; };
     this.debug = new DebugOverlay(hudEl);
     const applySettings = (st: Settings) => {
@@ -133,6 +138,7 @@ export class Game {
     settingsPanel(hudEl, this.settings, applySettings, () => editLayout(hudEl));
     this.fx = new Effects(this.scene);
     this.loot = new LootView(this.scene, assets);
+    this.plane = new PlaneView(this.scene);
     this.buildButtons();
 
     // players
@@ -141,6 +147,7 @@ export class Game {
       mine.skin = opts.skin; mine.slot = opts.slot;
       const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
       for (let i = 1; i <= BOT_COUNT; i++) this.sim.addPlayer(i, names[i % names.length], true);
+      this.sim.startMatch(); // board the plane
     } else {
       this.net.onEvents = (ev) => this.handleEvents(ev);
       this.net.onCosmeticShot = (w) => this.cosmeticShot(w);
@@ -182,48 +189,36 @@ export class Game {
   }
 
   private buildButtons() {
-    const mk = (id: string, icon: string, label = '') => {
-      const b = document.createElement('div');
-      b.className = `btn btn-${id}`;
-      b.dataset.hud = id;
-      b.innerHTML = icon + (label ? `<small>${label}</small>` : '');
-      this.hudEl.appendChild(b);
-      return b;
-    };
-    const fire = mk('fire', ICONS.fire);
-    const fireL = mk('fire-left', ICONS.fire);
-    const jump = mk('jump', ICONS.jump);
-    const crouch = mk('crouch', ICONS.crouch);
-    const prone = mk('prone', ICONS.prone);
-    const scope = mk('scope', ICONS.scope);
-    const reload = mk('reload', ICONS.reload);
-    const heal = mk('heal', ICONS.heal + '<b>0</b>');
-    const frost = mk('frost', ICONS.frost + '<b>0</b>');
-    this.hud.healBtn = heal; this.hud.frostBtn = frost;
-    this.controls.bindButton(heal, () => this.controls.heal());
-    this.controls.bindButton(frost, () => this.controls.frost());
-    this.controls.onSprintChange = () => sync();
-    const sprint = mk('sprint', ICONS.sprint);
+    const B = createHudButtons(this.hudEl);
     const lock = document.createElement('div');
     lock.className = 'sprint-lock';
     lock.innerHTML = ICONS.sprint;
     this.hudEl.appendChild(lock);
     this.controls.onSprintLock = (on) => lock.classList.toggle('on', on);
     const sync = () => {
-      crouch.classList.toggle('active', this.controls.crouchToggle);
-      prone.classList.toggle('active', this.controls.proneToggle);
-      sprint.classList.toggle('active', this.controls.sprintToggle);
-      scope.classList.toggle('active', this.controls.scoped);
+      B.crouch.classList.toggle('active', this.controls.crouchToggle);
+      B.prone.classList.toggle('active', this.controls.proneToggle);
+      B.sprint.classList.toggle('active', this.controls.sprintToggle);
+      B.scope.classList.toggle('active', this.controls.scoped);
+      B.holster.classList.toggle('active', this.controls.weapon === 4);
     };
     this.syncButtons = sync;
-    this.controls.bindLookButton(fire, () => { this.controls.fireHeld = true; this.controls.sprintToggle = false; sync(); }, () => { this.controls.fireHeld = false; });
-    this.controls.bindButton(fireL, () => { this.controls.fireHeld = true; this.controls.sprintToggle = false; sync(); }, () => { this.controls.fireHeld = false; });
-    this.controls.bindButton(jump, () => this.controls.jump());
-    this.controls.bindButton(reload, () => this.controls.reload());
-    this.controls.bindButton(crouch, () => { this.controls.toggleCrouch(); sync(); });
-    this.controls.bindButton(prone, () => { this.controls.toggleProne(); sync(); });
-    this.controls.bindButton(sprint, () => { this.controls.toggleSprint(); sync(); });
-    this.controls.bindButton(scope, () => { this.controls.setScope(!this.controls.scoped); sync(); });
+    this.hud.healBtn = B.heal; this.hud.frostBtn = B.frost;
+    const fireDown = () => { this.controls.fireHeld = true; if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
+    this.controls.bindLookButton(B.fire, fireDown, () => { this.controls.fireHeld = false; });
+    this.controls.bindButton(B['fire-left'], fireDown, () => { this.controls.fireHeld = false; });
+    this.controls.bindButton(B.jump, () => this.controls.jump());
+    this.controls.bindButton(B.reload, () => this.controls.reload());
+    this.controls.bindButton(B.crouch, () => { this.controls.toggleCrouch(); sync(); });
+    this.controls.bindButton(B.prone, () => { this.controls.toggleProne(); sync(); });
+    this.controls.bindButton(B.sprint, () => { this.controls.toggleSprint(); sync(); });
+    this.controls.bindButton(B.scope, () => { this.controls.setScope(!this.controls.scoped); sync(); });
+    this.controls.bindButton(B.heal, () => this.controls.heal());
+    this.controls.bindButton(B.frost, () => this.controls.frost());
+    this.controls.bindButton(B.holster, () => { this.controls.toggleHolster(); sync(); });
+    this.controls.bindButton(B.bag, () => this.hud.toggleBag());
+    this.hud.onDrop = (code) => { this.controls.dropQueued = code; };
+    this.controls.onSprintChange = () => sync();
     applyLayout(this.hudEl);
     if (!this.controls.isTouch) {
       const help = document.createElement('div');
@@ -248,7 +243,7 @@ export class Game {
       if (v) { v.prev.x = me.move.x; v.prev.y = me.move.y; v.prev.z = me.move.z; v.prev.yaw = me.move.yaw; }
       const { mx, mz } = this.controls.axes();
       const aim = me.alive ? this.computeAim(me) : { yaw: this.controls.yaw, pitch: this.controls.pitch };
-      this.net.localTick({ mx, mz, yaw: this.controls.yaw, pitch: this.controls.pitch, buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon });
+      this.net.localTick({ mx, mz, yaw: this.controls.yaw, pitch: this.controls.pitch, buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon, dropItem: this.controls.takeDrop() });
       return;
     }
     if (me.alive) {
@@ -256,7 +251,7 @@ export class Game {
       const aim = this.computeAim(me);
       const input: InputCmd = {
         seq: ++this.seq, mx, mz, yaw: this.controls.yaw, pitch: this.controls.pitch,
-        buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon,
+        buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon, dropItem: this.controls.takeDrop(),
       };
       this.sim.setInput(this.myId, input);
     }
@@ -325,7 +320,14 @@ export class Game {
             this.hud.hitMarker(false);
             sfx.hitMarker(e.head);
           }
-          if (e.target === this.myId) { this.hud.hurtFlash(); sfx.hurt(); }
+          if (e.target === this.myId) {
+            this.hud.hurtFlash(); sfx.hurt();
+            const att = this.sim.players.get(e.attacker), me2 = this.sim.players.get(this.myId);
+            if (att && me2) {
+              const ang = Math.atan2(-(att.move.x - me2.move.x), -(att.move.z - me2.move.z)) - this.controls.yaw;
+              this.hud.damageFrom(ang, att.move.x, att.move.z);
+            }
+          }
           break;
         }
         case 'kill': {
@@ -436,7 +438,19 @@ export class Game {
     // Weapon / scope modes
     const slot = me.weapons[me.slot];
     // Scoped = first-person through the optic (red dot for pistol/AR/shotgun, full scope for the sniper)
-    const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault;
+    // drop plane
+    const path = planePath(this.sim.seed);
+    const live = this.net ? this.net.phase !== 'lobby' : this.sim.phase !== 'lobby';
+    const lt = live ? (this.net ? this.net.serverTick : this.sim.tick + alpha) - this.sim.startTick : -1;
+    const planeOn = live && lt >= 0 && lt < path.ticks + 90;
+    if (planeOn) {
+      const ext = Math.min(lt, path.ticks + 90) / path.ticks; // keeps flying a bit after the route
+      this.planePos.set(path.ax + (path.bx - path.ax) * ext, SKY.planeAltitude + 1.5, path.az + (path.bz - path.az) * ext);
+      this.planeYaw = path.yaw;
+    }
+    this.plane.update(dt, planeOn, this.planePos.x, this.planePos.y, this.planePos.z, this.planeYaw);
+    this.hud.setPlaneHint(me.alive && me.move.air === 1, me.move.air >= 2);
+    const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
     this.controls.scopedView = scopedView;
     this.scopeMode = !scopedView ? 'none' : slot.id === 'sniper' ? 'x8' : slot.id === 'rifle' && me.scope ? (me.scope >= 4 ? 'x4' : 'x2') : 'reddot';
     this.hud.setScope(this.scopeMode);
@@ -464,7 +478,7 @@ export class Game {
       v.firingT = Math.max(0, v.firingT - dt);
       const want = p.weapons[p.slot].id as GunName;
       if (want !== v.gun) { v.gun = want; v.view.setGun(this.assets, want); }
-      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned), vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
+      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
       // footsteps
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 40) {
         v.stepAcc += p.speed * dt;
@@ -496,7 +510,9 @@ export class Game {
     // HUD
     const reloadFrac = me.reloadEndTick ? 1 - (me.reloadEndTick - this.sim.tick) / (WEAPONS[slot.id].reloadTime * 30) : 0;
     const healFrac = me.healEndTick ? 1 - Math.max(0, me.healEndTick - (this.net ? this.net.serverTick : this.sim.tick)) / (LOOT.medTime * 30) : 0;
-    this.hud.setSlots(me, reloadFrac, healFrac);
+    const shown = !me.alive && focusV !== meV ? focusV.p : me;
+    this.hud.setSlots(shown, shown === me ? reloadFrac : 0, shown === me ? healFrac : 0);
+    this.hud.setSpectating(shown === me ? null : shown.name);
     const out = me.alive && outsideZone(zone, me.move.x, me.move.z);
     this.hud.setInfo(this.aliveCount(), me.kills, zone, { x: meV.view.root.position.x, z: meV.view.root.position.z, yaw: this.controls.yaw }, out, dt);
     this.hud.update(dt, this.camera);
@@ -520,6 +536,14 @@ export class Game {
 
   private updateCamera(dt: number, v: View, yaw: number, pitch: number, firstPerson: boolean) {
     const move = v.p.move;
+    if (move.air === 1) { // chase camera around the plane
+      this.focus.copy(this.planePos);
+      const d = 30, fw = this.fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+      this.camera.position.copy(this.planePos).addScaledVector(fw, -d).add(this.dir.set(0, 7, 0));
+      this.camera.lookAt(this.planePos);
+      if (Math.abs(this.camera.fov - 70) > 0.1) { this.camera.fov = 70; this.camera.updateProjectionMatrix(); }
+      return;
+    }
     this.pivot.set(this.focus.x, this.focus.y + eyeOffset(move), this.focus.z);
     const fwd = this.fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     const right = this.right.set(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -531,7 +555,7 @@ export class Game {
       this.camera.position.copy(this.pivot).addScaledVector(fwd, 0.25);
       fov = SCOPE_FOV[this.scopeMode] ?? w.scopeFov;
     } else {
-      const targetDist = scoped ? 1.6 : 3.6;
+      const targetDist = scoped ? 1.6 : move.air ? 6.5 : 3.6;
       this.camDist += (targetDist - this.camDist) * Math.min(1, dt * 12);
       const shoulder = scoped ? 0.55 : 0.65;
       const dir = this.dir.copy(right).multiplyScalar(shoulder).addScaledVector(fwd, -this.camDist);

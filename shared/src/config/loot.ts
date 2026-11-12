@@ -10,6 +10,9 @@ export interface LootItem {
   item?: WeaponId | number;
   amount: number;
   x: number; y: number; z: number;
+  /** dropped by this player: they can't pick it up again until lockUntil (tick) */
+  lockId?: number;
+  lockUntil?: number;
 }
 
 export const LOOT = {

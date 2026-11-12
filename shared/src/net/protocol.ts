@@ -22,7 +22,7 @@ export interface LobbyInfo { phase: string; countdown: number; humans: number; m
 const PITCH_K = 10000;
 
 // ------------------------------------------------------------------ inputs
-const INPUT_BYTES = 4 + 1 + 1 + 4 + 2 + 4 + 2 + 2 + 1 + 4;
+const INPUT_BYTES = 4 + 1 + 1 + 4 + 2 + 4 + 2 + 2 + 1 + 4 + 1;
 
 export function encodeInputs(inputs: InputCmd[]): Uint8Array {
   const n = Math.min(inputs.length, 8);
@@ -42,6 +42,7 @@ export function encodeInputs(inputs: InputCmd[]): Uint8Array {
     v.setUint16(o, i.buttons & 0xffff); o += 2;
     v.setUint8(o, i.weapon ?? 255); o += 1;
     v.setFloat32(o, i.viewTick ?? -1); o += 4;
+    v.setUint8(o, i.dropItem ?? 0); o += 1;
   }
   return new Uint8Array(buf);
 }
@@ -54,6 +55,7 @@ export function quantizeInput(i: InputCmd): InputCmd {
     yaw: Math.fround(i.yaw), pitch: Math.round(i.pitch * PITCH_K) / PITCH_K,
     aimYaw: Math.fround(i.aimYaw ?? i.yaw), aimPitch: Math.round((i.aimPitch ?? i.pitch) * PITCH_K) / PITCH_K,
     viewTick: i.viewTick === undefined ? undefined : Math.fround(i.viewTick),
+    dropItem: i.dropItem ? i.dropItem & 0xff : undefined,
   };
 }
 
@@ -74,7 +76,8 @@ export function decodeInputs(bytes: Uint8Array): InputCmd[] {
     const buttons = v.getUint16(o); o += 2;
     const w = v.getUint8(o); o += 1;
     const vt = v.getFloat32(o); o += 4;
-    out.push({ seq, mx, mz, yaw, pitch, aimYaw, aimPitch, buttons, weapon: w === 255 ? undefined : w, viewTick: vt < 0 ? undefined : vt });
+    const dropItem = v.getUint8(o); o += 1;
+    out.push({ seq, mx, mz, yaw, pitch, aimYaw, aimPitch, buttons, weapon: w === 255 ? undefined : w, viewTick: vt < 0 ? undefined : vt, dropItem: dropItem || undefined });
   }
   return out;
 }
@@ -85,14 +88,16 @@ export interface RemoteState {
   x: number; y: number; z: number;
   yaw: number; pitch: number;
   vx: number; vz: number;
-  alive: boolean; crouch: boolean; grounded: boolean; ball: boolean; prone: boolean;
+  alive: boolean; crouch: boolean; grounded: boolean; ball: boolean; prone: boolean; air: number;
+  /** 0-3 weapon in hand, 4 holstered, 5 unarmed */
   slot: number;
+  hp: number; armor: number;
 }
 
 export interface SelfState {
   move: MoveState;
   alive: boolean;
-  hp: number; armor: number; slot: number;
+  hp: number; armor: number; slot: number; holstered: boolean;
   weapons: { owned: boolean; mag: number; reserve: number }[];
   meds: number; frost: number; scope: number; healEndTick: number;
   nextFireTick: number; reloadEndTick: number;
@@ -112,7 +117,7 @@ export interface Snapshot {
 
 const PHASES = ['lobby', 'live', 'ended'] as const;
 const SELF_BYTES = 4 * 3 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4;
-const OTHER_BYTES = 1 + 12 + 2 + 2 + 2 + 2 + 1 + 1;
+const OTHER_BYTES = 1 + 12 + 2 + 2 + 2 + 2 + 1 + 1 + 2;
 
 export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick: number, alive: number, me: SimPlayer | null, players: Iterable<SimPlayer>): Uint8Array {
   const list = [...players].filter((p) => p !== me);
@@ -129,7 +134,7 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
   if (me) {
     const m = me.move;
     for (const f of [m.x, m.y, m.z, m.vx, m.vz, m.vy]) { v.setFloat32(o, f); o += 4; }
-    v.setUint8(o, (m.grounded ? 1 : 0) | (m.crouch ? 2 : 0) | (m.ball ? 4 : 0) | (me.alive ? 8 : 0) | (m.prone ? 16 : 0)); o += 1;
+    v.setUint8(o, (m.grounded ? 1 : 0) | (m.crouch ? 2 : 0) | (m.ball ? 4 : 0) | (me.alive ? 8 : 0) | (m.prone ? 16 : 0) | ((m.air & 3) << 5)); o += 1;
     v.setUint8(o, m.vault); o += 1;
     v.setFloat32(o, m.vaultLift); o += 4;
     v.setFloat32(o, m.vaultSide); o += 4;
@@ -142,7 +147,7 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
     v.setUint32(o, me.nextFireTick); o += 4;
     v.setUint32(o, me.reloadEndTick); o += 4;
     v.setUint16(o, me.prevButtons); o += 2;
-    v.setUint8(o, me.triggerArmed ? 1 : 0); o += 1;
+    v.setUint8(o, (me.triggerArmed ? 1 : 0) | (me.holstered ? 2 : 0)); o += 1;
     v.setUint8(o, Math.min(255, me.kills)); o += 1;
     v.setUint8(o, me.place); o += 1;
     v.setUint8(o, me.weapons.reduce((m, w, i) => m | (w.owned ? 1 << i : 0), 0)); o += 1;
@@ -159,8 +164,10 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
     v.setInt16(o, Math.round(m.pitch * PITCH_K)); o += 2;
     v.setInt16(o, Math.round(Math.max(-327, Math.min(327, m.vx)) * 100)); o += 2;
     v.setInt16(o, Math.round(Math.max(-327, Math.min(327, m.vz)) * 100)); o += 2;
-    v.setUint8(o, (p.alive ? 1 : 0) | (m.crouch ? 2 : 0) | (m.grounded ? 4 : 0) | (m.ball ? 8 : 0) | (m.prone ? 16 : 0)); o += 1;
-    v.setUint8(o, p.slot); o += 1;
+    v.setUint8(o, (p.alive ? 1 : 0) | (m.crouch ? 2 : 0) | (m.grounded ? 4 : 0) | (m.ball ? 8 : 0) | (m.prone ? 16 : 0) | ((m.air & 3) << 5)); o += 1;
+    v.setUint8(o, p.holstered ? 4 : p.weapons[p.slot]?.owned ? p.slot : 5); o += 1;
+    v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(p.hp)))); o += 1;
+    v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(p.armor)))); o += 1;
   }
   return new Uint8Array(buf);
 }
@@ -188,7 +195,8 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
     const nextFireTick = v.getUint32(o); o += 4;
     const reloadEndTick = v.getUint32(o); o += 4;
     const prevButtons = v.getUint16(o); o += 2;
-    const triggerArmed = v.getUint8(o) === 1; o += 1;
+    const tb = v.getUint8(o); o += 1;
+    const triggerArmed = !!(tb & 1), holstered = !!(tb & 2);
     const kills = v.getUint8(o); o += 1;
     const place = v.getUint8(o); o += 1;
     const owned = v.getUint8(o); o += 1;
@@ -196,8 +204,8 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
     const healEndTick = v.getUint32(o); o += 4;
     weapons.forEach((w, i) => { (w as { owned: boolean }).owned = !!(owned & (1 << i)); });
     self = {
-      move: { x, y, z, vx, vz, vy, grounded: !!(flags & 1), crouch: !!(flags & 2), ball: !!(flags & 4), prone: !!(flags & 16), yaw, pitch, vault, vaultLift, vaultSide },
-      alive: !!(flags & 8), hp, armor, slot, weapons, meds, frost, scope, healEndTick, nextFireTick, reloadEndTick, prevButtons, triggerArmed, kills, place,
+      move: { x, y, z, vx, vz, vy, grounded: !!(flags & 1), crouch: !!(flags & 2), ball: !!(flags & 4), prone: !!(flags & 16), air: (flags >> 5) & 3, yaw, pitch, vault, vaultLift, vaultSide },
+      alive: !!(flags & 8), hp, armor, slot, holstered, weapons, meds, frost, scope, healEndTick, nextFireTick, reloadEndTick, prevButtons, triggerArmed, kills, place,
     };
   }
   const others: RemoteState[] = [];
@@ -210,7 +218,8 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
     const vz = v.getInt16(o) / 100; o += 2;
     const flags = v.getUint8(o); o += 1;
     const slot = v.getUint8(o); o += 1;
-    others.push({ id, x, y, z, yaw, pitch, vx, vz, alive: !!(flags & 1), crouch: !!(flags & 2), grounded: !!(flags & 4), ball: !!(flags & 8), prone: !!(flags & 16), slot });
+    const hp = v.getUint8(o), armor = v.getUint8(o + 1); o += 2;
+    others.push({ id, x, y, z, yaw, pitch, vx, vz, alive: !!(flags & 1), crouch: !!(flags & 2), grounded: !!(flags & 4), ball: !!(flags & 8), prone: !!(flags & 16), air: (flags >> 5) & 3, slot, hp, armor });
   }
   return { tick, phase, startTick, alive, ack, self, others };
 }
@@ -218,7 +227,7 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
 /** Apply a decoded self-state onto a SimPlayer (client reconciliation). */
 export function applySelf(p: SimPlayer, s: SelfState) {
   Object.assign(p.move, s.move);
-  p.alive = s.alive; p.hp = s.hp; p.armor = s.armor; p.slot = s.slot;
+  p.alive = s.alive; p.hp = s.hp; p.armor = s.armor; p.slot = s.slot; p.holstered = s.holstered;
   s.weapons.forEach((w, i) => { p.weapons[i].owned = w.owned; p.weapons[i].mag = w.mag; p.weapons[i].reserve = w.reserve; p.weapons[i].id = WEAPON_IDS[i]; });
   p.meds = s.meds; p.frost = s.frost; p.scope = s.scope; p.healEndTick = s.healEndTick;
   p.nextFireTick = s.nextFireTick; p.reloadEndTick = s.reloadEndTick;

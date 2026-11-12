@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GAME_TITLE, WEAPON_IDS } from '@lw/shared';
 import { loadSettings, settingsPanel } from './settings';
+import { editLayoutStandalone } from './layout';
+import { createHudButtons } from './buttons';
 import type { GameAssets, GunName } from '../render/assets';
 import { CharacterView, SKINS } from '../render/characters';
 
@@ -87,7 +89,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
 
   // ---- settings (same panel as in game; saved on the device)
   const st = loadSettings();
-  settingsPanel(el.querySelector('.lobby-settings') as HTMLElement, st, () => {});
+  settingsPanel(el.querySelector('.lobby-settings') as HTMLElement, st, () => {}, () => editLayoutStandalone((r) => { createHudButtons(r); }));
 
   // ---- form
   const nameIn = el.querySelector('.name') as HTMLInputElement;

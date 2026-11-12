@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { BTN, PLAYER } from '../config/game';
+import { BTN, MAP, PLAYER } from '../config/game';
 import type { PhysicsWorld } from './physics';
 
 export interface InputCmd {
@@ -17,6 +17,8 @@ export interface InputCmd {
   aimPitch?: number;
   /** desired weapon slot */
   weapon?: number;
+  /** drop an inventory item on the ground (see DROP codes) — one-shot */
+  dropItem?: number;
   /** (fractional) server tick the client was rendering other players at — for lag compensation */
   viewTick?: number;
 }
@@ -45,12 +47,14 @@ export interface MoveState {
   pitch: number;
   /** remaining vault ticks (0 = not vaulting) */
   vault: number;
+  /** 0 on foot, 1 inside the plane, 2 free-fall, 3 under parachute */
+  air: number;
   vaultLift: number;
   vaultSide: number;
 }
 
 export const newMoveState = (x: number, y: number, z: number): MoveState => ({
-  x, y, z, vx: 0, vz: 0, vy: 0, grounded: false, crouch: false, ball: false, prone: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0,
+  x, y, z, vx: 0, vz: 0, vy: 0, grounded: false, crouch: false, ball: false, prone: false, yaw: 0, pitch: 0, vault: 0, vaultLift: 0, vaultSide: 0, air: 0,
 });
 
 export const copyMoveState = (s: MoveState): MoveState => ({ ...s });
@@ -59,6 +63,18 @@ export const shapeOf = (s: MoveState) => (s.ball ? SHAPE.BALL : s.prone ? SHAPE.
 /** Distance from capsule centre to feet. */
 export const halfTotalOf = (s: MoveState) => { const sh = shapeOf(s); return sh.hh + sh.r; };
 export const feetY = (s: MoveState) => s.y - halfTotalOf(s);
+
+/** Sky-drop tuning (m/s, m). */
+export const SKY = {
+  planeAltitude: 115,
+  planeSpeed: 24,
+  fallSpeed: 22,
+  diveSpeed: 34,
+  fallSpeedH: 13,
+  chuteSpeed: 5.5,
+  chuteSpeedH: 7,
+  chuteHeight: 45,
+} as const;
 
 const VAULT_LIFT_TICKS = 5;
 const VAULT_FWD_TICKS = 9;
@@ -81,9 +97,10 @@ export function sanitizeInput(i: InputCmd): InputCmd {
   if (Math.abs(dy) > 0.35) aimYaw = yaw + Math.sign(dy) * 0.35;
   let aimPitch = Number.isFinite(i.aimPitch) ? clampP(i.aimPitch as number) : pitch;
   if (Math.abs(aimPitch - pitch) > 0.35) aimPitch = pitch + Math.sign(aimPitch - pitch) * 0.35;
-  const weapon = Number.isFinite(i.weapon) ? Math.max(0, Math.min(3, (i.weapon as number) | 0)) : undefined;
+  const weapon = Number.isFinite(i.weapon) ? Math.max(0, Math.min(4, (i.weapon as number) | 0)) : undefined; // 4 = holster
+  const dropItem = Number.isFinite(i.dropItem) && (i.dropItem as number) > 0 ? (i.dropItem as number) | 0 : undefined;
   const viewTick = Number.isFinite(i.viewTick) ? (i.viewTick as number) : undefined;
-  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xffff, aimYaw, aimPitch, weapon, viewTick };
+  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xffff, aimYaw, aimPitch, weapon, viewTick, dropItem };
 }
 
 type ShapeName = 'stand' | 'crouch' | 'ball' | 'prone';
@@ -144,6 +161,31 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   s.pitch = input.pitch;
   col.setTranslation({ x: s.x, y: s.y, z: s.z });
   const sin = Math.sin(s.yaw), cos = Math.cos(s.yaw);
+
+  // ---------------- Plane / free-fall / parachute ----------------
+  if (s.air === 1) return; // in the plane: the server moves you along the flight path
+  if (s.air >= 2) {
+    const above = s.y - phys.groundHeight(s.x, s.z);
+    if (s.air === 2 && above < SKY.chuteHeight) s.air = 3; // parachute opens automatically
+    const hs = s.air === 2 ? SKY.fallSpeedH : SKY.chuteSpeedH;
+    const tvx = (-sin * input.mz + cos * input.mx) * hs, tvz = (-cos * input.mz - sin * input.mx) * hs;
+    const k = Math.min(1, dt * 3);
+    s.vx += (tvx - s.vx) * k; s.vz += (tvz - s.vz) * k;
+    const targetVy = s.air === 2 ? (input.mz > 0.5 ? -SKY.diveSpeed : -SKY.fallSpeed) : -SKY.chuteSpeed;
+    s.vy += (targetVy - s.vy) * Math.min(1, dt * 2.5);
+    scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;
+    phys.controller.computeColliderMovement(col, scratch);
+    const mv = phys.controller.computedMovement();
+    s.x += mv.x; s.y += mv.y; s.z += mv.z;
+    // stay above the valley while gliding
+    const r = Math.hypot(s.x, s.z), lim = MAP.playRadius - 4;
+    if (r > lim) { s.x *= lim / r; s.z *= lim / r; }
+    if (phys.controller.computedGrounded() || above < 0.3) { s.air = 0; s.vy = 0; s.grounded = true; s.vx *= 0.3; s.vz *= 0.3; }
+    const floor = phys.groundHeight(s.x, s.z) + halfTotalOf(s);
+    if (s.y < floor - 0.5) { s.y = floor + 0.05; s.vy = 0; s.air = 0; }
+    col.setTranslation({ x: s.x, y: s.y, z: s.z });
+    return;
+  }
 
   // ---------------- Vault in progress ----------------
   if (s.vault > 0) {

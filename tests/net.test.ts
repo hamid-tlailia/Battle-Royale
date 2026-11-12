@@ -36,7 +36,7 @@ async function drive(s: NetSession, seconds: number, inputFn: (t: number) => { m
 
 async function joinPair(opts: Record<string, unknown>, cond: NetConditions) {
   const a = new NetSession(URL_, cond), b = new NetSession(URL_, cond);
-  await a.join('A', { lobbySeconds: 1, fillTo: 2, seed: MAP.seed, armed: true, ...opts });
+  await a.join('A', { lobbySeconds: 1, fillTo: 2, seed: MAP.seed, armed: true, skyDrop: false, ...opts });
   await b.join('B', {}, a.room.roomId);
   const room = matchMaker.getLocalRoomById(a.room.roomId) as unknown as MatchRoom;
   // wait for welcome + first snapshots

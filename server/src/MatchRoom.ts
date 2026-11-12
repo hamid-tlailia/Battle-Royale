@@ -15,6 +15,8 @@ export interface MatchOptions {
   lagCompensation?: boolean;
   /** tests only: start with all weapons */
   armed?: boolean;
+  /** tests only: start on the ground instead of the drop plane */
+  skyDrop?: boolean;
 }
 
 interface Human { id: number; client: Client; queue: InputCmd[]; lastSeq: number; name: string; credit: number }
@@ -37,7 +39,7 @@ export class MatchRoom extends Room {
   private loop: ReturnType<typeof setInterval> | null = null;
   private acc = 0;
   private last = 0;
-  private opts: Required<Omit<MatchOptions, 'lagCompensation' | 'armed'>> = { lobbySeconds: 20, fillTo: 16, seed: 0, private: false };
+  private opts: Required<Omit<MatchOptions, 'lagCompensation' | 'armed' | 'skyDrop'>> = { lobbySeconds: 20, fillTo: 16, seed: 0, private: false };
   private hostId = -1;
   /** stats for the debug overlay / tests */
   tickMs = 0;
@@ -52,7 +54,7 @@ export class MatchRoom extends Room {
     };
     if (this.opts.private) await this.setPrivate(true);
     this.maxClients = Math.max(1, Math.min(16, this.opts.fillTo));
-    this.sim = new GameSim(this.opts.seed, { lobby: true, armed: options.armed === true && process.env.NODE_ENV !== 'production' });
+    this.sim = new GameSim(this.opts.seed, { lobby: true, armed: options.armed === true && process.env.NODE_ENV !== 'production', skyDrop: !(options.skyDrop === false && process.env.NODE_ENV !== 'production') });
     this.sim.lagCompensation = options.lagCompensation !== false;
     this.autoDispose = true;
 

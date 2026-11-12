@@ -15,6 +15,38 @@ export interface GameAssets {
   prefabs: Record<PrefabName, PrefabParts>;
   soldier: GLTF;
   guns: Record<GunName, THREE.Object3D>;
+  /** side-view pictures of each gun (data URLs) for weapon slots / backpack */
+  icons: Record<GunName, string>;
+}
+
+/** Render each gun model once to a small transparent picture. */
+function renderGunIcons(guns: Record<GunName, THREE.Object3D>): Record<GunName, string> {
+  const out = {} as Record<GunName, string>;
+  try {
+    const W = 192, H = 72;
+    const r = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    r.setSize(W, H, false);
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 2.2));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 3, 1); scene.add(sun);
+    for (const g of GUNS) {
+      const m = guns[g].clone();
+      m.rotation.y = Math.PI / 2; // barrel points right
+      scene.add(m);
+      m.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(m);
+      const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+      const half = Math.max(sz.x / 2 / (W / H), sz.y / 2) * 1.12;
+      const cam = new THREE.OrthographicCamera(-half * (W / H), half * (W / H), half, -half, -10, 10);
+      cam.position.set(c.x, c.y, c.z + 2); cam.lookAt(c);
+      r.render(scene, cam);
+      out[g] = r.domElement.toDataURL('image/png');
+      scene.remove(m);
+    }
+    r.dispose();
+    r.forceContextLoss();
+  } catch { /* icons are optional */ }
+  return out;
 }
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -72,7 +104,7 @@ export async function loadAssets(onProgress: (f: number) => void): Promise<GameA
     const m = o as THREE.SkinnedMesh;
     if (m.isMesh) { m.material = toLambert(m.material as THREE.Material); m.frustumCulled = false; }
   });
-  return { prefabs, soldier, guns };
+  return { prefabs, soldier, guns, icons: renderGunIcons(guns) };
 }
 
 /**

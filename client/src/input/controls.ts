@@ -1,3 +1,4 @@
+import { layoutOf } from '../ui/layout';
 import { BTN, PLAYER } from '@lw/shared';
 
 /**
@@ -20,6 +21,9 @@ export class Controls {
   jumpQueued = 0; // ticks remaining to send jump
   reloadQueued = 0;
   healQueued = 0;
+  /** backpack: item to drop with the next input */
+  dropQueued = 0;
+  private lastSlot = 1;
   frostQueued = 0;
   fireHeld = false;
   weapon = 1;
@@ -50,6 +54,7 @@ export class Controls {
     this.joyKnob = document.createElement('div');
     this.joyKnob.className = 'joy-knob';
     this.joyBase.appendChild(this.joyKnob);
+    this.joyBase.dataset.hud = 'joy';
     hud.appendChild(this.joyBase);
     this.showJoystickIdle();
 
@@ -112,6 +117,13 @@ export class Controls {
   jump() { this.jumpQueued = 3; }
   reload() { this.reloadQueued = 3; }
   heal() { this.healQueued = 3; }
+  /** put the gun away / take it back out */
+  toggleHolster() {
+    if (this.weapon === 4) this.weapon = this.lastSlot;
+    else { this.lastSlot = this.weapon; this.weapon = 4; this.scoped = false; }
+  }
+  /** returns the queued backpack drop once */
+  takeDrop(): number | undefined { const d = this.dropQueued; this.dropQueued = 0; return d || undefined; }
   frost() { this.frostQueued = 3; }
   toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) this.proneToggle = false; }
   toggleProne() { this.proneToggle = !this.proneToggle; if (this.proneToggle) this.crouchToggle = false; }
@@ -131,8 +143,11 @@ export class Controls {
       const leftSide = t.clientX < window.innerWidth * 0.42;
       if (leftSide && this.joyId === null) {
         this.joyId = t.identifier;
-        this.joyOrigin = { x: t.clientX, y: t.clientY };
-        this.placeJoy(t.clientX, t.clientY, 1);
+        // custom layout: fixed joystick at the saved spot; otherwise it appears under the thumb
+        const fixed = layoutOf('joy');
+        const ox = fixed ? fixed.x * window.innerWidth : t.clientX, oy = fixed ? fixed.y * window.innerHeight : t.clientY;
+        this.joyOrigin = { x: ox, y: oy };
+        this.placeJoy(ox, oy, 1);
       } else if (!leftSide && this.lookId === null) {
         this.lookId = t.identifier;
         this.lookLast = { x: t.clientX, y: t.clientY };
@@ -178,6 +193,7 @@ export class Controls {
   };
 
   private placeJoy(x: number, y: number, opacity: number) {
+    this.joyBase.style.transform = 'none'; this.joyBase.style.width = this.joyBase.style.height = '120px';
     this.joyBase.style.left = `${x - this.JOY_R}px`;
     this.joyBase.style.top = `${y - this.JOY_R}px`;
     this.joyBase.style.opacity = String(opacity);
@@ -186,7 +202,9 @@ export class Controls {
 
   private showJoystickIdle() {
     if (!this.isTouch) { this.joyBase.style.display = 'none'; return; }
-    this.placeJoy(110, window.innerHeight - 110, 0.45);
+    const fixed = layoutOf('joy');
+    if (fixed) this.placeJoy(fixed.x * window.innerWidth, fixed.y * window.innerHeight, 0.45);
+    else this.placeJoy(110, window.innerHeight - 110, 0.45);
   }
 
   /** Called once per simulation tick. */
