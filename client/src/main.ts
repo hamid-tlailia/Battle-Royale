@@ -7,17 +7,25 @@ app.innerHTML = `
   <div id="hud"></div>
   <div id="menu" class="menu">
     <h1>${GAME_TITLE}</h1>
-    <p class="sub">Milestone 1 · Movement sandbox</p>
+    <p class="sub">Milestone 1.5 · Real models &amp; performance</p>
     <button id="play" class="play" disabled>LOADING…</button>
+    <div class="bar"><div id="bar"></div></div>
     <p class="note">Offline test: you + 15 wandering bots.</p>
   </div>
   <div id="rotate" class="rotate"><div>⟳</div><p>Rotate your phone to landscape</p></div>
 `;
 
 const play = document.getElementById('play') as HTMLButtonElement;
-const physicsReady = initPhysics().then(() => {
+const bar = document.getElementById('bar') as HTMLDivElement;
+const assetsReady = import('./render/assets').then((m) => m.loadAssets((f) => { bar.style.width = `${Math.round(f * 100)}%`; }));
+const ready = Promise.all([initPhysics(), assetsReady]).then(([, assets]) => {
   play.disabled = false;
   play.textContent = 'PLAY';
+  return assets;
+}).catch((e) => {
+  play.textContent = 'LOAD FAILED';
+  console.error(e);
+  throw e;
 });
 
 play.addEventListener('click', async () => {
@@ -26,8 +34,8 @@ play.addEventListener('click', async () => {
     await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
     await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
   } catch { /* not supported — fine */ }
-  await physicsReady;
+  const assets = await ready;
   document.getElementById('menu')!.remove();
   const { OfflineGame } = await import('./game/OfflineGame');
-  new OfflineGame(document.getElementById('game')!, document.getElementById('hud')!);
+  new OfflineGame(document.getElementById('game')!, document.getElementById('hud')!, assets);
 });

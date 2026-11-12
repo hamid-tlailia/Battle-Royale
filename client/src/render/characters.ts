@@ -1,81 +1,149 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { PLAYER } from '@lw/shared';
+import type { GameAssets, GunName } from './assets';
 
-const SHIRTS = [0xd94f3d, 0x3d7bd9, 0xe0b23a, 0x8a4fd9, 0x3dbf8a, 0xe07a3a, 0xd93d8a, 0x3dc4d9, 0xf0f0f0, 0x6b8e23];
-const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524];
+type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'jump' | 'fire' | 'crouch_idle' | 'crouch_walk' | 'crouch_fire' | 'death' | 'death_crouch';
 
-function colored(geo: THREE.BufferGeometry, hex: number) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  const c = new THREE.Color(hex);
-  const n = g.getAttribute('position').count;
-  const arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) arr.set([c.r, c.g, c.b], i * 3);
-  g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-  g.deleteAttribute('uv');
-  return g;
+const TINTS = [0xffffff, 0xd8e4ff, 0xffe2c8, 0xd9ffd9, 0xf0d8ff, 0xfff4c0, 0xc8f4ff, 0xffd0d0];
+const LOD_DISTANCE = 14;
+/** Speed (m/s) at which each locomotion clip looks right — used to scale playback rate. */
+const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 1.6, walk_fire: 1.7, run: 5.2, crouch_walk: 1.6 };
+
+export interface CharacterState {
+  x: number; y: number; z: number; yaw: number;
+  speed: number; crouch: boolean; grounded: boolean;
+  firing?: boolean; dead?: boolean; pitch?: number;
 }
 
-const sharedMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-const legGeo = colored(new THREE.BoxGeometry(0.2, 0.75, 0.24).translate(0, -0.375, 0), 0x3b3f4a);
-
-/** Low-poly soldier. Origin at the FEET; faces -Z. */
+/**
+ * Animated soldier. Origin of `root` is at the feet. Model faces -Z after the internal flip.
+ * Shares geometry/material with every other soldier (SkeletonUtils clone).
+ */
 export class CharacterView {
   readonly root = new THREE.Group();
-  private upper = new THREE.Group();
-  private legL: THREE.Mesh;
-  private legR: THREE.Mesh;
-  private walkPhase = 0;
-  private crouchAmt = 0;
-  static readonly HIP = 0.75;
+  private model: THREE.Object3D;
+  private mixer: THREE.AnimationMixer;
+  private actions = new Map<Clip, THREE.AnimationAction>();
+  private current: Clip | null = null;
+  private body: THREE.SkinnedMesh | null = null;
+  private bodyLod: THREE.SkinnedMesh | null = null;
+  private gun: THREE.Object3D | null = null;
+  private hand: THREE.Bone | null = null;
+  private wasGrounded = true;
+  private airTime = 0;
+  private skipFrames = 0;
+  private skipAcc = 0;
+  readonly radius = 1.2;
 
-  constructor(index: number) {
-    const shirt = SHIRTS[index % SHIRTS.length];
-    const skin = SKIN[index % SKIN.length];
-    const parts = [
-      colored(new THREE.BoxGeometry(0.54, 0.56, 0.3).translate(0, 0.29, 0), shirt), // torso
-      colored(new THREE.BoxGeometry(0.3, 0.3, 0.3).translate(0, 0.75, 0), skin), // head
-      colored(new THREE.BoxGeometry(0.36, 0.1, 0.36).translate(0, 0.93, 0.02), 0x3d4a2f), // helmet
-      colored(new THREE.BoxGeometry(0.15, 0.52, 0.17).translate(-0.35, 0.3, -0.04), shirt), // arms
-      colored(new THREE.BoxGeometry(0.15, 0.52, 0.17).translate(0.35, 0.3, -0.04), shirt),
-      colored(new THREE.BoxGeometry(0.38, 0.4, 0.16).translate(0, 0.32, 0.22), 0x5a4a32), // backpack
-      colored(new THREE.BoxGeometry(0.22, 0.07, 0.04).translate(0, 0.78, -0.16), 0x111111), // visor
-    ];
-    const body = new THREE.Mesh(mergeGeometries(parts), sharedMat);
-    this.upper.add(body);
-    this.legL = new THREE.Mesh(legGeo, sharedMat);
-    this.legR = new THREE.Mesh(legGeo, sharedMat);
-    this.root.add(this.upper, this.legL, this.legR);
-    const shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(0.45, 10).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }),
-    );
-    shadow.position.y = 0.03;
-    this.root.add(shadow);
+  constructor(assets: GameAssets, index: number, gunName: GunName = 'rifle') {
+    this.model = SkeletonUtils.clone(assets.soldier.scene);
+    // Normalise height to 1.8 m and put feet at y=0 (measured on the skinned rest pose).
+    this.model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.model, true);
+    const h = box.max.y - box.min.y;
+    const s = 1.8 / h;
+    this.model.scale.multiplyScalar(s);
+    this.model.position.y = -box.min.y * s;
+    this.model.rotation.y = Math.PI; // asset faces +Z, game forward is -Z
+    this.root.add(this.model);
+
+    const tint = new THREE.Color(TINTS[index % TINTS.length]);
+    this.model.traverse((o) => {
+      const sm = o as THREE.SkinnedMesh;
+      if (!sm.isSkinnedMesh) return;
+      sm.frustumCulled = false;
+      if (index % TINTS.length !== 0) {
+        const mat = (sm.material as THREE.MeshLambertMaterial).clone();
+        mat.color.copy(tint);
+        sm.material = mat;
+      }
+      if (sm.name.includes('lod')) this.bodyLod = sm; else this.body = sm;
+      const b = sm.skeleton.bones.find((x) => x.name.includes('RightHand'));
+      if (b) this.hand = b;
+    });
+    if (this.bodyLod) this.bodyLod.visible = false;
+
+    this.mixer = new THREE.AnimationMixer(this.model);
+    for (const clip of assets.soldier.animations) {
+      const a = this.mixer.clipAction(clip);
+      const once = clip.name === 'jump' || clip.name.startsWith('death');
+      if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+      this.actions.set(clip.name as Clip, a);
+    }
+    this.play('idle_rifle', 0);
+    this.setGun(assets, gunName);
+
   }
 
-  /** (x,y,z) = capsule centre. */
-  update(x: number, y: number, z: number, yaw: number, speed: number, crouch: boolean, grounded: boolean, dt: number) {
-    const halfTotal = (crouch ? PLAYER.crouchHalfHeight : PLAYER.halfHeight) + PLAYER.radius;
-    this.root.position.set(x, y - halfTotal, z);
-    this.root.rotation.y = yaw;
-    this.crouchAmt += ((crouch ? 1 : 0) - this.crouchAmt) * Math.min(1, dt * 14);
-    const legScale = 1 - this.crouchAmt * 0.45;
-    const hip = CharacterView.HIP * legScale;
-    this.legL.position.set(-0.13, hip, 0);
-    this.legR.position.set(0.13, hip, 0);
-    this.legL.scale.y = this.legR.scale.y = legScale;
-    this.upper.position.y = hip;
-    this.upper.scale.setScalar(1 - this.crouchAmt * 0.12);
-    this.upper.rotation.x = -this.crouchAmt * 0.25;
-    if (grounded && speed > 0.5) this.walkPhase += dt * speed * 2.4;
-    else this.walkPhase *= 0.85;
-    const swing = Math.sin(this.walkPhase) * 0.6 * Math.min(1, speed / 4);
-    this.legL.rotation.x = swing;
-    this.legR.rotation.x = -swing;
+  setGun(assets: GameAssets, gunName: GunName) {
+    if (this.gun) this.gun.removeFromParent();
+    // The gun is NOT parented to the hand bone (bone axes differ per animation rig): every frame it is
+    // placed at the right hand and aimed along the player's view direction.
+    this.gun = assets.guns[gunName].clone();
+    this.root.add(this.gun);
+  }
+
+  private play(name: Clip, fade = 0.2) {
+    if (this.current === name) return;
+    const next = this.actions.get(name);
+    if (!next) return;
+    next.reset().setEffectiveWeight(1).fadeIn(fade).play();
+    if (this.current) this.actions.get(this.current)?.fadeOut(fade);
+    this.current = name;
+  }
+
+  /** dist = distance to camera (for LOD and animation rate). */
+  update(st: CharacterState, dt: number, dist: number, visible: boolean) {
+    const halfTotal = (st.crouch ? PLAYER.crouchHalfHeight : PLAYER.halfHeight) + PLAYER.radius;
+    this.root.position.set(st.x, st.y - halfTotal, st.z);
+    this.root.rotation.y = st.yaw;
+    this.root.visible = visible;
+
+    // choose clip
+    if (!st.grounded) this.airTime += dt; else this.airTime = 0;
+    let clip: Clip;
+    if (st.dead) clip = st.crouch ? 'death_crouch' : 'death';
+    else if (this.airTime > 0.15) clip = 'jump';
+    else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
+    else if (st.speed > 3.6) clip = 'run';
+    else if (st.speed > 0.4) clip = 'walk_fire';
+    else clip = st.firing ? 'fire' : 'idle_rifle';
+    if (clip === 'jump' && this.wasGrounded) this.actions.get('jump')?.reset();
+    this.wasGrounded = st.grounded;
+    this.play(clip);
+    const ref = CLIP_SPEED[clip];
+    const act = this.actions.get(clip);
+    if (act) act.timeScale = ref ? THREE.MathUtils.clamp(st.speed / ref, 0.6, 1.6) : 1;
+
+    // LOD + animation throttling for distant / hidden characters
+    const far = dist > LOD_DISTANCE;
+    if (this.body && this.bodyLod) { this.body.visible = !far; this.bodyLod.visible = far; }
+    this.skipFrames = !visible ? 6 : dist > 60 ? 3 : dist > 30 ? 1 : 0;
+    this.skipAcc += dt;
+    if (this.skipFrames === 0 || Math.random() < 1 / (this.skipFrames + 1)) {
+      this.mixer.update(this.skipAcc);
+      this.skipAcc = 0;
+      if (visible && this.gun && this.hand) this.placeGun(st);
+    }
+  }
+
+  private tmp = new THREE.Vector3();
+  private placeGun(st: CharacterState) {
+    const gun = this.gun!;
+    gun.visible = !st.dead;
+    if (st.dead) return;
+    this.root.updateMatrixWorld(true);
+    this.hand!.getWorldPosition(this.tmp);
+    this.root.worldToLocal(this.tmp);
+    gun.position.copy(this.tmp);
+    gun.position.y -= 0.02;
+    const running = this.current === 'run';
+    gun.rotation.set(running ? -0.5 : (st.pitch ?? 0), running ? 0.5 : 0.06, running ? 0.4 : 0, 'YXZ');
   }
 
   dispose() {
     this.root.removeFromParent();
+    this.mixer.stopAllAction();
   }
 }

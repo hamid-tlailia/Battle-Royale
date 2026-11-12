@@ -1,0 +1,35 @@
+<!doctype html><html><body style="margin:0;background:#9cc">
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+const P = new URLSearchParams(location.search);
+const specs = P.get('f').split(','); const files = specs.map(x=>x.split('@')[0]);
+const cols = +(P.get('c') || 4), cw = 320, ch = 260, rows = Math.ceil(files.length / cols);
+const r = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true}); r.setSize(cols*cw, rows*ch); r.setScissorTest(true); document.body.appendChild(r.domElement);
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+for (let i = 0; i < files.length; i++) {
+  const s = new THREE.Scene(); s.background = new THREE.Color(i % 2 ? 0x9cc8dd : 0xa8d0e0);
+  s.add(new THREE.HemisphereLight(0xffffff, 0x445533, 2)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(3,5,4); s.add(d);
+  try {
+    const g = await loader.loadAsync((files[i].includes('/')?'/':'/tmp/') + files[i] + '.glb');
+    const o = g.scene; s.add(o);
+    if (P.get('clip')) { const bb = new THREE.Box3().setFromObject(o); const y = bb.min.y + (bb.max.y-bb.min.y)*(+P.get('clip')); r.localClippingEnabled = true; const pl = [new THREE.Plane(new THREE.Vector3(0,-1,0), y)]; o.traverse(m => { if (m.isMesh) { m.material = m.material.clone(); m.material.clippingPlanes = pl; m.material.side = THREE.DoubleSide; } }); }
+    if (g.animations.length) { const mx = new THREE.AnimationMixer(o); const sp = specs[i].split('@'); const cl = g.animations.find(c=>c.name===(sp[1]||P.get('anim')||'idle')) || g.animations[0]; mx.clipAction(cl).play(); mx.update(+(sp[2]||P.get('t')||0.3)); o.traverse(m=>{ if (m.name==='body_lod') m.visible=false; }); o.updateMatrixWorld(true); }
+    const box = new THREE.Box3().setFromObject(o, true); const size = box.getSize(new THREE.Vector3()); const c = box.getCenter(new THREE.Vector3());
+    const rad = size.length() / 2;
+    const cam = new THREE.PerspectiveCamera(35, cw/ch, rad/100, rad*20);
+    const ang = P.get('ang') ? (+P.get('ang') + (i%4)*Math.PI/2) : null;
+    if (P.get('hide')) o.traverse(m => { if (m.isMesh && m.material.name === P.get('hide')) m.visible = false; });
+    const view = ang !== null ? new THREE.Vector3(Math.sin(ang), 0.15, Math.cos(ang)) : P.get('v') === 'top' ? new THREE.Vector3(0.3, 1.6, 0.6) : new THREE.Vector3(1, 0.6, 1.3);
+    cam.position.copy(c).addScaledVector(view.normalize(), rad * 3.0); cam.lookAt(c);
+    const x = (i % cols) * cw, y = (rows - 1 - Math.floor(i / cols)) * ch;
+    r.setViewport(x, y, cw, ch); r.setScissor(x, y, cw, ch); r.render(s, cam);
+    let tris = 0; o.traverse(m => { if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
+    const lab = document.createElement('div'); lab.textContent = `${i}: ${specs[i].slice(7,30)} ${size.x.toFixed(1)}x${size.y.toFixed(1)}x${size.z.toFixed(1)} t${Math.round(tris)}`;
+    lab.style.cssText = `position:absolute;left:${x+4}px;top:${Math.floor(i/cols)*ch+4}px;font:12px monospace;background:#fff8;padding:2px`;
+    document.body.appendChild(lab);
+  } catch (e) { console.log('fail', files[i], e.message); }
+}
+window.done = true;
+</script></body></html>

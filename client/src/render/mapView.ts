@@ -1,61 +1,82 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
-import { MAP, MapData, ROCK_VARIANTS, fbm, rockVariantPoints, terrainMesh } from '@lw/shared';
+import { MAP, MapData, fbm, terrainMesh, type PrefabName, type PropInst } from '@lw/shared';
+import type { GameAssets } from './assets';
 
-const mat = () => new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+/** Chunk size for instanced props (frustum culling granularity). */
+const CHUNK = 150;
 
-/** Builds the whole static map in ~10 draw calls. */
-export function buildMapView(map: MapData): THREE.Group {
+export function buildMapView(map: MapData, assets: GameAssets): THREE.Group {
   const g = new THREE.Group();
   g.add(buildTerrain(map));
   g.add(buildBoxes(map));
-  g.add(...buildTrees(map));
-  g.add(...buildRocks(map));
+  g.add(...buildProps(map, assets));
   g.add(buildSky());
-  // Far ground so the horizon never shows a void
-  const far = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x4d6b47 }));
-  far.position.y = -2;
+  const far = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5d7d52 }));
+  far.position.y = -3;
   g.add(far);
   g.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
   return g;
 }
 
-function buildTerrain(map: MapData): THREE.Mesh {
-  const { vertices, indices } = terrainMesh(map);
-  const triCount = indices.length / 3;
-  const pos = new Float32Array(triCount * 9);
-  const col = new Float32Array(triCount * 9);
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), t = new THREE.Vector3();
-  const grassA = new THREE.Color(0x5f9a3c), grassB = new THREE.Color(0x7fb04a), grassC = new THREE.Color(0x4a7d33);
-  const rock = new THREE.Color(0x7c7a72), rockDark = new THREE.Color(0x5e5c57), snow = new THREE.Color(0xf1f4f6);
-  const color = new THREE.Color();
-  for (let i = 0; i < triCount; i++) {
-    const ia = indices[i * 3], ib = indices[i * 3 + 1], ic = indices[i * 3 + 2];
-    a.fromArray(vertices, ia * 3); b.fromArray(vertices, ib * 3); c.fromArray(vertices, ic * 3);
-    pos.set([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z], i * 9);
-    n.subVectors(c, b).cross(t.subVectors(a, b)).normalize();
-    const h = (a.y + b.y + c.y) / 3, cx = (a.x + b.x + c.x) / 3, cz = (a.z + b.z + c.z) / 3;
-    const ny = Math.abs(n.y);
-    if (h > MAP.snowHeight + (fbm(cx * 0.05, cz * 0.05, 3) - 0.5) * 8 && ny > 0.55) color.copy(snow);
-    else if (ny < 0.8) color.copy(rock).lerp(rockDark, fbm(cx * 0.2, cz * 0.2, 5));
-    else {
-      const v = fbm(cx * 0.03, cz * 0.03, 11);
-      color.copy(grassA).lerp(v > 0.5 ? grassB : grassC, Math.abs(v - 0.5) * 2.2);
-    }
-    const jitter = 0.94 + ((i * 2654435761) % 1000) / 1000 * 0.1;
-    color.multiplyScalar(jitter);
-    for (let k = 0; k < 3; k++) col.set([color.r, color.g, color.b], i * 9 + k * 3);
+/** Small tiling noise texture to break up flat vertex colours (grass/rock detail). */
+function detailTexture(): THREE.Texture {
+  const N = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = N;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    // tileable: sample noise on a torus-ish wrap
+    const v = 0.55 * fbm(x / 16, y / 16, 3) + 0.45 * fbm(x / 5, y / 5, 9);
+    const w = (x + 1) % N, h = (y + 1) % N; void w; void h;
+    const b = 205 + v * 50 + (Math.random() - 0.5) * 18;
+    const i = (y * N + x) * 4;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.max(0, Math.min(255, b));
+    img.data[i + 3] = 255;
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.computeVertexNormals();
-  geo.computeBoundingSphere();
-  return new THREE.Mesh(geo, mat());
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
 }
 
-function colorize(geo: THREE.BufferGeometry, hex: number) {
+function buildTerrain(map: MapData): THREE.Mesh {
+  const { vertices, indices } = terrainMesh(map);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+  geo.computeVertexNormals();
+  const n = vertices.length / 3;
+  const col = new Float32Array(n * 3);
+  const uv = new Float32Array(n * 2);
+  const nrm = geo.getAttribute('normal');
+  const grassA = new THREE.Color(0x5b8f37), grassB = new THREE.Color(0x7aa846), grassC = new THREE.Color(0x46752c);
+  const dirt = new THREE.Color(0x8a7650), rock = new THREE.Color(0x7d7b74), snow = new THREE.Color(0xf2f5f7);
+  const c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const x = vertices[i * 3], y = vertices[i * 3 + 1], z = vertices[i * 3 + 2];
+    const ny = nrm.getY(i);
+    const v = fbm(x * 0.03, z * 0.03, 11);
+    c.copy(grassA).lerp(v > 0.5 ? grassB : grassC, Math.abs(v - 0.5) * 2.2);
+    const d = fbm(x * 0.08, z * 0.08, 21);
+    if (d > 0.62) c.lerp(dirt, Math.min(1, (d - 0.62) * 4));
+    const rockT = 1 - THREE.MathUtils.smoothstep(ny, 0.72, 0.86);
+    c.lerp(rock, rockT);
+    const snowT = THREE.MathUtils.smoothstep(y + (fbm(x * 0.05, z * 0.05, 3) - 0.5) * 8, MAP.snowHeight - 2, MAP.snowHeight + 3) * THREE.MathUtils.smoothstep(ny, 0.5, 0.7);
+    c.lerp(snow, snowT);
+    col.set([c.r, c.g, c.b], i * 3);
+    uv[i * 2] = x / 7; uv[i * 2 + 1] = z / 7;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.computeBoundingSphere();
+  return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: detailTexture() }));
+}
+
+function colorize(geo: THREE.BufferGeometry, hex: number | THREE.Color) {
   const c = new THREE.Color(hex);
   const n = geo.getAttribute('position').count;
   const arr = new Float32Array(n * 3);
@@ -68,68 +89,73 @@ function buildBoxes(map: MapData): THREE.Mesh {
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   const parts = map.boxes.map((b) => {
     const geo = new THREE.BoxGeometry(b.hx * 2, b.hy * 2, b.hz * 2);
+    geo.deleteAttribute('uv');
     m.compose(new THREE.Vector3(b.x, b.y, b.z), q.setFromAxisAngle(up, b.rot), new THREE.Vector3(1, 1, 1));
     geo.applyMatrix4(m);
     return colorize(geo, b.color);
   });
-  return new THREE.Mesh(mergeGeometries(parts), mat());
+  return new THREE.Mesh(mergeGeometries(parts), new THREE.MeshLambertMaterial({ vertexColors: true }));
 }
 
-function buildTrees(map: MapData): THREE.InstancedMesh[] {
-  const trunkGeo = colorize(new THREE.CylinderGeometry(0.2, 0.3, 3.2, 5).translate(0, 1.6, 0), 0x6b4a2f);
-  const leaves = mergeGeometries([
-    new THREE.ConeGeometry(1.9, 3.2, 6).translate(0, 3.6, 0).toNonIndexed(),
-    new THREE.ConeGeometry(1.45, 2.6, 6).translate(0, 5.0, 0).toNonIndexed(),
-    new THREE.ConeGeometry(0.95, 2.0, 6).translate(0, 6.2, 0).toNonIndexed(),
-  ]);
-  colorize(leaves, 0xffffff);
-  const trunk = new THREE.InstancedMesh(trunkGeo, mat(), map.trees.length);
-  const leaf = new THREE.InstancedMesh(leaves, mat(), map.trees.length);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), s = new THREE.Vector3(), p = new THREE.Vector3();
-  const greens = [0x2f6b2f, 0x3a7a35, 0x285c2a, 0x46843a].map((h) => new THREE.Color(h));
-  map.trees.forEach((t, i) => {
-    m.compose(p.set(t.x, t.y, t.z), q.setFromAxisAngle(up, t.rot), s.set(t.s, t.s, t.s));
-    trunk.setMatrixAt(i, m); leaf.setMatrixAt(i, m);
-    leaf.setColorAt(i, greens[i % greens.length]);
-  });
-  trunk.computeBoundingSphere(); leaf.computeBoundingSphere();
-  return [trunk, leaf];
-}
+/**
+ * Props are drawn with InstancedMesh, one per (prefab, material, chunk).
+ * Untextured prefabs are pre-merged into a single vertex-coloured geometry (1 draw per chunk).
+ */
+function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
+  const out: THREE.Object3D[] = [];
+  const byType = new Map<PrefabName, PropInst[]>();
+  for (const p of map.props) { if (!byType.has(p.p)) byType.set(p.p, []); byType.get(p.p)!.push(p); }
+  const vcMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), pos = new THREE.Vector3(), sc = new THREE.Vector3();
 
-function buildRocks(map: MapData): THREE.InstancedMesh[] {
-  const out: THREE.InstancedMesh[] = [];
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), s = new THREE.Vector3(), p = new THREE.Vector3();
-  for (let v = 0; v < ROCK_VARIANTS; v++) {
-    const pts = rockVariantPoints(v);
-    const vecs: THREE.Vector3[] = [];
-    for (let i = 0; i < pts.length; i += 3) vecs.push(new THREE.Vector3(pts[i], pts[i + 1], pts[i + 2]));
-    const geo = colorize(new ConvexGeometry(vecs), 0x8a877e);
-    const list = map.rocks.filter((r) => r.variant === v);
-    const im = new THREE.InstancedMesh(geo, mat(), Math.max(1, list.length));
-    im.count = list.length;
-    list.forEach((r, i) => {
-      m.compose(p.set(r.x, r.y, r.z), q.setFromAxisAngle(up, r.rot), s.set(r.s, r.s, r.s));
-      im.setMatrixAt(i, m);
-    });
-    im.computeBoundingSphere();
-    out.push(im);
+  for (const [type, list] of byType) {
+    let parts = assets.prefabs[type].parts;
+    if (parts.every((p) => !(p.material as THREE.MeshLambertMaterial).map)) {
+      const merged = mergeGeometries(parts.map((p) => {
+        const geo = p.geometry.index ? p.geometry.toNonIndexed() : p.geometry.clone();
+        geo.deleteAttribute('uv');
+        return colorize(geo, (p.material as THREE.MeshLambertMaterial).color);
+      }));
+      parts = [{ geometry: merged, material: vcMat }];
+    }
+    // chunk instances
+    const chunks = new Map<string, PropInst[]>();
+    for (const p of list) {
+      const key = list.length > 12 ? `${Math.floor(p.x / CHUNK)},${Math.floor(p.z / CHUNK)}` : 'all';
+      if (!chunks.has(key)) chunks.set(key, []);
+      chunks.get(key)!.push(p);
+    }
+    for (const inst of chunks.values()) {
+      for (const part of parts) {
+        const im = new THREE.InstancedMesh(part.geometry, part.material, inst.length);
+        inst.forEach((p, i) => {
+          m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s));
+          im.setMatrixAt(i, m);
+        });
+        im.computeBoundingSphere();
+        im.name = type;
+        out.push(im);
+      }
+    }
   }
   return out;
 }
 
 function buildSky(): THREE.Mesh {
-  const geo = new THREE.SphereGeometry(900, 16, 10);
-  const top = new THREE.Color(0x5fa3e0), bottom = new THREE.Color(0xcfe6f2);
+  const R = 250;
+  const geo = new THREE.SphereGeometry(R, 16, 10);
+  const top = new THREE.Color(0x4f95d6), bottom = new THREE.Color(0xd4e8f2);
   const pos = geo.getAttribute('position');
   const cols = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
-    const t = Math.max(0, pos.getY(i) / 900);
-    c.copy(bottom).lerp(top, Math.pow(t, 0.6));
+    const t = Math.max(0, pos.getY(i) / R);
+    c.copy(bottom).lerp(top, Math.pow(t, 0.55));
     cols.set([c.r, c.g, c.b], i * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const sky = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
   sky.renderOrder = -1;
+  sky.frustumCulled = false;
   return sky;
 }

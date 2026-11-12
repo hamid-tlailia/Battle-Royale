@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { GROUP_PLAYER, GROUP_WORLD, MAP, PLAYER, groups } from '../config/game';
-import { MapData, rockVariantPoints, terrainHeight, terrainMesh } from '../map/mapgen';
+import { MapData, terrainHeight, terrainMesh } from '../map/mapgen';
+import { PREFABS } from '../map/prefabs';
 
 export { RAPIER };
 
@@ -39,20 +40,26 @@ export class PhysicsWorld {
           .setCollisionGroups(this.worldGroups),
       );
     }
-    for (const t of map.trees) {
-      this.world.createCollider(
-        RAPIER.ColliderDesc.cylinder(1.6 * t.s, 0.28 * t.s)
-          .setTranslation(t.x, t.y + 1.6 * t.s, t.z)
-          .setCollisionGroups(this.worldGroups),
-      );
-    }
-    const variants = new Map<number, number[]>();
-    for (const r of map.rocks) {
-      if (!variants.has(r.variant)) variants.set(r.variant, rockVariantPoints(r.variant));
-      const pts = new Float32Array(variants.get(r.variant)!.map((v) => v * r.s));
-      const desc = RAPIER.ColliderDesc.convexHull(pts);
+    // Imported models: colliders generated from the actual meshes (scripts/assets/build.mjs)
+    const scaled = new Map<string, Float32Array>();
+    const shapeVerts = (key: string, v: number[], sc: number) => {
+      const k = `${key}@${sc.toFixed(3)}`;
+      let arr = scaled.get(k);
+      if (!arr) { arr = new Float32Array(v.length); for (let i = 0; i < v.length; i++) arr[i] = v[i] * sc; scaled.set(k, arr); }
+      return arr;
+    };
+    for (const pr of map.props) {
+      const c = PREFABS[pr.p].collider;
+      let desc: RAPIER.ColliderDesc | null = null;
+      if (c.type === 'trimesh') desc = RAPIER.ColliderDesc.trimesh(shapeVerts(pr.p, c.v, pr.s), new Uint32Array(c.i));
+      else if (c.type === 'hull') desc = RAPIER.ColliderDesc.convexHull(shapeVerts(pr.p, c.v, pr.s));
+      else if (c.type === 'cylinder') {
+        const h = c.height * pr.s;
+        this.world.createCollider(RAPIER.ColliderDesc.cylinder(h / 2, c.radius * pr.s).setTranslation(pr.x, pr.y + h / 2, pr.z).setCollisionGroups(this.worldGroups));
+        continue;
+      }
       if (!desc) continue;
-      this.world.createCollider(desc.setTranslation(r.x, r.y, r.z).setRotation(quatY(r.rot)).setCollisionGroups(this.worldGroups));
+      this.world.createCollider(desc.setTranslation(pr.x, pr.y, pr.z).setRotation(quatY(pr.rot)).setCollisionGroups(this.worldGroups));
     }
     // Invisible boundary: a ring of tall boxes around the valley.
     const segs = 32, R = MAP.playRadius + 8;

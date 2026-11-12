@@ -50,3 +50,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
   background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 8px; font: 11px/1.45 ui-monospace, monospace; min-width: 170px; }
 .dbg-panel div { display: flex; justify-content: space-between; gap: 12px; }
 .dbg-panel b { color: #b8f27c; font-weight: 600; }
+.bar { width: min(320px, 70vw); height: 6px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; margin-top: 10px; }
+.bar div { height: 100%; width: 0; background: #b8f27c; transition: width .2s; }

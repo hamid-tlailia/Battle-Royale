@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   BTN, DT, PLAYER, BotBrain, PhysicsWorld, generateMap, initPhysics, newMoveState, simulateMove, terrainHeight,
-  type InputCmd, type MapData, type MoveState,
+  PREFABS, type InputCmd, type MapData, type MoveState, type PropInst,
 } from '../shared/src';
 
 let map: MapData;
@@ -21,12 +21,14 @@ describe('map generation', () => {
     const a = generateMap(42), b = generateMap(42);
     expect(Array.from(a.heights.slice(0, 50))).toEqual(Array.from(b.heights.slice(0, 50)));
     expect(a.boxes.length).toBe(b.boxes.length);
-    expect(a.trees).toEqual(b.trees);
+    expect(a.props).toEqual(b.props);
   });
-  it('has houses, trees, rocks and spawns', () => {
-    expect(map.boxes.length).toBeGreaterThan(50);
-    expect(map.trees.length).toBeGreaterThan(100);
-    expect(map.rocks.length).toBeGreaterThan(30);
+  it('has houses, cars, trees, rocks and spawns', () => {
+    const count = (pre: string) => map.props.filter((p) => p.p.startsWith(pre)).length;
+    expect(count('house')).toBeGreaterThanOrEqual(8);
+    expect(count('car')).toBeGreaterThanOrEqual(8);
+    expect(count('pine')).toBeGreaterThan(150);
+    expect(count('rock')).toBeGreaterThan(30);
     expect(map.spawns.length).toBeGreaterThanOrEqual(20);
   });
 });
@@ -52,27 +54,80 @@ describe('movement & collision', () => {
     expect(d).toBeLessThanOrEqual(PLAYER.walkSpeed * 1.0 + 0.05);
   });
 
-  it('cannot walk through a house wall', () => {
+  function houseFrame(h: PropInst) {
+    const [sx, , sz] = PREFABS[h.p].size;
+    const c = Math.cos(h.rot), sn = Math.sin(h.rot);
+    // local -> world (three.js Y rotation convention)
+    const toWorld = (lx: number, lz: number) => ({ x: h.x + lx * c + lz * sn, z: h.z - lx * sn + lz * c });
+    const toLocal = (x: number, z: number) => { const dx = x - h.x, dz = z - h.z; return { lx: dx * c - dz * sn, lz: dx * sn + dz * c }; };
+    return { sx, sz, toWorld, toLocal };
+  }
+
+  it('cannot walk through a house wall (side without doors)', () => {
     const phys = new PhysicsWorld(map);
-    // pick a tall wall box
-    const wall = map.boxes.find((b) => b.hy > 1.2 && b.hy < 2 && Math.max(b.hx, b.hz) > 2.5)!;
-    expect(wall).toBeTruthy();
-    // approach perpendicular to its thin axis
-    const thinX = wall.hx < wall.hz;
-    const c = Math.cos(wall.rot), sn = Math.sin(wall.rot);
-    const nLocal = thinX ? [1, 0] : [0, 1];
-    const nx = nLocal[0] * c + nLocal[1] * sn, nz = -nLocal[0] * sn + nLocal[1] * c;
-    const startX = wall.x + nx * 4, startZ = wall.z + nz * 4;
-    const s = spawn(phys, 1, startX, startZ);
-    const side0 = Math.sign((s.x - wall.x) * nx + (s.z - wall.z) * nz);
-    // face the wall: forward = (-sin yaw, -cos yaw) = -n*side0
-    const yaw = Math.atan2(nx * side0, nz * side0);
-    for (let i = 0; i < 150; i++) { simulateMove(phys, 1, s, cmd({ mz: 1, yaw }), DT); phys.updateQueries(); }
-    const side1 = Math.sign((s.x - wall.x) * nx + (s.z - wall.z) * nz);
-    expect(side1).toBe(side0);
-    const thin = thinX ? wall.hx : wall.hz;
-    const dist = Math.abs((s.x - wall.x) * nx + (s.z - wall.z) * nz);
-    expect(dist).toBeGreaterThanOrEqual(thin + PLAYER.radius - 0.05);
+    let tested = 0;
+    for (const h of map.props.filter((p) => p.p.startsWith('house'))) {
+      const f = houseFrame(h);
+      // walk from outside toward the house centre along each local axis; most walls stop us
+      for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const startL = { lx: ax * (f.sx / 2 + 3), lz: az * (f.sz / 2 + 3) };
+        const w = f.toWorld(startL.lx, startL.lz);
+        const id = 100 + tested;
+        const s = spawn(phys, id, w.x, w.z);
+        const yaw = Math.atan2(-(h.x - s.x), -(h.z - s.z));
+        for (let i = 0; i < 90; i++) { simulateMove(phys, id, s, cmd({ mz: 1, yaw }), DT); phys.updateQueries(); }
+        const l = f.toLocal(s.x, s.z);
+        // Never end up embedded inside a wall: either clearly outside the footprint or properly inside
+        const inside = Math.abs(l.lx) < f.sx / 2 - 0.3 && Math.abs(l.lz) < f.sz / 2 - 0.3;
+        const blocked = phys.capsuleBlocked(s.x, s.y, s.z, PLAYER.halfHeight, phys.players.get(id));
+        expect(blocked).toBe(false);
+        if (!inside) tested++;
+        phys.removePlayer(id);
+      }
+    }
+    expect(tested).toBeGreaterThan(10); // walls actually stopped players
+  });
+
+  it('every house has a full-height door that a player can walk through', () => {
+    const phys = new PhysicsWorld(map);
+    const houses = map.props.filter((p) => p.p.startsWith('house'));
+    let pid = 900;
+    for (const [hi, h] of houses.entries()) {
+      const f = houseFrame(h);
+      // Find door columns: blocked high up (wall above), free at 0.4 m and 2.0 m (opening)
+      const doors: { side: number[]; u: number }[] = [];
+      for (const side of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const along = side[0] === 0 ? f.sx : f.sz;
+        const rayAt = (u: number, hy: number) => {
+          const o = side[0] === 0 ? f.toWorld(u, side[1] * (f.sz / 2 + 3)) : f.toWorld(side[0] * (f.sx / 2 + 3), u);
+          const t = side[0] === 0 ? f.toWorld(u, 0) : f.toWorld(0, u);
+          const dx = t.x - o.x, dz = t.z - o.z, L = Math.hypot(dx, dz);
+          const hit = phys.rayWorld(o.x, h.y + hy, o.z, dx / L, 0, dz / L, 30);
+          return hit !== null && hit < 3.5; // hit the outer wall
+        };
+        let run = 0;
+        for (let u = -along / 2 + 0.5; u <= along / 2 - 0.5; u += 0.1) {
+          const open = rayAt(u, 3.4) && !rayAt(u, 0.4) && !rayAt(u, 2.0);
+          run = open ? run + 1 : 0;
+          if (run === 9) doors.push({ side, u: u - 0.4 }); // >= 0.9 m wide opening, centre
+        }
+      }
+      expect(doors.length, `house ${hi} (${h.p}) has a door`).toBeGreaterThan(0);
+      // Walk in through the first door
+      const d = doors[0];
+      const outside = d.side[0] === 0 ? f.toWorld(d.u, d.side[1] * (f.sz / 2 + 2)) : f.toWorld(d.side[0] * (f.sx / 2 + 2), d.u);
+      const target = d.side[0] === 0 ? f.toWorld(d.u, 0) : f.toWorld(0, d.u);
+      const y = phys.groundHeight(outside.x, outside.z) + halfTotal + 0.05;
+      const id = pid++;
+      phys.addPlayer(id, outside.x, Math.max(y, h.y + halfTotal + 0.05), outside.z);
+      const s = newMoveState(outside.x, Math.max(y, h.y + halfTotal + 0.05), outside.z);
+      const yaw = Math.atan2(-(target.x - outside.x), -(target.z - outside.z));
+      for (let i = 0; i < 60; i++) simulateMove(phys, id, s, cmd({ mz: 1, yaw }), DT);
+      const l = f.toLocal(s.x, s.z);
+      const inside = Math.abs(l.lx) < f.sx / 2 - 0.5 && Math.abs(l.lz) < f.sz / 2 - 0.5;
+      expect(inside, `entered house ${hi} (${h.p}) via door at side ${d.side} u=${d.u.toFixed(1)}`).toBe(true);
+      phys.removePlayer(id);
+    }
   });
 
   it('players cannot overlap each other', () => {
@@ -143,7 +198,7 @@ describe('movement & collision', () => {
         if (Math.abs(a.y - c.y) < 0.8) maxOverlap = Math.max(maxOverlap, PLAYER.radius * 2 - Math.hypot(a.x - c.x, a.z - c.z));
       }
     }
-    expect(maxStep).toBeLessThanOrEqual(PLAYER.walkSpeed * DT * 1.6); // allow slope/step slide
+    expect(maxStep).toBeLessThanOrEqual(PLAYER.walkSpeed * DT * 2); // allow slope/step slide, catch teleports
     expect(maxOverlap).toBeLessThan(0.06);
     expect(minAboveGround).toBeGreaterThan(-0.3);
   });

@@ -1,5 +1,6 @@
 import { MAP } from '../config/game';
 import { fbm, mulberry32, smoothstep } from '../math/rng';
+import { PREFABS, type PrefabName } from './prefabs';
 
 /** Axis-aligned (in local space) box rotated around Y. Used for houses, crates, walls. */
 export interface BoxPrim {
@@ -8,8 +9,8 @@ export interface BoxPrim {
   rot: number;
   color: number;
 }
-export interface TreeInst { x: number; y: number; z: number; s: number; rot: number }
-export interface RockInst { x: number; y: number; z: number; s: number; rot: number; variant: number }
+/** Instance of an imported model (house, car, tree, rock...). Origin = bottom centre. */
+export interface PropInst { p: PrefabName; x: number; y: number; z: number; rot: number; s: number }
 
 export interface MapData {
   seed: number;
@@ -18,29 +19,8 @@ export interface MapData {
   /** (cells+1)^2 heights, row-major: index = iz*(cells+1)+ix */
   heights: Float32Array;
   boxes: BoxPrim[];
-  trees: TreeInst[];
-  rocks: RockInst[];
+  props: PropInst[];
   spawns: { x: number; z: number }[];
-}
-
-export const ROCK_VARIANTS = 4;
-
-/** Base rock shape: jittered icosahedron. Same points used for collider and mesh. */
-export function rockVariantPoints(variant: number): number[] {
-  const t = (1 + Math.sqrt(5)) / 2;
-  const base = [
-    [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
-    [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
-    [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
-  ];
-  const rnd = mulberry32(9001 + variant * 77);
-  const out: number[] = [];
-  for (const [x, y, z] of base) {
-    const len = Math.hypot(x, y, z);
-    const j = 0.75 + rnd() * 0.5;
-    out.push((x / len) * j * (1 + rnd() * 0.3), (y / len) * j * 0.7, (z / len) * j);
-  }
-  return out;
 }
 
 export function generateMap(seed: number = MAP.seed): MapData {
@@ -77,7 +57,7 @@ export function generateMap(seed: number = MAP.seed): MapData {
     }
   }
 
-  const data: MapData = { seed, size, cells, heights, boxes: [], trees: [], rocks: [], spawns: [] };
+  const data: MapData = { seed, size, cells, heights, boxes: [], props: [], spawns: [] };
   const groundAt = (x: number, z: number) => terrainHeight(data, x, z);
 
   // Occupancy circles to avoid overlaps between features.
@@ -89,22 +69,53 @@ export function generateMap(seed: number = MAP.seed): MapData {
     return { x: Math.cos(a) * d, z: Math.sin(a) * d };
   };
 
-  // ---------- Houses ----------
-  const wallColors = [0xd9c9a3, 0xc7b08a, 0xe3dccb, 0xb9a487];
-  const roofColors = [0x9c3d2e, 0x6b4a3a, 0x4f5d6b];
+  // ---------- Houses (imported enterable models on a stone foundation) ----------
+  const houseTypes: PrefabName[] = ['house_a', 'house_b', 'house_c'];
   let houses = 0;
-  for (let tries = 0; tries < 600 && houses < 14; tries++) {
-    const p = randInValley(MAP.playRadius - 20);
-    const w = 7 + Math.floor(rnd() * 3) * 1.5, d = 6 + Math.floor(rnd() * 2) * 1.5;
-    const rad = Math.hypot(w, d) / 2 + 1.5;
+  for (let tries = 0; tries < 800 && houses < 12; tries++) {
+    const p = randInValley(MAP.playRadius - 22);
+    const type = houseTypes[houses % houseTypes.length];
+    const rotIdx = Math.floor(rnd() * 4);
+    const rot = rotIdx * (Math.PI / 2);
+    const [sx, , sz] = PREFABS[type].size;
+    const w = rotIdx % 2 ? sz : sx, d = rotIdx % 2 ? sx : sz;
+    const rad = Math.hypot(w, d) / 2 + 2.5;
     if (!free(p.x, p.z, rad)) continue;
-    const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => groundAt(p.x + (sx * w) / 2, p.z + (sz * d) / 2));
+    const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([cx, cz]) => groundAt(p.x + (cx * w) / 2, p.z + (cz * d) / 2));
     const lo = Math.min(...corners), hi = Math.max(...corners);
-    if (hi - lo > 1.6) continue;
+    if (hi - lo > 2.5) continue;
     occupied.push({ x: p.x, z: p.z, r: rad });
-    const rot = Math.floor(rnd() * 4) * (Math.PI / 2);
-    addHouse(data.boxes, p.x, hi + 0.15, p.z, w, d, rot, wallColors[houses % wallColors.length], roofColors[houses % roofColors.length], lo);
+    // Level the ground around the house so doors are reachable from every side.
+    const avg = corners.reduce((a, b) => a + b, 0) / corners.length;
+    flattenTerrain(data, p.x, p.z, w / 2 + 2.5, d / 2 + 2.5, avg, 7);
+    const floorY = avg + 0.12;
+    data.boxes.push({ x: p.x, y: avg - 0.9, z: p.z, hx: w / 2 + 0.2, hy: 1.02, hz: d / 2 + 0.2, rot: 0, color: 0x8a857a });
+    data.props.push({ p: type, x: p.x, y: floorY, z: p.z, rot, s: 1 });
     houses++;
+  }
+
+  // ---------- Abandoned cars ----------
+  const carTypes: PrefabName[] = ['car1', 'car2', 'car3', 'car4'];
+  for (let i = 0, tries = 0; i < 14 && tries < 600; tries++) {
+    const p = randInValley(MAP.playRadius - 12);
+    if (!free(p.x, p.z, 3.4)) continue;
+    const g = Math.min(...[[-1.2, 0], [1.2, 0], [0, -1.2], [0, 1.2]].map(([a, b]) => groundAt(p.x + a, p.z + b)));
+    if (groundAt(p.x, p.z) - g > 0.6) continue;
+    occupied.push({ x: p.x, z: p.z, r: 3 });
+    data.props.push({ p: carTypes[i % carTypes.length], x: p.x, y: g - 0.05, z: p.z, rot: rnd() * Math.PI * 2, s: 1 });
+    i++;
+  }
+
+  // ---------- Fences ----------
+  for (let i = 0, tries = 0; i < 6 && tries < 400; tries++) {
+    const p = randInValley(MAP.playRadius - 15);
+    if (!free(p.x, p.z, 6.5)) continue;
+    const g = groundAt(p.x, p.z);
+    const hs = [[-5, -3.6], [5, -3.6], [-5, 3.6], [5, 3.6]].map(([a, b]) => groundAt(p.x + a, p.z + b));
+    if (Math.max(...hs) - Math.min(...hs) > 1.2) continue;
+    occupied.push({ x: p.x, z: p.z, r: 6 });
+    data.props.push({ p: 'fence', x: p.x, y: Math.min(g, ...hs) - 0.05, z: p.z, rot: Math.floor(rnd() * 4) * (Math.PI / 2), s: 1 });
+    i++;
   }
 
   // ---------- Crates & low walls (cover) ----------
@@ -124,24 +135,40 @@ export function generateMap(seed: number = MAP.seed): MapData {
     i++;
   }
 
-  // ---------- Trees ----------
-  for (let i = 0, tries = 0; i < 260 && tries < 3000; tries++) {
+  // ---------- Pine trees ----------
+  const pines: PrefabName[] = ['pine1', 'pine2', 'pine4', 'pine5'];
+  for (let i = 0, tries = 0; i < 300 && tries < 3500; tries++) {
     const p = randInValley(MAP.playRadius + 15);
     const g = groundAt(p.x, p.z);
-    if (g > MAP.snowHeight - 6) continue;
-    if (!free(p.x, p.z, 1.2)) continue;
+    if (g > MAP.snowHeight - 4) continue;
+    if (!free(p.x, p.z, 1.3)) continue;
     occupied.push({ x: p.x, z: p.z, r: 0.9 });
-    data.trees.push({ x: p.x, y: g - 0.2, z: p.z, s: 0.8 + rnd() * 0.7, rot: rnd() * Math.PI * 2 });
+    data.props.push({ p: pines[i % pines.length], x: p.x, y: g - 0.25, z: p.z, rot: rnd() * Math.PI * 2, s: 0.8 + rnd() * 0.5 });
     i++;
   }
 
-  // ---------- Rocks ----------
-  for (let i = 0, tries = 0; i < 90 && tries < 2000; tries++) {
+  // ---------- Rocks, stumps & bushes ----------
+  const rocks: PrefabName[] = ['rock1', 'rock2', 'rock3', 'rock4'];
+  for (let i = 0, tries = 0; i < 80 && tries < 2000; tries++) {
     const p = randInValley(MAP.playRadius + 20);
-    const s = 0.8 + rnd() * 1.8;
-    if (!free(p.x, p.z, s * 1.3)) continue;
-    occupied.push({ x: p.x, z: p.z, r: s * 1.2 });
-    data.rocks.push({ x: p.x, y: groundAt(p.x, p.z) + s * 0.15, z: p.z, s, rot: rnd() * Math.PI * 2, variant: i % ROCK_VARIANTS });
+    const s = 0.6 + rnd() * 0.9;
+    if (!free(p.x, p.z, 2 * s)) continue;
+    occupied.push({ x: p.x, z: p.z, r: 1.6 * s });
+    data.props.push({ p: rocks[i % rocks.length], x: p.x, y: groundAt(p.x, p.z) - 0.25 * s, z: p.z, rot: rnd() * Math.PI * 2, s });
+    i++;
+  }
+  for (let i = 0, tries = 0; i < 25 && tries < 600; tries++) {
+    const p = randInValley(MAP.playRadius);
+    if (!free(p.x, p.z, 0.8)) continue;
+    occupied.push({ x: p.x, z: p.z, r: 0.6 });
+    data.props.push({ p: 'stump', x: p.x, y: groundAt(p.x, p.z) - 0.1, z: p.z, rot: rnd() * Math.PI * 2, s: 0.8 + rnd() * 0.4 });
+    i++;
+  }
+  // Bushes have no collider: good for hiding.
+  for (let i = 0, tries = 0; i < 110 && tries < 1500; tries++) {
+    const p = randInValley(MAP.playRadius + 5);
+    if (!free(p.x, p.z, 0.8)) continue;
+    data.props.push({ p: i % 2 ? 'bush1' : 'bush2', x: p.x, y: groundAt(p.x, p.z) - 0.15, z: p.z, rot: rnd() * Math.PI * 2, s: 0.7 + rnd() * 0.6 });
     i++;
   }
 
@@ -155,35 +182,19 @@ export function generateMap(seed: number = MAP.seed): MapData {
   return data;
 }
 
-function addHouse(out: BoxPrim[], cx: number, floorY: number, cz: number, w: number, d: number, rot: number, wall: number, roof: number, lowestGround: number) {
-  const c = Math.cos(rot), s = Math.sin(rot);
-  const push = (lx: number, y: number, lz: number, hx: number, hy: number, hz: number, color: number) => {
-    // rotate local offset around Y (matching three.js rotation.y convention)
-    out.push({ x: cx + lx * c + lz * s, y, z: cz - lx * s + lz * c, hx, hy, hz, rot, color });
-  };
-  const t = 0.15, wallH = 3, door = 1.6, doorH = 2.3;
-  // Foundation (reaches below lowest ground so it never floats)
-  const fBottom = lowestGround - 1;
-  const fh = (floorY - fBottom) / 2;
-  push(0, fBottom + fh, 0, w / 2 + 0.2, fh, d / 2 + 0.2, 0x7d7a70);
-  const wy = floorY + wallH / 2;
-  // back wall
-  push(0, wy, -d / 2 + t, w / 2, wallH / 2, t, wall);
-  // side walls (with a window gap on one side for sightlines)
-  push(-w / 2 + t, wy, 0, t, wallH / 2, d / 2, wall);
-  const win = 1.2;
-  const segZ = (d - win) / 4;
-  push(w / 2 - t, wy, -d / 2 + segZ, t, wallH / 2, segZ, wall);
-  push(w / 2 - t, wy, d / 2 - segZ, t, wallH / 2, segZ, wall);
-  push(w / 2 - t, floorY + 0.5, 0, t, 0.5, win / 2, wall); // below window
-  push(w / 2 - t, floorY + wallH - 0.4, 0, t, 0.4, win / 2, wall); // above window
-  // front wall with door gap
-  const side = (w - door) / 4;
-  push(-w / 2 + side, wy, d / 2 - t, side, wallH / 2, t, wall);
-  push(w / 2 - side, wy, d / 2 - t, side, wallH / 2, t, wall);
-  push(0, floorY + doorH + (wallH - doorH) / 2, d / 2 - t, door / 2, (wallH - doorH) / 2, t, wall);
-  // roof slab
-  push(0, floorY + wallH + 0.15, 0, w / 2 + 0.4, 0.15, d / 2 + 0.4, roof);
+/** Flatten a rectangle (half extents hx,hz, axis aligned) to height y, blending out over `blend` metres. */
+function flattenTerrain(map: MapData, cx: number, cz: number, hx: number, hz: number, y: number, blend: number) {
+  const { size, cells, heights } = map;
+  const n = cells + 1, cell = size / cells;
+  for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {
+    const x = -size / 2 + ix * cell, z = -size / 2 + iz * cell;
+    const dx = Math.max(0, Math.abs(x - cx) - hx), dz = Math.max(0, Math.abs(z - cz) - hz);
+    const d = Math.hypot(dx, dz);
+    if (d >= blend) continue;
+    const t = smoothstep(0, blend, d);
+    const i = iz * n + ix;
+    heights[i] = y + (heights[i] - y) * t;
+  }
 }
 
 /** Exact terrain height matching the physics trimesh triangulation. */
