@@ -35,7 +35,9 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
       <label class="lbl">NAME</label>
       <input class="name" maxlength="14" placeholder="Soldier" value="${profile.name.replace(/"/g, '')}">
       <label class="lbl">OUTFIT</label>
-      <div class="skins">${SKINS.map((s, i) => `<button data-skin="${i}" title="${s.name}" style="--c:#${s.color.toString(16).padStart(6, '0')}"></button>`).join('')}</div>
+      <div class="skins">${SKINS.map((s, i) => s.outfit
+        ? `<button class="outfit" data-skin="${i}">${s.name}</button>`
+        : `<button data-skin="${i}" title="${s.name}" style="--c:#${(s.color ?? 0xffffff).toString(16).padStart(6, '0')}"></button>`).join('')}</div>
       <p class="hint">Everyone lands empty-handed — loot weapons, ammo, medkits, armor, scopes and ice walls.</p>
       ${inviteRoom ? `<button class="big join-invite">JOIN FRIEND'S ROOM</button>` : ''}
       <button class="big quick">PLAY ONLINE</button>

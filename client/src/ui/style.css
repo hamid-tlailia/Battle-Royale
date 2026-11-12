@@ -295,3 +295,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 
 .apk-link { display: block; margin-top: 8px; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .5px; color: #ffd34d;
   padding: 8px; border: 1px dashed rgba(255,211,77,.6); border-radius: 8px; text-decoration: none; }
+
+.lobby .skins button.outfit { width: auto; height: 28px; border-radius: 14px; padding: 0 10px; background: rgba(255,255,255,.1);
+  color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .4px; }
+.lobby .skins button.outfit.sel { background: rgba(255,211,77,.25); }

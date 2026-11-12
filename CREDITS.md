@@ -15,13 +15,12 @@ they were converted (rescaled, re-textured at lower resolution, compressed, spli
 | Low Poly Pine Trees | Pine trees | [luka712](https://sketchfab.com/luka712) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/low-poly-pine-trees-46c3811b9a9445cdb2ff3e663d1f2c11 |
 | Low Poly Trees Grass and Rocks | Rocks, bushes, stump | [olehlila](https://sketchfab.com/olehlila) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/low-poly-trees-grass-and-rocks-4e0463f5df36420bb53079f9de35e81f |
 | Low Poly wood fence on grass | Wooden fence | [cattleya](https://sketchfab.com/cattleya) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/low-poly-wood-fence-on-grass-d35a038f74ea47819459cabae8c28c62 |
-
-## Sounds
-
-| Sound | Author | License | Source |
-|---|---|---|---|
-| Gunshots (cz, sks, shotty, mosin → pistol, rifle, shotgun, sniper), trimmed & normalised | Vincent Sevedge ("Tabasco") | [CC-BY 3.0](http://creativecommons.org/licenses/by/3.0/) (listed as CC0 on OpenGameArt; the archive states CC-BY 3.0, so attribution is given) | https://opengameart.org/content/gunshot-sounds |
-
-Footsteps, hit markers, reload and UI sounds are synthesised in code (original).
+| S.W.A.T. Operator | Outfit: SWAT | [SpatialNeglect](https://sketchfab.com/jeandiz) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/swat-operator-9e82fabf26194896b5ad4a364d864eab |
+| Game Ready Low Poly Tactical Character | Outfit: Tactical | [DanlyVostok](https://sketchfab.com/1799danly) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/game-ready-low-poly-tactical-character-68213c7d97a04b1b963599180210f5bd |
+| Military tactical suit (LowPolyGameReady) | Outfit: Ranger | [DanlyVostok](https://sketchfab.com/1799danly) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/military-tactical-suit-lowpolygameready-ef698ce36b1545a78ce592dd3db4c7ed |
+| Jumpsuit Low Poly Game Ready (Striker14) | Outfit: Jumpsuit | [DanlyVostok](https://sketchfab.com/1799danly) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/jumpsuit-low-poly-game-ready-striker14-da288adbddf949aa85962968732f0999 |
+| .Fuse Civilian 1 | Outfit: Civilian | [Leonardo Carvalho](https://sketchfab.com/livrosparacriancas) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fuse-civilian-1-6fc4bddf4d364e6b9fa2f050011e03ce |
+| .Fuse Civilian 2 | Outfit: Hoodie | [Leonardo Carvalho](https://sketchfab.com/livrosparacriancas) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fuse-civilian-2-671bd73d045f47b4952fe2899772e124 |
+| .Fuse Woman 1 | Outfit: Survivor | [Leonardo Carvalho](https://sketchfab.com/livrosparacriancas) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fuse-woman-1-c6436897da494b4e8e1f8188aea620c6 |
 
 Game code, map generation, terrain and UI are original work.

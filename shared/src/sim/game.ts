@@ -1,4 +1,4 @@
-import { BTN, DT, GROUP_PLAYER, MAP, TICK_RATE, groups } from '../config/game';
+import { BTN, DT, GROUP_PLAYER, MAP, TICK_RATE, groups, SKIN_COUNT } from '../config/game';
 import { LOOT, LOOT_TABLE, type LootItem } from '../config/loot';
 import { PREFABS } from '../map/prefabs';
 import { ARMOR_ABSORB, MAX_ARMOR, MAX_HP, WEAPONS, WEAPON_IDS, damageAt, fireInterval, type WeaponId } from '../config/weapons';
@@ -488,7 +488,7 @@ export class GameSim {
     const move = newMoveState(p.x, p.y, p.z);
     move.yaw = Math.atan2(p.x, p.z); // face the valley centre
     const pl: SimPlayer = {
-      id, name, skin: bot ? (id * 5 + 3) % 8 : 0, bot: bot ? new BotBrain(this.seed * 31 + id) : null, move,
+      id, name, skin: bot ? (id * 5 + 3) % SKIN_COUNT : 0, bot: bot ? new BotBrain(this.seed * 31 + id) : null, move,
       hp: MAX_HP, armor: this.opts.armed ? 50 : 0, alive: true,
       weapons: WEAPON_IDS.map((w) => ({ id: w, owned: !!this.opts.armed, mag: this.opts.armed ? WEAPONS[w].mag : 0, reserve: this.opts.armed ? WEAPONS[w].startReserve : 0 })),
       meds: 0, frost: this.opts.armed ? 2 : 0, scope: 0, healEndTick: 0, holstered: false, jumpAt: 0.12 + this.rnd() * 0.75,

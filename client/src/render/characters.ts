@@ -1,21 +1,91 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { SHAPE } from '@lw/shared';
-import type { GameAssets, GunName } from './assets';
+import { toLambert, type GameAssets, type GunName } from './assets';
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'jump' | 'fire' | 'crouch_idle' | 'crouch_walk' | 'crouch_fire' | 'death' | 'death_crouch' | 'prone' | 'death_prone';
 
 /** Outfit colours (multiplied over the camo texture). Index 0 = original woodland camo. Chosen in the lobby. */
-export const SKINS = [
+export const SKINS: { name: string; color?: number; outfit?: string }[] = [
   { name: 'Woodland', color: 0xffffff },
   { name: 'Desert', color: 0xffe2b0 },
   { name: 'Arctic', color: 0xdfeeff },
   { name: 'Night', color: 0x8a90a8 },
-  { name: 'Jungle', color: 0xbfe8a8 },
-  { name: 'Crimson', color: 0xffb0a8 },
-  { name: 'Royal', color: 0xc8b8ff },
-  { name: 'Gold', color: 0xffe07a },
+  { name: 'SWAT', outfit: 'swat' },
+  { name: 'Agent', outfit: 'tactical' },
+  { name: 'Ranger', outfit: 'ranger' },
+  { name: 'Jumpsuit', outfit: 'jumpsuit' },
+  { name: 'Civilian', outfit: 'civilian' },
+  { name: 'Hoodie', outfit: 'hoodie' },
+  { name: 'Survivor', outfit: 'survivor' },
 ];
+
+const outfitCache = new Map<string, Promise<GLTF | null>>();
+const outfitLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+/** Loads (once) a real-clothes outfit model. */
+export function loadOutfit(name: string): Promise<GLTF | null> {
+  let p = outfitCache.get(name);
+  if (!p) {
+    p = outfitLoader.loadAsync(`/assets/outfit_${name}.glb`).then((g) => {
+      g.scene.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (m.isMesh) { m.material = toLambert(m.material as THREE.Material); m.frustumCulled = false; }
+      });
+      return g;
+    }).catch(() => null);
+    outfitCache.set(name, p);
+  }
+  return p;
+}
+
+/**
+ * Drive another Mixamo rig with the soldier's clips: bone rotations are copied by name; the hips
+ * (whose parent "armature" space differs per file) get their rotation re-expressed in the target's
+ * armature space and their position rescaled to the target's hip height.
+ */
+export function retargetClips(src: GLTF, dst: GLTF): THREE.AnimationClip[] {
+  const cached = dst.userData.clips as THREE.AnimationClip[] | undefined;
+  if (cached) return cached;
+  const sH = src.scene.getObjectByName('mixamorigHips')!, dH = dst.scene.getObjectByName('mixamorigHips');
+  if (!dH) return src.animations;
+  src.scene.updateMatrixWorld(true); dst.scene.updateMatrixWorld(true);
+  const Ps = sH.parent!.matrixWorld.clone(), Po = dH.parent!.matrixWorld.clone();
+  const PoInv = Po.clone().invert();
+  const qs = new THREE.Quaternion(), qo = new THREE.Quaternion(), tmp = new THREE.Vector3();
+  Ps.decompose(tmp, qs, new THREE.Vector3()); Po.decompose(tmp, qo, new THREE.Vector3());
+  const qCorr = qo.clone().invert().multiply(qs);
+  const sRest = sH.getWorldPosition(new THREE.Vector3()), oRest = dH.getWorldPosition(new THREE.Vector3());
+  const sFeet = new THREE.Box3().setFromObject(src.scene, true).min.y, oFeet = new THREE.Box3().setFromObject(dst.scene, true).min.y;
+  const k = (oRest.y - oFeet) / Math.max(1e-6, sRest.y - sFeet);
+  const has = new Set<string>(); dst.scene.traverse((o) => has.add(o.name));
+  const q = new THREE.Quaternion(), v = new THREE.Vector3();
+  const out = src.animations.map((clip) => {
+    const tracks: THREE.KeyframeTrack[] = [];
+    for (const t of clip.tracks) {
+      const dot = t.name.lastIndexOf('.');
+      const bone = t.name.slice(0, dot), prop = t.name.slice(dot + 1);
+      if (!has.has(bone) || prop === 'scale') continue;
+      const isHips = bone === 'mixamorigHips';
+      if (prop === 'position' && !isHips) continue; // bone lengths come from the target rig
+      const values = Float32Array.from(t.values);
+      if (isHips && prop === 'quaternion') {
+        for (let i = 0; i < values.length; i += 4) { q.fromArray(values, i).premultiply(qCorr); q.toArray(values, i); }
+      } else if (isHips && prop === 'position') {
+        for (let i = 0; i < values.length; i += 3) {
+          v.fromArray(values, i).applyMatrix4(Ps).sub(sRest).multiplyScalar(k).add(oRest).applyMatrix4(PoInv);
+          v.toArray(values, i);
+        }
+      }
+      const T = t.constructor as new (n: string, t: ArrayLike<number>, v: ArrayLike<number>) => THREE.KeyframeTrack;
+      tracks.push(new T(t.name, t.times, values));
+    }
+    return new THREE.AnimationClip(clip.name, clip.duration, tracks);
+  });
+  dst.userData.clips = out;
+  return out;
+}
 const LOD_DISTANCE = 14;
 /** Speed (m/s) at which each locomotion clip looks right — used to scale playback rate. */
 const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 1.6, walk_fire: 2.6, run: 6.0, crouch_walk: 1.6 };
@@ -38,8 +108,8 @@ export interface CharacterState {
  */
 export class CharacterView {
   readonly root = new THREE.Group();
-  private model: THREE.Object3D;
-  private mixer: THREE.AnimationMixer;
+  private model!: THREE.Object3D;
+  private mixer!: THREE.AnimationMixer;
   private actions = new Map<Clip, THREE.AnimationAction>();
   private current: Clip | null = null;
   private body: THREE.SkinnedMesh | null = null;
@@ -52,8 +122,24 @@ export class CharacterView {
   private skipAcc = 0;
   readonly radius = 1.2;
 
+  private disposed = false;
+
   constructor(assets: GameAssets, skin: number, gunName: GunName = 'rifle') {
-    this.model = SkeletonUtils.clone(assets.soldier.scene);
+    const def = SKINS[((skin % SKINS.length) + SKINS.length) % SKINS.length];
+    // real outfits are separate files, loaded on first use; until then the soldier stands in
+    this.build(assets.soldier, assets.soldier.animations, def.outfit ? 0xffffff : def.color ?? 0xffffff);
+    if (def.outfit) {
+      void loadOutfit(def.outfit).then((g) => {
+        if (!this.disposed && g) this.build(g, retargetClips(assets.soldier, g), 0xffffff);
+      });
+    }
+    this.setGun(assets, gunName);
+  }
+
+  private build(gltf: GLTF, clips: THREE.AnimationClip[], color: number) {
+    const keep = this.current;
+    if (this.model) { this.mixer.stopAllAction(); this.model.removeFromParent(); }
+    this.model = SkeletonUtils.clone(gltf.scene);
     // Normalise height to 1.8 m and put feet at y=0 (measured on the skinned rest pose).
     this.model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(this.model, true);
@@ -61,35 +147,36 @@ export class CharacterView {
     const s = 1.8 / h;
     this.model.scale.multiplyScalar(s);
     this.model.position.y = -box.min.y * s;
-    this.model.rotation.y = Math.PI; // asset faces +Z, game forward is -Z
+    this.model.rotation.y = Math.PI + this.bodyOffset; // asset faces +Z, game forward is -Z
     this.root.add(this.model);
 
-    const skinIdx = ((skin % SKINS.length) + SKINS.length) % SKINS.length;
-    const tint = new THREE.Color(SKINS[skinIdx].color);
+    this.body = this.bodyLod = null;
     this.model.traverse((o) => {
       const sm = o as THREE.SkinnedMesh;
       if (!sm.isSkinnedMesh) return;
       sm.frustumCulled = false;
-      if (skinIdx !== 0) {
+      if (color !== 0xffffff) {
         const mat = (sm.material as THREE.MeshLambertMaterial).clone();
-        mat.color.copy(tint);
+        mat.color.set(color);
         sm.material = mat;
       }
       if (sm.name.includes('lod')) this.bodyLod = sm; else this.body = sm;
     });
-    if (this.bodyLod) this.bodyLod.visible = false;
+    const lod = this.bodyLod as THREE.SkinnedMesh | null; // (narrowed to null by TS after the traverse callback)
+    if (lod) lod.visible = false;
 
     this.mixer = new THREE.AnimationMixer(this.model);
-    for (const clip of assets.soldier.animations) {
+    this.actions.clear();
+    for (const clip of clips) {
       const a = this.mixer.clipAction(clip);
       const once = clip.name === 'jump' || clip.name.startsWith('death');
       if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
       this.actions.set(clip.name as Clip, a);
     }
-    this.shoulder = this.model.getObjectByName('mixamorigRightArm') ?? this.model.getObjectByName('mixamorig:RightArm') ?? null;
-    this.play('idle_rifle', 0);
-    this.setGun(assets, gunName);
-
+    this.shoulder = this.model.getObjectByName('mixamorigRightArm') ?? null;
+    this.current = null;
+    this.play(keep ?? 'idle_rifle', 0);
+    this.mixer.update(0);
   }
 
   setGun(assets: GameAssets, gunName: GunName) {
@@ -241,6 +328,7 @@ export class CharacterView {
   }
 
   dispose() {
+    this.disposed = true;
     this.root.removeFromParent();
     this.mixer.stopAllAction();
   }

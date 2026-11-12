@@ -1,7 +1,7 @@
 // Downloads source GLBs + license metadata from Sketchfab into assets-src/ and writes CREDITS.md.
 import fs from 'node:fs';
 import path from 'node:path';
-import { SOURCES } from './sources.mjs';
+import { SOURCES, OUTFITS } from './sources.mjs';
 
 const OUT = 'assets-src';
 fs.mkdirSync(OUT, { recursive: true });
@@ -9,7 +9,7 @@ const headers = process.env.SKETCHFAB_TOKEN ? { Authorization: `Token ${process.
 const api = async (p) => (await fetch(`https://api.sketchfab.com/v3${p}`, { headers })).json();
 
 const credits = [];
-for (const [key, src] of Object.entries(SOURCES)) {
+for (const [key, src] of Object.entries({ ...SOURCES, ...OUTFITS })) {
   const meta = await api(`/models/${src.uid}`);
   credits.push({ key, ...src, name: meta.name, author: meta.user?.displayName || meta.user?.username, profile: meta.user?.profileUrl,
     license: meta.license?.label, licenseUrl: meta.license?.url, url: meta.viewerUrl });

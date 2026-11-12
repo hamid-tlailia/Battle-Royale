@@ -49,3 +49,6 @@ export const BTN = {
   HEAL: 128,
   FROST: 256,
 } as const;
+
+/** number of selectable outfits (client SKINS table) */
+export const SKIN_COUNT = 11;

@@ -1,6 +1,6 @@
 import { Room, type Client } from '@colyseus/core';
 import {
-  DT, MSG, TICK_RATE, GameSim, compactEvents, decodeInputs, encodeSnapshot, initPhysics, type InputCmd,
+  DT, MSG, SKIN_COUNT, TICK_RATE, GameSim, compactEvents, decodeInputs, encodeSnapshot, initPhysics, type InputCmd,
 } from '@lw/shared';
 
 export interface MatchOptions {
@@ -73,7 +73,7 @@ export class MatchRoom extends Room {
     const id = this.nextId++;
     const name = String(options.name ?? `Player${id}`).replace(/[^\w \-]/g, '').slice(0, 14) || `Player${id}`;
     const p = this.sim.addPlayer(id, name, false);
-    p.skin = Math.max(0, Math.min(7, Number(options.skin) | 0));
+    p.skin = Math.max(0, Math.min(SKIN_COUNT - 1, Number(options.skin) | 0));
     if (Number.isInteger(options.slot) && options.slot! >= 0 && options.slot! < 4) p.slot = options.slot!;
     if (this.hostId < 0) this.hostId = id;
     this.humans.set(client.sessionId, { id, client, queue: [], lastSeq: 0, name, credit: 0 });
