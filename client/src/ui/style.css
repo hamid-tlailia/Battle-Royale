@@ -292,3 +292,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .joy-knob { left: 50%; top: 50%; margin: -25px 0 0 -25px; }
 .hud-mock.editing { background: radial-gradient(ellipse at 50% 40%, #4a6b3e, #182818); }
 .layout-bar span { max-width: 140px; line-height: 1.2; }
+
+.apk-link { display: block; margin-top: 8px; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .5px; color: #ffd34d;
+  padding: 8px; border: 1px dashed rgba(255,211,77,.6); border-radius: 8px; text-decoration: none; }

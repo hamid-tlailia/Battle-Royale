@@ -45,8 +45,11 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
       </div>
       <div class="row joinrow"><input class="code" placeholder="room code"><button class="mid joinbtn">JOIN</button></div>
       <p class="note"></p>
+      <a class="apk-link" href="/download/last-war.apk" download="last-war.apk">⬇ DOWNLOAD ANDROID APP (APK)</a>
     </div>`;
   root.appendChild(el);
+  // inside the installed app the download link makes no sense
+  if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) el.querySelector('.apk-link')?.remove();
 
   // ---- 3D preview
   const canvas = el.querySelector('.lobby-3d') as HTMLCanvasElement;

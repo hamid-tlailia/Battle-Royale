@@ -1,0 +1,6 @@
+{
+  "appId": "com.lastwar.game",
+  "appName": "Last War",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#16240f" }
+}
