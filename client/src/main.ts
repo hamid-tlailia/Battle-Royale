@@ -22,6 +22,11 @@ app.innerHTML = `
 `;
 
 const bar = document.getElementById('bar') as HTMLDivElement;
+/** If loading fails or hangs, say why on screen (instead of an endless loading bar). */
+const bootMsg = (t: string) => { const sub = document.querySelector('#boot .sub'); if (sub) { sub.textContent = t; (sub as HTMLElement).style.color = '#ffb0a0'; } };
+window.addEventListener('error', (e) => bootMsg(`Error: ${e.message}`));
+window.addEventListener('unhandledrejection', (e) => bootMsg(`Error: ${(e.reason as Error)?.message ?? e.reason}`));
+setTimeout(() => { if (document.getElementById('boot')) bootMsg(`Still loading (${bar.style.width || '0%'})… check your connection`); }, 45000);
 const assetsP = import('./render/assets').then((m) => m.loadAssets((f) => { bar.style.width = `${Math.round(f * 100)}%`; }));
 
 async function checkServer(): Promise<boolean> {

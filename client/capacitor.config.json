@@ -2,5 +2,9 @@
   "appId": "com.lastwar.game",
   "appName": "Last War",
   "webDir": "dist",
+  "server": {
+    "url": "https://last-war-hamidos-projects-d2f8b328.vercel.app",
+    "errorPath": "offline.html"
+  },
   "android": { "backgroundColor": "#16240f" }
 }
