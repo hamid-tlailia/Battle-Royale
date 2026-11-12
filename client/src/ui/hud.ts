@@ -18,6 +18,10 @@ export class Hud {
   private hpFill: HTMLDivElement;
   private armorFill: HTMLDivElement;
   private hpTxt: HTMLDivElement;
+  private armorTxt!: HTMLElement;
+  private toastEl!: HTMLDivElement;
+  healBtn: HTMLElement | null = null;
+  frostBtn: HTMLElement | null = null;
   private slots: HTMLDivElement[] = [];
   private ammo: HTMLDivElement;
   private reloadBar: HTMLDivElement;
@@ -28,7 +32,7 @@ export class Hud {
   private hitTimer = 0;
   private scope: HTMLDivElement;
   private reddot: HTMLDivElement;
-  private scopeMode = 'none';
+  private scopeMode: string = 'none';
   private vignette: HTMLDivElement;
   private hurt: HTMLDivElement;
   private mini: HTMLCanvasElement;
@@ -42,12 +46,23 @@ export class Hud {
     this.vignette = el('zone-vignette', hud);
     this.hurt = el('hurt-flash', hud);
     this.scope = el('scope-overlay', hud, `<div class="scope-lens">
-      <svg class="reticle" viewBox="-100 -100 200 200">
+      <svg class="reticle r8" viewBox="-100 -100 200 200">
         <path d="M-100 0H-14M14 0H100M0 -100V-14M0 14V100" stroke="#000" stroke-width="1.2"/>
         <path d="M-100 0H-60M60 0H100M0 60V100" stroke="#000" stroke-width="5"/>
         ${[-40, -30, -20, 20, 30, 40].map((x) => `<circle cx="${x}" cy="0" r="1.6" fill="#000"/><circle cx="0" cy="${x}" r="1.6" fill="#000"/>`).join('')}
         <circle class="dot" cx="0" cy="0" r="1.8"/>
-      </svg></div>`);
+      </svg>
+      <svg class="reticle r4" viewBox="-100 -100 200 200">
+        <path d="M-100 0H-8M8 0H100M0 8V100" stroke="#111" stroke-width="1"/>
+        ${[12, 20, 28, 36].map((y) => `<path d="M-${y / 4} ${y}H${y / 4}" stroke="#111" stroke-width="1"/>`).join('')}
+        <path class="dot" d="M-5 6L0 0L5 6" fill="none" stroke-width="1.6"/>
+      </svg>
+      <svg class="reticle r2" viewBox="-100 -100 200 200">
+        <circle cx="0" cy="0" r="22" fill="none" stroke="#111" stroke-width="1.4"/>
+        <path d="M-22 0H-12M12 0H22M0 22V12" stroke="#111" stroke-width="1.4"/>
+        <circle class="dot" cx="0" cy="0" r="2.2"/>
+      </svg>
+      <div class="zoom-tag"></div></div>`);
     this.reddot = el('reddot-overlay', hud, '<div class="holo"><i></i></div>');
     this.cross = el('crosshair', hud);
     const top = el('top-info', hud);
@@ -73,8 +88,10 @@ export class Hud {
     this.ammo = el('ammo', bottom);
     this.reloadBar = el('reload-bar', bottom, '<div></div>');
     const bars = el('bars', bottom);
-    const armor = el('bar armor', bars, '<div></div>');
-    const hp = el('bar hp', bars, '<div></div><span></span>');
+    const armor = el('bar armor', bars, '<div></div><em>🛡</em><span></span>');
+    const hp = el('bar hp', bars, '<div></div><em>❤</em><span></span>');
+    this.armorTxt = armor.querySelector('span') as HTMLElement;
+    this.toastEl = el('toasts', hud);
     this.armorFill = armor.firstElementChild as HTMLDivElement;
     this.hpFill = hp.firstElementChild as HTMLDivElement;
     this.hpTxt = hp.querySelector('span') as HTMLDivElement;
@@ -98,13 +115,21 @@ export class Hud {
     return c;
   }
 
-  setSlots(p: SimPlayer, reloadFrac: number) {
+  setSlots(p: SimPlayer, reloadFrac: number, healFrac = 0) {
+    this.armorTxt.textContent = String(Math.round(p.armor));
+    this.healBtn?.querySelector('b')?.replaceChildren(String(p.meds));
+    this.frostBtn?.querySelector('b')?.replaceChildren(String(p.frost));
+    this.healBtn?.classList.toggle('empty', p.meds === 0);
+    this.frostBtn?.classList.toggle('empty', p.frost === 0);
+    if (healFrac > 0) reloadFrac = healFrac;
+    this.reloadBar.classList.toggle('healing', healFrac > 0);
     p.weapons.forEach((w, i) => {
-      this.slots[i].classList.toggle('sel', i === p.slot);
-      (this.slots[i].querySelector('i') as HTMLElement).textContent = `${w.mag}/${w.reserve}`;
+      this.slots[i].classList.toggle('sel', i === p.slot && w.owned);
+      this.slots[i].classList.toggle('empty', !w.owned);
+      (this.slots[i].querySelector('i') as HTMLElement).textContent = w.owned ? `${w.mag}/${w.reserve}` : w.reserve ? `— /${w.reserve}` : '—';
     });
     const w = p.weapons[p.slot];
-    this.ammo.innerHTML = `<b>${w.mag}</b><span>/ ${w.reserve}</span>`;
+    this.ammo.innerHTML = w.owned ? `<b>${w.mag}</b><span>/ ${w.reserve}</span>` : '<span class="noweap">NO WEAPON · find one!</span>';
     this.ammo.classList.toggle('low', w.mag <= Math.ceil(WEAPONS[w.id].mag * 0.2));
     this.reloadBar.style.opacity = reloadFrac > 0 ? '1' : '0';
     (this.reloadBar.firstElementChild as HTMLElement).style.width = `${reloadFrac * 100}%`;
@@ -147,6 +172,13 @@ export class Hud {
     g.restore();
   }
 
+  /** Short pickup / info message above the weapon bar. */
+  toast(text: string) {
+    const t = el('toast', this.toastEl, text);
+    while (this.toastEl.children.length > 3) this.toastEl.firstElementChild!.remove();
+    setTimeout(() => t.remove(), 1800);
+  }
+
   killFeed(html: string, mine: boolean) {
     const row = el(`kf${mine ? ' mine' : ''}`, this.feed, html);
     while (this.feed.children.length > 5) this.feed.firstElementChild!.remove();
@@ -172,10 +204,14 @@ export class Hud {
     this.hurt.classList.remove('on'); void this.hurt.offsetWidth; this.hurt.classList.add('on');
   }
 
-  setScope(mode: 'none' | 'reddot' | 'scope') {
+  /** none / red-dot sight / magnified optics (x2, x4, x8 — each with its own lens size & reticle). */
+  setScope(mode: 'none' | 'reddot' | 'x2' | 'x4' | 'x8') {
     if (mode === this.scopeMode) return;
     this.scopeMode = mode;
-    this.scope.style.display = mode === 'scope' ? 'block' : 'none';
+    const optic = mode === 'x2' || mode === 'x4' || mode === 'x8';
+    this.scope.style.display = optic ? 'block' : 'none';
+    this.scope.dataset.zoom = mode;
+    (this.scope.querySelector('.zoom-tag') as HTMLElement).textContent = optic ? mode.replace('x', '×') : '';
     this.reddot.style.display = mode === 'reddot' ? 'block' : 'none';
     this.cross.style.display = mode === 'none' ? 'block' : 'none';
   }
@@ -204,7 +240,7 @@ export class Hud {
     if (this.hitTimer > 0) { this.hitTimer -= dt; if (this.hitTimer <= 0) this.cross.classList.remove('hit', 'killhit'); }
   }
 
-  showEnd(win: boolean, place: number, total: number, kills: number, killer: string | null, onAgain: () => void) {
+  showEnd(win: boolean, place: number, total: number, kills: number, killer: string | null, onAgain: () => void, onSpectate?: () => void) {
     this.overlay?.remove();
     this.overlay = el(`end-screen${win ? ' win' : ''}`, this.root, `
       <div class="end-card">
@@ -218,7 +254,7 @@ export class Hud {
     again.addEventListener('click', onAgain);
     again.addEventListener('touchend', (e) => { e.preventDefault(); onAgain(); });
     const spec = this.overlay.querySelector('.spec') as HTMLButtonElement | null;
-    const hide = (e: Event) => { e.preventDefault(); this.overlay?.classList.add('mini'); };
+    const hide = (e: Event) => { e.preventDefault(); this.overlay?.classList.add('mini'); onSpectate?.(); };
     spec?.addEventListener('click', hide);
     spec?.addEventListener('touchend', hide);
   }

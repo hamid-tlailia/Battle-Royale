@@ -15,9 +15,12 @@ export class Controls {
   /** joystick pushed past its rim toward the top: auto-sprint while held */
   sprintLock = false;
   onSprintLock: (on: boolean) => void = () => {};
+  onSprintChange: (on: boolean) => void = () => {};
   scoped = false;
   jumpQueued = 0; // ticks remaining to send jump
   reloadQueued = 0;
+  healQueued = 0;
+  frostQueued = 0;
   fireHeld = false;
   weapon = 1;
   /** user setting (settings panel) */
@@ -108,9 +111,11 @@ export class Controls {
 
   jump() { this.jumpQueued = 3; }
   reload() { this.reloadQueued = 3; }
+  heal() { this.healQueued = 3; }
+  frost() { this.frostQueued = 3; }
   toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) this.proneToggle = false; }
   toggleProne() { this.proneToggle = !this.proneToggle; if (this.proneToggle) this.crouchToggle = false; }
-  toggleSprint() { this.sprintToggle = !this.sprintToggle; if (this.sprintToggle) { this.crouchToggle = false; this.proneToggle = false; } }
+  toggleSprint() { this.sprintToggle = !this.sprintToggle; if (this.sprintToggle) { this.crouchToggle = false; this.proneToggle = false; this.scoped = false; } this.onSprintChange(this.sprintToggle); }
   setScope(v: boolean) { this.scoped = v; }
 
   private look(dx: number, dy: number) {
@@ -189,6 +194,8 @@ export class Controls {
     let b = 0;
     if (this.jumpQueued > 0) { this.jumpQueued--; b |= BTN.JUMP; }
     if (this.reloadQueued > 0) { this.reloadQueued--; b |= BTN.RELOAD; }
+    if (this.healQueued > 0) { this.healQueued--; b |= BTN.HEAL; }
+    if (this.frostQueued > 0) { this.frostQueued--; b |= BTN.FROST; }
     if (this.crouchToggle) b |= BTN.CROUCH;
     if (this.proneToggle) b |= BTN.PRONE;
     if ((this.sprintLock || this.sprintToggle || this.keys.has('ShiftLeft')) && !this.fireHeld && !this.scoped) b |= BTN.SPRINT;
@@ -197,9 +204,13 @@ export class Controls {
     return b;
   }
 
-  /** Movement axes including keyboard. */
+  /** Movement axes including keyboard. Sprint toggle = auto-run forward until cancelled. */
   axes(): { mx: number; mz: number } {
     let mx = this.mx, mz = this.mz;
+    if (this.sprintToggle) {
+      if (mz < -0.3 || this.fireHeld || this.scoped) { this.sprintToggle = false; this.onSprintChange(false); }
+      else { mz = 1; mx *= 0.5; }
+    }
     if (this.keys.size) {
       if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) mz += 1;
       if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) mz -= 1;

@@ -46,4 +46,6 @@ export const BTN = {
   RELOAD: 16,
   SPRINT: 32,
   PRONE: 64,
+  HEAL: 128,
+  FROST: 256,
 } as const;

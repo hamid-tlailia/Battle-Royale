@@ -14,7 +14,7 @@ import { WEAPON_IDS } from '../config/weapons';
  *                     MSG.LOBBY  (json)   { phase, countdown, humans, needed }
  *                     MSG.PONG   (json)   { t }
  */
-export const MSG = { INPUT: 'i', SNAP: 's', EVENTS: 'e', WELCOME: 'w', ROSTER: 'r', LOBBY: 'l', PING: 'p', PONG: 'q', START: 'g' } as const;
+export const MSG = { INPUT: 'i', SNAP: 's', EVENTS: 'e', WELCOME: 'w', ROSTER: 'r', LOBBY: 'l', PING: 'p', PONG: 'q', START: 'g', WORLD: 'o' } as const;
 
 export interface RosterEntry { id: number; name: string; bot: boolean; skin: number }
 export interface LobbyInfo { phase: string; countdown: number; humans: number; max: number; private: boolean; hostId: number }
@@ -22,7 +22,7 @@ export interface LobbyInfo { phase: string; countdown: number; humans: number; m
 const PITCH_K = 10000;
 
 // ------------------------------------------------------------------ inputs
-const INPUT_BYTES = 4 + 1 + 1 + 4 + 2 + 4 + 2 + 1 + 1 + 4;
+const INPUT_BYTES = 4 + 1 + 1 + 4 + 2 + 4 + 2 + 2 + 1 + 4;
 
 export function encodeInputs(inputs: InputCmd[]): Uint8Array {
   const n = Math.min(inputs.length, 8);
@@ -39,7 +39,7 @@ export function encodeInputs(inputs: InputCmd[]): Uint8Array {
     v.setInt16(o, Math.round(i.pitch * PITCH_K)); o += 2;
     v.setFloat32(o, i.aimYaw ?? i.yaw); o += 4;
     v.setInt16(o, Math.round((i.aimPitch ?? i.pitch) * PITCH_K)); o += 2;
-    v.setUint8(o, i.buttons & 0xff); o += 1;
+    v.setUint16(o, i.buttons & 0xffff); o += 2;
     v.setUint8(o, i.weapon ?? 255); o += 1;
     v.setFloat32(o, i.viewTick ?? -1); o += 4;
   }
@@ -71,7 +71,7 @@ export function decodeInputs(bytes: Uint8Array): InputCmd[] {
     const pitch = v.getInt16(o) / PITCH_K; o += 2;
     const aimYaw = v.getFloat32(o); o += 4;
     const aimPitch = v.getInt16(o) / PITCH_K; o += 2;
-    const buttons = v.getUint8(o); o += 1;
+    const buttons = v.getUint16(o); o += 2;
     const w = v.getUint8(o); o += 1;
     const vt = v.getFloat32(o); o += 4;
     out.push({ seq, mx, mz, yaw, pitch, aimYaw, aimPitch, buttons, weapon: w === 255 ? undefined : w, viewTick: vt < 0 ? undefined : vt });
@@ -93,7 +93,8 @@ export interface SelfState {
   move: MoveState;
   alive: boolean;
   hp: number; armor: number; slot: number;
-  weapons: { mag: number; reserve: number }[];
+  weapons: { owned: boolean; mag: number; reserve: number }[];
+  meds: number; frost: number; scope: number; healEndTick: number;
   nextFireTick: number; reloadEndTick: number;
   prevButtons: number; triggerArmed: boolean;
   kills: number; place: number;
@@ -110,7 +111,7 @@ export interface Snapshot {
 }
 
 const PHASES = ['lobby', 'live', 'ended'] as const;
-const SELF_BYTES = 4 * 3 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 1 + 1 + 1 + 1;
+const SELF_BYTES = 4 * 3 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4;
 const OTHER_BYTES = 1 + 12 + 2 + 2 + 2 + 2 + 1 + 1;
 
 export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick: number, alive: number, me: SimPlayer | null, players: Iterable<SimPlayer>): Uint8Array {
@@ -140,10 +141,15 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
     for (let k = 0; k < 4; k++) { const w = me.weapons[k]; v.setUint8(o, w.mag); v.setUint16(o + 1, w.reserve); o += 3; }
     v.setUint32(o, me.nextFireTick); o += 4;
     v.setUint32(o, me.reloadEndTick); o += 4;
-    v.setUint8(o, me.prevButtons); o += 1;
+    v.setUint16(o, me.prevButtons); o += 2;
     v.setUint8(o, me.triggerArmed ? 1 : 0); o += 1;
     v.setUint8(o, Math.min(255, me.kills)); o += 1;
     v.setUint8(o, me.place); o += 1;
+    v.setUint8(o, me.weapons.reduce((m, w, i) => m | (w.owned ? 1 << i : 0), 0)); o += 1;
+    v.setUint8(o, me.meds); o += 1;
+    v.setUint8(o, me.frost); o += 1;
+    v.setUint8(o, me.scope); o += 1;
+    v.setUint32(o, me.healEndTick); o += 4;
   }
   for (const p of list) {
     const m = p.move;
@@ -178,16 +184,20 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
     const vaultLift = f(), vaultSide = f(), yaw = f(), pitch = f();
     const hp = v.getUint8(o), armor = v.getUint8(o + 1), slot = v.getUint8(o + 2); o += 3;
     const weapons = [];
-    for (let k = 0; k < 4; k++) { weapons.push({ mag: v.getUint8(o), reserve: v.getUint16(o + 1) }); o += 3; }
+    for (let k = 0; k < 4; k++) { weapons.push({ owned: false, mag: v.getUint8(o), reserve: v.getUint16(o + 1) }); o += 3; }
     const nextFireTick = v.getUint32(o); o += 4;
     const reloadEndTick = v.getUint32(o); o += 4;
-    const prevButtons = v.getUint8(o); o += 1;
+    const prevButtons = v.getUint16(o); o += 2;
     const triggerArmed = v.getUint8(o) === 1; o += 1;
     const kills = v.getUint8(o); o += 1;
     const place = v.getUint8(o); o += 1;
+    const owned = v.getUint8(o); o += 1;
+    const meds = v.getUint8(o), frost = v.getUint8(o + 1), scope = v.getUint8(o + 2); o += 3;
+    const healEndTick = v.getUint32(o); o += 4;
+    weapons.forEach((w, i) => { (w as { owned: boolean }).owned = !!(owned & (1 << i)); });
     self = {
       move: { x, y, z, vx, vz, vy, grounded: !!(flags & 1), crouch: !!(flags & 2), ball: !!(flags & 4), prone: !!(flags & 16), yaw, pitch, vault, vaultLift, vaultSide },
-      alive: !!(flags & 8), hp, armor, slot, weapons, nextFireTick, reloadEndTick, prevButtons, triggerArmed, kills, place,
+      alive: !!(flags & 8), hp, armor, slot, weapons, meds, frost, scope, healEndTick, nextFireTick, reloadEndTick, prevButtons, triggerArmed, kills, place,
     };
   }
   const others: RemoteState[] = [];
@@ -209,7 +219,8 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
 export function applySelf(p: SimPlayer, s: SelfState) {
   Object.assign(p.move, s.move);
   p.alive = s.alive; p.hp = s.hp; p.armor = s.armor; p.slot = s.slot;
-  s.weapons.forEach((w, i) => { p.weapons[i].mag = w.mag; p.weapons[i].reserve = w.reserve; p.weapons[i].id = WEAPON_IDS[i]; });
+  s.weapons.forEach((w, i) => { p.weapons[i].owned = w.owned; p.weapons[i].mag = w.mag; p.weapons[i].reserve = w.reserve; p.weapons[i].id = WEAPON_IDS[i]; });
+  p.meds = s.meds; p.frost = s.frost; p.scope = s.scope; p.healEndTick = s.healEndTick;
   p.nextFireTick = s.nextFireTick; p.reloadEndTick = s.reloadEndTick;
   p.prevButtons = s.prevButtons; p.triggerArmed = s.triggerArmed;
   p.kills = s.kills; p.place = s.place;

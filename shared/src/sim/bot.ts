@@ -25,6 +25,10 @@ export class BotBrain {
   private viewYaw: number | null = null;
   private viewPitch = 0;
   private pace = 1;
+  private lootScan = 0;
+  private lootId: number | null = null;
+  private lootTicks = 0;
+  private skip = new Set<number>();
   /** skill 0..1 (accuracy & reaction) */
   private skill: number;
 
@@ -73,7 +77,8 @@ export class BotBrain {
     const distToZone = Math.hypot(s.x - zone.nx, s.z - zone.nz);
     const mustRun = distToZone > zone.nr * 0.85 && (zone.shrinking || zone.timer < 20) || Math.hypot(s.x - zone.cx, s.z - zone.cz) > zone.r - 3;
 
-    if (target && target.alive && !mustRun && sim.phase === 'live') {
+    const armed = p.weapons.some((w) => w.owned && w.mag + w.reserve > 0);
+    if (target && target.alive && !mustRun && sim.phase === 'live' && armed) {
       // ---------- combat ----------
       this.seenTicks++;
       const eye = sim.eye(p);
@@ -86,8 +91,9 @@ export class BotBrain {
       const wobble = (1.2 - this.skill) * 0.1;
       yaw = Math.atan2(-dx, -dz) + this.aimErrYaw + (this.rnd() - 0.5) * wobble;
       pitch = Math.atan2(dy, flat) + this.aimErrPitch + (this.rnd() - 0.5) * wobble;
-      weapon = flat < 10 ? 2 : flat < 55 ? 1 : 3;
-      if (p.weapons[weapon].mag + p.weapons[weapon].reserve === 0) weapon = 0;
+      // best owned weapon with ammo for this distance
+      const pref = flat < 10 ? [2, 1, 0, 3] : flat < 55 ? [1, 2, 3, 0] : [3, 1, 0, 2];
+      weapon = pref.find((i) => p.weapons[i].owned && p.weapons[i].mag + p.weapons[i].reserve > 0) ?? p.slot;
       // strafe & occasionally crouch
       // calm movement while fighting: mostly stand/crouch and shoot, sometimes a slow side-step
       if (--this.strafeTicks <= 0) {
@@ -115,8 +121,27 @@ export class BotBrain {
       // ---------- travel ----------
       this.targetId = mustRun ? null : this.targetId;
       if (mustRun && Math.hypot(this.tx - zone.nx, this.tz - zone.nz) > zone.nr * 0.7) this.pickTarget(zone.nx, zone.nz, zone.nr * 0.6);
+      // loot run: no gun -> nearest weapon; otherwise opportunistic ammo / meds / armor nearby
+      if (!mustRun && --this.lootScan <= 0) {
+        this.lootScan = 20;
+        const want = (k: string) => (!armed ? k === 'weapon' : k !== 'scope' && k !== 'frost');
+        let best: { x: number; z: number } | null = null, bd = armed ? 25 : 120;
+        for (const it of sim.loot.values()) {
+          if (!want(it.kind)) continue;
+          if (it.kind === 'med' && p.meds >= 3) continue;
+          if (it.kind === 'armor' && p.armor >= 100) continue;
+          const d = Math.hypot(it.x - s.x, it.z - s.z);
+          if (d < bd && !this.skip.has(it.id)) { bd = d; best = it; this.lootId = it.id; }
+        }
+        if (best) { this.tx = best.x; this.tz = best.z; this.lootTicks = 0; }
+      }
+      if (this.lootId !== null && ++this.lootTicks > 300) { this.skip.add(this.lootId); this.lootId = null; } // unreachable: give up
+      if (this.lootId !== null && !sim.loot.has(this.lootId)) this.lootId = null;
+      // heal when safe
+      if (p.hp < 60 && p.meds > 0 && !p.healEndTick) buttons |= BTN.HEAL;
       const dx = this.tx - s.x, dz = this.tz - s.z;
-      if (Math.hypot(dx, dz) < 2.5) this.pickTarget(zone.nx, zone.nz, Math.min(zone.nr, MAP.playRadius - 10) * 0.9);
+      if (this.lootId !== null && Math.hypot(dx, dz) < 1.0) { this.skip.add(this.lootId); this.lootId = null; } // reached but not taken (full)
+      if (Math.hypot(dx, dz) < 1.2 || (this.lootId === null && Math.hypot(dx, dz) < 2.5)) this.pickTarget(zone.nx, zone.nz, Math.min(zone.nr, MAP.playRadius - 10) * 0.9);
       yaw = Math.atan2(-dx, -dz);
       if (this.rnd() < 0.01) this.pace = this.rnd() < 0.7 ? 1 : 0.55; // sometimes walk instead of run
       mz = mustRun ? 1 : this.pace;

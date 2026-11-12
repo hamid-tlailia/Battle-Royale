@@ -210,7 +210,7 @@ describe('movement & collision', () => {
   });
 
   it('20 bots for 60s (zone off, no friendly fire limits): nobody falls through the world, overlaps, or exceeds speed', () => {
-    const sim = new GameSim(MAP.seed, { zone: false });
+    const sim = new GameSim(MAP.seed, { zone: false, armed: true, loot: false });
     for (let i = 0; i < 20; i++) sim.addPlayer(i, `bot${i}`, true);
     let maxStep = 0, maxOverlap = 0, minAboveGround = Infinity;
     const prev = new Map<number, { x: number; z: number }>();

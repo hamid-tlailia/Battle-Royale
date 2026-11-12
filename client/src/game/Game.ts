@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  BTN, DT, MAP, WEAPONS, GameSim, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox,
+  BTN, DT, LOOT, MAP, WEAPONS, GameSim, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox,
   type Hitbox, type InputCmd, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
 import { buildMapView } from '../render/mapView';
@@ -14,6 +14,9 @@ import { Hud } from '../ui/hud';
 import { sfx } from '../audio/sfx';
 import type { NetSession } from '../net/session';
 
+/** Vertical field of view per optic (smaller = more zoom). */
+const SCOPE_FOV: Record<string, number> = { reddot: 52, x2: 34, x4: 18, x8: 10 };
+
 export interface GameOptions { net?: NetSession; name: string; skin: number; slot: number }
 
 /** Share a friends-room invite link (native share sheet on phones, clipboard fallback). */
@@ -25,6 +28,7 @@ export function shareRoom(code: string) {
 }
 import { loadSettings, settingsPanel, type Settings } from '../ui/settings';
 import { ICONS } from '../ui/icons';
+import { LootView } from '../render/lootView';
 import { applyLayout, editLayout } from '../ui/layout';
 
 const BOT_COUNT = 15;
@@ -65,6 +69,7 @@ export class Game {
   private spectate: number | null = null;
   private ended = false;
   private killerName: string | null = null;
+  private killerId: number | null = null;
   // scratch
   private frustum = new THREE.Frustum();
   private projScreen = new THREE.Matrix4();
@@ -81,6 +86,9 @@ export class Game {
   private aim = new THREE.Vector3();
   private hb = {} as Hitbox;
   private settings: Settings = loadSettings();
+  private scopeMode: 'none' | 'reddot' | 'x2' | 'x4' | 'x8' = 'none';
+  private loot!: LootView;
+  private lootTimer = 0;
 
   private myId = 0;
   private net: NetSession | null;
@@ -124,6 +132,7 @@ export class Game {
     applySettings(this.settings);
     settingsPanel(hudEl, this.settings, applySettings, () => editLayout(hudEl));
     this.fx = new Effects(this.scene);
+    this.loot = new LootView(this.scene, assets);
     this.buildButtons();
 
     // players
@@ -188,6 +197,12 @@ export class Game {
     const prone = mk('prone', ICONS.prone);
     const scope = mk('scope', ICONS.scope);
     const reload = mk('reload', ICONS.reload);
+    const heal = mk('heal', ICONS.heal + '<b>0</b>');
+    const frost = mk('frost', ICONS.frost + '<b>0</b>');
+    this.hud.healBtn = heal; this.hud.frostBtn = frost;
+    this.controls.bindButton(heal, () => this.controls.heal());
+    this.controls.bindButton(frost, () => this.controls.frost());
+    this.controls.onSprintChange = () => sync();
     const sprint = mk('sprint', ICONS.sprint);
     const lock = document.createElement('div');
     lock.className = 'sprint-lock';
@@ -323,13 +338,21 @@ export class Game {
           if (e.killer === this.myId) { this.hud.hitMarker(true); sfx.kill(); }
           if (e.victim === this.myId) {
             this.killerName = e.killer >= 0 ? killer : null;
-            this.spectate = e.killer >= 0 ? e.killer : null;
-            setTimeout(() => this.showEnd(false), 1200);
+            this.spectate = null; // watch your own soldier fall
+            this.killerId = e.killer >= 0 ? e.killer : null;
+            setTimeout(() => this.showEnd(false), 2600);
           }
           if (e.victim === this.spectate) this.spectate = e.killer >= 0 ? e.killer : null;
           break;
         }
         case 'reload': if (e.id === this.myId) sfx.reload(); break;
+        case 'loot+': this.loot.dirty = true; break;
+        case 'loot-':
+          this.loot.dirty = true;
+          if (e.by === this.myId) { this.hud.toast(lootLabel(e)); sfx.pickup(); }
+          break;
+        case 'heal': if (e.id === this.myId) this.hud.toast(`❤ healed · ${Math.round(e.hp)} HP`); break;
+        case 'wall+': if (e.wall) sfx.frost(); break;
         case 'zone': if (e.id === this.myId) { this.hud.hurtFlash(); sfx.zoneTick(); } break;
         case 'win': if (e.id === this.myId) setTimeout(() => this.showEnd(true), 800); else if (!me.alive) this.spectate = e.id; break;
       }
@@ -365,6 +388,9 @@ export class Game {
     this.hud.showEnd(win, win ? 1 : me.place, this.sim.players.size, me.kills, this.killerName, () => {
       this.dispose();
       this.onRestart();
+    }, () => {
+      const alive = [...this.sim.players.values()].filter((p) => p.alive);
+      this.spectate = this.killerId !== null && this.sim.players.get(this.killerId)?.alive ? this.killerId : alive[0]?.id ?? null;
     });
   }
 
@@ -412,7 +438,8 @@ export class Game {
     // Scoped = first-person through the optic (red dot for pistol/AR/shotgun, full scope for the sniper)
     const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault;
     this.controls.scopedView = scopedView;
-    this.hud.setScope(!scopedView ? 'none' : slot.id === 'sniper' ? 'scope' : 'reddot');
+    this.scopeMode = !scopedView ? 'none' : slot.id === 'sniper' ? 'x8' : slot.id === 'rifle' && me.scope ? (me.scope >= 4 ? 'x4' : 'x2') : 'reddot';
+    this.hud.setScope(this.scopeMode);
     if (me.alive) this.aimAssist(dt, me);
     this.updateCamera(dt, focusV, focusV === meV ? this.controls.yaw : focusV.p.move.yaw, focusV === meV ? this.controls.pitch : focusV.p.move.pitch, scopedView);
     this.controls.fovScale = this.camera.fov / 70;
@@ -437,7 +464,7 @@ export class Game {
       v.firingT = Math.max(0, v.firingT - dt);
       const want = p.weapons[p.slot].id as GunName;
       if (want !== v.gun) { v.gun = want; v.view.setGun(this.assets, want); }
-      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
+      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned), vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
       // footsteps
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 40) {
         v.stepAcc += p.speed * dt;
@@ -460,11 +487,16 @@ export class Game {
     if (this.sky) this.sky.position.copy(this.camera.position);
 
     this.fx.update(dt);
+    this.lootTimer -= dt;
+    if (this.loot.dirty || this.lootTimer <= 0) { this.loot.setItems(this.sim.loot.values()); this.lootTimer = 0.5; }
+    this.loot.syncWalls(this.sim.walls);
+    this.loot.update(dt, this.camera);
     this.renderer.render(this.scene, this.camera);
 
     // HUD
     const reloadFrac = me.reloadEndTick ? 1 - (me.reloadEndTick - this.sim.tick) / (WEAPONS[slot.id].reloadTime * 30) : 0;
-    this.hud.setSlots(me, reloadFrac);
+    const healFrac = me.healEndTick ? 1 - Math.max(0, me.healEndTick - (this.net ? this.net.serverTick : this.sim.tick)) / (LOOT.medTime * 30) : 0;
+    this.hud.setSlots(me, reloadFrac, healFrac);
     const out = me.alive && outsideZone(zone, me.move.x, me.move.z);
     this.hud.setInfo(this.aliveCount(), me.kills, zone, { x: meV.view.root.position.x, z: meV.view.root.position.z, yaw: this.controls.yaw }, out, dt);
     this.hud.update(dt, this.camera);
@@ -497,7 +529,7 @@ export class Game {
     if (firstPerson) {
       this.camDist = 0;
       this.camera.position.copy(this.pivot).addScaledVector(fwd, 0.25);
-      fov = w.scopeFov;
+      fov = SCOPE_FOV[this.scopeMode] ?? w.scopeFov;
     } else {
       const targetDist = scoped ? 1.6 : 3.6;
       this.camDist += (targetDist - this.camDist) * Math.min(1, dt * 12);
@@ -584,3 +616,15 @@ function lerpAngle(a: number, b: number, t: number) {
 }
 
 export { BTN };
+
+function lootLabel(e: Extract<SimEvent, { t: 'loot-' }>): string {
+  const wname = (w: unknown) => WEAPONS[w as keyof typeof WEAPONS]?.name ?? '';
+  switch (e.kind) {
+    case 'weapon': return `+ ${wname(e.item)}`;
+    case 'ammo': return `+ ${wname(e.item)} ammo`;
+    case 'med': return '+ Medkit';
+    case 'armor': return '+ Armor';
+    case 'scope': return `+ ×${e.item} scope`;
+    case 'frost': return '+ Ice wall';
+  }
+}

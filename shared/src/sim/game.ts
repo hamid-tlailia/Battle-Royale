@@ -1,14 +1,21 @@
-import { BTN, DT, TICK_RATE } from '../config/game';
+import { BTN, DT, GROUP_PLAYER, MAP, TICK_RATE, groups } from '../config/game';
+import { LOOT, LOOT_TABLE, type LootItem } from '../config/loot';
+import { PREFABS } from '../map/prefabs';
 import { ARMOR_ABSORB, MAX_ARMOR, MAX_HP, WEAPONS, WEAPON_IDS, damageAt, fireInterval, type WeaponId } from '../config/weapons';
 import { generateMap, type MapData } from '../map/mapgen';
 import { mulberry32 } from '../math/rng';
 import { BotBrain } from './bot';
 import { hitboxOf, lerpHitbox, rayHitbox, type Hitbox } from './combat';
 import { eyeOffset, newMoveState, sanitizeInput, simulateMove, type InputCmd, type MoveState } from './movement';
-import { PhysicsWorld } from './physics';
+import { PhysicsWorld, RAPIER } from './physics';
+
+const quatY = (rot: number) => ({ x: 0, y: Math.sin(rot / 2), z: 0, w: Math.cos(rot / 2) });
 import { outsideZone, zoneAt, type ZoneState } from './zone';
 
-export interface WeaponSlot { id: WeaponId; mag: number; reserve: number }
+export interface WeaponSlot { id: WeaponId; owned: boolean; mag: number; reserve: number }
+
+/** Deployable ice wall (cover). */
+export interface FrostWall { id: number; x: number; y: number; z: number; rot: number; hp: number; until: number; handle: number }
 
 export interface SimPlayer {
   id: number;
@@ -36,6 +43,12 @@ export interface SimPlayer {
   place: number; // finishing position once dead (0 while alive)
   /** horizontal speed last tick (for animation) */
   speed: number;
+  meds: number;
+  frost: number;
+  /** best scope found (0 = red dot, 2, 4) */
+  scope: number;
+  /** medkit in use until this tick (0 = not healing) */
+  healEndTick: number;
 }
 
 export type SimEvent =
@@ -44,20 +57,26 @@ export type SimEvent =
   | { t: 'kill'; killer: number; victim: number; weapon: WeaponId | 'zone' | 'left'; head: boolean }
   | { t: 'reload'; id: number }
   | { t: 'zone'; id: number; dmg: number }
-  | { t: 'win'; id: number };
+  | { t: 'win'; id: number }
+  | { t: 'loot+'; item: LootItem }
+  | { t: 'loot-'; id: number; by: number; kind: LootItem['kind']; item?: LootItem['item']; amount: number }
+  | { t: 'heal'; id: number; hp: number }
+  | { t: 'wall+'; wall: Omit<FrostWall, 'handle'> }
+  | { t: 'wall-'; id: number; broken: boolean };
 
 /**
  * Weapon state machine for one tick: switching, reload, fire rate, ammo.
  * Shared by the server (authoritative) and the client (prediction of ammo / muzzle effects).
  */
 export function weaponLogic(p: SimPlayer, input: InputCmd, tick: number, fire: (w: WeaponId) => void, onReload?: () => void) {
-  if (input.weapon !== undefined && input.weapon !== p.slot && p.weapons[input.weapon]) {
+  if (input.weapon !== undefined && input.weapon !== p.slot && p.weapons[input.weapon]?.owned) {
     p.slot = input.weapon;
     p.reloadEndTick = 0;
     p.nextFireTick = Math.max(p.nextFireTick, tick + 8);
   }
   const slot = p.weapons[p.slot];
   const w = WEAPONS[slot.id];
+  if (!slot.owned) { p.prevButtons = input.buttons; p.triggerArmed = false; return; }
   if (p.reloadEndTick && tick >= p.reloadEndTick) {
     const take = Math.min(w.mag - slot.mag, slot.reserve);
     slot.mag += take; slot.reserve -= take; p.reloadEndTick = 0;
@@ -99,7 +118,13 @@ const HISTORY = 40;
  */
 export type HitboxProvider = (target: SimPlayer, shooter: SimPlayer, out: Hitbox) => Hitbox;
 
-export interface GameOptions { seed?: number; zone?: boolean; lobby?: boolean }
+export interface GameOptions {
+  seed?: number; zone?: boolean; lobby?: boolean;
+  /** start with every weapon (tests / sandbox). Default: land empty-handed and loot. */
+  armed?: boolean;
+  /** generate ground loot (default true). Online clients receive loot from the server instead. */
+  loot?: boolean;
+}
 
 /** Authoritative match simulation shared by the offline client and the server. */
 export class GameSim {
@@ -117,6 +142,10 @@ export class GameSim {
   lagCompensation = false;
   private history = new Map<number, Hitbox[]>();
   hitboxProvider: HitboxProvider = (t, _s, out) => hitboxOf(t.move, out);
+  readonly loot = new Map<number, LootItem>();
+  readonly walls = new Map<number, FrostWall>();
+  private nextLoot = 1;
+  private nextWall = 1;
   private aliveCount = 0;
   private rnd: () => number;
   private spawnIdx = 0;
@@ -128,6 +157,194 @@ export class GameSim {
     this.rnd = mulberry32(seed + 77);
     this.zone = zoneAt(seed, 0);
     if (opts.lobby) this.phase = 'lobby';
+    if (opts.loot !== false) this.spawnLoot();
+  }
+
+  // ------------------------------------------------------------------ loot
+  /** Deterministic ground loot: inside every house and scattered across the valley. */
+  private spawnLoot() {
+    const rnd = mulberry32(this.seed ^ 0x10070);
+    const total = LOOT_TABLE.reduce((a, e) => a + e.weight, 0);
+    const pick = () => { let r = rnd() * total; for (const e of LOOT_TABLE) { r -= e.weight; if (r <= 0) return e; } return LOOT_TABLE[0]; };
+    const place = (x: number, y: number, z: number) => {
+      const e = pick();
+      const amount = e.kind === 'ammo' ? LOOT.ammoBox[e.item as WeaponId] : 1;
+      this.addLoot({ kind: e.kind, item: e.item, amount, x, y, z }, false);
+      // a weapon usually comes with some ammo next to it
+      if (e.kind === 'weapon' && rnd() < 0.8) this.addLoot({ kind: 'ammo', item: e.item, amount: LOOT.ammoBox[e.item as WeaponId], x: x + 0.5, y, z: z + 0.3 }, false);
+    };
+    const free = (x: number, y: number, z: number) => !this.phys.shapeBlocked(x, y + 0.35, z, 0.001, 0.25);
+    for (const h of this.map.props) {
+      if (!h.p.startsWith('house')) continue;
+      const [sx, , sz] = PREFABS[h.p].size;
+      const c = Math.cos(h.rot), sn = Math.sin(h.rot);
+      let n = 0;
+      for (let k = 0; k < 14 && n < 4; k++) {
+        const lx = (rnd() - 0.5) * sx * 0.7, lz = (rnd() - 0.5) * sz * 0.7;
+        const x = h.x + lx * c + lz * sn, z = h.z - lx * sn + lz * c;
+        const down = this.phys.rayWorld(x, h.y + 1.6, z, 0, -1, 0, 3);
+        if (down === null) continue;
+        const fy = h.y + 1.6 - down;
+        if (Math.abs(fy - h.y) > 0.5 || !free(x, fy, z)) continue;
+        place(x, fy + 0.05, z); n++;
+      }
+    }
+    for (let k = 0, n = 0; k < 400 && n < 70; k++) {
+      const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (MAP.playRadius - 8);
+      const x = Math.cos(a) * d, z = Math.sin(a) * d, y = this.phys.groundHeight(x, z);
+      if (!free(x, y, z)) continue;
+      place(x, y + 0.05, z); n++;
+    }
+  }
+
+  addLoot(it: Omit<LootItem, 'id'>, announce = true): LootItem {
+    const item = { ...it, id: this.nextLoot++ };
+    this.loot.set(item.id, item);
+    if (announce) this.events.push({ t: 'loot+', item });
+    return item;
+  }
+
+  /** Online client: install the server's loot / walls. */
+  setWorldItems(loot: LootItem[], walls: Omit<FrostWall, 'handle'>[]) {
+    this.loot.clear();
+    for (const l of loot) this.loot.set(l.id, l);
+    for (const w of walls) this.addWallCollider(w);
+  }
+
+  /** Walk-over pickup. Returns true if the item was (fully) taken. */
+  private tryPickup(p: SimPlayer, it: LootItem): boolean {
+    switch (it.kind) {
+      case 'weapon': {
+        const i = WEAPON_IDS.indexOf(it.item as WeaponId), slot = p.weapons[i];
+        if (!slot.owned) {
+          slot.owned = true; slot.mag = WEAPONS[slot.id].mag;
+          if (!p.weapons[p.slot].owned) p.slot = i;
+          return true;
+        }
+        if (slot.reserve >= LOOT.maxReserve[slot.id]) return false;
+        slot.reserve = Math.min(LOOT.maxReserve[slot.id], slot.reserve + WEAPONS[slot.id].mag);
+        return true;
+      }
+      case 'ammo': {
+        const slot = p.weapons[WEAPON_IDS.indexOf(it.item as WeaponId)];
+        const room = LOOT.maxReserve[slot.id] - slot.reserve;
+        if (room <= 0) return false;
+        const take = Math.min(room, it.amount);
+        slot.reserve += take; it.amount -= take;
+        return it.amount <= 0;
+      }
+      case 'med': {
+        const take = Math.min(LOOT.maxMeds - p.meds, it.amount);
+        if (take <= 0) return false;
+        p.meds += take; it.amount -= take;
+        return it.amount <= 0;
+      }
+      case 'frost': {
+        const take = Math.min(LOOT.maxFrost - p.frost, it.amount);
+        if (take <= 0) return false;
+        p.frost += take; it.amount -= take;
+        return it.amount <= 0;
+      }
+      case 'armor':
+        if (p.armor >= MAX_ARMOR) return false;
+        p.armor = Math.min(MAX_ARMOR, p.armor + LOOT.armorVest);
+        return true;
+      case 'scope':
+        if ((it.item as number) <= p.scope) return false;
+        p.scope = it.item as number;
+        return true;
+    }
+  }
+
+  private pickups(p: SimPlayer) {
+    const r2 = LOOT.pickupRadius * LOOT.pickupRadius;
+    for (const it of this.loot.values()) {
+      const dx = it.x - p.move.x, dz = it.z - p.move.z;
+      if (dx * dx + dz * dz > r2 || Math.abs(it.y - (p.move.y - 0.6)) > 1.6) continue;
+      const before = it.amount;
+      if (this.tryPickup(p, it)) { this.loot.delete(it.id); this.events.push({ t: 'loot-', id: it.id, by: p.id, kind: it.kind, item: it.item, amount: before }); }
+    }
+  }
+
+  /** A dead player's inventory spills on the ground. */
+  private dropInventory(v: SimPlayer) {
+    const drops: Omit<LootItem, 'id' | 'x' | 'y' | 'z'>[] = [];
+    v.weapons.forEach((w) => {
+      if (w.owned) drops.push({ kind: 'weapon', item: w.id, amount: 1 });
+      if (w.reserve + (w.owned ? w.mag : 0) > 0) drops.push({ kind: 'ammo', item: w.id, amount: w.reserve + (w.owned ? w.mag : 0) });
+    });
+    if (v.meds) drops.push({ kind: 'med', amount: v.meds });
+    if (v.frost) drops.push({ kind: 'frost', amount: v.frost });
+    if (v.scope) drops.push({ kind: 'scope', item: v.scope, amount: 1 });
+    const y = v.move.y - 0.6;
+    drops.forEach((d, i) => {
+      const a = (i / Math.max(1, drops.length)) * Math.PI * 2;
+      this.addLoot({ ...d, x: v.move.x + Math.cos(a) * 0.9, y, z: v.move.z + Math.sin(a) * 0.9 });
+    });
+  }
+
+  // ------------------------------------------------------------------ medkit & frost wall
+  private items(p: SimPlayer, input: InputCmd) {
+    const pressed = (b: number) => (input.buttons & b) !== 0 && (p.prevButtons & b) === 0;
+    // medkit: channel, cancelled by shooting
+    if (p.healEndTick) {
+      if (input.buttons & BTN.FIRE) p.healEndTick = 0;
+      else if (this.tick >= p.healEndTick) {
+        p.healEndTick = 0;
+        p.meds--;
+        p.hp = Math.min(MAX_HP, p.hp + LOOT.medHeal);
+        this.events.push({ t: 'heal', id: p.id, hp: p.hp });
+      }
+    } else if (pressed(BTN.HEAL) && p.meds > 0 && p.hp < MAX_HP) {
+      p.healEndTick = this.tick + Math.round(LOOT.medTime * TICK_RATE);
+    }
+    if (pressed(BTN.FROST) && p.frost > 0) this.placeWall(p);
+  }
+
+  private placeWall(p: SimPlayer) {
+    const fx = -Math.sin(p.move.yaw), fz = -Math.cos(p.move.yaw);
+    const eye = this.eye(p);
+    for (const dist of [LOOT.frostDistance, LOOT.frostDistance + 0.8, LOOT.frostDistance - 0.6]) {
+      // stop in front of walls
+      const block = this.phys.rayWorld(eye.x, eye.y, eye.z, fx, 0, fz, dist);
+      if (block !== null) continue;
+      const x = p.move.x + fx * dist, z = p.move.z + fz * dist;
+      const down = this.phys.rayWorld(x, eye.y + 0.5, z, 0, -1, 0, 6);
+      if (down === null) continue;
+      const y = eye.y + 0.5 - down + LOOT.frostHeight / 2;
+      // never trap or overlap a player
+      let blocked = false;
+      this.phys.world.intersectionsWithShape({ x, y, z }, quatY(p.move.yaw), new RAPIER.Cuboid(LOOT.frostWidth / 2, LOOT.frostHeight / 2 - 0.05, LOOT.frostThick / 2),
+        () => { blocked = true; return false; }, undefined, groups(0xffff, GROUP_PLAYER));
+      if (blocked) continue;
+      const w = { id: this.nextWall++, x, y, z, rot: p.move.yaw, hp: LOOT.frostHp, until: this.tick + LOOT.frostLife * TICK_RATE };
+      this.addWallCollider(w);
+      p.frost--;
+      this.events.push({ t: 'wall+', wall: w });
+      return;
+    }
+  }
+
+  private addWallCollider(w: Omit<FrostWall, 'handle'>) {
+    const col = this.phys.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(LOOT.frostWidth / 2, LOOT.frostHeight / 2, LOOT.frostThick / 2)
+        .setTranslation(w.x, w.y, w.z).setRotation(quatY(w.rot)).setCollisionGroups(this.phys.worldGroups),
+    );
+    this.walls.set(w.id, { ...w, handle: col.handle });
+  }
+
+  removeWall(id: number, broken: boolean, announce = true) {
+    const w = this.walls.get(id);
+    if (!w) return;
+    const col = this.phys.world.getCollider(w.handle);
+    if (col) this.phys.world.removeCollider(col, false);
+    this.walls.delete(id);
+    if (announce) this.events.push({ t: 'wall-', id, broken });
+  }
+
+  private wallByHandle(handle: number) {
+    for (const w of this.walls.values()) if (w.handle === handle) return w;
+    return null;
   }
 
   /** Start the match (server, after the lobby countdown). */
@@ -135,7 +352,7 @@ export class GameSim {
     if (this.phase !== 'lobby') return;
     this.phase = 'live';
     this.startTick = this.tick;
-    for (const p of this.players.values()) { p.hp = MAX_HP; p.armor = 50; }
+    for (const p of this.players.values()) { p.hp = MAX_HP; }
   }
 
   /** Ticks since the match started (zone timing). */
@@ -187,8 +404,9 @@ export class GameSim {
     move.yaw = Math.atan2(p.x, p.z); // face the valley centre
     const pl: SimPlayer = {
       id, name, skin: bot ? (id * 5 + 3) % 8 : 0, bot: bot ? new BotBrain(this.seed * 31 + id) : null, move,
-      hp: MAX_HP, armor: 50, alive: true,
-      weapons: WEAPON_IDS.map((w) => ({ id: w, mag: WEAPONS[w].mag, reserve: WEAPONS[w].startReserve })),
+      hp: MAX_HP, armor: this.opts.armed ? 50 : 0, alive: true,
+      weapons: WEAPON_IDS.map((w) => ({ id: w, owned: !!this.opts.armed, mag: this.opts.armed ? WEAPONS[w].mag : 0, reserve: this.opts.armed ? WEAPONS[w].startReserve : 0 })),
+      meds: 0, frost: this.opts.armed ? 2 : 0, scope: 0, healEndTick: 0,
       slot: 1, nextFireTick: 0, reloadEndTick: 0, prevButtons: 0, triggerArmed: false, kills: 0,
       lastInput: { seq: 0, mx: 0, mz: 0, yaw: move.yaw, pitch: 0, buttons: 0 }, queue: null, ackSeq: 0, place: 0, speed: 0,
     };
@@ -235,9 +453,12 @@ export class GameSim {
       list.forEach((raw, i) => {
         const input = sanitizeInput(raw);
         if (i > 0) { simulateMove(this.phys, p.id, p.move, input, DT); p.ackSeq = input.seq; }
-        if (p.alive) this.weaponTick(p, input);
+        if (p.alive) { if (this.phase === 'live') this.items(p, input); this.weaponTick(p, input); }
       });
+      if (p.alive && this.phase === 'live') this.pickups(p);
     }
+    // ice walls melt
+    for (const w of this.walls.values()) if (this.tick >= w.until) this.removeWall(w.id, false);
     this.recordHistory(); // after catch-up moves: history == what snapshots report
     // 3) zone damage once per second (ignores armor)
     if (this.phase === 'live' && this.liveTicks % TICK_RATE === 0 && this.zone.dps > 0) {
@@ -276,8 +497,9 @@ export class GameSim {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * spread;
       const py = pitch + Math.sin(a) * r, yw = yaw + Math.cos(a) * r;
       const dx = -Math.sin(yw) * Math.cos(py), dy = Math.sin(py), dz = -Math.cos(yw) * Math.cos(py);
-      const wall = this.phys.rayWorld(o.x, o.y, o.z, dx, dy, dz, w.range);
-      let best = wall ?? w.range;
+      const wallHit = this.phys.rayWorldHit(o.x, o.y, o.z, dx, dy, dz, w.range);
+      let best = wallHit ? wallHit.t : w.range;
+      const frost = wallHit ? this.wallByHandle(wallHit.handle) : null;
       let target: SimPlayer | null = null, head = false;
       for (const q of this.players.values()) {
         if (q === p || !q.alive) continue;
@@ -292,6 +514,10 @@ export class GameSim {
         if (h && h.t < best) { best = h.t; target = q; head = h.head; }
       }
       ends.push(o.x + dx * best, o.y + dy * best, o.z + dz * best);
+      if (!target && frost) {
+        frost.hp -= damageAt(w, best, false);
+        if (frost.hp <= 0) this.removeWall(frost.id, true);
+      }
       if (target) {
         const d = damageAt(w, best, head);
         const prev = dmgBy.get(target.id);
@@ -322,6 +548,8 @@ export class GameSim {
     v.place = this.aliveCount;
     this.aliveCount--;
     this.phys.removePlayer(v.id);
+    v.healEndTick = 0;
+    if (weapon !== 'left' || this.phase === 'live') this.dropInventory(v);
     if (killer) killer.kills++;
     this.events.push({ t: 'kill', killer: killer ? killer.id : -1, victim: v.id, weapon, head });
     if (this.aliveCount === 1 && this.winner === null && this.phase === 'live') {

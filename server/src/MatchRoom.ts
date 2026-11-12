@@ -13,6 +13,8 @@ export interface MatchOptions {
   private?: boolean;
   /** tests only: disable rewind to prove it matters */
   lagCompensation?: boolean;
+  /** tests only: start with all weapons */
+  armed?: boolean;
 }
 
 interface Human { id: number; client: Client; queue: InputCmd[]; lastSeq: number; name: string; credit: number }
@@ -35,7 +37,7 @@ export class MatchRoom extends Room {
   private loop: ReturnType<typeof setInterval> | null = null;
   private acc = 0;
   private last = 0;
-  private opts: Required<Omit<MatchOptions, 'lagCompensation'>> = { lobbySeconds: 20, fillTo: 16, seed: 0, private: false };
+  private opts: Required<Omit<MatchOptions, 'lagCompensation' | 'armed'>> = { lobbySeconds: 20, fillTo: 16, seed: 0, private: false };
   private hostId = -1;
   /** stats for the debug overlay / tests */
   tickMs = 0;
@@ -50,7 +52,7 @@ export class MatchRoom extends Room {
     };
     if (this.opts.private) await this.setPrivate(true);
     this.maxClients = Math.max(1, Math.min(16, this.opts.fillTo));
-    this.sim = new GameSim(this.opts.seed, { lobby: true });
+    this.sim = new GameSim(this.opts.seed, { lobby: true, armed: options.armed === true && process.env.NODE_ENV !== 'production' });
     this.sim.lagCompensation = options.lagCompensation !== false;
     this.autoDispose = true;
 
@@ -74,6 +76,11 @@ export class MatchRoom extends Room {
     if (this.hostId < 0) this.hostId = id;
     this.humans.set(client.sessionId, { id, client, queue: [], lastSeq: 0, name, credit: 0 });
     client.send(MSG.WELCOME, { id, seed: this.opts.seed, tick: this.sim.tick });
+    // current loot + ice walls (later changes arrive as events)
+    client.send(MSG.WORLD, compactEvents([{
+      loot: [...this.sim.loot.values()],
+      walls: [...this.sim.walls.values()].map(({ handle: _h, ...w }) => w),
+    }])[0]);
     this.broadcastRoster();
     if (this.humans.size === 1) this.lobbyEndsAt = performance.now() + this.opts.lobbySeconds * 1000;
     if (this.humans.size >= this.maxClients) this.lobbyEndsAt = performance.now();

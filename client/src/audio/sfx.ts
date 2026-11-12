@@ -136,6 +136,22 @@ export class Sfx {
     this.burst(d, t + 0.35, 0.05, 2400, 3, 0.9, 0.05);
   }
 
+  pickup() {
+    const ctx = this.ctx; if (!ctx || !this.enabled) return;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(600, t); o.frequency.exponentialRampToValueAtTime(1200, t + 0.08);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.13);
+  }
+
+  frost() {
+    const d = this.chain(0.6, 0, 0); if (!d) return;
+    const t = this.ctx!.currentTime;
+    this.burst(d, t, 0.5, 4000, 2, 0.6, 0.4);
+    this.burst(d, t + 0.05, 0.4, 2500, 3, 0.5, 0.35);
+  }
+
   zoneTick() {
     const ctx = this.ctx; if (!ctx || !this.enabled) return;
     const t = ctx.currentTime;

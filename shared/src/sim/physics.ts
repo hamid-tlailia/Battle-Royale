@@ -160,6 +160,12 @@ export class PhysicsWorld {
     return { x, y: this.groundHeight(x, z) + standOff + 2, z };
   }
 
+  /** Raycast against world geometry, also returning the collider handle (bullets vs ice walls). */
+  rayWorldHit(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number): { t: number; handle: number } | null {
+    const hit = this.world.castRay(new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz }), maxDist, true, undefined, groups(0xffff, GROUP_WORLD));
+    return hit ? { t: hit.timeOfImpact, handle: hit.collider.handle } : null;
+  }
+
   /** Raycast against world geometry only (camera collision, line of sight). */
   rayWorld(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number): number | null {
     const hit = this.world.castRay(new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz }), maxDist, true, undefined, groups(0xffff, GROUP_WORLD));

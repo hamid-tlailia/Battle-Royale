@@ -29,7 +29,7 @@ function openLane(sim: GameSim, len: number) {
   throw new Error('no open lane');
 }
 function duel(dist: number) {
-  const sim = new GameSim(MAP.seed, { zone: false });
+  const sim = new GameSim(MAP.seed, { zone: false, armed: true, loot: false });
   const a = sim.addPlayer(1, 'A', false), b = sim.addPlayer(2, 'B', false);
   const lane = openLane(sim, dist);
   place(sim, a, lane.x, lane.z); place(sim, b, lane.x + dist, lane.z);
@@ -81,9 +81,9 @@ describe('hit detection', () => {
 
   it('walls stop bullets: a target fully hidden behind a house wall takes no damage', () => {
     let tested = 0;
-    for (const h of new GameSim(MAP.seed, { zone: false }).map.props.filter((p) => p.p.startsWith('house'))) {
+    for (const h of new GameSim(MAP.seed, { zone: false, armed: true, loot: false }).map.props.filter((p) => p.p.startsWith('house'))) {
       for (const lx of [-4, -2, 0, 2, 4]) {
-        const sim = new GameSim(MAP.seed, { zone: false });
+        const sim = new GameSim(MAP.seed, { zone: false, armed: true, loot: false });
         const a = sim.addPlayer(1, 'A', false), b = sim.addPlayer(2, 'B', false);
         const c = Math.cos(h.rot), sn = Math.sin(h.rot);
         const W = (x: number, z: number) => ({ x: h.x + x * c + z * sn, z: h.z - x * sn + z * c });
@@ -192,7 +192,7 @@ describe('safe zone', () => {
   });
 
   it('damages players outside, not inside', () => {
-    const sim = new GameSim(MAP.seed);
+    const sim = new GameSim(MAP.seed, { armed: true, loot: false });
     const a = sim.addPlayer(1, 'in', false), b = sim.addPlayer(2, 'out', false);
     // jump to a time when the zone is small
     const t = (ZONE_PHASES[0].wait + ZONE_PHASES[0].shrink + 1) * TICK_RATE;

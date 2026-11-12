@@ -25,6 +25,6 @@ optimized GLBs (meshopt + WebP) to `client/public/assets/` and collision shapes 
 - [x] M1.5 real CC-BY models (soldier w/ 12 animations, houses, guns, cars, trees), performance pass
 - [x] M2 weapons, shooting, damage, real scope, vault, safe zone, sounds, kill feed, winner screen (offline vs bots)
 - [x] M3 multiplayer server, prediction, interpolation, lag compensation (tested at 200 ms + 5% loss) — needs a host
-- [ ] M4 loot, safe zone, match flow, winner screen
+- [x] M4 loot (weapons, ammo, medkits, armor, scopes ×2/×4, ice walls), death drops, safe zone, match flow, winner screen
 - [ ] M5 menus, polish, sound
 - [ ] M6 performance pass + Android app (Capacitor)

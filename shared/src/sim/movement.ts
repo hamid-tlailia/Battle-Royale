@@ -83,7 +83,7 @@ export function sanitizeInput(i: InputCmd): InputCmd {
   if (Math.abs(aimPitch - pitch) > 0.35) aimPitch = pitch + Math.sign(aimPitch - pitch) * 0.35;
   const weapon = Number.isFinite(i.weapon) ? Math.max(0, Math.min(3, (i.weapon as number) | 0)) : undefined;
   const viewTick = Number.isFinite(i.viewTick) ? (i.viewTick as number) : undefined;
-  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xff, aimYaw, aimPitch, weapon, viewTick };
+  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xffff, aimYaw, aimPitch, weapon, viewTick };
 }
 
 type ShapeName = 'stand' | 'crouch' | 'ball' | 'prone';

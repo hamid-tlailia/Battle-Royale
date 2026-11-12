@@ -1,7 +1,7 @@
 import { Client as ColyseusClient, type Room } from '@colyseus/sdk';
 import {
   DT, MSG, TICK_RATE, GameSim, applySelf, quantizeInput, decodeSnapshot, encodeInputs, simulateMove, syncCollider, weaponLogic,
-  type InputCmd, type LobbyInfo, type RemoteState, type RosterEntry, type SimEvent, type Snapshot, type WeaponId,
+  type FrostWall, type InputCmd, type LobbyInfo, type LootItem, type RemoteState, type RosterEntry, type SimEvent, type Snapshot, type WeaponId,
 } from '@lw/shared';
 
 /**
@@ -95,7 +95,7 @@ export class NetSession {
       : await client.joinOrCreate('match', { name, ...opts });
     this.room.onMessage(MSG.WELCOME, (m: { id: number; seed: number; tick: number }) => this.inC.run(() => {
       this.myId = m.id; this.seed = m.seed; this.serverTick = m.tick;
-      this.sim = new GameSim(m.seed, { lobby: true });
+      this.sim = new GameSim(m.seed, { lobby: true, loot: false }); // loot comes from the server
       for (const r of this.roster) this.ensurePlayer(r.id, r.name, r.skin);
       this.connected = true;
     }));
@@ -105,7 +105,8 @@ export class NetSession {
     }));
     this.room.onMessage(MSG.LOBBY, (l: LobbyInfo) => this.inC.run(() => { this.lobby = l; }));
     this.room.onMessage(MSG.SNAP, (b: Uint8Array) => this.inC.run(() => this.onSnapshot(decodeSnapshot(b))));
-    this.room.onMessage(MSG.EVENTS, (e: SimEvent[]) => this.inC.run(() => this.onEvents(e)));
+    this.room.onMessage(MSG.WORLD, (w: { loot: LootItem[]; walls: Omit<FrostWall, 'handle'>[] }) => this.inC.run(() => { this.sim?.setWorldItems(w.loot, w.walls); }));
+    this.room.onMessage(MSG.EVENTS, (e: SimEvent[]) => this.inC.run(() => { this.applyWorldEvents(e); this.onEvents(e); }));
     this.room.onMessage(MSG.PONG, (m: { t: number }) => this.inC.run(() => { const rtt = performance.now() - m.t; this.ping = this.ping ? this.ping * 0.8 + rtt * 0.2 : rtt; }));
     this.room.onLeave((code: number) => { this.connected = false; this.onClose(code); });
     setInterval(() => { if (this.connected) this.outC.run(() => this.room.send(MSG.PING, { t: performance.now() })); }, 1000);
@@ -116,6 +117,17 @@ export class NetSession {
   private ensurePlayer(id: number, name: string, skin = 0) {
     const p = this.sim.players.get(id) ?? this.sim.addPlayer(id, name, false);
     p.name = name; p.skin = skin;
+  }
+
+  /** Keep the client copy of loot and ice walls (colliders: my prediction collides with walls). */
+  private applyWorldEvents(events: SimEvent[]) {
+    if (!this.sim) return;
+    for (const e of events) {
+      if (e.t === 'loot+') this.sim.loot.set(e.item.id, e.item);
+      else if (e.t === 'loot-') this.sim.loot.delete(e.id);
+      else if (e.t === 'wall+') this.sim.setWorldItems([...this.sim.loot.values()], [e.wall]);
+      else if (e.t === 'wall-') this.sim.removeWall(e.id, e.broken, false);
+    }
   }
 
   /** Host of a friends room starts the match early. */

@@ -24,6 +24,8 @@ export interface CharacterState {
   x: number; y: number; z: number; yaw: number;
   speed: number; crouch: boolean; grounded: boolean; prone?: boolean; ball?: boolean;
   firing?: boolean; dead?: boolean; pitch?: number;
+  /** false = empty-handed (no weapon looted yet) */
+  armed?: boolean;
   /** world horizontal velocity, used for directional locomotion */
   vx?: number; vz?: number;
 }
@@ -174,8 +176,8 @@ export class CharacterView {
    */
   private placeGun(st: CharacterState) {
     const gun = this.gun!;
-    gun.visible = !st.dead;
-    if (st.dead) return;
+    gun.visible = !st.dead && st.armed !== false;
+    if (!gun.visible) return;
     const running = this.current === 'run';
     if (st.prone) {
       gun.position.set(0.12, 0.28, -0.55);

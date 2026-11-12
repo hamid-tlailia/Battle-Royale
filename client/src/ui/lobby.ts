@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { GAME_TITLE, WEAPONS, WEAPON_IDS } from '@lw/shared';
+import { GAME_TITLE, WEAPON_IDS } from '@lw/shared';
+import { loadSettings, settingsPanel } from './settings';
 import type { GameAssets, GunName } from '../render/assets';
 import { CharacterView, SKINS } from '../render/characters';
 
@@ -27,13 +28,13 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   el.innerHTML = `
     <canvas class="lobby-3d"></canvas>
     <div class="lobby-title"><h1>${GAME_TITLE}</h1><span class="srv">checking server…</span></div>
+    <div class="lobby-settings"></div>
     <div class="lobby-panel">
       <label class="lbl">NAME</label>
       <input class="name" maxlength="14" placeholder="Soldier" value="${profile.name.replace(/"/g, '')}">
       <label class="lbl">OUTFIT</label>
       <div class="skins">${SKINS.map((s, i) => `<button data-skin="${i}" title="${s.name}" style="--c:#${s.color.toString(16).padStart(6, '0')}"></button>`).join('')}</div>
-      <label class="lbl">STARTING WEAPON</label>
-      <div class="loadout">${WEAPON_IDS.map((w, i) => `<button data-slot="${i}">${WEAPONS[w].name.replace('Assault Rifle', 'Rifle')}</button>`).join('')}</div>
+      <p class="hint">Everyone lands empty-handed — loot weapons, ammo, medkits, armor, scopes and ice walls.</p>
       ${inviteRoom ? `<button class="big join-invite">JOIN FRIEND'S ROOM</button>` : ''}
       <button class="big quick">PLAY ONLINE</button>
       <div class="row">
@@ -83,6 +84,10 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     renderer.render(scene, camera);
   };
   requestAnimationFrame(loop);
+
+  // ---- settings (same panel as in game; saved on the device)
+  const st = loadSettings();
+  settingsPanel(el.querySelector('.lobby-settings') as HTMLElement, st, () => {});
 
   // ---- form
   const nameIn = el.querySelector('.name') as HTMLInputElement;

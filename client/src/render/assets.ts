@@ -79,7 +79,7 @@ export async function loadAssets(onProgress: (f: number) => void): Promise<GameA
  * Quantized (meshopt / KHR_mesh_quantization) attributes are normalized integers: transforming them
  * in place would clamp to [-1,1]. Convert every attribute to plain Float32 first.
  */
-function toFloatGeometry(src: THREE.BufferGeometry): THREE.BufferGeometry {
+export function toFloatGeometry(src: THREE.BufferGeometry): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry();
   for (const [name, attr] of Object.entries(src.attributes)) {
     const a = attr as THREE.BufferAttribute | THREE.InterleavedBufferAttribute;
