@@ -40,6 +40,8 @@ const html = `<!doctype html><html><head><style>${BTN}</style>
 ${['', 'fire', 'active', 'pressed'].map((c) => `<div class="w" id="btn${c ? '_' + c : ''}"><div class="b ${c}"></div></div>`).join('')}
 ${iconIds.map((id) => `<div class="ic" id="icon_${id}">${(ICONS as Record<string, string>)[id]}</div>`).join('')}
 <div class="blood" id="blood"></div>
+<div class="ic" id="map_arrow"><svg viewBox="-22 -30 44 52"><path d="M0-26L17 17L0 8L-17 17Z" fill="#ffd34d" stroke="#000" stroke-width="3" stroke-linejoin="round"/></svg></div>
+<div class="ic" id="map_cone"><svg viewBox="-100 -100 200 200"><defs><radialGradient id="cg" cx="0" cy="0" r="100" gradientUnits="userSpaceOnUse"><stop offset=".06" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><path d="M0 0L${(100 * Math.sin(-0.55)).toFixed(2)} ${(-100 * Math.cos(0.55)).toFixed(2)}A100 100 0 0 1 ${(100 * Math.sin(0.55)).toFixed(2)} ${(-100 * Math.cos(0.55)).toFixed(2)}Z" fill="url(#cg)"/></svg></div>
 <div id="guns"></div>
 <script type="module">
 import * as THREE from 'three';
@@ -82,7 +84,7 @@ const server = http.createServer((req, res) => {
   page.on('console', (m) => console.log('page:', m.text()));
   await page.goto('http://127.0.0.1:8701/');
   await page.waitForFunction(() => (window as unknown as { GUNS?: object }).GUNS, null, { timeout: 60000 });
-  for (const id of ['btn', 'btn_fire', 'btn_active', 'btn_pressed', ...iconIds.map((i) => 'icon_' + i), 'blood'])
+  for (const id of ['btn', 'btn_fire', 'btn_active', 'btn_pressed', ...iconIds.map((i) => 'icon_' + i), 'blood', 'map_arrow', 'map_cone'])
     await page.locator('#' + id).screenshot({ path: `${OUT}/${id}.png`, omitBackground: true });
   const guns = await page.evaluate(() => (window as unknown as { GUNS: Record<string, string> }).GUNS);
   for (const [g, url] of Object.entries(guns)) fs.writeFileSync(`${OUT}/gun_${g}.png`, Buffer.from(url.split(',')[1], 'base64'));

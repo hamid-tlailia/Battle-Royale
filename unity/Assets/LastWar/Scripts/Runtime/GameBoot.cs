@@ -87,6 +87,7 @@ namespace LastWar
             Zone.Create(Map.playRadius);
             Tracers.Create();
             Hud.Create(controls, Player);
+            Minimap.Create(controls, Player, Map);
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
             fps.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
