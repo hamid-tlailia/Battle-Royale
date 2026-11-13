@@ -1,6 +1,7 @@
 import { MAP } from '../config/game';
 import { fbm, mulberry32, smoothstep } from '../math/rng';
-import { PREFABS, type PrefabName } from './prefabs';
+import { PREFABS, TORS_GREEN_VERTS, type PrefabName } from './prefabs';
+import { GREEN_GRID } from './data/green';
 
 /** Axis-aligned (in local space) box rotated around Y. Used for houses, crates, walls. */
 export interface BoxPrim {
@@ -12,7 +13,32 @@ export interface BoxPrim {
 /** Instance of an imported model (house, car, tree, rock...). Origin = bottom centre. */
 export interface PropInst { p: PrefabName; x: number; y: number; z: number; rot: number; s: number }
 
+/** Playable maps. 'classic' is fully generated; others start from a real terrain scan. */
+export type MapId = 'classic' | 'green';
+export const MAP_LIST: { id: MapId; name: string; desc: string }[] = [
+  { id: 'green', name: 'Highlands', desc: 'Real moorland scan · farm village' },
+  { id: 'classic', name: 'Valley', desc: 'Pine valley · 25 houses' },
+];
+export const isMapId = (v: unknown): v is MapId => MAP_LIST.some((m) => m.id === v);
+
+/** Terrain scans: 16-bit heights (cm) + 8-bit coverage mask, base64. */
+const GRIDS: Partial<Record<MapId, { cells: number; size: number; heights: string; mask: string }>> = { green: GREEN_GRID };
+
+function b64(s: string): Uint8Array {
+  const bin = atob(s); // browsers and Node >= 16
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 export interface MapData {
+  id: MapId;
+  /** above this height the terrain is snowy (vertex colours, no trees) */
+  snowHeight: number;
+  /** real-terrain maps: 0..1 per grid vertex, where the scan photo texture is used */
+  mask?: Float32Array;
+  /** real-terrain maps: aerial photo covering the whole map (served from /assets/maps) */
+  albedo?: string;
   seed: number;
   size: number;
   cells: number;
@@ -23,8 +49,9 @@ export interface MapData {
   spawns: { x: number; z: number }[];
 }
 
-export function generateMap(seed: number = MAP.seed): MapData {
-  const { size, cells } = MAP;
+export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): MapData {
+  const grid = GRIDS[id];
+  const size = MAP.size, cells = grid ? grid.cells : MAP.cells;
   const rnd = mulberry32(seed);
   /** feature counts / distances scale with the valley (tuned at radius 125) */
   const K = MAP.playRadius / 125, A = K * K;
@@ -59,7 +86,35 @@ export function generateMap(seed: number = MAP.seed): MapData {
     }
   }
 
-  const data: MapData = { seed, size, cells, heights, boxes: [], props: [], spawns: [] };
+  let mask: Float32Array | undefined;
+  let scanBase = 0;
+  if (grid) {
+    // real scan: heights (cm, u16) + coverage mask; outside the scan blend into gentle generated ground
+    const hb = b64(grid.heights), mb = b64(grid.mask);
+    const scan = new Float32Array(n * n);
+    mask = new Float32Array(n * n);
+    for (let i = 0; i < n * n; i++) { scan[i] = (hb[i * 2] | (hb[i * 2 + 1] << 8)) / 100; mask[i] = mb[i] / 255; }
+    // ground level where the scan fades out
+    let es = 0, ec = 0;
+    for (let i = 0; i < n * n; i++) if (mask[i] > 0.2 && mask[i] < 0.8) { es += scan[i]; ec++; }
+    const edge = ec ? es / ec : 0;
+    scanBase = -edge;
+    for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {
+      const i = iz * n + ix, x = -half + ix * cell, z = -half + iz * cell;
+      const r = Math.hypot(x, z) / half;
+      const outside = edge + (fbm(x * 0.012, z * 0.012, seed) - 0.5) * 7 + (fbm(x * 0.05, z * 0.05, seed + 7) - 0.5) * 1.2;
+      let h = scan[i] * mask[i] + outside * (1 - mask[i]);
+      const ring = smoothstep(0.84, 1.05, r);
+      h += ring * (30 + fbm(x * 0.03, z * 0.03, seed + 13) * 26);
+      heights[i] = h - edge; // keep the valley floor near 0 like the classic map
+      if (ring > 0.3) mask[i] *= 1 - smoothstep(0.3, 0.6, ring); // mountains around use generated colours
+    }
+  }
+  const data: MapData = {
+    id, seed, size, cells, heights, boxes: [], props: [], spawns: [], mask,
+    snowHeight: id === 'green' ? 70 : MAP.snowHeight,
+    albedo: grid ? `${id}.webp` : undefined,
+  };
   const groundAt = (x: number, z: number) => terrainHeight(data, x, z);
 
   // Occupancy circles to avoid overlaps between features.
@@ -71,10 +126,17 @@ export function generateMap(seed: number = MAP.seed): MapData {
     return { x: Math.cos(a) * d, z: Math.sin(a) * d };
   };
 
+  // ---------- Real rock outcrops (scan geometry) ----------
+  if (id === 'green') {
+    data.props.push({ p: 'tors_green', x: 0, y: scanBase, z: 0, rot: 0, s: 1 });
+    const v = TORS_GREEN_VERTS; // keep everything else out of the rocks
+    for (let i = 0; i < v.length; i += 3 * 40) occupied.push({ x: v[i], z: v[i + 2], r: 3.5 });
+  }
+
   // ---------- Houses (imported enterable models on a stone foundation) ----------
   const houseTypes: PrefabName[] = ['house_a', 'house_b', 'house_c'];
   let houses = 0;
-  for (let tries = 0; tries < 2500 && houses < Math.round(12 * A * 0.95); tries++) {
+  for (let tries = 0; tries < 2500 && houses < Math.round((id === 'green' ? 9 : 12) * A * 0.95); tries++) {
     const p = randInValley(MAP.playRadius - 22);
     const type = houseTypes[houses % houseTypes.length];
     const rotIdx = Math.floor(rnd() * 4);
@@ -94,6 +156,31 @@ export function generateMap(seed: number = MAP.seed): MapData {
     data.boxes.push({ x: p.x, y: avg - 0.9, z: p.z, hx: w / 2 + 0.2, hy: 1.02, hz: d / 2 + 0.2, rot: 0, color: 0x8a857a });
     data.props.push({ p: type, x: p.x, y: floorY, z: p.z, rot, s: 1 });
     houses++;
+  }
+
+  // ---------- Farm compounds (green map): stone yard wall, windmill, farmhouse, well, wagon, hay ----------
+  if (id === 'green') {
+    // layout copied from the source village (metres, relative to the yard wall's centre)
+    const parts: [PrefabName, number, number, number][] = [
+      ['yardwall', 0, 0, 0], ['windmill', 2.1, -4.1, 0], ['windmill_blades', 2.1, -4.1, 0], ['farmhouse', -9.0, 9.8, 0],
+      ['well', 2.4, 11.9, 0], ['wagon', -6.1, 3.7, 0.4], ['haybale', -2.4, -3.8, 0], ['haybale', -1.3, -3.6, 0.3], ['scarecrow', -7.5, -2.4, 0],
+    ];
+    let farms = 0;
+    for (let tries = 0; tries < 3000 && farms < 5; tries++) {
+      const p = randInValley(MAP.playRadius - 30);
+      if (!free(p.x, p.z, 19)) continue;
+      const hs = [[-13, -9], [13, -9], [-13, 15], [13, 15], [0, 0], [0, 12]].map(([a, b]) => groundAt(p.x + a, p.z + b));
+      if (Math.max(...hs) - Math.min(...hs) > 4) continue;
+      const avg = hs.reduce((a, b) => a + b, 0) / hs.length;
+      occupied.push({ x: p.x, z: p.z, r: 19 });
+      flattenTerrain(data, p.x, p.z + 2, 15, 16, avg, 8);
+      const rot = Math.floor(rnd() * 4) * (Math.PI / 2), c = Math.cos(rot), sn = Math.sin(rot);
+      for (const [pf, lx, lz, r] of parts) {
+        const x = p.x + lx * c + lz * sn, z = p.z - lx * sn + lz * c;
+        data.props.push({ p: pf, x, y: groundAt(x, z) - 0.05, z, rot: rot + r, s: 1 });
+      }
+      farms++;
+    }
   }
 
   // ---------- Abandoned cars ----------
@@ -139,10 +226,11 @@ export function generateMap(seed: number = MAP.seed): MapData {
 
   // ---------- Pine trees ----------
   const pines: PrefabName[] = ['pine1', 'pine2', 'pine4', 'pine5'];
-  for (let i = 0, tries = 0; i < Math.round(260 * A) && tries < 8000; tries++) {
+  for (let i = 0, tries = 0; i < Math.round((id === 'green' ? 150 : 260) * A) && tries < 8000; tries++) {
     const p = randInValley(MAP.playRadius + 15);
     const g = groundAt(p.x, p.z);
-    if (g > MAP.snowHeight - 4) continue;
+    if (g > data.snowHeight - 4) continue;
+    if (mask && rnd() < 0.85 * mask[Math.round((p.z + half) / cell) * n + Math.round((p.x + half) / cell)]) continue; // open moorland on the scan
     if (!free(p.x, p.z, 1.3)) continue;
     occupied.push({ x: p.x, z: p.z, r: 0.9 });
     data.props.push({ p: pines[i % pines.length], x: p.x, y: g - 0.25, z: p.z, rot: rnd() * Math.PI * 2, s: 0.8 + rnd() * 0.5 });

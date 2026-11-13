@@ -304,3 +304,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .boot-logo { width: min(520px, 70vw); max-height: 52vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0,0,0,.5)); animation: logoIn .8s ease-out; }
 @keyframes logoIn { from { transform: scale(.85); opacity: 0; } }
 .lobby-logo { display: block; width: min(200px, 23vw); filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
+
+.lobby .maps { display: flex; gap: 6px; }
+.lobby .maps button { flex: 1; text-align: left; padding: 6px 10px; border-radius: 8px; border: 2px solid rgba(255,255,255,.2); background: rgba(255,255,255,.07); color: #fff; }
+.lobby .maps button b { display: block; font-size: 13px; letter-spacing: .5px; }
+.lobby .maps button small { font-size: 10px; opacity: .7; }
+.lobby .maps button.sel { border-color: #ffd34d; background: rgba(255,211,77,.18); }

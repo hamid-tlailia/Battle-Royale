@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { MAP, MapData, fbm, terrainMesh, type PrefabName, type PropInst } from '@lw/shared';
+import { MapData, fbm, terrainMesh, type PrefabName, type PropInst } from '@lw/shared';
 import type { GameAssets } from './assets';
 
 /** Chunk size for instanced props (frustum culling granularity). */
@@ -65,7 +65,7 @@ function buildTerrain(map: MapData): THREE.Mesh {
     if (d > 0.62) c.lerp(dirt, Math.min(1, (d - 0.62) * 4));
     const rockT = 1 - THREE.MathUtils.smoothstep(ny, 0.72, 0.86);
     c.lerp(rock, rockT);
-    const snowT = THREE.MathUtils.smoothstep(y + (fbm(x * 0.05, z * 0.05, 3) - 0.5) * 8, MAP.snowHeight - 2, MAP.snowHeight + 3) * THREE.MathUtils.smoothstep(ny, 0.5, 0.7);
+    const snowT = THREE.MathUtils.smoothstep(y + (fbm(x * 0.05, z * 0.05, 3) - 0.5) * 8, map.snowHeight - 2, map.snowHeight + 3) * THREE.MathUtils.smoothstep(ny, 0.5, 0.7);
     c.lerp(snow, snowT);
     col.set([c.r, c.g, c.b], i * 3);
     uv[i * 2] = x / 7; uv[i * 2 + 1] = z / 7;
@@ -73,7 +73,82 @@ function buildTerrain(map: MapData): THREE.Mesh {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.computeBoundingSphere();
-  return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: detailTexture() }));
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detailTexture() });
+  if (map.albedo && map.mask) applyPhoto(geo, mat, map);
+  return new THREE.Mesh(geo, mat);
+}
+
+/**
+ * Real-terrain maps: drape the aerial photo of the scan over the terrain (world-space UVs),
+ * blended by the scan's coverage mask into the generated colours; the tiling detail texture
+ * still adds close-up grain.
+ */
+const detailCache = new Map<string, THREE.Texture>();
+/** greyscale tiling detail (mean 0.5) from /assets/maps */
+function detailTex(name: string): THREE.Texture {
+  let t = detailCache.get(name);
+  if (!t) {
+    t = new THREE.TextureLoader().load(`/assets/maps/${name}.webp`);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.colorSpace = THREE.NoColorSpace;
+    detailCache.set(name, t);
+  }
+  return t;
+}
+
+/** Scanned rock outcrops: the scan texture is coarse, so add triplanar lichen-rock grain in world space. */
+function rockDetail(mat: THREE.Material) {
+  const m = mat as THREE.MeshLambertMaterial;
+  const u = { detailRock: { value: detailTex('detail_rock') } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nvarying vec3 vWN;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;\nvWN = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D detailRock;\nvarying vec3 vWP;\nvarying vec3 vWN;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        vec3 w = abs(vWN); w /= (w.x + w.y + w.z + 1e-4);
+        float d = texture2D(detailRock, vWP.zy / 2.0).r * w.x + texture2D(detailRock, vWP.xz / 2.0).r * w.y + texture2D(detailRock, vWP.xy / 2.0).r * w.z;
+        diffuseColor.rgb *= mix(1.0, d * 2.0, 0.8);`);
+  };
+  m.customProgramCacheKey = () => 'rock-detail';
+}
+
+function applyPhoto(geo: THREE.BufferGeometry, mat: THREE.MeshLambertMaterial, map: MapData) {
+  const pos = geo.getAttribute('position');
+  const n = pos.count, size = map.size;
+  const puv = new Float32Array(n * 2), m = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    puv[i * 2] = (pos.getX(i) + size / 2) / size;
+    puv[i * 2 + 1] = 1 - (pos.getZ(i) + size / 2) / size;
+    m[i] = map.mask![i] ?? 0;
+  }
+  geo.setAttribute('photoUv', new THREE.BufferAttribute(puv, 2));
+  geo.setAttribute('photoMask', new THREE.BufferAttribute(m, 1));
+  const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+  blank.needsUpdate = true;
+  const uniforms = { photoMap: { value: blank as THREE.Texture }, detailGrass: { value: detailTex('detail_grass') }, detailRock: { value: detailTex('detail_rock') } };
+  new THREE.TextureLoader().load(`/assets/maps/${map.albedo}`, (t) => {
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = true;
+    uniforms.photoMap.value = t;
+  });
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 photoUv;\nattribute float photoMask;\nvarying vec2 vPhotoUv;\nvarying float vPhotoMask;\nvarying vec2 vGround;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPhotoUv = photoUv;\nvPhotoMask = photoMask;\nvGround = position.xz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D photoMap;\nuniform sampler2D detailGrass;\nuniform sampler2D detailRock;\nvarying vec2 vPhotoUv;\nvarying float vPhotoMask;\nvarying vec2 vGround;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        vec4 ph = texture2D(photoMap, vPhotoUv);
+        // close-up grain from real CC0 photos: grass where the scan photo is green, lichen rock where it is grey
+        float sat = max(ph.r, max(ph.g, ph.b)) - min(ph.r, min(ph.g, ph.b));
+        float rockW = 1.0 - smoothstep(0.03, 0.1, sat);
+        float dg = texture2D(detailGrass, vGround / 3.0).r, dr = texture2D(detailRock, vGround / 2.2).r;
+        float grain = mix(1.0, mix(dg, dr, rockW) * 2.0, 0.85);
+        diffuseColor.rgb = mix(diffuseColor.rgb, ph.rgb * grain * 1.12, clamp(vPhotoMask * ph.a, 0.0, 1.0));`);
+  };
+  mat.customProgramCacheKey = () => 'photo-terrain';
 }
 
 function colorize(geo: THREE.BufferGeometry, hex: number | THREE.Color) {
@@ -127,6 +202,7 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
     }
     for (const inst of chunks.values()) {
       for (const part of parts) {
+        if (type === 'tors_green') rockDetail(part.material);
         const im = new THREE.InstancedMesh(part.geometry, part.material, inst.length);
         inst.forEach((p, i) => {
           m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s));

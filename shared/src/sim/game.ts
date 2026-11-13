@@ -2,7 +2,7 @@ import { BTN, DT, GROUP_PLAYER, MAP, TICK_RATE, groups, SKIN_COUNT } from '../co
 import { LOOT, LOOT_TABLE, type LootItem } from '../config/loot';
 import { PREFABS } from '../map/prefabs';
 import { ARMOR_ABSORB, MAX_ARMOR, MAX_HP, WEAPONS, WEAPON_IDS, damageAt, fireInterval, type WeaponId } from '../config/weapons';
-import { generateMap, type MapData } from '../map/mapgen';
+import { generateMap, type MapData, type MapId } from '../map/mapgen';
 import { mulberry32 } from '../math/rng';
 import { BotBrain } from './bot';
 import { hitboxOf, lerpHitbox, rayHitbox, type Hitbox } from './combat';
@@ -150,6 +150,8 @@ export interface GameOptions {
   loot?: boolean;
   /** start the match from the drop plane (default true) */
   skyDrop?: boolean;
+  /** which map (default 'classic') */
+  map?: MapId;
 }
 
 /** Authoritative match simulation shared by the offline client and the server. */
@@ -178,7 +180,7 @@ export class GameSim {
   private hb = {} as Hitbox;
 
   constructor(readonly seed: number, readonly opts: GameOptions = {}) {
-    this.map = generateMap(seed);
+    this.map = generateMap(seed, opts.map ?? 'classic');
     this.phys = new PhysicsWorld(this.map);
     this.rnd = mulberry32(seed + 77);
     this.zone = zoneAt(seed, 0);

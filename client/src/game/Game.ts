@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox, terrainHeight,
-  type Hitbox, type InputCmd, type SimEvent, type SimPlayer, type WeaponId,
+  type Hitbox, type InputCmd, type MapId, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
 import { buildMapView } from '../render/mapView';
 import { CharacterView } from '../render/characters';
@@ -17,7 +17,7 @@ import type { NetSession } from '../net/session';
 /** Vertical field of view per optic (smaller = more zoom). */
 const SCOPE_FOV: Record<string, number> = { reddot: 52, x2: 34, x4: 18, x8: 10 };
 
-export interface GameOptions { net?: NetSession; name: string; skin: number; slot: number }
+export interface GameOptions { net?: NetSession; name: string; skin: number; slot: number; map?: MapId }
 
 /** Share a friends-room invite link (native share sheet on phones, clipboard fallback). */
 export function shareRoom(code: string) {
@@ -114,7 +114,7 @@ export class Game {
     sun.position.set(80, 140, 50);
     this.scene.add(sun);
 
-    this.sim = this.net ? this.net.sim : new GameSim(MAP.seed, { lobby: true, skyDrop: !new URLSearchParams(location.search).has('nodrop') });
+    this.sim = this.net ? this.net.sim : new GameSim(MAP.seed, { lobby: true, map: opts.map ?? 'classic', skyDrop: !new URLSearchParams(location.search).has('nodrop') });
     if (this.net) this.myId = this.net.myId;
     const mapView = buildMapView(this.sim.map, assets);
     this.sky = mapView.children.find((o) => (o as THREE.Mesh).material && ((o as THREE.Mesh).material as THREE.Material).side === THREE.BackSide) ?? null;

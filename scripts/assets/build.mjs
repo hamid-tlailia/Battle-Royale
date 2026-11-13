@@ -66,12 +66,12 @@ async function finalize(doc, file, texSize = 512) {
  * bottom-centre at (0,0,0), scaled so that `fit` axis matches `size` metres. One primitive per material.
  * Returns { doc, size:[x,y,z], positions(Float32Array of tris) } for collider generation.
  */
-async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMaterials = [], centerOnBase = false }) {
+async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMaterials = [], centerOnBase = false, scale, origin, simplify }) {
   const doc = await io.read(srcFile);
   const root = doc.getRoot();
   const scene = root.getDefaultScene() || root.listScenes()[0];
-  const target = nodeName ? root.listNodes().find((n) => n.getName() === nodeName) : null;
-  if (nodeName && !target) throw new Error(`node ${nodeName} not found in ${srcFile}`);
+  const names = Array.isArray(nodeName) ? nodeName : nodeName ? [nodeName] : [];
+  const targets = names.map((nm) => { const t = root.listNodes().find((n) => n.getName() === nm); if (!t) throw new Error(`node ${nm} not found in ${srcFile}`); return t; });
   const prims = [];
   const visit = (n) => {
     const mesh = n.getMesh();
@@ -85,7 +85,7 @@ async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMa
     }
     n.listChildren().forEach(visit);
   };
-  (target ? [target] : scene.listChildren()).forEach(visit);
+  (targets.length ? targets : scene.listChildren()).forEach(visit);
   // bounds
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   const ry = [0, Math.sin(rotY / 2), 0, Math.cos(rotY / 2)];
@@ -96,8 +96,9 @@ async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMa
   }
   const axis = { x: 0, y: 1, z: 2, max: -1 }[fit];
   const extent = axis >= 0 ? mx[axis] - mn[axis] : Math.max(mx[0] - mn[0], mx[2] - mn[2]);
-  const s = size / extent;
+  const s = scale ?? size / extent;
   let cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2;
+  if (origin) { cx = origin[0]; cz = origin[2]; mn[1] = origin[1]; } // keep pieces of one model aligned
   if (centerOnBase) { // centre on the trunk: centroid of the lowest vertices
     let sx = 0, sz = 0, n = 0;
     const lim = mn[1] + (mx[1] - mn[1]) * 0.05;
@@ -109,13 +110,15 @@ async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMa
   // group by material
   const byMat = new Map();
   for (const p of prims) { const k = p.getMaterial(); if (!byMat.has(k)) byMat.set(k, []); byMat.get(k).push(p); }
-  const mesh = doc.createMesh(nodeName || 'prefab');
+  const mesh = doc.createMesh(names[0] || 'prefab');
   for (const list of byMat.values()) {
     for (const p of list) { // unify attribute sets
       if (!p.getAttribute('TEXCOORD_0')) p.setAttribute('TEXCOORD_0', doc.createAccessor().setType('VEC2').setArray(new Float32Array(p.getAttribute('POSITION').getCount() * 2)));
       for (const sem of p.listSemantics()) if (!['POSITION', 'NORMAL', 'TEXCOORD_0'].includes(sem)) p.setAttribute(sem, null);
     }
-    mesh.addPrimitive(list.length > 1 ? joinPrimitives(list) : list[0]);
+    const prim = list.length > 1 ? joinPrimitives(list) : list[0];
+    if (simplify && prim.getIndices()) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: simplify, error: 0.01, lockBorder: false });
+    mesh.addPrimitive(prim);
   }
   // replace scene content
   for (const n of scene.listChildren()) scene.removeChild(n);
@@ -178,6 +181,17 @@ for (const [n, s] of [['Rock1', 2.4], ['Rock2', 3.2], ['Rock3', 1.8], ['Rock4', 
 for (const n of ['Bush1', 'Bush2']) await prefab(n.toLowerCase(), 'nature', n, { fit: 'max', size: 1.8 }, { type: 'none' });
 await prefab('stump', 'nature', 'Stump1', { fit: 'max', size: 1.0, centerOnBase: true }, 'hull');
 await prefab('fence', 'fence', null, { fit: 'y', size: 1.4, dropMaterials: ['cell_grass'] }, 'trimesh');
+// Farm village (green map). One scale for the whole set (scarecrow ~1.9 m) so pieces stay in proportion.
+const VS = 105; // metres per source unit
+const V = 'maps/village';
+await prefab('farmhouse', V, ['House', 'Roof', 'Shape002', 'Line007', 'Shape003', 'Shape004', 'Cylinder003', 'Cylinder004'], { scale: VS, simplify: 0.35, tex: 512 }, 'hull');
+await prefab('windmill', V, ['Windmill'], { scale: VS, tex: 512, origin: [0.026, -0.002, -0.104] }, 'hull');
+await prefab('windmill_blades', V, ['WindmillPropellor'], { scale: VS, tex: 512, origin: [0.026, -0.002, -0.104] }, { type: 'none' });
+await prefab('well', V, ['Well', 'wellwater'], { scale: VS, simplify: 0.12, tex: 256 }, 'hull');
+await prefab('yardwall', V, ['Wall', 'WallRoof', 'Thatched'], { scale: VS, simplify: 0.25, tex: 512 }, 'trimesh');
+await prefab('wagon', V, ['Wagon'], { scale: VS, tex: 256 }, 'hull');
+await prefab('haybale', V, ['Hay Bale03'], { scale: VS, simplify: 0.3, tex: 256 }, 'hull');
+await prefab('scarecrow', V, ['Scarecrow001'], { scale: VS, simplify: 0.4, tex: 256 }, { type: 'none' });
 
 // ---------------------------------------------------------------- weapons
 // Each gun: barrel along -Z, grip near origin, real length.

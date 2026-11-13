@@ -125,11 +125,16 @@ export class Hud {
     for (let iz = 0; iz < n - 1; iz++) for (let ix = 0; ix < n - 1; ix++) {
       const h = this.map.heights[iz * n + ix];
       const l = Math.max(18, Math.min(80, 38 + h * 1.2));
-      g.fillStyle = h > MAP.snowHeight ? '#dfe6ea' : h > 18 ? `hsl(90,8%,${l}%)` : `hsl(${100 - h},40%,${l * 0.8}%)`;
+      g.fillStyle = h > this.map.snowHeight ? '#dfe6ea' : h > 18 ? `hsl(90,8%,${l}%)` : `hsl(${100 - h},40%,${l * 0.8}%)`;
       g.fillRect(ix * (MINI_PX / this.map.cells), iz * (MINI_PX / this.map.cells), MINI_PX / this.map.cells + 1, MINI_PX / this.map.cells + 1);
     }
     g.fillStyle = '#e8d9c0';
-    for (const p of this.map.props) if (p.p.startsWith('house')) g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8);
+    if (this.map.albedo) { // real-terrain map: aerial photo on top of the generated colours
+      const img = new Image();
+      img.onload = () => { g.drawImage(img, 0, 0, MINI_PX, MINI_PX); g.fillStyle = '#e8d9c0'; for (const p of this.map.props) if (p.p.startsWith('house') || p.p === 'farmhouse') g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8); this.miniTimer = 0; };
+      img.src = `/assets/maps/${this.map.albedo}`;
+    }
+    for (const p of this.map.props) if (p.p.startsWith('house') || p.p === 'farmhouse') g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8);
     return c;
   }
 

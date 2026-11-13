@@ -12,6 +12,6 @@ const gameServer = new Server({
     app.get(['/', '/health'], (_req, res) => { res.set('access-control-allow-origin', '*').type('text/plain').send('Last War game server OK'); });
   },
 });
-gameServer.define('match', MatchRoom);
+gameServer.define('match', MatchRoom).filterBy(['map']);
 await gameServer.listen(PORT);
 console.log(`Last War server listening on :${PORT}`);

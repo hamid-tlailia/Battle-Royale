@@ -9,7 +9,7 @@ import { WEAPON_IDS } from '../config/weapons';
  *                     MSG.PING   (json)   { t }
  *  server -> client   MSG.SNAP   (bytes)  every tick (30 Hz): my full state + compact others
  *                     MSG.EVENTS (json)   shots / hits / kills / win of that tick
- *                     MSG.WELCOME(json)   { id, seed, tick }
+ *                     MSG.WELCOME(json)   { id, seed, tick, map }
  *                     MSG.ROSTER (json)   [{ id, name }]
  *                     MSG.LOBBY  (json)   { phase, countdown, humans, needed }
  *                     MSG.PONG   (json)   { t }

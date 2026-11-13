@@ -1,15 +1,16 @@
 import * as THREE from 'three';
-import { GAME_TITLE, WEAPON_IDS } from '@lw/shared';
+import { GAME_TITLE, MAP_LIST, WEAPON_IDS, isMapId, type MapId } from '@lw/shared';
 import { loadSettings, settingsPanel } from './settings';
 import { editLayoutStandalone } from './layout';
 import { createHudButtons } from './buttons';
 import type { GameAssets, GunName } from '../render/assets';
 import { CharacterView, SKINS } from '../render/characters';
 
-export interface Profile { name: string; skin: number; slot: number }
+export interface Profile { name: string; skin: number; slot: number; map: MapId }
 const KEY = 'lw.profile.v1';
 export function loadProfile(): Profile {
-  try { return { name: '', skin: 0, slot: 1, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { name: '', skin: 0, slot: 1 }; }
+  const def: Profile = { name: '', skin: 0, slot: 1, map: 'green' };
+  try { const p = { ...def, ...JSON.parse(localStorage.getItem(KEY) || '{}') } as Profile; if (!isMapId(p.map)) p.map = 'green'; return p; } catch { return def; }
 }
 function saveProfile(p: Profile) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* ignore */ } }
 
@@ -38,6 +39,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
       <div class="skins">${SKINS.map((s, i) => s.outfit
         ? `<button class="outfit" data-skin="${i}">${s.name}</button>`
         : `<button data-skin="${i}" title="${s.name}" style="--c:#${(s.color ?? 0xffffff).toString(16).padStart(6, '0')}"></button>`).join('')}</div>
+      <label class="lbl">MAP</label>
+      <div class="maps">${MAP_LIST.map((m) => `<button data-map="${m.id}"><b>${m.name}</b><small>${m.desc}</small></button>`).join('')}</div>
       <p class="hint">Everyone lands empty-handed — loot weapons, ammo, medkits, armor, scopes and ice walls.</p>
       ${inviteRoom ? `<button class="big join-invite">JOIN FRIEND'S ROOM</button>` : ''}
       <button class="big quick">PLAY ONLINE</button>
@@ -103,8 +106,10 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   const sel = () => {
     el.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.classList.toggle('sel', +b.dataset.skin! === profile.skin));
     el.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) => b.classList.toggle('sel', +b.dataset.slot! === profile.slot));
+    el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.classList.toggle('sel', b.dataset.map === profile.map));
   };
   sel();
+  el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.addEventListener('click', () => { profile.map = b.dataset.map as MapId; saveProfile(profile); sel(); }));
   el.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.addEventListener('click', () => { profile.skin = +b.dataset.skin!; saveProfile(profile); sel(); rebuild(); }));
   el.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) => b.addEventListener('click', () => { profile.slot = +b.dataset.slot!; saveProfile(profile); sel(); rebuild(); }));
   nameIn.addEventListener('input', () => { profile.name = nameIn.value.replace(/[^\w \-]/g, '').slice(0, 14); saveProfile(profile); });

@@ -61,7 +61,7 @@ function showMenu(assets: GameAssets) {
     const back = () => showMenu(assets);
     const gameEl = document.getElementById('game')!, hudEl = document.getElementById('hud')!;
     if (action.kind === 'offline') {
-      const again = () => new Game(gameEl, hudEl, assets, back, { name: profile.name, skin: profile.skin, slot: profile.slot });
+      const again = () => new Game(gameEl, hudEl, assets, back, { name: profile.name, skin: profile.skin, slot: profile.slot, map: profile.map });
       again();
       return;
     }
@@ -73,12 +73,12 @@ function showMenu(assets: GameAssets) {
       const { NetSession } = await import('./net/session');
       const net = new NetSession(SERVER_URL, COND);
       const ready = new Promise<void>((res) => { net.onReady = res; });
-      const opts = { skin: profile.skin, slot: profile.slot };
+      const opts = { skin: profile.skin, slot: profile.slot, map: profile.map };
       if (action.kind === 'join') await net.join(profile.name, opts, action.room);
       else await net.join(profile.name, opts, undefined, action.kind === 'create');
       await ready;
       status.remove();
-      new Game(gameEl, hudEl, assets, () => { history.replaceState(null, '', location.pathname); back(); }, { net, name: profile.name, skin: profile.skin, slot: profile.slot });
+      new Game(gameEl, hudEl, assets, () => { history.replaceState(null, '', location.pathname); back(); }, { net, name: profile.name, skin: profile.skin, slot: profile.slot, map: profile.map });
     } catch (e) {
       status.innerHTML = `<h2>Could not join</h2><p class="note">${String((e as Error)?.message ?? e).slice(0, 120)}</p><button class="play">BACK</button>`;
       status.querySelector('button')!.addEventListener('click', () => { status.remove(); back(); });

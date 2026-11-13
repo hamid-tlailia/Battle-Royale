@@ -1,6 +1,6 @@
 import { Client as ColyseusClient, type Room } from '@colyseus/sdk';
 import {
-  DT, MSG, TICK_RATE, GameSim, applySelf, quantizeInput, decodeSnapshot, encodeInputs, simulateMove, syncCollider, weaponLogic,
+  isMapId, type MapId, DT, MSG, TICK_RATE, GameSim, applySelf, quantizeInput, decodeSnapshot, encodeInputs, simulateMove, syncCollider, weaponLogic,
   type FrostWall, type InputCmd, type LobbyInfo, type LootItem, type RemoteState, type RosterEntry, type SimEvent, type Snapshot, type WeaponId,
 } from '@lw/shared';
 
@@ -93,9 +93,9 @@ export class NetSession {
     this.room = roomId ? await client.joinById(roomId, { name, ...opts })
       : create ? await client.create('match', { name, ...opts, private: true })
       : await client.joinOrCreate('match', { name, ...opts });
-    this.room.onMessage(MSG.WELCOME, (m: { id: number; seed: number; tick: number }) => this.inC.run(() => {
+    this.room.onMessage(MSG.WELCOME, (m: { id: number; seed: number; tick: number; map?: MapId }) => this.inC.run(() => {
       this.myId = m.id; this.seed = m.seed; this.serverTick = m.tick;
-      this.sim = new GameSim(m.seed, { lobby: true, loot: false }); // loot comes from the server
+      this.sim = new GameSim(m.seed, { lobby: true, loot: false, map: isMapId(m.map) ? m.map : 'classic' }); // loot comes from the server
       for (const r of this.roster) this.ensurePlayer(r.id, r.name, r.skin);
       this.connected = true;
     }));

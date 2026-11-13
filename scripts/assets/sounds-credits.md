@@ -8,3 +8,10 @@
 | Wind ambience ("Breeze") | Anderson dos Santos | [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://opengameart.org/content/breeze |
 
 Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (original).
+
+## Maps & textures
+| Asset | Used for | Author | License | Source |
+|---|---|---|---|---|
+| Mountain terrain – Haytor, Dartmoor National Park (scan) | Highlands map: terrain heights, aerial photo, rock outcrops | Chris Bibb | CC-BY 4.0 | https://sketchfab.com/3d-models/6d15587128a5451d9e29d6b50061045e |
+| Medieval Farm Village | Highlands map: farmhouse, windmill, well, yard wall, wagon, hay, scarecrow | Ethan Graye | CC-BY 4.0 | https://sketchfab.com/3d-models/aaa109017d76448a94d2a87a4e09e3fd |
+| aerial_grass_rock, lichen_rock | close-up ground / rock grain | Poly Haven | CC0 | https://polyhaven.com/textures |

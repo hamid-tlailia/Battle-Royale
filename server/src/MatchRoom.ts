@@ -1,9 +1,11 @@
 import { Room, type Client } from '@colyseus/core';
 import {
-  DT, MSG, SKIN_COUNT, TICK_RATE, GameSim, compactEvents, decodeInputs, encodeSnapshot, initPhysics, type InputCmd,
+  DT, MSG, SKIN_COUNT, isMapId, type MapId, TICK_RATE, GameSim, compactEvents, decodeInputs, encodeSnapshot, initPhysics, type InputCmd,
 } from '@lw/shared';
 
 export interface MatchOptions {
+  /** map id (rooms are matched by map) */
+  map?: string;
   /** seconds to wait in the lobby after the first human joins */
   lobbySeconds?: number;
   /** total players once the match starts (bots fill the rest) */
@@ -39,7 +41,7 @@ export class MatchRoom extends Room {
   private loop: ReturnType<typeof setInterval> | null = null;
   private acc = 0;
   private last = 0;
-  private opts: Required<Omit<MatchOptions, 'lagCompensation' | 'armed' | 'skyDrop'>> = { lobbySeconds: 20, fillTo: 16, seed: 0, private: false };
+  private opts: Required<Omit<MatchOptions, 'lagCompensation' | 'armed' | 'skyDrop' | 'map'>> & { map: MapId } = { lobbySeconds: 20, fillTo: 16, seed: 0, private: false, map: 'classic' };
   private hostId = -1;
   /** stats for the debug overlay / tests */
   tickMs = 0;
@@ -51,10 +53,11 @@ export class MatchRoom extends Room {
       lobbySeconds: options.private ? 180 : Math.max(1, Math.min(30, options.lobbySeconds ?? 20)),
       fillTo: Math.max(2, Math.min(16, options.fillTo ?? 16)),
       seed: options.seed ?? (Math.random() * 1e9) | 0, private: !!options.private,
+      map: isMapId(options.map) ? options.map : 'classic',
     };
     if (this.opts.private) await this.setPrivate(true);
     this.maxClients = Math.max(1, Math.min(16, this.opts.fillTo));
-    this.sim = new GameSim(this.opts.seed, { lobby: true, armed: options.armed === true && process.env.NODE_ENV !== 'production', skyDrop: !(options.skyDrop === false && process.env.NODE_ENV !== 'production') });
+    this.sim = new GameSim(this.opts.seed, { lobby: true, map: this.opts.map, armed: options.armed === true && process.env.NODE_ENV !== 'production', skyDrop: !(options.skyDrop === false && process.env.NODE_ENV !== 'production') });
     this.sim.lagCompensation = options.lagCompensation !== false;
     this.autoDispose = true;
 
@@ -77,7 +80,7 @@ export class MatchRoom extends Room {
     if (Number.isInteger(options.slot) && options.slot! >= 0 && options.slot! < 4) p.slot = options.slot!;
     if (this.hostId < 0) this.hostId = id;
     this.humans.set(client.sessionId, { id, client, queue: [], lastSeq: 0, name, credit: 0 });
-    client.send(MSG.WELCOME, { id, seed: this.opts.seed, tick: this.sim.tick });
+    client.send(MSG.WELCOME, { id, seed: this.opts.seed, tick: this.sim.tick, map: this.opts.map });
     // current loot + ice walls (later changes arrive as events)
     client.send(MSG.WORLD, compactEvents([{
       loot: [...this.sim.loot.values()],
