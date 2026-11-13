@@ -93,6 +93,7 @@ export class Game {
   private plane!: PlaneView;
   private planePos = new THREE.Vector3();
   private planeYaw = 0;
+  private planeViewSet = false;
   private lootTimer = 0;
 
   private myId = 0;
@@ -200,14 +201,13 @@ export class Game {
       B.prone.classList.toggle('active', this.controls.proneToggle);
       B.sprint.classList.toggle('active', this.controls.sprintToggle);
       B.scope.classList.toggle('active', this.controls.scoped);
-      B.holster.classList.toggle('active', this.controls.weapon === 4);
       B.frost.classList.toggle('active', this.controls.frostAim);
     };
     this.syncButtons = sync;
     this.hud.healBtn = B.heal; this.hud.frostBtn = B.frost;
     const fireDown = () => {
       if (this.controls.frostAim) { this.controls.confirmFrost(); sync(); return; } // place the previewed ice wall
-      this.controls.fireHeld = true; if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
+      this.controls.fireHeld = true; this.controls.fireTap = 2; if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
     this.controls.bindLookButton(B.fire, fireDown, () => { this.controls.fireHeld = false; });
     this.controls.bindButton(B['fire-left'], fireDown, () => { this.controls.fireHeld = false; });
     this.controls.bindButton(B.jump, () => this.controls.jump());
@@ -218,7 +218,7 @@ export class Game {
     this.controls.bindButton(B.scope, () => { this.controls.setScope(!this.controls.scoped); sync(); });
     this.controls.bindButton(B.heal, () => this.controls.heal());
     this.controls.bindButton(B.frost, () => { if (this.sim.players.get(this.myId)?.frost) this.controls.frost(); sync(); });
-    this.controls.bindButton(B.holster, () => { this.controls.toggleHolster(); sync(); });
+    this.hud.onFist = () => { this.controls.toggleHolster(); sync(); };
     this.controls.bindButton(B.bag, () => this.hud.toggleBag());
     this.hud.onDrop = (code) => { this.controls.dropQueued = code; };
     this.hud.onPick = (id) => { this.controls.pickQueued = id; };
@@ -402,6 +402,12 @@ export class Game {
   }
 
   private menuTimer = 0;
+  /** long guns you own that are not in your hands: slung on the back */
+  private backList(p: SimPlayer): GunName[] {
+    const out: GunName[] = [];
+    p.weapons.forEach((w, i) => { if (i > 0 && w.owned && (p.holstered || i !== p.slot)) out.push(w.id as GunName); });
+    return out;
+  }
   private frostGhost: THREE.Mesh | null = null;
   /** see-through ice wall where it would be placed (same rule as the server: in front, on the ground) */
   private updateFrostPreview(me: SimPlayer) {
@@ -422,13 +428,16 @@ export class Game {
   private areaTimer = 0;
   private marker: THREE.Mesh | null = null;
 
-  /** Tall light beam where you tapped the big map (visible from the plane). */
-  private setMarker(w: { x: number; z: number }) {
+  /** Tall light beam on the next route point (visible from the plane). */
+  private setMarker(list: { x: number; z: number }[]) {
+    const w = list[0];
+    if (!w) { if (this.marker) this.marker.visible = false; return; }
     if (!this.marker) {
       this.marker = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 160, 10, 1, true),
         new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.32, depthWrite: false, fog: false, side: THREE.DoubleSide }));
       this.scene.add(this.marker);
     }
+    this.marker.visible = true;
     this.marker.position.set(w.x, this.sim.phys.groundHeight(w.x, w.z) + 80, w.z);
   }
 
@@ -442,6 +451,17 @@ export class Game {
     const fog = this.scene.fog as THREE.Fog;
     fog.near = 70 + up * 1.6; fog.far = 240 + up * 3;
     const k = !me.alive ? 0 : me.move.air === 1 ? 1 : THREE.MathUtils.clamp((h - 22) / 35, 0, 1);
+    // route arrow: next point relative to where you look; reached points are removed
+    const wp = this.hud.waypoints[0];
+    if (wp && me.alive) {
+      const d = Math.hypot(wp.x - me.move.x, wp.z - me.move.z);
+      if (d < 8 && !me.move.air) { this.hud.waypoints.shift(); this.setMarker(this.hud.waypoints); }
+      else {
+        const want = Math.atan2(-(wp.x - me.move.x), -(wp.z - me.move.z));
+        let rel = this.controls.yaw - want; rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+        this.hud.setRouteArrow(rel, d);
+      }
+    } else this.hud.setRouteArrow(null);
     const out: { name: string; sx: number; sy: number; alpha: number }[] = [];
     if (k > 0) {
       const W = window.innerWidth, H = window.innerHeight;
@@ -507,6 +527,8 @@ export class Game {
       const ext = Math.min(lt, path.ticks + 90) / path.ticks; // keeps flying a bit after the route
       this.planePos.set(path.ax + (path.bx - path.ax) * ext, SKY.planeAltitude + 1.5, path.az + (path.bz - path.az) * ext);
       this.planeYaw = path.yaw;
+      // first frame in the plane: look the way it flies (not at its tail)
+      if (me.move.air === 1 && !this.planeViewSet) { this.planeViewSet = true; this.controls.yaw = path.yaw; this.controls.pitch = -0.22; }
     }
     this.plane.update(dt, planeOn, this.planePos.x, this.planePos.y, this.planePos.z, this.planeYaw);
     this.hud.setPlaneHint(me.alive && me.move.air === 1, me.move.air >= 2);
@@ -560,7 +582,7 @@ export class Game {
       const want = p.weapons[p.slot].id as GunName;
       if (want !== v.gun) { v.gun = want; v.view.setGun(this.assets, want); }
       v.view.ownView = p.id === this.myId;
-      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
+      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered && p.weapons[p.slot].owned, back: p.id === this.myId ? this.backList(p) : undefined, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
       // footsteps
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 26) { // only nearby footsteps, panned left/right
         v.stepAcc += p.speed * dt;

@@ -199,6 +199,10 @@ for (const [name, node] of [['tbush1', 'Lilac_bush_1'], ['tbush2', 'Lilac_bush_2
   await prefab(name, 'lilac', [`${node}_LOD2`], { scale: 0.5, centerOnBase: true, tex: 256 }, { type: 'none' });
   await prefab(`${name}_far`, 'lilac', [`${node}_LOD3`], { scale: 0.5, tex: 128 }, { type: 'none' });
 }
+// Ground items (loot): real models
+await prefab('item_ammo', 'ammoCrate', null, { fit: 'max', size: 0.55, tex: 256 }, { type: 'none' });
+await prefab('item_vest', 'vest', null, { fit: 'y', size: 0.62, tex: 256, simplify: 0.4 }, { type: 'none' });
+await prefab('item_med', 'medkitR', null, { fit: 'max', size: 0.32, tex: 256 }, { type: 'none' });
 // More real houses (all real scale)
 await prefab('house_d', 'houseD', null, { scale: 1, tex: 512, simplify: 0.35, colliderRatio: 0.2 }, 'trimesh');
 await prefab('house_e', 'shop', ['Wall', 'Roof', 'Irons', 'Tiles', 'Glass', 'Woods'], { scale: 1, tex: 512, simplify: 0.5, colliderRatio: 0.4 }, 'trimesh');

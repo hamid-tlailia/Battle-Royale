@@ -115,8 +115,10 @@ export function weaponLogic(p: SimPlayer, input: InputCmd, tick: number, fire: (
   if (pressed(BTN.RELOAD)) startReload();
   const held = (input.buttons & BTN.FIRE) !== 0;
   if (pressed(BTN.FIRE)) p.triggerArmed = true;
-  if (!held) p.triggerArmed = false;
-  const wantFire = held && (w.auto || p.triggerArmed);
+  // semi-auto: a tap made while the gun is still cycling is remembered and fires as soon as it can
+  // (only a reload cancels it); full-auto fires while held
+  if (!held && (w.auto || p.reloadEndTick)) p.triggerArmed = false;
+  const wantFire = w.auto ? held : p.triggerArmed;
   if (wantFire && !p.reloadEndTick && !p.move.vault && tick >= p.nextFireTick) {
     if (slot.mag > 0) {
       slot.mag--;

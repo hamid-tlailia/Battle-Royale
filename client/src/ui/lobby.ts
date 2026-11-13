@@ -24,6 +24,36 @@ export type LobbyAction =
  * Pre-match lobby: 3D preview of your soldier (outfit + weapon), name, loadout,
  * quick match / vs bots / friends room (invite link) / join by code.
  */
+/**
+ * A small real scene behind the soldier: aerial-photo ground with grass grain, real pines / oaks / bushes /
+ * rocks from the game, hills and a sky gradient with haze.
+ */
+function buildLobbyBackdrop(scene: THREE.Scene, assets: GameAssets) {
+  scene.background = new THREE.Color(0xbcd9ea);
+  scene.fog = new THREE.Fog(0xbcd9ea, 18, 60);
+  const tl = new THREE.TextureLoader();
+  const photo = tl.load('/assets/maps/green.webp'); photo.colorSpace = THREE.SRGBColorSpace;
+  photo.repeat.set(0.08, 0.08); photo.offset.set(0.42, 0.5); // a grassy patch of the Highlands photo
+  const grain = tl.load('/assets/maps/detail_grass.webp'); grain.wrapS = grain.wrapT = THREE.RepeatWrapping; grain.repeat.set(30, 30);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: photo, color: 0xcfe0b0 }));
+  scene.add(ground);
+  const detail = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: grain, transparent: true, opacity: 0.25, blending: THREE.MultiplyBlending, depthWrite: false }));
+  detail.position.y = 0.01; scene.add(detail);
+  const place = (name: string, x: number, z: number, s: number, rot = 0) => {
+    const pf = (assets.prefabs as Record<string, { parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] } | undefined>)[name];
+    if (!pf) return;
+    for (const part of pf.parts) { const m = new THREE.Mesh(part.geometry, part.material); m.position.set(x, 0, z); m.rotation.y = rot; m.scale.setScalar(s); scene.add(m); }
+  };
+  // trees and cover behind and around the soldier (camera looks toward -z)
+  ([['tpine1', -5, -9, 1], ['toak1', 6, -14, 0.9], ['tpine3', 2.5, -18, 1.1], ['tpine2', -11, -16, 1], ['tpine4', 10, -7, 0.9],
+    ['toak2', -16, -26, 1], ['tpine1', 15, -24, 1.1], ['tpine2', -2, -30, 1.2], ['tbush1', -2.8, -3.5, 0.9], ['tbush2', 3.2, -4.2, 1],
+    ['tbush3', -6.5, -5, 1.1], ['rock2', 4.5, -2.5, 0.6], ['rock4', -4, -1.8, 0.45], ['tpine3', -22, -12, 1], ['toak1', 22, -16, 1]] as [string, number, number, number][])
+    .forEach(([n, x, z, sc], i) => place(n, x, z, sc, i * 1.7));
+  // distant green hills
+  const hills = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 14, 40, 1, true), new THREE.MeshBasicMaterial({ color: 0x5f8a58, side: THREE.BackSide, fog: true }));
+  hills.position.y = 4; scene.add(hills);
+}
+
 export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promise<boolean>, inviteRoom: string | null, onAction: (a: LobbyAction, p: Profile) => void) {
   const profile = loadProfile();
   const el = document.createElement('div');
@@ -65,10 +95,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xe6f4ff, 0x3f5a30, 1.9));
   const sun = new THREE.DirectionalLight(0xfff0d0, 2.2); sun.position.set(3, 5, 4); scene.add(sun);
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.25, 0.18, 40), new THREE.MeshLambertMaterial({ color: 0x36502c }));
-  pad.position.y = -0.09; scene.add(pad);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.025, 8, 60).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xb8f27c }));
-  scene.add(ring);
+  buildLobbyBackdrop(scene, assets);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   camera.position.set(0, 1.3, 5.6); camera.lookAt(0, 0.95, 0);
   let view: CharacterView | null = null;
@@ -78,7 +105,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     scene.add(view.root);
   };
   rebuild();
-  let yaw = 0.5, last = performance.now(), alive = true, drag: number | null = null;
+  // facing you; turns only when you drag it
+  let yaw = Math.PI, last = performance.now(), alive = true, drag: number | null = null;
   canvas.addEventListener('pointerdown', (e) => { drag = e.clientX; });
   window.addEventListener('pointerup', () => { drag = null; });
   canvas.addEventListener('pointermove', (e) => { if (drag !== null) { yaw += (e.clientX - drag) * 0.01; drag = e.clientX; } });
@@ -90,7 +118,6 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     if (!alive) return;
     requestAnimationFrame(loop);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (drag === null) yaw += dt * 0.35;
     view!.update({ x: 0, y: 0.9, z: 0, yaw, pitch: 0, speed: 0, crouch: false, grounded: true }, dt, 3, true);
     resize();
     renderer.render(scene, camera);

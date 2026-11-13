@@ -263,7 +263,13 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;
   phys.controller.computeColliderMovement(col, scratch);
   const mv = phys.controller.computedMovement();
-  const grounded = phys.controller.computedGrounded();
+  let grounded = phys.controller.computedGrounded();
+  // on bumpy hillsides the controller's contact flickers: feet within a few cm of the ground count as grounded
+  // (walking uphill keeps full ground acceleration and jumping works on slopes)
+  if (!grounded && s.vy <= 0.5) {
+    const feet = s.y + mv.y - halfTotalOf(s);
+    if (feet - phys.groundHeight(s.x + mv.x, s.z + mv.z) < 0.18) grounded = true;
+  }
   if (s.vy > 0 && mv.y < scratch.y * 0.5) s.vy = 0; // hit ceiling
   s.grounded = grounded;
   if (grounded && s.vy < 0) s.vy = 0;

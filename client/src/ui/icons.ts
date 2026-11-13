@@ -25,6 +25,8 @@ const RAW = {
   frost: fill('<path d="M19 6h10v5h-10z"/><path d="M28 7l9-3 2 4-9 3z"/><path d="M24 12c9 0 15 7 15 16s-6 16-15 16-15-7-15-16 6-16 15-16zM24 19v18M16 23.5l16 9M32 23.5l-16 9" fill-rule="evenodd" stroke="#000" stroke-opacity=".55" stroke-width="2.6" stroke-linecap="round"/>'),
   // pistol going down
   holster: fill('<path d="M6 10h28v8H20l-3 12H9l3-12H6z"/>') + svg('<path d="M34 24v16M27 33l7 7 7-7" stroke-width="4"/>'),
+  // clenched fist (empty hands)
+  fist: fill('<path d="M14 18a4 4 0 0 1 8 0v-2a4 4 0 0 1 8 0v1a4 4 0 0 1 8 1v12c0 7-5 12-12 12h-2c-6 0-10-4-10-10v-6a4 4 0 0 1 0-8z"/>') + svg('<path d="M14 26h20M22 18v7M30 17v8" stroke="#000" stroke-opacity=".45" stroke-width="2.2"/>'),
   // backpack
   bag: fill('<path d="M18 7a6 6 0 0 1 12 0v3h2a7 7 0 0 1 7 7v22a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4V17a7 7 0 0 1 7-7h2zm3 0v3h6V7a3 3 0 0 0-6 0zM15 27v8h18v-8z" fill-rule="evenodd"/>'),
   settings: svg('<circle cx="24" cy="24" r="6"/><path d="M24 4v6M24 38v6M4 24h6M38 24h6M10 10l4 4M34 34l4 4M38 10l-4 4M14 34l-4 4"/>'),

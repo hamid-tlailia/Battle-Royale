@@ -88,7 +88,7 @@ export function retargetClips(src: GLTF, dst: GLTF): THREE.AnimationClip[] {
 }
 const LOD_DISTANCE = 14;
 /** Speed (m/s) at which each locomotion clip looks right — used to scale playback rate. */
-const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 1.6, walk_fire: 2.6, run: 6.0, crouch_walk: 1.6 };
+const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 2.0, walk_fire: 2.6, run: 6.0, crouch_walk: 1.6 };
 
 export interface CharacterState {
   x: number; y: number; z: number; yaw: number;
@@ -96,6 +96,8 @@ export interface CharacterState {
   firing?: boolean; dead?: boolean; pitch?: number;
   /** false = empty-handed (no weapon looted yet) */
   armed?: boolean;
+  /** long guns slung on the back (holstered / not in hand) */
+  back?: GunName[];
   /** 0 ground, 1 in plane, 2 free-fall, 3 parachute */
   air?: number;
   /** world horizontal velocity, used for directional locomotion */
@@ -124,7 +126,10 @@ export class CharacterView {
 
   private disposed = false;
 
+  private assets: GameAssets;
+
   constructor(assets: GameAssets, skin: number, gunName: GunName = 'rifle') {
+    this.assets = assets;
     const def = SKINS[((skin % SKINS.length) + SKINS.length) % SKINS.length];
     // real outfits are separate files, loaded on first use; until then the soldier stands in
     this.build(assets.soldier, assets.soldier.animations, def.outfit ? 0xffffff : def.color ?? 0xffffff);
@@ -173,7 +178,9 @@ export class CharacterView {
       if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
       this.actions.set(clip.name as Clip, a);
     }
-    this.shoulder = this.model.getObjectByName('mixamorigRightArm') ?? null;
+    this.handR = this.model.getObjectByName('mixamorigRightHand') ?? null;
+    this.handL = this.model.getObjectByName('mixamorigLeftHand') ?? null;
+    this.spine = this.model.getObjectByName('mixamorigSpine2') ?? null;
     this.current = null;
     this.play(keep ?? 'idle_rifle', 0);
     this.mixer.update(0);
@@ -208,7 +215,6 @@ export class CharacterView {
     this.current = name;
   }
 
-  private shoulder: THREE.Object3D | null = null;
   private tmpV = new THREE.Vector3();
   private chute: THREE.Group | null = null;
   /** the local player's own canopy is see-through so it never hides the soldier */
@@ -260,6 +266,7 @@ export class CharacterView {
     else if (air === 3) clip = 'idle';
     else if (this.airTime > 0.15) clip = 'jump';
     else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
+    else if (st.armed === false) clip = st.speed > 0.4 ? 'walk' : 'idle'; // empty hands: no rifle pose
     else if (st.speed > 5.2) clip = 'run';
     else if (st.speed > 0.4) clip = 'walk_fire';
     else clip = st.firing ? 'fire' : 'idle_rifle';
@@ -282,7 +289,7 @@ export class CharacterView {
     this.model.rotation.y = Math.PI + this.bodyOffset;
     const ref = CLIP_SPEED[clip];
     const act = this.actions.get(clip);
-    if (act) act.timeScale = (ref ? THREE.MathUtils.clamp(st.speed / ref, 0.6, 1.6) : 1) * (reverse ? -1 : 1);
+    if (act) act.timeScale = (ref ? THREE.MathUtils.clamp(st.speed / ref, 0.6, clip === 'walk' ? 2.6 : 1.6) : 1) * (reverse ? -1 : 1);
 
     // LOD + animation throttling for distant / hidden characters
     const far = dist > LOD_DISTANCE;
@@ -303,29 +310,51 @@ export class CharacterView {
   private placeGun(st: CharacterState) {
     const gun = this.gun!;
     gun.visible = !st.dead && st.armed !== false;
+    this.placeBackGuns(st);
     if (!gun.visible) return;
-    const running = this.current === 'run';
-    if (st.prone) {
-      gun.position.set(0.12, 0.28, -0.55);
-      gun.rotation.set(st.pitch ?? 0, 0, 0, 'YXZ');
-    } else {
-      // follow the real shoulder height of the current pose (crouch / crouch-walk lean forward and down)
-      let chest = st.crouch ? 0.98 : 1.34, fwd = -0.32;
-      if (this.shoulder) {
-        this.root.updateMatrixWorld(true);
-        const v = this.root.worldToLocal(this.shoulder.getWorldPosition(this.tmpV));
-        chest = THREE.MathUtils.clamp(v.y - 0.1, 0.7, 1.5);
-        fwd = Math.min(-0.32, v.z - 0.3);
-      }
-      if (running) {
-        gun.position.set(0.12, chest - 0.12, -0.3);
-        gun.rotation.set(-0.35, 0.55, 0.45, 'YXZ'); // carried diagonally while sprinting
-      } else {
-        gun.position.set(0.17, chest, fwd);
-        gun.rotation.set(st.pitch ?? 0, 0.03, 0, 'YXZ');
+    // grip in the right hand, barrel toward the left hand: the gun follows every pose and outfit
+    this.root.updateMatrixWorld(true);
+    const rh = this.handR ? this.root.worldToLocal(this.handR.getWorldPosition(this.tmpV)) : this.tmpV.set(0.17, st.crouch ? 0.98 : 1.34, -0.32);
+    const dir = this.tmpD.set(0, Math.sin(st.pitch ?? 0), -Math.cos(st.pitch ?? 0)); // aim direction (root space)
+    if (this.handL) {
+      const lh = this.root.worldToLocal(this.handL.getWorldPosition(this.tmpL)).sub(rh);
+      const len = lh.length();
+      // rifle holds: the support hand is 15-70 cm ahead of the trigger hand
+      if (len > 0.15 && len < 0.75 && lh.z < -0.04) {
+        lh.divideScalar(len);
+        if (this.current === 'run' || st.prone) dir.copy(lh); // carried: exactly along the hands
+        // standing / walking / aiming: the barrel follows the view, grip stays in the hand
       }
     }
+    gun.position.copy(rh);
+    this.tmpM.lookAt(this.zero, dir, this.upV);
+    gun.quaternion.setFromRotationMatrix(this.tmpM);
   }
+
+  /** Holstered long guns are slung across the back (the pistol goes in the pocket). */
+  private backGuns: THREE.Object3D[] = [];
+  private backKey = '';
+  private placeBackGuns(st: CharacterState) {
+    const list = st.dead ? [] : (st.back ?? []);
+    const key = list.join(',');
+    if (key !== this.backKey) {
+      this.backKey = key;
+      this.backGuns.forEach((g) => g.removeFromParent());
+      this.backGuns = list.slice(0, 2).map((n) => { const g = this.assets.guns[n].clone(); this.root.add(g); return g; });
+    }
+    if (!this.backGuns.length || !this.spine) return;
+    const sp = this.root.worldToLocal(this.spine.getWorldPosition(this.tmpS));
+    this.backGuns.forEach((g, i) => {
+      g.position.set(sp.x + (i ? -0.04 : 0.04), sp.y - 0.05, sp.z + 0.2 + i * 0.05);
+      g.rotation.set(0, Math.PI / 2, (i ? -1 : 1) * 0.9, 'YXZ'); // diagonal across the back, crossed
+      g.rotateY(Math.PI / 2);
+    });
+  }
+  private handR: THREE.Object3D | null = null;
+  private handL: THREE.Object3D | null = null;
+  private spine: THREE.Object3D | null = null;
+  private tmpD = new THREE.Vector3(); private tmpL = new THREE.Vector3(); private tmpS = new THREE.Vector3();
+  private tmpM = new THREE.Matrix4(); private zero = new THREE.Vector3(); private upV = new THREE.Vector3(0, 1, 0);
 
   dispose() {
     this.disposed = true;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ICONS } from './icons';
 import { MAP, MAX_ARMOR, MAX_HP, WEAPONS, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
 
 const MINI_PX = 360;
@@ -43,6 +44,8 @@ export class Hud {
   onSlot: (i: number) => void = () => {};
 
   onDrop: (code: number) => void = () => {};
+  onFist: () => void = () => {};
+  private fistSlot!: HTMLDivElement;
   private bag: HTMLDivElement | null = null;
   private bagKey = '';
 
@@ -84,11 +87,18 @@ export class Hud {
       if (hud.classList.contains('editing')) return;
       e.preventDefault(); e.stopPropagation();
       if (this.mini.classList.contains('big')) {
-        // tap on the big map = mark where you want to land / go
+        // big map: tap inside = add a route point (tap an existing one to remove it), tap a corner = close
         const t = (e as TouchEvent).changedTouches?.[0] ?? (e as MouseEvent);
         const r = this.mini.getBoundingClientRect();
         const x = ((t.clientX - r.left) / r.width - 0.5) * MAP.size, z = ((t.clientY - r.top) / r.height - 0.5) * MAP.size;
-        if (Math.hypot(x, z) < MAP.playRadius) { this.waypoint = { x, z }; this.onWaypoint(this.waypoint); }
+        if (Math.hypot(x, z) < MAP.playRadius + 10) {
+          const hit = this.waypoints.findIndex((w) => Math.hypot(w.x - x, w.z - z) < 14);
+          if (hit >= 0) this.waypoints.splice(hit, 1);
+          else if (this.waypoints.length < 4) this.waypoints.push({ x, z });
+          this.onWaypoint(this.waypoints);
+          this.miniTimer = 0;
+          return;
+        }
       }
       this.mini.classList.toggle('big');
       this.miniTimer = 0;
@@ -111,6 +121,11 @@ export class Hud {
       s.addEventListener('mousedown', pick);
       this.slots.push(s);
     });
+    // fist: put every gun away (long guns on the back, pistol in the pocket) and run empty-handed
+    this.fistSlot = el('slot fist', slotRow, `${ICONS.fist}<i>HANDS</i>`);
+    const fist = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onFist(); };
+    this.fistSlot.addEventListener('touchstart', fist, { passive: false });
+    this.fistSlot.addEventListener('mousedown', fist);
     this.ammo = el('ammo', bottom);
     this.reloadBar = el('reload-bar', bottom, '<div></div>');
     const bars = el('bars', bottom);
@@ -213,7 +228,16 @@ export class Hud {
     });
   }
 
+  private healRing: HTMLDivElement | null = null;
+  /** medkit in use: circular loader in the middle of the screen */
+  private setHealRing(frac: number) {
+    if (frac <= 0) { this.healRing?.remove(); this.healRing = null; return; }
+    if (!this.healRing) this.healRing = el('heal-ring', this.root, '<svg viewBox="0 0 40 40"><circle class="bg" cx="20" cy="20" r="16" fill="none" stroke-width="4"/><circle class="fg" cx="20" cy="20" r="16" fill="none" stroke-width="4" stroke-dasharray="100.5" stroke-dashoffset="100.5"/></svg><b>✚</b>');
+    (this.healRing.querySelector('.fg') as SVGCircleElement).style.strokeDashoffset = String(100.5 * (1 - frac));
+  }
+
   setSlots(p: SimPlayer, reloadFrac: number, healFrac = 0) {
+    this.setHealRing(healFrac);
     this.renderBag(p);
     this.armorTxt.textContent = String(Math.round(p.armor));
     this.healBtn?.querySelector('b')?.replaceChildren(String(p.meds));
@@ -222,8 +246,9 @@ export class Hud {
     this.frostBtn?.classList.toggle('empty', p.frost === 0);
     if (healFrac > 0) reloadFrac = healFrac;
     this.reloadBar.classList.toggle('healing', healFrac > 0);
+    this.fistSlot.classList.toggle('sel', p.holstered || !p.weapons[p.slot].owned);
     p.weapons.forEach((w, i) => {
-      this.slots[i].classList.toggle('sel', i === p.slot && w.owned);
+      this.slots[i].classList.toggle('sel', i === p.slot && w.owned && !p.holstered);
       this.slots[i].classList.toggle('empty', !w.owned);
       (this.slots[i].querySelector('i') as HTMLElement).textContent = w.owned ? `${w.mag}/${w.reserve}` : w.reserve ? `— /${w.reserve}` : '—';
     });
@@ -276,11 +301,18 @@ export class Hud {
       g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.65)'; g.strokeText(a.name, (a.x + o) * k, (a.z + o) * k);
       g.fillStyle = '#fff6d0'; g.fillText(a.name, (a.x + o) * k, (a.z + o) * k);
     }
-    // marker
-    if (this.waypoint) {
-      const wx = (this.waypoint.x + o) * k, wz = (this.waypoint.z + o) * k;
-      g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 2;
-      g.beginPath(); g.moveTo(wx, wz - 11); g.lineTo(wx + 8, wz); g.lineTo(wx, wz + 11); g.lineTo(wx - 8, wz); g.closePath(); g.fill(); g.stroke();
+    // route: me -> point 1 -> point 2 ...
+    if (this.waypoints.length) {
+      g.strokeStyle = '#ffd34d'; g.lineWidth = 3; g.setLineDash([8, 6]);
+      g.beginPath(); g.moveTo((me.x + o) * k, (me.z + o) * k);
+      for (const w of this.waypoints) g.lineTo((w.x + o) * k, (w.z + o) * k);
+      g.stroke(); g.setLineDash([]);
+      this.waypoints.forEach((w, i) => {
+        const wx = (w.x + o) * k, wz = (w.z + o) * k;
+        g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(wx, wz - 12); g.lineTo(wx + 9, wz); g.lineTo(wx, wz + 12); g.lineTo(wx - 9, wz); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = '#000'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillText(String(i + 1), wx, wz + 4);
+      });
     }
     // me
     const px = (me.x + o) * k, pz = (me.z + o) * k;
@@ -291,9 +323,17 @@ export class Hud {
   }
 
   private hitMarks: { x: number; z: number; until: number }[] = [];
-  /** landing / travel marker set by tapping the big map */
-  waypoint: { x: number; z: number } | null = null;
-  onWaypoint: (w: { x: number; z: number }) => void = () => {};
+  /** route points set by tapping the big map (first = next) */
+  waypoints: { x: number; z: number }[] = [];
+  onWaypoint: (w: { x: number; z: number }[]) => void = () => {};
+  private wpArrow: HTMLDivElement | null = null;
+  /** arrow at the top of the screen toward the next route point, with the distance */
+  setRouteArrow(angle: number | null, dist = 0) {
+    if (angle === null) { this.wpArrow?.remove(); this.wpArrow = null; return; }
+    if (!this.wpArrow) this.wpArrow = el('wp-arrow', this.root, '<i>▲</i><b></b>');
+    (this.wpArrow.firstElementChild as HTMLElement).style.transform = `rotate(${angle}rad)`;
+    (this.wpArrow.lastElementChild as HTMLElement).textContent = `${Math.round(dist)} m`;
+  }
   private areaEls = new Map<string, HTMLDivElement>();
   /** place names floating over the world while you are high up (from the plane / sky-diving) */
   setAreaLabels(list: { name: string; sx: number; sy: number; alpha: number }[]) {

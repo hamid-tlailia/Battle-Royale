@@ -1,10 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LOOT, WEAPON_IDS, type FrostWall, type LootItem, type WeaponId } from '@lw/shared';
+import { LOOT, WEAPON_IDS, type FrostWall, type LootItem } from '@lw/shared';
 import { toFloatGeometry, type GameAssets } from './assets';
 
 const MAX = 400;
-const AMMO_COL: Record<WeaponId, number> = { pistol: 0xf2c94c, rifle: 0x6fcf6f, shotgun: 0xe2574c, sniper: 0x56a8f5 };
 const RING_COL: Record<string, number> = { weapon: 0xffd34d, ammo: 0xdddddd, med: 0xff6b6b, armor: 0x5aaaff, scope: 0xc58bff, frost: 0x8fe8ff };
 
 function colored(geo: THREE.BufferGeometry, hex: number) {
@@ -48,16 +47,22 @@ export class LootView {
       // lie flat on the ground, a bit bigger so it reads from afar
       this.add(`weapon:${w}`, (geo as unknown as THREE.BufferGeometry).rotateZ(Math.PI / 2).rotateX(Math.PI / 2).scale(1.3, 1.3, 1.3), mat);
     }
-    this.add('ammo', colored(new THREE.BoxGeometry(0.34, 0.2, 0.22), 0xffffff), vc);
-    this.add('med', mergeGeometries([
+    // real models for ammo crates, medkits and vests (fallback: simple shapes)
+    const real = (kind: string, prefab: string, rotX = 0, fallback: () => THREE.BufferGeometry) => {
+      const pf = (assets.prefabs as Record<string, { parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] } | undefined>)[prefab];
+      if (!pf?.parts.length) { this.add(kind, fallback(), vc); return; }
+      pf.parts.forEach((part, i) => this.add(i ? `${kind}#${i}` : kind, part.geometry.clone().rotateX(rotX), part.material));
+    };
+    real('ammo', 'item_ammo', 0, () => colored(new THREE.BoxGeometry(0.34, 0.2, 0.22), 0xffffff));
+    real('med', 'item_med', 0, () => mergeGeometries([
       colored(new THREE.BoxGeometry(0.42, 0.18, 0.3), 0xf4f4f4),
       colored(new THREE.BoxGeometry(0.26, 0.02, 0.07).translate(0, 0.1, 0), 0xd62828),
       colored(new THREE.BoxGeometry(0.07, 0.02, 0.22).translate(0, 0.1, 0), 0xd62828),
-    ]), vc);
-    this.add('armor', mergeGeometries([
+    ]));
+    real('armor', 'item_vest', -Math.PI / 2, () => mergeGeometries([
       colored(new THREE.BoxGeometry(0.46, 0.5, 0.16), 0x3f6fae),
       colored(new THREE.BoxGeometry(0.5, 0.12, 0.18).translate(0, -0.1, 0), 0x2b4f80),
-    ]), vc);
+    ]));
     this.add('scope', mergeGeometries([
       colored(new THREE.CylinderGeometry(0.06, 0.06, 0.34, 10).rotateZ(Math.PI / 2), 0x222428),
       colored(new THREE.CylinderGeometry(0.075, 0.075, 0.06, 10).rotateZ(Math.PI / 2).translate(0.17, 0, 0), 0x111111),
@@ -83,7 +88,6 @@ export class LootView {
     const im = new THREE.InstancedMesh(geo, mat, MAX);
     im.count = 0;
     im.frustumCulled = false;
-    if (key === 'ammo') im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
     this.meshes.set(key, im);
     this.group.add(im);
   }
@@ -119,11 +123,17 @@ export class LootView {
       if (!im) continue;
       const n = counts.get(key) ?? 0;
       if (n >= MAX) continue;
-      const bob = 0.28 + Math.sin(this.time * 2 + it.id) * 0.06;
-      this.e.set(it.kind === 'weapon' ? 0 : 0, this.time * 1.2 + it.id, 0);
-      this.m.compose(this.p.set(it.x, it.y + bob, it.z), this.q.setFromEuler(this.e), this.s.set(1, 1, 1));
-      im.setMatrixAt(n, this.m);
-      if (key === 'ammo') im.setColorAt(n, this.c.set(AMMO_COL[it.item as WeaponId] ?? 0xffffff));
+      // resting on the ground like real objects (scopes / ice-wall charges still hover so they read)
+      const small = it.kind === 'scope' || it.kind === 'frost';
+      const lift = small ? 0.28 + Math.sin(this.time * 2 + it.id) * 0.06 : it.kind === 'weapon' ? 0.06 : 0.01;
+      this.e.set(0, small ? this.time * 1.2 + it.id : it.id * 2.399, 0);
+      this.m.compose(this.p.set(it.x, it.y + lift, it.z), this.q.setFromEuler(this.e), this.s.set(1, 1, 1));
+      for (let k = 0; ; k++) {
+        const part = k ? this.meshes.get(`${key}#${k}`) : im;
+        if (!part) break;
+        part.setMatrixAt(n, this.m);
+        if (k) counts.set(`${key}#${k}`, n + 1);
+      }
       counts.set(key, n + 1);
       if (rings < MAX) {
         this.m.compose(this.p.set(it.x, it.y + 0.03, it.z), this.q.identity(), this.s.set(1, 1, 1));

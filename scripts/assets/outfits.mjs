@@ -82,7 +82,7 @@ for (const [name, o] of Object.entries(OUTFITS)) {
   }
   const joined = joinPrimitives(prims);
   const tris0 = joined.getIndices().getCount() / 3;
-  simplifyPrimitive(joined, { simplifier: MeshoptSimplifier, ratio: Math.min(1, o.tris / tris0), error: 0.02, lockBorder: false });
+  simplifyPrimitive(joined, { simplifier: MeshoptSimplifier, ratio: Math.min(1, o.tris / tris0), error: 0.02, lockBorder: true }); // keep seams (neck, wrists) closed
   const lodPrim = joined.clone();
   for (const s of lodPrim.listSemantics()) lodPrim.setAttribute(s, lodPrim.getAttribute(s).clone());
   lodPrim.setIndices(lodPrim.getIndices().clone());

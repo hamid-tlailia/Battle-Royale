@@ -30,6 +30,8 @@ export class Controls {
   private lastSlot = 1;
   frostQueued = 0;
   fireHeld = false;
+  /** a quick tap (shorter than one 33 ms tick) still fires: the trigger stays down for at least 2 ticks */
+  fireTap = 0;
   weapon = 1;
   /** user setting (settings panel) */
   sensitivity = 1;
@@ -82,7 +84,7 @@ export class Controls {
       if (this.isTouch) return;
       if (!this.pointerLocked) { surface.requestPointerLock?.(); return; }
       if (e.button === 2) this.setScope(!this.scoped);
-      if (e.button === 0) { if (this.frostAim) this.confirmFrost(); else this.fireHeld = true; }
+      if (e.button === 0) { if (this.frostAim) this.confirmFrost(); else { this.fireHeld = true; this.fireTap = 2; } }
     });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.fireHeld = false; });
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -232,7 +234,8 @@ export class Controls {
     if ((this.sprintLock || this.sprintToggle || this.keys.has('ShiftLeft')) && !this.fireHeld && !this.scoped) b |= BTN.SPRINT;
     if (this.scoped) b |= BTN.SCOPE;
     if (this.autoPickup) b |= BTN.AUTOPICK;
-    if (this.fireHeld) b |= BTN.FIRE;
+    if (this.fireHeld || this.fireTap > 0) b |= BTN.FIRE;
+    if (this.fireTap > 0) this.fireTap--;
     return b;
   }
 
