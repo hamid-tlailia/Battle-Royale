@@ -148,6 +148,8 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   // ---------- Houses (imported enterable models on a stone foundation) ----------
   const houseTypes: PrefabName[] = id === 'desert' ? ['house_e', 'house_f', 'house_d', 'house_e', 'house_a', 'house_f'] : ['house_a', 'house_d', 'house_b', 'house_e', 'house_c', 'house_f'];
   let houses = 0;
+  /** house plots: re-levelled at the end so later terrain edits (farms, rocks) never tilt the ground under a house */
+  const levelled: { x: number; z: number; hx: number; hz: number; y: number }[] = [];
   for (let tries = 0; tries < 6000 && houses < Math.round((id === 'green' ? 9 : 12) * A * 0.95); tries++) {
     const p = randInValley(MAP.playRadius - 22);
     const type = houseTypes[houses % houseTypes.length];
@@ -166,8 +168,10 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     flattenTerrain(data, p.x, p.z, w / 2 + 2.5, d / 2 + 2.5, avg, 7);
     // houses on stilts (raised floor) are set into the ground so there is no open gap under them
     const sink = HOUSE_SINK[type] ?? 0;
-    const floorY = avg + 0.12 - sink;
-    data.boxes.push({ x: p.x, y: avg - 0.9, z: p.z, hx: w / 2 + 0.2, hy: 1.02, hz: d / 2 + 0.2, rot: 0, color: id === 'desert' ? 0x9a6b4c : 0x8a857a });
+    const floorY = avg + 0.03 - sink;
+    // stone base flush with the levelled ground (fills any gap under the walls, never a step to trip on)
+    data.boxes.push({ x: p.x, y: avg - 0.99, z: p.z, hx: w / 2 + 0.2, hy: 1.02, hz: d / 2 + 0.2, rot: 0, color: id === 'desert' ? 0x9a6b4c : 0x8a857a });
+    levelled.push({ x: p.x, z: p.z, hx: w / 2 + 2.5, hz: d / 2 + 2.5, y: avg });
     data.props.push({ p: type, x: p.x, y: floorY, z: p.z, rot, s: 1 });
     houses++;
   }
@@ -196,6 +200,12 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
       }
       farms++;
     }
+  }
+  // farms are flattened after the houses: put every house plot back to its own level, re-seat the farm pieces
+  if (levelled.length) {
+    for (const l of levelled) flattenTerrain(data, l.x, l.z, l.hx, l.hz, l.y, 7);
+    const FARM = new Set<string>(['yardwall', 'windmill', 'windmill_blades', 'farmhouse', 'well', 'wagon', 'haybale', 'scarecrow']);
+    for (const pr of data.props) if (FARM.has(pr.p)) pr.y = groundAt(pr.x, pr.z) - 0.05;
   }
 
   // ---------- Abandoned cars ----------

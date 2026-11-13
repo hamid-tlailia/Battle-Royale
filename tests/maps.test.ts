@@ -56,4 +56,24 @@ describe('hills are climbable', () => {
       expect(reached, id).toBeGreaterThanOrEqual(7);
     }
   }, 60000);
+
+  it('jumping works on hillsides (every press while running uphill takes off)', () => {
+    const map = generateMap(MAP.seed, 'green'); map.props = []; map.boxes = [];
+    const phys = new PhysicsWorld(map);
+    let presses = 0, takeoffs = 0;
+    for (let a = 0; a < 8; a++) {
+      const ang = (a * Math.PI) / 4, sp = phys.findSpawn(Math.cos(ang) * 110, Math.sin(ang) * 110);
+      phys.addPlayer(a + 1, sp.x, sp.y, sp.z);
+      const s = newMoveState(sp.x, sp.y, sp.z);
+      for (let t = 0; t < 30 * 8; t++) {
+        const jump = t % 30 === 15 && s.grounded !== undefined;
+        const before = s.vy;
+        simulateMove(phys, a + 1, s, { seq: t, mx: 0, mz: 1, yaw: Math.atan2(s.x, s.z), pitch: 0, buttons: BTN.SPRINT | (jump ? BTN.JUMP : 0) }, DT);
+        phys.updateQueries();
+        if (jump) { presses++; if (s.vy > 2 && before <= 0.5) takeoffs++; }
+      }
+      phys.removePlayer(a + 1);
+    }
+    expect(takeoffs / presses).toBeGreaterThan(0.85);
+  }, 60000);
 });

@@ -29,6 +29,10 @@ export class PhysicsWorld {
   readonly playerGroups = groups(GROUP_PLAYER, 0xffff);
   /** cover props (cars, fences, crates...): a separate world that stops bullets and sight, never players */
   readonly cover: RAPIER.World;
+  /** the ground mesh (hillsides are never a vault obstacle) */
+  readonly terrain: RAPIER.Collider;
+  /** debug: what each world collider is (prop name / 'box' / 'terrain' / 'boundary') */
+  readonly colliderInfo = new Map<number, string>();
 
   constructor(readonly map: MapData) {
     this.world = new RAPIER.World({ x: 0, y: 0, z: 0 });
@@ -36,15 +40,17 @@ export class PhysicsWorld {
     this.world.timestep = 1 / 30;
 
     const { vertices, indices } = terrainMesh(map);
-    this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setCollisionGroups(this.worldGroups));
+    this.terrain = this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices).setCollisionGroups(this.worldGroups));
+    this.colliderInfo.set(this.terrain.handle, 'terrain');
 
     for (const b of map.boxes) {
-      this.world.createCollider(
+      const bc = this.world.createCollider(
         RAPIER.ColliderDesc.cuboid(b.hx, b.hy, b.hz)
           .setTranslation(b.x, b.y, b.z)
           .setRotation(quatY(b.rot))
           .setCollisionGroups(this.worldGroups),
       );
+      this.colliderInfo.set(bc.handle, `box@${b.x.toFixed(0)},${b.z.toFixed(0)} hy${b.hy}`);
     }
     // Imported models: colliders generated from the actual meshes (scripts/assets/build.mjs)
     const scaled = new Map<string, Float32Array>();
@@ -62,11 +68,13 @@ export class PhysicsWorld {
       else if (c.type === 'hull') desc = RAPIER.ColliderDesc.convexHull(shapeVerts(pr.p, c.v, pr.s));
       else if (c.type === 'cylinder') {
         const h = c.height * pr.s;
-        W.createCollider(RAPIER.ColliderDesc.cylinder(h / 2, c.radius * pr.s).setTranslation(pr.x, pr.y + h / 2, pr.z).setCollisionGroups(this.worldGroups));
+        const cc = W.createCollider(RAPIER.ColliderDesc.cylinder(h / 2, c.radius * pr.s).setTranslation(pr.x, pr.y + h / 2, pr.z).setCollisionGroups(this.worldGroups));
+        if (W === this.world) this.colliderInfo.set(cc.handle, `${pr.p}@${pr.x.toFixed(0)},${pr.z.toFixed(0)}`);
         continue;
       }
       if (!desc) continue;
-      W.createCollider(desc.setTranslation(pr.x, pr.y, pr.z).setRotation(quatY(pr.rot)).setCollisionGroups(this.worldGroups));
+      const pc = W.createCollider(desc.setTranslation(pr.x, pr.y, pr.z).setRotation(quatY(pr.rot)).setCollisionGroups(this.worldGroups));
+      if (W === this.world) this.colliderInfo.set(pc.handle, `${pr.p}@${pr.x.toFixed(0)},${pr.z.toFixed(0)}`);
     }
     // Invisible boundary: a ring of tall boxes around the valley.
     const segs = 32, R = MAP.playRadius + 8;
@@ -175,6 +183,12 @@ export class PhysicsWorld {
     const c = this.cover.castRay(ray, hit ? hit.timeOfImpact : maxDist, true);
     if (c) return { t: c.timeOfImpact, handle: -1 };
     return hit ? { t: hit.timeOfImpact, handle: hit.collider.handle } : null;
+  }
+
+  /** Raycast against buildings / props only (not the ground, not cover props). */
+  rayObstacle(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number): number | null {
+    const hit = this.world.castRay(new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz }), maxDist, true, undefined, groups(0xffff, GROUP_WORLD), this.terrain);
+    return hit ? hit.timeOfImpact : null;
   }
 
   /** Raycast against world geometry only (camera collision, line of sight). */

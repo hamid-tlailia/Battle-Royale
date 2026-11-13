@@ -108,6 +108,7 @@ export class Game {
 
   constructor(container: HTMLElement, private hudEl: HTMLElement, private assets: GameAssets, private onRestart: () => void, opts: GameOptions) {
     this.net = opts.net ?? null;
+    this.revealed = !!this.net;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setClearColor(0xd4e8f2);
@@ -136,7 +137,12 @@ export class Game {
 
     this.controls = new Controls(this.renderer.domElement, hudEl);
     this.hud = new Hud(hudEl, this.sim.map, assets.icons);
-    this.hud.onSlot = (i) => { this.controls.weapon = i; };
+    // tap a weapon card to take it out; tap the one in your hands to reload it
+    this.hud.onSlot = (i) => {
+      const me = this.sim.players.get(this.myId);
+      if (me && i === me.slot && me.weapons[i].owned && !me.holstered) this.controls.reload();
+      else this.controls.weapon = i;
+    };
     this.debug = new DebugOverlay(hudEl);
     const applySettings = (st: Settings) => {
       this.controls.sensitivity = st.sens; this.controls.scopeSensitivity = st.scopeSens; sfx.enabled = st.sound; this.controls.autoPickup = st.autoPickup;
@@ -529,6 +535,7 @@ export class Game {
       if (this.net.phase === 'ended' && !this.ended) { const me = this.sim.players.get(this.myId); if (me?.alive) setTimeout(() => this.showEnd(true), 800); this.ended = true; }
     }
     this.acc += dt;
+    if (!this.revealed) this.acc = 0; // behind the loading screen: the match waits (and stays silent)
     let steps = 0;
     const t0 = performance.now();
     while (this.acc >= DT && steps < 4) { this.stepSim(); this.acc -= DT; steps++; }
@@ -564,7 +571,7 @@ export class Game {
     this.hud.setPlaneHint(me.alive && me.move.air === 1, me.move.air >= 2);
     sfx.setWind(me.move.air === 2 ? 1 : me.move.air === 3 ? 0.4 : 0);
     // engine drone: loud inside, fading with distance once you have jumped
-    sfx.setPlane(!planeOn ? 0 : me.move.air === 1 ? 1 : Math.max(0, 1 - this.planePos.distanceTo(this.camera.position) / 350) * 0.7);
+    sfx.setPlane(!planeOn || !this.revealed ? 0 : me.move.air === 1 ? 1 : Math.max(0, 1 - this.planePos.distanceTo(this.camera.position) / 350) * 0.7);
     this.areaTimer -= dt;
     if (this.areaTimer <= 0) { this.areaTimer = 0.06; this.updateAreaLabels(me); updateTreeLod(this.camera.position); }
     const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
@@ -689,6 +696,10 @@ export class Game {
       },
     });
   };
+
+  /** offline match starts (and makes sound) only once the loading screen goes away; online: always */
+  private revealed = false;
+  reveal() { this.revealed = true; }
 
   /** compile every shader up front (behind the loading screen) so the first seconds do not stutter */
   warmUp() { try { this.renderer.compile(this.scene, this.camera); } catch { /* optional */ } }

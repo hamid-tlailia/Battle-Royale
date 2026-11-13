@@ -138,7 +138,8 @@ function findVault(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState): { h:
   const rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
   const feet = feetY(s);
   // Must be something directly in front, otherwise it's a normal jump.
-  const near = (h: number) => phys.rayWorld(s.x, feet + h, s.z, fx, 0, fz, PLAYER.radius + 0.9, false);
+  // (a wall, crate, car or window ledge, never the hillside itself)
+  const near = (h: number) => phys.rayObstacle(s.x, feet + h, s.z, fx, 0, fz, PLAYER.radius + 0.9);
   if (near(0.35) === null && near(1.0) === null && near(1.6) === null) return null;
   const r = SHAPE.BALL.r;
   for (let h = 0.5; h <= 2.3; h += 0.15) {
@@ -235,7 +236,9 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   col.setTranslation({ x: s.x, y: s.y, z: s.z });
 
   // ---------------- Jump or vault ----------------
-  if (s.grounded && (input.buttons & BTN.JUMP) && !s.crouch && !s.ball && !s.prone) {
+  // on hillsides the controller's ground contact flickers: feet within 30 cm of the terrain can jump too
+  const nearGround = s.grounded || (s.vy <= 0.5 && feetY(s) - phys.groundHeight(s.x, s.z) < 0.3);
+  if (nearGround && (input.buttons & BTN.JUMP) && !s.crouch && !s.ball && !s.prone) {
     const v = findVault(phys, col, s);
     if (v) {
       const f = feetY(s);

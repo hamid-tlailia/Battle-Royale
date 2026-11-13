@@ -83,6 +83,7 @@ function showMenu(assets: GameAssets) {
       for (let i = 0; i < 20; i++) await new Promise((r) => requestAnimationFrame(r));
       await new Promise((r) => setTimeout(r, Math.max(200, 1400 - (performance.now() - t0))));
       barEl.style.width = '100%';
+      game.reveal();
       load.classList.add('out');
       setTimeout(() => load.remove(), 700);
       return;

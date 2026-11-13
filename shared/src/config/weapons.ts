@@ -43,23 +43,23 @@ export interface WeaponDef {
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
   pistol: {
     id: 'pistol', name: 'Pistol', damage: 24, headMult: 2.1, rpm: 300, auto: true, mag: 12, reloadTime: 1.3,
-    range: 90, falloffStart: 25, minDamageFrac: 0.5, hipSpread: 0.025, adsSpread: 0.007, pellets: 1, scopeFov: 50, startReserve: 48,
+    range: 90, falloffStart: 25, minDamageFrac: 0.5, hipSpread: 0.018, adsSpread: 0.007, pellets: 1, scopeFov: 50, startReserve: 48,
   },
   rifle: {
     id: 'rifle', name: 'Assault Rifle', damage: 19, headMult: 2.2, rpm: 600, auto: true, mag: 30, reloadTime: 2.2,
-    range: 220, falloffStart: 60, minDamageFrac: 0.55, hipSpread: 0.04, adsSpread: 0.005, pellets: 1, scopeFov: 34, startReserve: 120,
+    range: 220, falloffStart: 60, minDamageFrac: 0.55, hipSpread: 0.022, adsSpread: 0.005, pellets: 1, scopeFov: 34, startReserve: 120,
   },
   shotgun: {
-    id: 'shotgun', name: 'Shotgun', damage: 12, headMult: 1.8, rpm: 70, auto: true, mag: 5, reloadTime: 2.6,
-    range: 35, falloffStart: 7, minDamageFrac: 0.25, hipSpread: 0.085, adsSpread: 0.065, pellets: 9, scopeFov: 52, startReserve: 25,
+    id: 'shotgun', name: 'Shotgun', damage: 14, headMult: 1.8, rpm: 70, auto: true, mag: 5, reloadTime: 2.6,
+    range: 45, falloffStart: 12, minDamageFrac: 0.35, hipSpread: 0.05, adsSpread: 0.035, pellets: 9, scopeFov: 52, startReserve: 25,
   },
   sniper: {
     id: 'sniper', name: 'Sniper', damage: 90, headMult: 2.6, rpm: 36, auto: false, mag: 5, reloadTime: 3.0,
-    range: 320, falloffStart: 160, minDamageFrac: 0.85, hipSpread: 0.07, adsSpread: 0.0, pellets: 1, scopeFov: 12, startReserve: 20,
+    range: 320, falloffStart: 160, minDamageFrac: 0.85, hipSpread: 0.03, adsSpread: 0.0, pellets: 1, scopeFov: 12, startReserve: 20,
   },
   smg: {
     id: 'smg', name: 'SMG', damage: 15, headMult: 2.0, rpm: 780, auto: true, mag: 32, reloadTime: 2.0,
-    range: 75, falloffStart: 18, minDamageFrac: 0.45, hipSpread: 0.042, adsSpread: 0.016, pellets: 1, scopeFov: 48, startReserve: 96,
+    range: 75, falloffStart: 18, minDamageFrac: 0.45, hipSpread: 0.03, adsSpread: 0.016, pellets: 1, scopeFov: 48, startReserve: 96,
   },
 };
 
