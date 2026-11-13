@@ -59,7 +59,21 @@ namespace LastWar
                 m.transform.localScale *= s;
                 m.transform.localPosition = new Vector3(0, -(lo - transform.position.y) * s, 0);
             }
-            foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true)) smr.updateWhenOffscreen = true;
+            foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                smr.updateWhenOffscreen = true;
+                // glTF material -> our URP Lit (always in the build), keeping the colour texture
+                var mats = smr.sharedMaterials;
+                for (int k = 0; k < mats.Length; k++)
+                {
+                    Material src0 = mats[k];
+                    Texture tex = null;
+                    if (src0 != null) foreach (string prop in new[] { "baseColorTexture", "_BaseMap", "_MainTex" }) if (src0.HasProperty(prop) && src0.GetTexture(prop) != null) { tex = src0.GetTexture(prop); break; }
+                    Debug.Log($"[LastWar] soldier material {k}: {(src0 != null ? src0.shader.name + " supported=" + src0.shader.isSupported : "null")} tex={(tex != null)}");
+                    mats[k] = MapBuilder.NewLit(Color.white, tex);
+                }
+                smr.sharedMaterials = mats;
+            }
             model = m.transform;
             anim = m.GetComponentInChildren<Animation>();
             Debug.Log($"[LastWar] soldier scale {m.transform.localScale.x:0.###}, legacy animation {(anim != null ? anim.GetClipCount() + " clips" : "none")}, animator {(m.GetComponentInChildren<Animator>() != null)}");
