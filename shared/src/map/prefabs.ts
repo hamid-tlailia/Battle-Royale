@@ -1,6 +1,5 @@
 import data from './prefabs.json';
 import torsGreen from './tors_green.json';
-import torsDesert from './tors_desert.json';
 
 export type PrefabCollider =
   | { type: 'trimesh'; v: number[]; i: number[] }
@@ -15,18 +14,16 @@ export const PREFABS = {
   ...(data as unknown as Record<PrefabName, PrefabInfo>),
   // real scanned rock outcrops of the green map (scripts/assets/tors.mjs); map coordinates, origin = scan base
   tors_green: { size: [0, 0, 0], collider: torsGreen.collider } as unknown as PrefabInfo,
-  tors_desert: { size: [0, 0, 0], collider: torsDesert.collider } as unknown as PrefabInfo,
 } as Record<PrefabName, PrefabInfo>;
 /** world-space vertices of the green-map tors collider (for placement checks) */
 export const TORS_GREEN_VERTS = torsGreen.collider.v;
-export const TORS_DESERT_VERTS = torsDesert.collider.v;
 export type PrefabName =
   | 'house_a' | 'house_b' | 'house_c'
   | 'car1' | 'car2' | 'car3' | 'car4'
   | 'pine1' | 'pine2' | 'pine4' | 'pine5'
   | 'rock1' | 'rock2' | 'rock3' | 'rock4'
   | 'bush1' | 'bush2' | 'stump' | 'fence'
-  | 'tors_green' | 'tors_desert'
+  | 'tors_green'
   | 'tpine1' | 'tpine2' | 'tpine3' | 'tpine4' | 'toak1' | 'toak2' | 'tbush1' | 'tbush2' | 'tbush3'
   | 'tpine1_far' | 'tpine2_far' | 'tpine3_far' | 'tpine4_far' | 'toak1_far' | 'toak2_far' | 'tbush1_far' | 'tbush2_far' | 'tbush3_far'
   | 'house_d' | 'house_e' | 'house_f'

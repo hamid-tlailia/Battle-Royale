@@ -1,6 +1,6 @@
 import { MAP } from '../config/game';
 import { fbm, mulberry32, smoothstep } from '../math/rng';
-import { PREFABS, TORS_DESERT_VERTS, TORS_GREEN_VERTS, type PrefabName } from './prefabs';
+import { PREFABS, TORS_GREEN_VERTS, type PrefabName } from './prefabs';
 import { GREEN_GRID } from './data/green';
 import { DESERT_GRID } from './data/desert';
 
@@ -138,9 +138,10 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   };
 
   // ---------- Real rock outcrops (scan geometry) ----------
-  if (id === 'green' || id === 'desert') {
-    data.props.push({ p: id === 'green' ? 'tors_green' : 'tors_desert', x: 0, y: scanBase, z: 0, rot: 0, s: 1 });
-    const v = id === 'green' ? TORS_GREEN_VERTS : TORS_DESERT_VERTS; // keep everything else out of the rocks
+  // (green map only: the canyon scan's "outcrops" were loose photogrammetry sheets that hung in the air)
+  if (id === 'green') {
+    data.props.push({ p: 'tors_green', x: 0, y: scanBase, z: 0, rot: 0, s: 1 });
+    const v = TORS_GREEN_VERTS; // keep everything else out of the rocks
     for (let i = 0; i < v.length; i += 3 * 40) occupied.push({ x: v[i], z: v[i + 2], r: 3.5 });
   }
 

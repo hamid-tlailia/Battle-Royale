@@ -30,7 +30,7 @@ describe('sky drop', () => {
     expect(maxAirTicks / TICK_RATE).toBeLessThan(60); // whole drop done within a minute
   }, 60000);
 
-  it('gliding reaches 200+ m from the jump point; players who jump together land together', () => {
+  it('gliding reaches 170+ m from the jump point; players who jump together land together', () => {
     const sim = new GameSim(MAP.seed, { lobby: true, zone: false });
     const a = sim.addPlayer(1, 'A', false), b = sim.addPlayer(2, 'B', false);
     sim.startMatch();
@@ -48,7 +48,7 @@ describe('sky drop', () => {
     }
     const reach = Math.hypot(a.move.x - ja!.x, a.move.z - ja!.z);
     console.log(`glide reach ${reach.toFixed(0)} m, A lands after ${((landA - jumpT) / TICK_RATE).toFixed(1)} s, B after ${((landB - jumpT) / TICK_RATE).toFixed(1)} s`);
-    expect(reach).toBeGreaterThan(200);
+    expect(reach).toBeGreaterThan(170); // steering also descends now (no flat gliding), still covers most of the map from the flight line
     expect(Math.abs(landA - landB) / TICK_RATE).toBeLessThan(6); // gliding far does not make you land much later
   });
 

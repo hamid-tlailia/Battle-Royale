@@ -3,7 +3,7 @@ import {
   BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox, terrainHeight,
   type Hitbox, type InputCmd, type LootItem, type MapId, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
-import { buildMapView, updateTreeLod } from '../render/mapView';
+import { buildMapView, updateTreeLod, setTreeLodDistance } from '../render/mapView';
 import { addMatch } from '../meta/progress';
 import { CharacterView } from '../render/characters';
 import type { GameAssets, GunName } from '../render/assets';
@@ -90,6 +90,7 @@ export class Game {
   private aim = new THREE.Vector3();
   private hb = {} as Hitbox;
   private settings: Settings = loadSettings();
+  private quality = this.settings.quality;
   private scopeMode: 'none' | 'reddot' | 'x2' | 'x4' | 'x8' = 'none';
   private loot!: LootView;
   private plane!: PlaneView;
@@ -108,7 +109,7 @@ export class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setClearColor(0xd4e8f2);
     container.appendChild(this.renderer.domElement);
-    this.adaptive = new AdaptiveResolution(this.renderer);
+    this.adaptive = new AdaptiveResolution(this.renderer, this.settings.quality);
 
     this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
     this.scene.fog = new THREE.Fog(0xd4e8f2, 70, 240);
@@ -136,6 +137,8 @@ export class Game {
     this.debug = new DebugOverlay(hudEl);
     const applySettings = (st: Settings) => {
       this.controls.sensitivity = st.sens; this.controls.scopeSensitivity = st.scopeSens; sfx.enabled = st.sound; this.controls.autoPickup = st.autoPickup;
+      if (st.quality !== this.quality) { this.quality = st.quality; this.adaptive.setQuality(st.quality); }
+      setTreeLodDistance(st.quality === 'high' ? 95 : st.quality === 'medium' ? 70 : 45);
     };
     applySettings(this.settings);
     settingsPanel(hudEl, this.settings, applySettings, () => editLayout(hudEl));

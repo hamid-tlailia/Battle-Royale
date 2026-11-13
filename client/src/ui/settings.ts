@@ -1,8 +1,8 @@
 import { ICONS } from './icons';
 /** Small settings panel (gear button): look sensitivity, scope sensitivity, aim assist, sound. Saved per device. */
-export interface Settings { sens: number; scopeSens: number; aimAssist: boolean; sound: boolean; autoPickup: boolean }
+export interface Settings { sens: number; scopeSens: number; aimAssist: boolean; sound: boolean; autoPickup: boolean; quality: 'high' | 'medium' | 'low' }
 const KEY = 'lw.settings.v1';
-const DEFAULTS: Settings = { sens: 1, scopeSens: 1, aimAssist: true, sound: true, autoPickup: true };
+const DEFAULTS: Settings = { sens: 1, scopeSens: 1, aimAssist: true, sound: true, autoPickup: true, quality: 'high' };
 
 export function loadSettings(): Settings {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
@@ -12,6 +12,7 @@ function save(s: Settings) { try { localStorage.setItem(KEY, JSON.stringify(s));
 export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Settings) => void, onEditLayout?: () => void) {
   const btn = document.createElement('button');
   btn.className = 'gear-btn';
+  btn.dataset.hud = 'settings'; btn.dataset.scale = '1';
   btn.innerHTML = ICONS.settings;
   const panel = document.createElement('div');
   panel.className = 'settings-panel';
@@ -21,6 +22,8 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
       <input type="range" min="0.3" max="3" step="0.05" value="${s[key]}" data-k="${key}"></label>`;
   panel.innerHTML = `
     <h3>Settings</h3>
+    <label>Graphics</label>
+    <div class="qual">${(['high', 'medium', 'low'] as const).map((q) => `<button data-q="${q}" class="${s.quality === q ? 'on' : ''}">${q.toUpperCase()}</button>`).join('')}</div>
     ${slider('Look sensitivity', 'sens')}
     ${slider('Scope sensitivity', 'scopeSens')}
     <label class="row"><input type="checkbox" data-c="aimAssist" ${s.aimAssist ? 'checked' : ''}> Aim assist</label>
@@ -28,7 +31,7 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
     <label class="row"><input type="checkbox" data-c="autoPickup" ${s.autoPickup ? 'checked' : ''}> Auto pick-up (ammo, meds, armor…)</label>
     <button class="layout">CUSTOMIZE BUTTON LAYOUT</button>
     <button class="close">CLOSE</button>`;
-  const toggle = (e: Event) => { e.preventDefault(); e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; };
+  const toggle = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (btn.closest('.editing')) return; panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; };
   btn.addEventListener('touchstart', toggle, { passive: false });
   btn.addEventListener('click', toggle);
   panel.querySelector('.close')!.addEventListener('click', toggle);
@@ -44,6 +47,12 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
   panel.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((inp) => inp.addEventListener('change', () => {
     const k = inp.dataset.c as 'aimAssist' | 'sound';
     s[k] = inp.checked;
+    save(s); onChange(s);
+  }));
+  panel.querySelectorAll<HTMLButtonElement>('[data-q]').forEach((b) => b.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    s.quality = b.dataset.q as Settings['quality'];
+    panel.querySelectorAll('[data-q]').forEach((x) => x.classList.toggle('on', x === b));
     save(s); onChange(s);
   }));
   parent.append(btn, panel);

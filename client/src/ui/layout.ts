@@ -2,7 +2,7 @@
  * Custom HUD layout: every element with [data-hud] can be dragged and resized in edit mode.
  * Positions are stored as fractions of the screen so they survive rotation / other phones.
  */
-type Layout = Record<string, { x: number; y: number; size: number; hidden?: boolean }>;
+type Layout = Record<string, { x: number; y: number; size: number; hidden?: boolean; op?: number }>;
 /** v2: new default layout (old custom layouts are reset once) */
 const KEY = 'lw.layout.v2';
 
@@ -12,8 +12,10 @@ function load(): Layout {
 function save(l: Layout) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* ignore */ } }
 
 /** Buttons are resized in px; panels (weapon bar, minimap, …) are scaled in % (data-scale). */
-function place(el: HTMLElement, p: { x: number; y: number; size: number; hidden?: boolean }) {
+function place(el: HTMLElement, p: { x: number; y: number; size: number; hidden?: boolean; op?: number }) {
   el.classList.toggle('hud-hidden', !!p.hidden);
+  // see-through (filter, so it combines with the game's own fade rules)
+  el.style.filter = p.op !== undefined && p.op < 1 ? `opacity(${p.op})` : '';
   el.style.left = `${p.x * 100}vw`;
   el.style.top = `${p.y * 100}vh`;
   el.style.right = 'auto';
@@ -37,11 +39,14 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
   let selected: HTMLElement | null = null;
   const bar = document.createElement('div');
   bar.className = 'layout-bar';
-  bar.innerHTML = `<span>Drag · size</span>
-    <input type="range" min="40" max="130" step="2" value="70">
+  bar.innerHTML = `<span>Size</span>
+    <input class="sz" type="range" min="40" max="130" step="2" value="70">
+    <span>See-through</span>
+    <input class="op" type="range" min="20" max="100" step="5" value="100">
     <button data-a="hide">HIDE</button><button data-a="reset">RESET</button><button data-a="cancel">CANCEL</button><button data-a="save" class="ok">SAVE</button>`;
   hud.appendChild(bar);
-  const slider = bar.querySelector('input')!;
+  const slider = bar.querySelector('input.sz') as HTMLInputElement;
+  const opSlider = bar.querySelector('input.op') as HTMLInputElement;
   const current = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
     return { x: (r.left + r.width / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight, size: el.dataset.scale ? 100 : Math.round(r.width) };
@@ -54,6 +59,7 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
     slider.min = el.dataset.scale ? '50' : '40';
     slider.max = el.dataset.scale ? '160' : '130';
     slider.value = String(working[el.dataset.hud!].size);
+    opSlider.value = String(Math.round((working[el.dataset.hud!].op ?? 1) * 100));
     hideBtn.textContent = working[el.dataset.hud!].hidden ? 'SHOW' : 'HIDE';
   };
   const hideBtn = bar.querySelector('[data-a=hide]') as HTMLButtonElement;
@@ -67,6 +73,11 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
   slider.addEventListener('input', () => {
     if (!selected) return;
     working[selected.dataset.hud!].size = +slider.value;
+    place(selected, working[selected.dataset.hud!]);
+  });
+  opSlider.addEventListener('input', () => {
+    if (!selected) return;
+    working[selected.dataset.hud!].op = +opSlider.value / 100;
     place(selected, working[selected.dataset.hud!]);
   });
   const handlers: [HTMLElement, (e: PointerEvent) => void][] = [];
@@ -108,7 +119,10 @@ export function editLayoutStandalone(createButtons: (root: HTMLElement) => void)
     <div class="minimap" data-hud="map" data-scale="1"></div>
     <div class="top-info" data-hud="info" data-scale="1"><div class="alive"><span>ALIVE</span><b>16</b><span>KILLS</span><b>0</b></div></div>
     <div class="killfeed" data-hud="feed" data-scale="1"><div class="kf"><b>Falcon</b> <i>Rifle</i> <b>Raven</b></div></div>
-    <div class="bottom-bar" data-hud="weapons" data-scale="1"><div class="slots"><div class="slot">1</div><div class="slot">2</div><div class="slot">3</div><div class="slot">4</div></div><div class="ammo"><b>30</b><span>/ 90</span></div><div class="bars"><div class="bar armor"></div><div class="bar hp"></div></div></div>
+    <div class="bottom-bar" data-hud="weapons" data-scale="1"><div class="slots"><div class="slot sel"><i>30<small>/90</small></i></div><div class="slot"><i>12</i></div><div class="slot"><i>5</i></div><div class="slot"><i>5</i></div><div class="slot"><i>∞</i></div></div></div>
+    <div class="bars-wrap" data-hud="health" data-scale="1"><div class="bars"><div class="bar hp"><div style="width:100%"></div><span>100</span></div></div></div>
+    <button class="gear-btn" data-hud="settings" data-scale="1">⚙</button>
+    <button class="dbg-btn" data-hud="debug" data-scale="1">DBG</button>
     <div class="joy-base" data-hud="joy" style="left:50px;bottom:50px;opacity:.6"><div class="joy-knob"></div></div>`;
   document.body.appendChild(root);
   createButtons(root);

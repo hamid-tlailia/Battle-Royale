@@ -102,8 +102,7 @@ export class Hud {
           return;
         }
       }
-      this.mini.classList.toggle('big');
-      this.miniTimer = 0;
+      this.setBigMap(!this.mini.classList.contains('big'));
     };
     this.mini.addEventListener('touchstart', toggleMap, { passive: false });
     this.mini.addEventListener('mousedown', toggleMap);
@@ -130,7 +129,10 @@ export class Hud {
     this.fistSlot.addEventListener('mousedown', fist);
     this.ammo = el('ammo', bottom);
     this.reloadBar = el('reload-bar', bottom, '<div></div>');
-    const bars = el('bars', bottom);
+    // health + status icons: their own HUD element (move / resize / fade it separately)
+    const barsWrap = el('bars-wrap', hud);
+    barsWrap.dataset.hud = 'health'; barsWrap.dataset.scale = '1';
+    const bars = el('bars', barsWrap);
     // small status icons above the health bar: armor vest (level + points) and backpack
     this.statusRow = el('status-row', bars, `<span class="st-armor">${ICONS.vest}<b>0</b></span><span class="st-bag">${ICONS.bag}<b>Lv1</b></span>`);
     const armor = el('bar armor', bars, '<div></div><em>🛡</em><span></span>');
@@ -140,6 +142,20 @@ export class Hud {
     this.armorFill = armor.firstElementChild as HTMLDivElement;
     this.hpFill = hp.firstElementChild as HTMLDivElement;
     this.hpTxt = hp.querySelector('span') as HTMLDivElement;
+  }
+
+  private mapShade: HTMLDivElement | null = null;
+  /** big map open/closed; while open, a tap anywhere outside it closes it */
+  setBigMap(on: boolean) {
+    this.mini.classList.toggle('big', on);
+    this.miniTimer = 0;
+    this.mapShade?.remove(); this.mapShade = null;
+    if (on) {
+      this.mapShade = el('tap-shade map-shade', this.root);
+      const close = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.setBigMap(false); };
+      this.mapShade.addEventListener('touchstart', close, { passive: false });
+      this.mapShade.addEventListener('mousedown', close);
+    }
   }
 
   private renderMiniBg(): HTMLCanvasElement {
@@ -167,8 +183,14 @@ export class Hud {
   }
 
   /** Backpack: everything you carry, each with a DROP button. */
+  private bagShade: HTMLDivElement | null = null;
   toggleBag() {
-    if (this.bag) { this.bag.remove(); this.bag = null; return; }
+    if (this.bag) { this.bag.remove(); this.bag = null; this.bagShade?.remove(); this.bagShade = null; return; }
+    // a tap anywhere outside the backpack closes it
+    this.bagShade = el('tap-shade', this.root);
+    const close = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (this.bag) this.toggleBag(); };
+    this.bagShade.addEventListener('touchstart', close, { passive: false });
+    this.bagShade.addEventListener('mousedown', close);
     this.bag = el('bag-panel', this.root);
     this.bag.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
     this.bagKey = '';
@@ -182,17 +204,19 @@ export class Hud {
     const names = ['Pistol', 'Assault Rifle', 'Shotgun', 'Sniper'];
     const row = (img: string, label: string, sub: string, code: number) =>
       `<div class="bag-row">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div>${code ? `<button data-drop="${code}">DROP</button>` : ''}</div>`;
-    let html = '<div class="bag-head"><b>BACKPACK</b><button class="bag-close">✕</button></div><div class="bag-list">';
+    // left: weapons + armor · right: ammo, meds, ice walls, scopes
+    let left = '', right = '';
     p.weapons.forEach((w, i) => {
       const img = this.icons[w.id] ? `<img src="${this.icons[w.id]}" alt="">` : '<i class="ph"></i>';
-      if (w.owned) html += row(img, names[i], `${w.mag} in magazine`, 1 + i);
-      if (w.reserve > 0) html += row('<i class="ammo-ic"></i>', `${names[i]} ammo`, `${w.reserve} rounds`, 11 + i);
+      if (w.owned) left += row(img, names[i], `${w.mag} in magazine`, 1 + i);
+      if (w.reserve > 0) right += row('<i class="ammo-ic"></i>', `${names[i]} ammo`, `${w.reserve} rounds`, 11 + i);
     });
-    if (p.meds) html += row('<i class="med-ic">✚</i>', 'Medkit', `× ${p.meds} (+50 HP each)`, 20);
-    if (p.frost) html += row('<i class="frost-ic">❄</i>', 'Ice wall', `× ${p.frost}`, 21);
-    if (p.scope) html += row('<i class="scope-ic">◎</i>', `×${p.scope} scope`, 'fits the assault rifle', 22);
-    html += row('<i class="armor-ic">🛡</i>', 'Armor', `${Math.round(p.armor)} / 100`, 0);
-    html += '</div>';
+    left += row('<i class="armor-ic">🛡</i>', 'Armor', `${Math.round(p.armor)} / 100`, 0);
+    if (p.meds) right += row('<i class="med-ic">✚</i>', 'Medkit', `× ${p.meds} (+50 HP each)`, 20);
+    if (p.frost) right += row('<i class="frost-ic">❄</i>', 'Ice wall', `× ${p.frost}`, 21);
+    if (p.scope) right += row('<i class="scope-ic">◎</i>', `×${p.scope} scope`, 'fits the assault rifle', 22);
+    if (!right) right = '<p class="bag-empty">No supplies yet</p>';
+    const html = `<div class="bag-head"><b>BACKPACK</b><button class="bag-close">✕</button></div><div class="bag-cols"><div class="bag-list"><h4>WEAPONS & ARMOR</h4>${left}</div><div class="bag-list"><h4>SUPPLIES</h4>${right}</div></div>`;
     this.bag.innerHTML = html;
     this.bag.querySelector('.bag-close')!.addEventListener('click', () => this.toggleBag());
     this.bag.querySelectorAll<HTMLButtonElement>('[data-drop]').forEach((b) => b.addEventListener('click', () => this.onDrop(+b.dataset.drop!)));

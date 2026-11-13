@@ -66,7 +66,7 @@ async function finalize(doc, file, texSize = 512) {
  * bottom-centre at (0,0,0), scaled so that `fit` axis matches `size` metres. One primitive per material.
  * Returns { doc, size:[x,y,z], positions(Float32Array of tris) } for collider generation.
  */
-async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMaterials = [], centerOnBase = false, scale, origin, simplify }) {
+async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMaterials = [], centerOnBase = false, scale, origin, simplify, simplifyError }) {
   const doc = await io.read(srcFile);
   const root = doc.getRoot();
   const scene = root.getDefaultScene() || root.listScenes()[0];
@@ -117,7 +117,7 @@ async function bakePrefab(srcFile, nodeName, { fit = 'y', size, rotY = 0, dropMa
       for (const sem of p.listSemantics()) if (!['POSITION', 'NORMAL', 'TEXCOORD_0'].includes(sem)) p.setAttribute(sem, null);
     }
     const prim = list.length > 1 ? joinPrimitives(list) : list[0];
-    if (simplify && prim.getIndices()) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: simplify, error: 0.01, lockBorder: false });
+    if (simplify && prim.getIndices()) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: simplify, error: simplifyError ?? 0.01, lockBorder: false });
     mesh.addPrimitive(prim);
   }
   // replace scene content
@@ -204,18 +204,18 @@ await prefab('item_ammo', 'ammoCrate', null, { fit: 'max', size: 0.55, tex: 256 
 await prefab('item_vest', 'vest', null, { fit: 'y', size: 0.62, tex: 256, simplify: 0.4 }, { type: 'none' });
 await prefab('item_med', 'medkitR', null, { fit: 'max', size: 0.32, tex: 256 }, { type: 'none' });
 // More real houses (all real scale)
-await prefab('house_d', 'houseD', null, { scale: 1, tex: 512, simplify: 0.35, colliderRatio: 0.2 }, 'trimesh');
+await prefab('house_d', 'houseD', null, { scale: 1, tex: 512, simplify: 0.15, simplifyError: 0.04, colliderRatio: 0.3 }, 'trimesh');
 await prefab('house_e', 'shop', ['Wall', 'Roof', 'Irons', 'Tiles', 'Glass', 'Woods'], { scale: 1, tex: 512, simplify: 0.5, colliderRatio: 0.4 }, 'trimesh');
-await prefab('house_f', 'farmhouseB', null, { scale: 1, simplify: 0.05, tex: 1024, colliderRatio: 0.1 }, 'trimesh');
+await prefab('house_f', 'farmhouseB', null, { scale: 1, simplify: 0.025, simplifyError: 0.04, tex: 1024, colliderRatio: 0.2 }, 'trimesh');
 
 // Farm village (green map). One scale for the whole set (scarecrow ~1.9 m) so pieces stay in proportion.
 const VS = 105; // metres per source unit
 const V = 'maps/village';
-await prefab('farmhouse', V, ['House', 'Roof', 'Shape002', 'Line007', 'Shape003', 'Shape004', 'Cylinder003', 'Cylinder004'], { scale: VS, simplify: 0.35, tex: 512 }, 'hull');
+await prefab('farmhouse', V, ['House', 'Roof', 'Shape002', 'Line007', 'Shape003', 'Shape004', 'Cylinder003', 'Cylinder004'], { scale: VS, simplify: 0.1, simplifyError: 0.04, tex: 512 }, 'hull');
 await prefab('windmill', V, ['Windmill'], { scale: VS, tex: 512, origin: [0.026, -0.002, -0.104] }, 'hull');
 await prefab('windmill_blades', V, ['WindmillPropellor'], { scale: VS, tex: 512, origin: [0.026, -0.002, -0.104] }, { type: 'none' });
-await prefab('well', V, ['Well', 'wellwater'], { scale: VS, simplify: 0.12, tex: 256 }, 'hull');
-await prefab('yardwall', V, ['Wall', 'WallRoof', 'Thatched'], { scale: VS, simplify: 0.25, tex: 512 }, 'trimesh');
+await prefab('well', V, ['Well', 'wellwater'], { scale: VS, simplify: 0.04, tex: 256 }, 'hull');
+await prefab('yardwall', V, ['Wall', 'WallRoof', 'Thatched'], { scale: VS, simplify: 0.12, tex: 512 }, 'trimesh');
 await prefab('wagon', V, ['Wagon'], { scale: VS, tex: 256 }, 'hull');
 await prefab('haybale', V, ['Hay Bale03'], { scale: VS, simplify: 0.3, tex: 256 }, 'hull');
 await prefab('scarecrow', V, ['Scarecrow001'], { scale: VS, simplify: 0.4, tex: 256 }, { type: 'none' });

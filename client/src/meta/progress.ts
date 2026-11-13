@@ -13,9 +13,11 @@ export function addMatch(kills: number, place: number, total: number, win: boole
   try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* ignore */ }
   return p;
 }
-/** level n needs 100 * n * (n - 1) / 2 XP in total: 0, 100, 300, 600, ... */
+/** XP from one level to the next: 60, 80, 100 ... capped at 200 (a level every 1-3 matches) */
+const stepOf = (lv: number) => Math.min(200, 60 + 20 * (lv - 1));
 export function levelOf(xp: number) {
-  let lv = 1; while (xp >= (100 * (lv + 1) * lv) / 2) lv++;
-  const base = (100 * lv * (lv - 1)) / 2, next = (100 * (lv + 1) * lv) / 2;
-  return { level: lv, frac: (xp - base) / (next - base) };
+  let lv = 1, base = 0;
+  while (xp >= base + stepOf(lv)) { base += stepOf(lv); lv++; }
+  const need = stepOf(lv);
+  return { level: lv, frac: (xp - base) / need, cur: xp - base, need };
 }

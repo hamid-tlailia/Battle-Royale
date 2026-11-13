@@ -137,7 +137,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   // ---- 3D preview
   const canvas = el.querySelector('.lobby-3d') as HTMLCanvasElement;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  { const q = loadSettings().quality; renderer.setPixelRatio(Math.min(devicePixelRatio, q === 'high' ? 3 : q === 'medium' ? 1.5 : 1)); }
   // if the phone drops the 3D context (too many open), let it come back instead of staying blank
   canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
   const scene = new THREE.Scene();
@@ -217,7 +217,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   (el.querySelector('.lb-kills') as HTMLElement).textContent = String(pr.kills);
   (el.querySelector('.lb-season-lv') as HTMLElement).textContent = `Level ${lv.level} · ${pr.matches} matches`;
   (el.querySelector('.lb-season-bar em') as HTMLElement).style.width = `${Math.round(lv.frac * 100)}%`;
-  (el.querySelector('.lb-season-xp') as HTMLElement).textContent = `${Math.round(lv.frac * 100)} / 100`;
+  (el.querySelector('.lb-season-xp') as HTMLElement).textContent = `${lv.cur} / ${lv.need}`;
   setPanel.querySelector('.close')?.addEventListener('click', () => { if (open === 'settings') show('settings'); });
   if (inviteRoom) show('friends');
 

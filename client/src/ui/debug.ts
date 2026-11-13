@@ -20,12 +20,14 @@ export class DebugOverlay {
   constructor(parent: HTMLElement) {
     const btn = document.createElement('button');
     btn.className = 'dbg-btn';
+    btn.dataset.hud = 'debug'; btn.dataset.scale = '1';
     btn.textContent = 'DBG';
     this.panel = document.createElement('div');
     this.panel.className = 'dbg-panel';
     this.panel.style.display = 'none';
     const toggle = (e: Event) => {
       e.preventDefault(); e.stopPropagation();
+      if (btn.closest('.editing')) return;
       this.visible = !this.visible;
       this.panel.style.display = this.visible ? 'block' : 'none';
     };

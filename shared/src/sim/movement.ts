@@ -75,8 +75,8 @@ export const SKY = {
   diveSpeed: 30,
   /** horizontal glide while sky-diving / under the canopy: ~250 m of reach from the plane */
   fallSpeedH: 20,
-  chuteSpeed: 4,
-  chuteSpeedH: 12,
+  chuteSpeed: 5,
+  chuteSpeedH: 17,
   chuteHeight: 60,
 } as const;
 
@@ -179,7 +179,9 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
     const k = Math.min(1, dt * 3);
     s.vx += (tvx - s.vx) * k; s.vz += (tvz - s.vz) * k;
     const dive = straight; // straight drop falls fast; otherwise glide
-    const targetVy = s.air === 2 ? (dive ? -SKY.diveSpeed : -SKY.fallSpeed) : -SKY.chuteSpeed;
+    // steering always comes down too: moving under the canopy sinks faster, looking down dives steeper
+    const steer = Math.min(1, Math.hypot(input.mx, input.mz)), down = Math.max(0, -input.pitch);
+    const targetVy = s.air === 2 ? (dive ? -SKY.diveSpeed : -(SKY.fallSpeed + down * 8)) : -(SKY.chuteSpeed + steer * 1.5 + down * 3);
     s.vy += (targetVy - s.vy) * Math.min(1, dt * 2.5);
     scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;
     phys.controller.computeColliderMovement(col, scratch);

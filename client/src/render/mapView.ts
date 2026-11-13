@@ -208,26 +208,40 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
       chunks.get(key)!.push(p);
     }
     const farParts = (assets.prefabs as Record<string, { parts: typeof parts } | undefined>)[`${type}_far`]?.parts;
-    if (farParts) { // trees/bushes: detailed model near the camera, flat billboard far away (per 50 m cell)
+    if (farParts) { // trees/bushes: detailed model near the camera (per 50 m cell), simple model far away
       const cells = new Map<string, PropInst[]>();
       for (const p of list) { const k = `${Math.floor(p.x / 50)},${Math.floor(p.z / 50)}`; if (!cells.has(k)) cells.set(k, []); cells.get(k)!.push(p); }
-      for (const inst of cells.values()) {
-        const cell = { cx: 0, cz: 0, near: [] as THREE.Object3D[], far: [] as THREE.Object3D[] };
+      // far models: ONE instanced draw per part for the whole map (cells that are near hide their slice)
+      const ordered = [...cells.values()];
+      const farMeshes = farParts.map((part) => {
+        const im = new THREE.InstancedMesh(part.geometry, part.material, list.length);
+        im.name = `${type}_far`; im.frustumCulled = false; out.push(im);
+        return im;
+      });
+      let k = 0;
+      for (const inst of ordered) {
+        const cell: LodCell = { cx: 0, cz: 0, near: [], far: [], start: k, count: inst.length, mats: [], isNear: false };
         inst.forEach((p) => { cell.cx += p.x / inst.length; cell.cz += p.z / inst.length; });
-        for (const [set, dst] of [[parts, cell.near], [farParts, cell.far]] as const) for (const part of set) {
+        for (const part of parts) {
           const im = new THREE.InstancedMesh(part.geometry, part.material, inst.length);
           inst.forEach((p, i) => { m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s)); im.setMatrixAt(i, m); });
-          im.computeBoundingSphere(); im.name = type;
-          dst.push(im); out.push(im);
+          im.computeBoundingSphere(); im.name = type; im.visible = false;
+          cell.near.push(im); out.push(im);
         }
-        cell.far.forEach((o) => { o.visible = false; });
+        inst.forEach((p, i) => {
+          m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s));
+          cell.mats.push(m.clone());
+          for (const fm of farMeshes) fm.setMatrixAt(k + i, m);
+        });
+        cell.far = farMeshes;
+        k += inst.length;
         LOD_CELLS.push(cell);
       }
       continue;
     }
     for (const inst of chunks.values()) {
       for (const part of parts) {
-        if (type === 'tors_green' || type === 'tors_desert') rockDetail(part.material);
+        if (type === 'tors_green') rockDetail(part.material);
         const im = new THREE.InstancedMesh(part.geometry, part.material, inst.length);
         inst.forEach((p, i) => {
           m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s));
@@ -244,18 +258,24 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
   return out;
 }
 
-const LOD_CELLS: { cx: number; cz: number; near: THREE.Object3D[]; far: THREE.Object3D[] }[] = [];
-/** distance (m) at which trees switch to their billboard; lower = faster */
+interface LodCell { cx: number; cz: number; near: THREE.Object3D[]; far: THREE.InstancedMesh[]; start: number; count: number; mats: THREE.Matrix4[]; isNear: boolean }
+const LOD_CELLS: LodCell[] = [];
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+/** distance (m) at which trees switch to their simple model; lower = faster */
 export let TREE_LOD_DIST = 75;
 export function setTreeLodDistance(d: number) { TREE_LOD_DIST = d; }
 /** Call a few times per second with the camera position. */
 export function updateTreeLod(cam: THREE.Vector3) {
   const d2 = TREE_LOD_DIST * TREE_LOD_DIST;
+  const dirty = new Set<THREE.InstancedMesh>();
   for (const c of LOD_CELLS) {
     const near = (c.cx - cam.x) ** 2 + (c.cz - cam.z) ** 2 < d2;
-    if (c.near[0]?.visible === near) continue;
-    c.near.forEach((o) => { o.visible = near; }); c.far.forEach((o) => { o.visible = !near; });
+    if (c.isNear === near) continue;
+    c.isNear = near;
+    c.near.forEach((o) => { o.visible = near; });
+    for (const fm of c.far) { for (let i = 0; i < c.count; i++) fm.setMatrixAt(c.start + i, near ? ZERO : c.mats[i]); dirty.add(fm); }
   }
+  dirty.forEach((fm) => { fm.instanceMatrix.needsUpdate = true; });
 }
 
 function buildSky(): THREE.Mesh {
