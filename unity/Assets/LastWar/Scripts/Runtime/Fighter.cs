@@ -117,9 +117,12 @@ namespace LastWar
             return (q * new Vector3(r.x, r.y, 1f)).normalized;
         }
 
+        /// <summary>test switch (?god=1 in the WebGL URL): takes no damage</summary>
+        public bool God;
+
         public void TakeDamage(float dmg, Fighter attacker, string weapon, bool head, Vector3 point)
         {
-            if (!Alive) return;
+            if (!Alive || God) return;
             float toArmor = attacker != null ? Mathf.Min(armor, dmg * ArmorAbsorb) : 0f; // the zone ignores armour
             armor -= toArmor; hp -= dmg - toArmor;
             OnHit?.Invoke(this, attacker, dmg, head, point);

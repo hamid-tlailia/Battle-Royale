@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -53,7 +54,17 @@ namespace LastWar
             var controls = TouchControls.Create();
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
             Vector3 pos = Coords.ToUnity(sp.x, Map.HeightAt(sp.x, sp.z) + 0.2f, sp.z);
+            // test switches in the WebGL page URL: ?god=1 (no damage), ?house=N (start next to the N-th house)
+            string url = Application.absoluteURL ?? "";
+            int hq = url.IndexOf("house=");
+            if (hq >= 0 && int.TryParse(new string(url.Substring(hq + 6).TakeWhile(char.IsDigit).ToArray()), out int hn))
+            {
+                int seen = 0;
+                foreach (PropData pr in Map.props)
+                    if (pr.p.StartsWith("house") && ++seen == hn) { pos = Coords.ToUnity(pr.x + 14f, Map.HeightAt(pr.x + 14f, pr.z) + 0.5f, pr.z); break; }
+            }
             Player = PlayerController.Spawn(pos, controls, cam);
+            if (url.Contains("god=1")) Player.fighter.God = true;
             Fighters.Add(Player.fighter);
 
             // bots on other spawn points, spread over the map
