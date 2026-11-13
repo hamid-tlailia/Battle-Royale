@@ -209,6 +209,7 @@ export class Game {
       B.frost.classList.toggle('active', this.controls.frostAim);
     };
     this.syncButtons = sync;
+    this.scopeBtn = B.scope;
     this.hud.healBtn = B.heal; this.hud.frostBtn = B.frost;
     const fireDown = () => {
       if (this.controls.frostAim) { this.controls.confirmFrost(); sync(); return; } // place the previewed ice wall
@@ -238,6 +239,7 @@ export class Game {
     }
   }
   private syncButtons = () => {};
+  private scopeBtn: HTMLElement | null = null;
 
   private onResize = () => {
     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -588,6 +590,10 @@ export class Game {
     // long-range guns take the attached scope (sniper: its own x8 when none is attached); the rest aim with a red dot
     this.scopeMode = !scopedView ? 'none' : (slot.id === 'sniper' || slot.id === 'rifle') && me.scope ? (`x${me.scope}` as 'x2' | 'x4' | 'x8') : slot.id === 'sniper' ? 'x8' : 'reddot';
     this.hud.setScope(this.scopeMode);
+    // the scope button only exists while a gun is in your hands
+    const gunInHand = me.alive && slot.owned && !me.holstered;
+    if (this.scopeBtn && this.scopeBtn.classList.contains('hud-off') === gunInHand) this.scopeBtn.classList.toggle('hud-off', !gunInHand);
+    if (!gunInHand && this.controls.scoped) { this.controls.setScope(false); this.syncButtons(); }
     if ((this.scopeMode !== 'none') !== this.lastScoped) { this.lastScoped = this.scopeMode !== 'none'; if (me.alive) sfx.scope(this.lastScoped); }
     const equipKey = me.alive && !me.holstered && slot.owned ? me.slot : -1;
     if (equipKey !== this.lastEquip) { if (equipKey >= 0 && this.lastEquip !== -2) sfx.equip(); this.lastEquip = equipKey; }
@@ -634,6 +640,7 @@ export class Game {
 
     // zone wall
     const zone = this.sim.zone;
+    this.zoneWall.visible = zone.active;
     this.zoneWall.position.set(zone.cx, 40, zone.cz);
     this.zoneWall.scale.set(Math.max(0.1, zone.r), 1, Math.max(0.1, zone.r));
     if (this.sky) this.sky.position.copy(this.camera.position);

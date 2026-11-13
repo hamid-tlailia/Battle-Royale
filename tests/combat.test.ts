@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   BTN, DT, MAP, TICK_RATE, WEAPONS, GameSim, damageAt, fireInterval, hitboxOf, initPhysics, newMoveState, rayHitbox,
-  sanitizeInput, zoneAt, outsideZone, ZONE_PHASES, halfTotalOf, type InputCmd, type SimPlayer,
+  sanitizeInput, zoneAt, outsideZone, ZONE_PHASES, ZONE_DELAY, halfTotalOf, type InputCmd, type SimPlayer,
 } from '../shared/src';
 
 beforeAll(async () => { await initPhysics(); });
@@ -203,15 +203,18 @@ describe('safe zone', () => {
       expect(Math.hypot(z.nx - z.cx, z.nz - z.cz) + z.nr).toBeLessThanOrEqual(z.r + 1e-3);
       prev = z;
     }
-    const total = ZONE_PHASES.reduce((a, p) => a + p.wait + p.shrink, 0);
+    const total = ZONE_DELAY + ZONE_PHASES.reduce((a, p) => a + p.wait + p.shrink, 0);
     expect(zoneAt(MAP.seed, (total + 1) * TICK_RATE).r).toBe(0);
+    // no zone during the flight / landing
+    expect(zoneAt(MAP.seed, 10 * TICK_RATE).active).toBe(false);
+    expect(zoneAt(MAP.seed, (ZONE_DELAY + 1) * TICK_RATE).active).toBe(true);
   });
 
   it('damages players outside, not inside', () => {
     const sim = new GameSim(MAP.seed, { armed: true, loot: false });
     const a = sim.addPlayer(1, 'in', false), b = sim.addPlayer(2, 'out', false);
     // jump to a time when the zone is small
-    const t = (ZONE_PHASES[0].wait + ZONE_PHASES[0].shrink + 1) * TICK_RATE;
+    const t = (ZONE_DELAY + ZONE_PHASES[0].wait + ZONE_PHASES[0].shrink + 1) * TICK_RATE;
     sim.tick = t - (t % TICK_RATE);
     const z = zoneAt(MAP.seed, sim.tick);
     place(sim, a, z.cx, z.cz);
@@ -230,7 +233,7 @@ describe('full offline match', () => {
   it('16 bots with the zone produce exactly one winner, nobody falls out of the world', () => {
     const sim = new GameSim(MAP.seed);
     for (let i = 0; i < 16; i++) sim.addPlayer(i, `bot${i}`, true);
-    const total = ZONE_PHASES.reduce((a, p) => a + p.wait + p.shrink, 0) + 60;
+    const total = ZONE_DELAY + ZONE_PHASES.reduce((a, p) => a + p.wait + p.shrink, 0) + 60;
     let kills = 0, belowGround = 0;
     for (let t = 0; t < total * TICK_RATE && sim.winner === null; t++) {
       sim.step();

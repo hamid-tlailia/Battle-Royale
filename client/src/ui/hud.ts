@@ -120,7 +120,7 @@ export class Hud {
     const slotRow = el('slots', bottom);
     [0, 1, 2].forEach((i) => {
       const s = el('slot', slotRow, `<img alt=""><i></i>`);
-      const pick = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onSlot(i); };
+      const pick = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (!hud.classList.contains('editing')) this.onSlot(i); };
       s.addEventListener('touchstart', pick, { passive: false });
       s.addEventListener('mousedown', pick);
       this.slots.push(s);
@@ -129,7 +129,7 @@ export class Hud {
     this.fistSlot = el('slot fist', slotRow, `${ICONS.fist}<i>∞</i>`);
     this.slotRow = slotRow;
     this.applyOrder();
-    const fist = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onFist(); };
+    const fist = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (!hud.classList.contains('editing')) this.onFist(); };
     this.fistSlot.addEventListener('touchstart', fist, { passive: false });
     this.fistSlot.addEventListener('mousedown', fist);
     this.ammo = el('ammo', bottom);
@@ -331,7 +331,7 @@ export class Hud {
     const m = Math.floor(zone.timer / 60), s = Math.floor(zone.timer % 60);
     const t = `${m}:${String(s).padStart(2, '0')}`;
     const dist = Math.max(0, Math.hypot(me.x - zone.nx, me.z - zone.nz) - zone.nr);
-    this.zoneTxt.textContent = zone.phase >= 5 ? 'FINAL ZONE' : zone.shrinking ? `ZONE SHRINKING ${t}` : `ZONE SHRINKS IN ${t}${dist > 0 ? ` · ${Math.round(dist)} m` : ''}`;
+    this.zoneTxt.textContent = !zone.active ? `SAFE ZONE APPEARS IN ${t}` : zone.phase >= 5 ? 'FINAL ZONE' : zone.shrinking ? `ZONE SHRINKING ${t}` : `ZONE SHRINKS IN ${t}${dist > 0 ? ` · ${Math.round(dist)} m` : ''}`;
     this.zoneTxt.classList.toggle('warn', outside);
     this.vignette.style.opacity = outside ? '1' : '0';
     this.miniTimer -= dt;
@@ -345,7 +345,8 @@ export class Hud {
     g.clearRect(0, 0, this.mini.width, this.mini.height);
     g.drawImage(this.miniBg, 0, 0);
     g.setTransform(MINI_RES, 0, 0, MINI_RES, 0, 0);
-    // outside zone tint
+    // outside zone tint (no zone yet during the flight and landing)
+    if (zone.active) {
     g.save();
     g.fillStyle = 'rgba(40,90,200,0.35)';
     g.beginPath(); g.rect(0, 0, MINI_PX, MINI_PX); g.arc((zone.cx + o) * k, (zone.cz + o) * k, zone.r * k, 0, Math.PI * 2, true); g.fill('evenodd');
@@ -353,6 +354,7 @@ export class Hud {
     g.lineWidth = 3;
     g.strokeStyle = '#4fb0ff'; g.beginPath(); g.arc((zone.cx + o) * k, (zone.cz + o) * k, zone.r * k, 0, Math.PI * 2); g.stroke();
     g.strokeStyle = '#fff'; g.setLineDash([5, 4]); g.beginPath(); g.arc((zone.nx + o) * k, (zone.nz + o) * k, Math.max(0.5, zone.nr * k), 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    }
     // who shot me recently
     const now = performance.now();
     this.hitMarks = this.hitMarks.filter((m) => m.until > now);

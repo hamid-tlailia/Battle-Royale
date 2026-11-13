@@ -79,7 +79,9 @@ function showMenu(assets: GameAssets) {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // let it paint first
       const game = new Game(gameEl, hudEl, assets, back, { name: profile.name, skin: profile.skin, slot: profile.slot, map: profile.map });
       game.warmUp();
-      await new Promise((r) => setTimeout(r, Math.max(300, 1400 - (performance.now() - t0))));
+      // wait until the match is really drawing (first frames are the slow ones), then fade
+      for (let i = 0; i < 20; i++) await new Promise((r) => requestAnimationFrame(r));
+      await new Promise((r) => setTimeout(r, Math.max(200, 1400 - (performance.now() - t0))));
       barEl.style.width = '100%';
       load.classList.add('out');
       setTimeout(() => load.remove(), 700);

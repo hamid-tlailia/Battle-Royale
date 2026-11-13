@@ -99,8 +99,9 @@ export class Controls {
   }
 
   bindButton(el: HTMLElement, onDown: () => void, onUp?: () => void) {
-    const down = (e: Event) => { e.preventDefault(); e.stopPropagation(); el.classList.add('pressed'); onDown(); };
-    const up = (e: Event) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('pressed'); onUp?.(); };
+    // while the layout editor is open the buttons are only things to move around: they do nothing
+    const down = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (el.closest('.editing')) return; el.classList.add('pressed'); onDown(); };
+    const up = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (el.closest('.editing')) return; el.classList.remove('pressed'); onUp?.(); };
     el.addEventListener('touchstart', down, { passive: false });
     el.addEventListener('touchend', up, { passive: false });
     el.addEventListener('touchcancel', up, { passive: false });
@@ -112,14 +113,15 @@ export class Controls {
   bindLookButton(el: HTMLElement, onDown: () => void, onUp: () => void) {
     el.addEventListener('touchstart', (e) => {
       e.preventDefault(); e.stopPropagation();
+      if (el.closest('.editing')) return;
       el.classList.add('pressed');
       onDown();
       const t = e.changedTouches[0];
       if (this.lookId === null) { this.lookId = t.identifier; this.lookLast = { x: t.clientX, y: t.clientY }; }
       this.buttonTouches.set(t.identifier, () => { el.classList.remove('pressed'); onUp(); });
     }, { passive: false });
-    el.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); onDown(); });
-    el.addEventListener('mouseup', (e) => { e.preventDefault(); e.stopPropagation(); onUp(); });
+    el.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); if (!el.closest('.editing')) onDown(); });
+    el.addEventListener('mouseup', (e) => { e.preventDefault(); e.stopPropagation(); if (!el.closest('.editing')) onUp(); });
   }
   private buttonTouches = new Map<number, () => void>();
 
@@ -154,6 +156,7 @@ export class Controls {
 
   private onTouchStart = (e: TouchEvent) => {
     e.preventDefault();
+    if (document.querySelector('.editing')) return; // layout editor open: no moving / looking
     for (const t of Array.from(e.changedTouches)) {
       const leftSide = t.clientX < window.innerWidth * 0.42;
       if (leftSide && this.joyId === null) {

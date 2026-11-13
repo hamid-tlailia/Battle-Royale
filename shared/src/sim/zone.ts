@@ -6,12 +6,14 @@ export interface ZonePhase { wait: number; shrink: number; radius: number; dps: 
 
 /** seconds / metres / damage per second outside the zone */
 export const ZONE_PHASES: ZonePhase[] = [
-  { wait: 80, shrink: 45, radius: 120, dps: 1 }, // first wait includes the plane + parachute drop
-  { wait: 40, shrink: 35, radius: 70, dps: 2 },
-  { wait: 35, shrink: 30, radius: 36, dps: 4 },
-  { wait: 25, shrink: 25, radius: 14, dps: 7 },
-  { wait: 15, shrink: 20, radius: 0, dps: 12 },
+  { wait: 45, shrink: 45, radius: 120, dps: 2 },
+  { wait: 40, shrink: 35, radius: 70, dps: 4 },
+  { wait: 35, shrink: 30, radius: 36, dps: 7 },
+  { wait: 25, shrink: 25, radius: 14, dps: 11 },
+  { wait: 15, shrink: 20, radius: 0, dps: 16 },
 ];
+/** no zone at all during the flight and the landing: it appears this many seconds after the match starts */
+export const ZONE_DELAY = 70;
 export const ZONE_START_RADIUS = MAP.playRadius + 15;
 
 export interface ZoneState {
@@ -24,6 +26,8 @@ export interface ZoneState {
   /** seconds until the next shrink starts (or ends, while shrinking) */
   timer: number;
   dps: number;
+  /** false before the zone appears (plane + landing): no circle, no damage */
+  active: boolean;
 }
 
 const circlesCache = new Map<number, { x: number; z: number; r: number }[]>();
@@ -48,23 +52,24 @@ function circles(seed: number) {
 
 export function zoneAt(seed: number, tick: number): ZoneState {
   const c = circles(seed);
-  let t = tick / TICK_RATE;
+  let t = tick / TICK_RATE - ZONE_DELAY;
+  if (t < 0) return { cx: 0, cz: 0, r: ZONE_START_RADIUS + 1000, nx: c[1].x, nz: c[1].z, nr: c[1].r, phase: -1, shrinking: false, timer: -t, dps: 0, active: false };
   for (let i = 0; i < ZONE_PHASES.length; i++) {
     const p = ZONE_PHASES[i];
     const from = c[i], to = c[i + 1];
-    if (t < p.wait) return { cx: from.x, cz: from.z, r: from.r, nx: to.x, nz: to.z, nr: to.r, phase: i, shrinking: false, timer: p.wait - t, dps: i === 0 ? 0 : ZONE_PHASES[i - 1].dps };
+    if (t < p.wait) return { cx: from.x, cz: from.z, r: from.r, nx: to.x, nz: to.z, nr: to.r, phase: i, shrinking: false, timer: p.wait - t, dps: i === 0 ? 0 : ZONE_PHASES[i - 1].dps, active: true };
     t -= p.wait;
     if (t < p.shrink) {
       const k = t / p.shrink;
       return {
         cx: from.x + (to.x - from.x) * k, cz: from.z + (to.z - from.z) * k, r: from.r + (to.r - from.r) * k,
-        nx: to.x, nz: to.z, nr: to.r, phase: i, shrinking: true, timer: p.shrink - t, dps: p.dps,
+        nx: to.x, nz: to.z, nr: to.r, phase: i, shrinking: true, timer: p.shrink - t, dps: p.dps, active: true,
       };
     }
     t -= p.shrink;
   }
   const last = c[c.length - 1];
-  return { cx: last.x, cz: last.z, r: last.r, nx: last.x, nz: last.z, nr: last.r, phase: ZONE_PHASES.length, shrinking: false, timer: 0, dps: ZONE_PHASES[ZONE_PHASES.length - 1].dps };
+  return { cx: last.x, cz: last.z, r: last.r, nx: last.x, nz: last.z, nr: last.r, phase: ZONE_PHASES.length, shrinking: false, timer: 0, dps: ZONE_PHASES[ZONE_PHASES.length - 1].dps, active: true };
 }
 
 export const outsideZone = (z: ZoneState, x: number, zz: number) => Math.hypot(x - z.cx, zz - z.cz) > z.r;

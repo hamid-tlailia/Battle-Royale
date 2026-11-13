@@ -204,9 +204,9 @@ await prefab('item_ammo', 'ammoCrate', null, { fit: 'max', size: 0.55, tex: 256 
 await prefab('item_vest', 'vest', null, { fit: 'y', size: 0.62, tex: 256, simplify: 0.4 }, { type: 'none' });
 await prefab('item_med', 'medkitR', null, { fit: 'max', size: 0.32, tex: 256 }, { type: 'none' });
 // More real houses (all real scale)
-await prefab('house_d', 'houseD', null, { scale: 1, tex: 512, simplify: 0.15, simplifyError: 0.04, colliderRatio: 0.3 }, 'trimesh');
-await prefab('house_e', 'shop', ['Wall', 'Roof', 'Irons', 'Tiles', 'Glass', 'Woods'], { scale: 1, tex: 512, simplify: 0.5, colliderRatio: 0.4 }, 'trimesh');
-await prefab('house_f', 'farmhouseB', null, { scale: 1, simplify: 0.025, simplifyError: 0.04, tex: 1024, colliderRatio: 0.2 }, 'trimesh');
+await prefab('house_d', 'houseD', null, { scale: 1, tex: 512, simplify: 0.15, simplifyError: 0.04 }, 'trimesh'); // full collider: simplified ones left invisible bumps inside
+await prefab('house_e', 'shop', ['Wall', 'Roof', 'Irons', 'Tiles', 'Glass', 'Woods'], { scale: 1, tex: 512, simplify: 0.5 }, 'trimesh');
+await prefab('house_f', 'farmhouseB', null, { scale: 1, simplify: 0.025, simplifyError: 0.04, tex: 1024 }, 'trimesh');
 
 // Farm village (green map). One scale for the whole set (scarecrow ~1.9 m) so pieces stay in proportion.
 const VS = 105; // metres per source unit

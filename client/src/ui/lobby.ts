@@ -146,7 +146,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   const portraitMode = new URLSearchParams(location.search).has('portrait'); // tool: full-body outfit pictures
   if (!portraitMode) buildLobbyBackdrop(scene, assets);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-  camera.position.set(0, 1.3, 5.6); camera.lookAt(0, 0.95, 0);
+  camera.position.set(0, 1.25, 6.4); camera.lookAt(0, 1.18, 0); // head clear of the profile banner at the top
   let view: CharacterView | null = null;
   const rebuild = () => {
     view?.dispose();
