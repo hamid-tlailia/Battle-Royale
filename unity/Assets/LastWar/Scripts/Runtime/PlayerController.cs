@@ -41,27 +41,28 @@ namespace LastWar
             GameObject src = MapBuilder.Model("soldier");
             if (src == null) return;
             var m = Instantiate(src, transform, false);
-            // normalise to 1.8 m tall, feet on the ground: measured on the skeleton (head top vs feet),
-            // because skinned-mesh bounds are in bind space and come out far too small
-            Transform head = null, footL = null, footR = null;
-            foreach (Transform t in m.GetComponentsInChildren<Transform>(true))
+            // normalise to 1.8 m tall, feet on the ground: measured on the posed (baked) skinned mesh in world space
+            // (the imported bounds are in bind space and come out far too small)
+            float lo = float.MaxValue, hi = float.MinValue;
+            var baked = new Mesh();
+            foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
-                string n = t.name;
-                if (n.EndsWith("HeadTop_End")) head = t;
-                else if (n.EndsWith("LeftToeBase") || (footL == null && n.EndsWith("LeftFoot"))) footL = t;
-                else if (n.EndsWith("RightToeBase") || (footR == null && n.EndsWith("RightFoot"))) footR = t;
+                smr.BakeMesh(baked, true);
+                Matrix4x4 l2w = Matrix4x4.TRS(smr.transform.position, smr.transform.rotation, Vector3.one); // BakeMesh(useScale) already applied the scale
+                foreach (Vector3 v in baked.vertices) { float y = l2w.MultiplyPoint3x4(v).y; if (y < lo) lo = y; if (y > hi) hi = y; }
             }
-            if (head != null && footL != null)
+            Destroy(baked);
+            Debug.Log($"[LastWar] soldier raw height {hi - lo:0.###} (lo {lo:0.###}, root {transform.position.y:0.###}), children {m.transform.childCount}");
+            if (hi > lo)
             {
-                float feet = Mathf.Min(footL.position.y, footR != null ? footR.position.y : footL.position.y);
-                float h = Mathf.Max(0.05f, head.position.y - feet);
-                float s = 1.8f / (h * 1.04f); // toe/head joints sit a little inside the mesh
+                float s = 1.8f / (hi - lo);
                 m.transform.localScale *= s;
-                m.transform.localPosition = new Vector3(0, -(feet - transform.position.y) * s + 0.03f, 0);
+                m.transform.localPosition = new Vector3(0, -(lo - transform.position.y) * s, 0);
             }
             foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true)) smr.updateWhenOffscreen = true;
             model = m.transform;
             anim = m.GetComponentInChildren<Animation>();
+            Debug.Log($"[LastWar] soldier scale {m.transform.localScale.x:0.###}, legacy animation {(anim != null ? anim.GetClipCount() + " clips" : "none")}, animator {(m.GetComponentInChildren<Animator>() != null)}");
             Play("idle");
         }
 
