@@ -241,6 +241,12 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
 
   // ---------- Pine trees ----------
   // realistic trees: mostly pines, some broad oaks (green map has more oaks)
+  /** lowest ground within radius r (centre + 8 points around) */
+  const lowAt = (x: number, z: number, r: number) => {
+    let m = groundAt(x, z);
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; m = Math.min(m, groundAt(x + Math.cos(a) * r, z + Math.sin(a) * r)); }
+    return m;
+  };
   const pines: PrefabName[] = id === 'desert' ? ['toak2', 'toak1'] : id === 'green' ? ['tpine1', 'toak1', 'tpine2', 'tpine3', 'toak2', 'tpine4'] : ['tpine1', 'tpine2', 'tpine3', 'tpine4', 'tpine1', 'toak1', 'tpine2', 'tpine3'];
   for (let i = 0, tries = 0; i < Math.round((id === 'green' ? 150 : id === 'desert' ? 5 : 260) * A) && tries < 8000; tries++) {
     const p = randInValley(MAP.playRadius + 15);
@@ -249,7 +255,8 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     if (mask && rnd() < 0.85 * mask[Math.round((p.z + half) / cell) * n + Math.round((p.x + half) / cell)]) continue; // open moorland on the scan
     if (!free(p.x, p.z, 1.3)) continue;
     occupied.push({ x: p.x, z: p.z, r: 0.9 });
-    data.props.push({ p: pines[i % pines.length], x: p.x, y: g - 0.25, z: p.z, rot: rnd() * Math.PI * 2, s: 0.75 + rnd() * 0.45 });
+    // set on the lowest ground under the trunk/roots (slopes): no roots hanging in the air
+    data.props.push({ p: pines[i % pines.length], x: p.x, y: lowAt(p.x, p.z, 1.4) - 0.35, z: p.z, rot: rnd() * Math.PI * 2, s: 0.75 + rnd() * 0.45 });
     i++;
   }
 
@@ -260,7 +267,8 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     const s = 0.6 + rnd() * 0.9;
     if (!free(p.x, p.z, 2 * s)) continue;
     occupied.push({ x: p.x, z: p.z, r: 1.6 * s });
-    data.props.push({ p: rocks[i % rocks.length], x: p.x, y: groundAt(p.x, p.z) - 0.25 * s, z: p.z, rot: rnd() * Math.PI * 2, s });
+    // bedded into the lowest ground under the rock: no gap to crawl under
+    data.props.push({ p: rocks[i % rocks.length], x: p.x, y: lowAt(p.x, p.z, 1.25 * s) - 0.3 * s, z: p.z, rot: rnd() * Math.PI * 2, s });
     i++;
   }
   for (let i = 0, tries = 0; i < Math.round(25 * A) && tries < 1500; tries++) {

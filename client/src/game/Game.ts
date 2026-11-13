@@ -45,6 +45,9 @@ interface View {
   firingT: number;
   stepAcc: number;
   wasGrounded: boolean;
+  /** enemy marker: last line-of-sight check (ms) and its result */
+  losAt?: number;
+  los?: boolean;
 }
 
 /** Offline match vs bots, running the same GameSim the server will run. */
@@ -336,7 +339,7 @@ export class Game {
           this.fx.impact(this.v1, e.armorHit ? 'armor' : 'blood', 5);
           if (e.attacker === this.myId) {
             this.hud.damageNumber(this.v1, e.dmg, e.head, e.armorHit);
-            this.hud.hitMarker(false);
+            this.hud.hitMarker(e.head); // headshot: red marker like a kill
             sfx.hitMarker(e.head);
           }
           if (e.target === this.myId) {
@@ -605,6 +608,8 @@ export class Game {
     this.frustum.setFromProjectionMatrix(this.projScreen);
 
     let drawn = 0, si = 0;
+    const marks: { id: number; sx: number; sy: number; d: number }[] = [];
+    const meAlive = me.alive && !me.move.air, nowMs = performance.now();
     for (const v of this.views.values()) {
       const p = v.p;
       if (this.net && p.id !== this.myId) { v.prev.x = p.move.x; v.prev.y = p.move.y; v.prev.z = p.move.z; v.prev.yaw = p.move.yaw; }
@@ -629,6 +634,11 @@ export class Game {
         const stride = p.move.crouch ? 1.4 : 2.0;
         if (v.stepAcc > stride) { v.stepAcc = 0; sfx.step(p.id === this.myId ? 0 : dist, this.panOf(this.v1.set(x, y, z)), p.move.crouch, y - halfTotalOf(p.move) > terrainHeight(this.sim.map, x, z) + 0.3); }
       }
+      // enemies you can actually see (in view, line of sight, < 100 m): small red marker over the head
+      if (p.id !== this.myId && p.alive && visible && dist < 100 && !p.move.air && meAlive) {
+        if (nowMs - (v.losAt ?? 0) > 250) { v.losAt = nowMs; const e = this.sim.eye(me); v.los = this.sim.los(e.x, e.y, e.z, x, y + 0.4, z); }
+        if (v.los) { this.v1.set(x, y + 1.25, z).project(this.camera); if (this.v1.z < 1) marks.push({ id: p.id, sx: (this.v1.x * 0.5 + 0.5) * innerWidth, sy: (-this.v1.y * 0.5 + 0.5) * innerHeight, d: dist }); }
+      }
       if (p.id === this.myId && p.alive && p.move.grounded && !v.wasGrounded) sfx.land();
       v.wasGrounded = p.move.grounded;
       const gy = p.move.grounded || !p.alive ? y - halfTotalOf(p.move) : this.sim.phys.groundHeight(x, z);
@@ -636,6 +646,7 @@ export class Game {
       this.shadows.setMatrixAt(si++, this.tmpM);
     }
     this.shadows.instanceMatrix.needsUpdate = true;
+    this.hud.setEnemyMarks(scopedView ? [] : marks);
     this.syncButtons();
 
     // zone wall

@@ -251,8 +251,10 @@ export class Controls {
   axes(): { mx: number; mz: number } {
     let mx = this.mx, mz = this.mz;
     if (this.sprintToggle) {
-      if (mz < -0.3 || this.fireHeld || this.scoped) { this.sprintToggle = false; this.onSprintChange(false); }
-      else { mz = 1; mx *= 0.5; }
+      // auto-run survives jumping, shooting and the scope: pulling the stick back is the only way to stop it
+      // (while scoped it pauses, while shooting you keep moving at walking pace)
+      if (mz < -0.3) { this.sprintToggle = false; this.onSprintChange(false); }
+      else if (!this.scoped) { mz = 1; mx *= 0.5; }
     }
     if (this.keys.size) {
       if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) mz += 1;

@@ -102,7 +102,7 @@ prim.setAttribute('NORMAL', doc.createAccessor().setType('VEC3').setArray(N).set
 mat.setNormalTexture(null).setMetallicRoughnessTexture(null).setOcclusionTexture(null).setMetallicFactor(0).setRoughnessFactor(1).setDoubleSided(true);
 // collider: coarser copy
 const ci = Array.from(I), cv = Array.from(P);
-const [simp] = MeshoptSimplifier.simplify(new Uint32Array(ci), new Float32Array(cv), 3, Math.floor(ci.length * 0.25 / 3) * 3, 0.01, ["LockBorder"]);
+const [simp] = MeshoptSimplifier.simplify(new Uint32Array(ci), new Float32Array(cv), 3, Math.floor(ci.length * 0.7 / 3) * 3, 0.003, ["LockBorder"]); // close to the visible rock (no walking into it)
 const remap = new Map(), v2 = [], i2 = [];
 for (const q of simp) { if (!remap.has(q)) { remap.set(q, v2.length / 3); v2.push(cv[q * 3], cv[q * 3 + 1], cv[q * 3 + 2]); } i2.push(remap.get(q)); }
 fs.writeFileSync(`shared/src/map/tors_${ID}.json`, JSON.stringify({ base: +lo.toFixed(3), collider: { type: 'trimesh', v: v2.map((x) => Math.round(x * 100) / 100), i: i2 } }));

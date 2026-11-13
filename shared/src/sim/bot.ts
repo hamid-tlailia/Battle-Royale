@@ -7,6 +7,9 @@ import { eyeOffset, type InputCmd } from './movement';
  * Bot AI. Produces exactly the same InputCmd a human client sends, so bots obey every
  * server rule (speed, fire rate, ammo, line of sight).
  */
+/** metres: how far bots hear a gunshot */
+const HEAR_RANGE = 130;
+
 export class BotBrain {
   private rnd: () => number;
   private tx = 0; private tz = 0;
@@ -38,6 +41,7 @@ export class BotBrain {
     this.pickTarget(0, 0, MAP.playRadius - 10);
   }
 
+  private heardTick = -1;
   private pickTarget(cx: number, cz: number, r: number) {
     const a = this.rnd() * Math.PI * 2, d = Math.sqrt(this.rnd()) * Math.max(2, r);
     this.tx = cx + Math.cos(a) * d; this.tz = cz + Math.sin(a) * d;
@@ -88,6 +92,20 @@ export class BotBrain {
         this.aimErrPitch = (this.rnd() - 0.5) * 0.25 * (1.4 - this.skill);
       }
       this.targetId = newTarget;
+      // hearing: no one in sight -> go and check out gunfire heard in the last 3 s (like a player would)
+      if (newTarget === null && sim.phase === 'live' && p.weapons.some((w) => w.owned)) {
+        let heard: { x: number; z: number; tick: number } | null = null, hd = HEAR_RANGE;
+        for (const r of sim.recentShots) {
+          if (r.id === p.id || sim.tick - r.tick > 3 * TICK_RATE) continue;
+          const d = Math.hypot(r.x - s.x, r.z - s.z);
+          if (d < hd) { hd = d; heard = r; }
+        }
+        if (heard && heard.tick !== this.heardTick && hd > 6) {
+          this.heardTick = heard.tick;
+          this.pickTarget(heard.x, heard.z, Math.min(10, hd * 0.3));
+          this.lootId = null; this.lootScan = 4 * TICK_RATE; // head there first, loot later
+        }
+      }
     }
     const target = this.targetId !== null ? sim.players.get(this.targetId) : undefined;
     const zone = sim.zone;

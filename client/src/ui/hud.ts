@@ -373,9 +373,9 @@ export class Hud {
       const a = Math.min(1, (m.until - now) / 1200);
       const sx = (m.x + o) * k, sz = (m.z + o) * k, mx = (me.x + o) * k, mz = (me.z + o) * k;
       const L = Math.hypot(sx - mx, sz - mz) || 1;
-      g.strokeStyle = `rgba(255,150,40,${a})`; g.lineWidth = 7;
+      g.strokeStyle = `rgba(255,40,40,${a})`; g.lineWidth = 7;
       g.beginPath(); g.moveTo(mx + (sx - mx) / L * 24, mz + (sz - mz) / L * 24); g.lineTo(mx + (sx - mx) / L * 56, mz + (sz - mz) / L * 56); g.stroke();
-      g.fillStyle = `rgba(255,150,40,${a})`; g.strokeStyle = `rgba(0,0,0,${a * 0.6})`; g.lineWidth = 2; g.beginPath(); g.arc(sx, sz, 12, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = `rgba(255,40,40,${a})`; g.strokeStyle = `rgba(255,255,255,${a * 0.8})`; g.lineWidth = 2; g.beginPath(); g.arc(sx, sz, 12, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     // place names
     g.font = `bold ${this.mini.classList.contains('big') ? 13 : 15}px sans-serif`; g.textAlign = 'center';
@@ -429,6 +429,19 @@ export class Hud {
     if (!this.wpArrow) this.wpArrow = el('wp-arrow', this.root, '<i>▲</i><b></b>');
     (this.wpArrow.firstElementChild as HTMLElement).style.transform = `rotate(${angle}rad)`;
     (this.wpArrow.lastElementChild as HTMLElement).textContent = `${Math.round(dist)} m`;
+  }
+  private enemyEls = new Map<number, HTMLDivElement>();
+  /** red markers over enemies in plain sight (bigger when close) */
+  setEnemyMarks(list: { id: number; sx: number; sy: number; d: number }[]) {
+    const seen = new Set<number>();
+    for (const m of list) {
+      seen.add(m.id);
+      let e = this.enemyEls.get(m.id);
+      if (!e) { e = el('enemy-mark', this.root); this.enemyEls.set(m.id, e); }
+      const k = Math.max(0.55, 1.1 - m.d / 120);
+      e.style.transform = `translate(${m.sx}px, ${m.sy}px) translate(-50%, -100%) scale(${k})`;
+    }
+    for (const [id, e] of this.enemyEls) if (!seen.has(id)) { e.remove(); this.enemyEls.delete(id); }
   }
   private areaEls = new Map<string, HTMLDivElement>();
   /** place names floating over the world while you are high up (from the plane / sky-diving) */

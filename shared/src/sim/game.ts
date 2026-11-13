@@ -197,6 +197,8 @@ export class GameSim {
   hitboxProvider: HitboxProvider = (t, _s, out) => hitboxOf(t.move, out);
   readonly loot = new Map<number, LootItem>();
   readonly walls = new Map<number, FrostWall>();
+  /** where players fired recently (bots walk toward gunfire they hear) */
+  readonly recentShots: { id: number; x: number; z: number; tick: number }[] = [];
   private nextLoot = 1;
   private nextWall = 1;
   private aliveCount = 0;
@@ -678,6 +680,9 @@ export class GameSim {
       }
     }
     this.events.push({ t: 'shot', id: p.id, weapon: wid, ox: o.x, oy: o.y, oz: o.z, ends });
+    // bots hear gunfire (last few seconds, one entry per shooter)
+    const prev = this.recentShots.find((r) => r.id === p.id);
+    if (prev) { prev.x = o.x; prev.z = o.z; prev.tick = this.tick; } else this.recentShots.push({ id: p.id, x: o.x, z: o.z, tick: this.tick });
     for (const [tid, h] of dmgBy) this.damage(this.players.get(tid)!, p, h.dmg, h.head, h.x, h.y, h.z, wid);
   }
 
