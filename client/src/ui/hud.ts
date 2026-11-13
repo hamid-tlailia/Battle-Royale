@@ -367,14 +367,11 @@ export class Hud {
       g.fillStyle = `rgba(255,30,30,${a})`; g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 3;
       g.beginPath(); g.arc(sx, sz, 24, 0, Math.PI * 2); g.fill(); g.stroke();
     }
-    // gunfire nearby: mark + a short line from me toward it
+    // gunfire nearby: a red dot where the shooter is (nothing over their head in the 3D view)
     this.shotMarks = this.shotMarks.filter((m) => m.until > now);
     for (const m of this.shotMarks) {
       const a = Math.min(1, (m.until - now) / 1200);
-      const sx = (m.x + o) * k, sz = (m.z + o) * k, mx = (me.x + o) * k, mz = (me.z + o) * k;
-      const L = Math.hypot(sx - mx, sz - mz) || 1;
-      g.strokeStyle = `rgba(255,40,40,${a})`; g.lineWidth = 7;
-      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 24, mz + (sz - mz) / L * 24); g.lineTo(mx + (sx - mx) / L * 56, mz + (sz - mz) / L * 56); g.stroke();
+      const sx = (m.x + o) * k, sz = (m.z + o) * k;
       g.fillStyle = `rgba(255,40,40,${a})`; g.strokeStyle = `rgba(255,255,255,${a * 0.8})`; g.lineWidth = 2; g.beginPath(); g.arc(sx, sz, 12, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     // place names
@@ -578,6 +575,23 @@ export class Hud {
       c.style.transform = `rotate(${Math.random() * 360}deg)`;
       o.appendChild(c);
     }
+  }
+
+  /** phone back button during a match: ask before leaving */
+  confirmLeave(onLeave: () => void, onStay: () => void) {
+    if (this.root.querySelector('.leave-modal')) return;
+    const m = el('end-screen leave-modal', this.root, `
+      <div class="end-card">
+        <h2>LEAVE MATCH?</h2>
+        <p>You will lose this match and go back to the lobby.</p>
+        <div class="end-btns"><button class="spec stay">STAY</button><button class="again leave">LEAVE</button></div>
+      </div>`);
+    const on = (sel: string, fn: () => void) => {
+      const b = m.querySelector(sel) as HTMLButtonElement;
+      const go = (e: Event) => { e.preventDefault(); e.stopPropagation(); m.remove(); fn(); };
+      b.addEventListener('click', go); b.addEventListener('touchend', go);
+    };
+    on('.stay', onStay); on('.leave', onLeave);
   }
 
   showEnd(win: boolean, place: number, total: number, kills: number, killer: string | null, onAgain: () => void, onSpectate?: () => void) {

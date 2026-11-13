@@ -96,6 +96,15 @@ export class Sfx {
     const src = ctx.createBufferSource(); src.buffer = buf;
     const g = ctx.createGain(); g.gain.value = 0.8;
     src.connect(g).connect(this.master); src.start();
+    this.music = { src, g };
+  }
+  private music: { src: AudioBufferSourceNode; g: GainNode } | null = null;
+  /** leaving the match: fade the victory music out, normal sounds back on */
+  stopMusic() {
+    const m = this.music; this.music = null; this.quiet = false;
+    if (!m || !this.ctx) return;
+    m.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.15);
+    try { m.src.stop(this.ctx.currentTime + 0.8); } catch { /* already stopped */ }
   }
   /** back to normal (new match) */
   resume() { this.quiet = false; }
@@ -246,8 +255,8 @@ export class Sfx {
 
   /** drawing / switching a weapon: clip-slap + bolt rack */
   equip() {
-    if (this.sample('clip', 0.42, 0, 0, 1.25)) return;
-    const d = this.chain(0.4, 0, 0); if (!d) return;
+    if (this.sample('clip', 1.0, 0, 0, 1.25)) return;
+    const d = this.chain(0.9, 0, 0); if (!d) return;
     const t = this.ctx!.currentTime;
     this.burst(d, t, 0.04, 2600, 3, 0.8, 0.035);
     this.burst(d, t + 0.12, 0.05, 3400, 3, 0.7, 0.04);

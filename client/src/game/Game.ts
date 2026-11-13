@@ -189,6 +189,9 @@ export class Game {
 
     (window as unknown as { __game: unknown }).__game = this; // test hook
     window.addEventListener('resize', this.onResize);
+    // phone back button: an extra history entry so "back" asks first instead of leaving the page
+    history.pushState({ lwMatch: true }, '');
+    window.addEventListener('popstate', this.onBack);
     requestAnimationFrame(this.frame);
   }
 
@@ -223,7 +226,7 @@ export class Game {
     this.hud.healBtn = B.heal; this.hud.frostBtn = B.frost;
     const fireDown = () => {
       if (this.controls.frostAim) { this.controls.confirmFrost(); sync(); return; } // place the previewed ice wall
-      this.controls.fireHeld = true; this.controls.fireTap = 2; if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
+      this.controls.fireHeld = true; this.controls.fireTap = 2; this.controls.stopRun(); if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
     this.controls.bindLookButton(B.fire, fireDown, () => { this.controls.fireHeld = false; });
     this.controls.bindButton(B['fire-left'], fireDown, () => { this.controls.fireHeld = false; });
     this.controls.bindButton(B.jump, () => this.controls.jump());
@@ -654,7 +657,8 @@ export class Game {
       this.shadows.setMatrixAt(si++, this.tmpM);
     }
     this.shadows.instanceMatrix.needsUpdate = true;
-    this.hud.setEnemyMarks(scopedView ? [] : marks);
+    void scopedView; void marks; // no markers over heads: enemies show up only as gunfire dots on the minimap
+    this.hud.setEnemyMarks([]);
     this.syncButtons();
 
     // zone wall
@@ -822,7 +826,19 @@ export class Game {
     this.controls.pitch += best.dp * k * 0.6;
   }
 
+  /** back button / gesture: confirm before quitting the match */
+  private onBack = () => {
+    if (!this.running) return;
+    if (this.ended) { this.dispose(); this.onRestart(); return; }
+    history.pushState({ lwMatch: true }, ''); // stay on the match page while the question is open
+    this.hud.confirmLeave(() => { this.dispose(); this.onRestart(); }, () => {});
+  };
+
   dispose() {
+    if (!this.running && !this.renderer.domElement.isConnected) return;
+    window.removeEventListener('popstate', this.onBack);
+    if (history.state?.lwMatch) history.replaceState(null, '', location.pathname + location.search);
+    sfx.stopMusic();
     this.running = false;
     this.net?.leave();
     window.removeEventListener('resize', this.onResize);

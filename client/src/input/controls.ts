@@ -87,7 +87,7 @@ export class Controls {
       if (this.isTouch) return;
       if (!this.pointerLocked) { surface.requestPointerLock?.(); return; }
       if (e.button === 2) this.setScope(!this.scoped);
-      if (e.button === 0) { if (this.frostAim) this.confirmFrost(); else { this.fireHeld = true; this.fireTap = 2; } }
+      if (e.button === 0) { if (this.frostAim) this.confirmFrost(); else { this.fireHeld = true; this.fireTap = 2; this.stopRun(); } }
     });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.fireHeld = false; });
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -141,7 +141,7 @@ export class Controls {
   frost() { this.frostAim = !this.frostAim; }
   confirmFrost() { this.frostAim = false; this.frostQueued = 3; }
   /** crouching / lying down stops auto-run (otherwise the player keeps walking) */
-  private stopRun() { if (this.sprintToggle) { this.sprintToggle = false; this.onSprintChange(false); } }
+  stopRun() { if (this.sprintToggle) { this.sprintToggle = false; this.onSprintChange(false); } }
   toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) { this.proneToggle = false; this.stopRun(); } }
   toggleProne() { this.proneToggle = !this.proneToggle; if (this.proneToggle) { this.crouchToggle = false; this.stopRun(); } }
   toggleSprint() { this.sprintToggle = !this.sprintToggle; if (this.sprintToggle) { this.crouchToggle = false; this.proneToggle = false; this.scoped = false; } this.onSprintChange(this.sprintToggle); }
@@ -251,8 +251,8 @@ export class Controls {
   axes(): { mx: number; mz: number } {
     let mx = this.mx, mz = this.mz;
     if (this.sprintToggle) {
-      // auto-run survives jumping, shooting and the scope: pulling the stick back is the only way to stop it
-      // (while scoped it pauses, while shooting you keep moving at walking pace)
+      // auto-run survives jumping and the scope; shooting or pulling the stick back stops it
+      // (while scoped it pauses)
       if (mz < -0.3) { this.sprintToggle = false; this.onSprintChange(false); }
       else if (!this.scoped) { mz = 1; mx *= 0.5; }
     }

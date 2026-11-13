@@ -64,7 +64,18 @@ function showMenu(assets: GameAssets) {
     void enterFullscreen();
     sfx.unlock();
     const { Game } = await import('./game/Game');
-    const back = () => showMenu(assets);
+    // leaving a match (victory, PLAY AGAIN, back button): a short loading screen hides the switch to the lobby
+    const back = () => {
+      sfx.stopMusic();
+      const t = document.createElement('div');
+      t.className = 'menu match-load';
+      t.innerHTML = `<img class="boot-logo" src="/logo.png" alt=""><p class="sub">Back to the lobby…</p><div class="bar"><div class="ml-bar"></div></div>`;
+      document.body.appendChild(t);
+      const bar = t.querySelector('.ml-bar') as HTMLElement;
+      requestAnimationFrame(() => { bar.style.width = '100%'; bar.style.transition = 'width 1.1s ease'; });
+      showMenu(assets);
+      setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 700); }, 1300);
+    };
     const gameEl = document.getElementById('game')!, hudEl = document.getElementById('hud')!;
     if (action.kind === 'offline') {
       // loading screen (logo + map + bar), the match is built behind it, then it fades into the plane

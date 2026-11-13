@@ -693,3 +693,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .plane-hint { transition: opacity .5s; }
 .plane-hint.gone { opacity: 0; }
 .layout-bar input.sz, .layout-bar input.hh { width: 90px; }
+.leave-modal .leave { background: linear-gradient(180deg, #e0574a, #9b2318) !important; color: #fff !important; }
+.leave-modal { z-index: 40; }
