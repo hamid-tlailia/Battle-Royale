@@ -457,7 +457,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 @keyframes cbPop { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
 @keyframes cbIn { from { opacity: 0; } }
 /* ---------- weapon panel: active weapon in a wide card on top (ammo left, gun right), the rest as small cards below ---------- */
-.slots { display: grid; grid-template-columns: repeat(4, 50px); gap: 3px; align-items: stretch; }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); width: 209px; gap: 3px; align-items: stretch; } /* the 3 small boxes share the width of the current-weapon box */
 .slot, .slot.empty { width: auto; height: 36px; border: none !important; border-radius: 3px; background: rgba(24,32,40,.6); position: relative; padding: 0;
   clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%); display: block; color: #fff; }
 .slot::after { content: ''; position: absolute; left: 5px; right: 5px; bottom: 4px; height: 2px; background: rgba(255,255,255,.75); transform-origin: left; transform: scaleX(var(--fill, 1)); }
