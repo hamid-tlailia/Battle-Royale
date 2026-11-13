@@ -20,9 +20,13 @@ export const SOURCES = {
 export const OUTFITS = {
   swat: { uid: '9e82fabf26194896b5ad4a364d864eab', use: 'Outfit: SWAT', label: 'SWAT', tris: 12000, gain: 2.4 },
   tactical: { uid: '68213c7d97a04b1b963599180210f5bd', use: 'Outfit: Tactical', label: 'Tactical', tris: 10000 },
-  ranger: { uid: 'ef698ce36b1545a78ce592dd3db4c7ed', use: 'Outfit: Ranger', label: 'Ranger', tris: 10000 },
-  jumpsuit: { uid: 'da288adbddf949aa85962968732f0999', use: 'Outfit: Jumpsuit', label: 'Jumpsuit', tris: 9000 },
-  civilian: { uid: '6fc4bddf4d364e6b9fa2f050011e03ce', use: 'Outfit: Civilian', label: 'Civilian', tris: 9000 },
-  hoodie: { uid: '671bd73d045f47b4952fe2899772e124', use: 'Outfit: Hoodie', label: 'Hoodie', tris: 9000 },
-  survivor: { uid: 'c6436897da494b4e8e1f8188aea620c6', use: 'Outfit: Survivor', label: 'Survivor', tris: 9000 },
+  fsb: { uid: '43a561e941704eefb1ab0614be4f0049', use: 'Outfit: Operator', label: 'Operator', tris: 12000 },
+  ksk: { uid: '110daf3d1884412989e41dc95866c579', use: 'Outfit: Recon', label: 'Recon', tris: 10000 },
+  bundeswehr: { uid: '3d7944fea17b494abf220cc11ddabfd1', use: 'Outfit: Woodland', label: 'Woodland', tris: 9000 },
+  sfarmy: { uid: '4edb7058bfec48a696e260a36b900b1b', use: 'Outfit: Commando', label: 'Commando', tris: 10000 },
+  rusoldier: { uid: 'e9aa211b67264dc086af1d2f4d4e3d84', use: 'Outfit: Rifleman', label: 'Rifleman', tris: 10000 },
+  uasoldier: { uid: '94f74f6bdd994733a8a40c7ff088e12f', use: 'Outfit: Desert', label: 'Desert', tris: 10000 },
+  ww2: { uid: '6a104431bcb8400080b79446ec019696', use: 'Outfit: Veteran', label: 'Veteran', tris: 10000 },
+  crouchsold: { uid: '9b73b36ba2184bd1bde5b42810752b69', use: 'Outfit: Ghost', label: 'Ghost', tris: 12000 },
+  armyman: { uid: 'cc995450452744ec8f852d8bf5f335d6', use: 'Outfit: Infantry', label: 'Infantry', tris: 9000, rename: ['mott_var01:', 'mixamorig:'] },
 };

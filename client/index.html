@@ -8,8 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <title>Last War</title>
+  <link rel="preload" href="/logo.png" as="image" />
+  <style>
+    html, body { margin: 0; height: 100%; background: #16240f; }
+    #preboot { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, #3f6b3a 0%, #1d2b1f 70%); }
+    #preboot img { width: min(520px, 70vw); max-height: 52vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0,0,0,.5)); }
+  </style>
 </head>
 <body>
+  <div id="preboot"><img src="/logo.png" alt="Last War"></div>
   <div id="app"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>

@@ -351,7 +351,7 @@ export class Game {
           this.hud.killFeed(e.killer >= 0
             ? `<b>${killer}</b> <i>${weapon}${e.head ? ' ✦' : ''}</i> <b>${this.nameOf(e.victim)}</b>`
             : `<b>${this.nameOf(e.victim)}</b> <i>died in the zone</i>`, e.killer === this.myId || e.victim === this.myId);
-          if (e.killer === this.myId) { this.hud.hitMarker(true); sfx.kill(); }
+          if (e.killer === this.myId) { this.hud.hitMarker(true); sfx.kill(); if (e.victim !== this.myId) this.hud.killBanner(this.sim.players.get(this.myId)?.kills ?? 1); }
           if (e.victim === this.myId) {
             this.killerName = e.killer >= 0 ? killer : null;
             this.spectate = null; // watch your own soldier fall
@@ -580,6 +580,9 @@ export class Game {
     }
     this.scopeMode = !scopedView ? 'none' : slot.id === 'sniper' ? 'x8' : slot.id === 'rifle' && me.scope ? (me.scope >= 4 ? 'x4' : 'x2') : 'reddot';
     this.hud.setScope(this.scopeMode);
+    if ((this.scopeMode !== 'none') !== this.lastScoped) { this.lastScoped = this.scopeMode !== 'none'; if (me.alive) sfx.scope(this.lastScoped); }
+    const equipKey = me.alive && !me.holstered && slot.owned ? me.slot : -1;
+    if (equipKey !== this.lastEquip) { if (equipKey >= 0 && this.lastEquip !== -2) sfx.equip(); this.lastEquip = equipKey; }
     if (me.alive) this.aimAssist(dt, me);
     this.updateCamera(dt, focusV, focusV === meV ? this.controls.yaw : focusV.p.move.yaw, focusV === meV ? this.controls.pitch : focusV.p.move.pitch, scopedView);
     this.controls.fovScale = this.camera.fov / 70;
@@ -661,6 +664,9 @@ export class Game {
     });
   };
 
+  private camY = NaN;
+  private lastScoped = false;
+  private lastEquip = -2;
   private updateCamera(dt: number, v: View, yaw: number, pitch: number, firstPerson: boolean) {
     const move = v.p.move;
     if (move.air === 1) { // chase camera around the plane
@@ -671,7 +677,11 @@ export class Game {
       if (Math.abs(this.camera.fov - 70) > 0.1) { this.camera.fov = 70; this.camera.updateProjectionMatrix(); }
       return;
     }
-    this.pivot.set(this.focus.x, this.focus.y + eyeOffset(move), this.focus.z);
+    // smooth the camera height over terrain bumps (big jumps / falls snap)
+    const ty = this.focus.y + eyeOffset(move);
+    if (!Number.isFinite(this.camY) || Math.abs(ty - this.camY) > 1.5 || move.air) this.camY = ty;
+    else this.camY += (ty - this.camY) * Math.min(1, dt * 16);
+    this.pivot.set(this.focus.x, this.camY, this.focus.z);
     const fwd = this.fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     const right = this.right.set(Math.cos(yaw), 0, -Math.sin(yaw));
     const scoped = this.controls.scoped && v.p.id === this.myId && v.p.alive;

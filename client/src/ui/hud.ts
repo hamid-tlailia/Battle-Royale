@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { ICONS } from './icons';
 import { MAP, MAX_ARMOR, MAX_HP, WEAPONS, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
 
-const MINI_PX = 360;
+const MINI_PX = 360; // drawing units
+const MINI_RES = 2; // canvas pixels per unit: the big map stays sharp
 const el = (cls: string, parent: HTMLElement, html = '') => {
   const d = document.createElement('div');
   d.className = cls;
@@ -81,7 +82,7 @@ export class Hud {
     this.mini = document.createElement('canvas');
     this.mini.className = 'minimap';
     this.mini.dataset.hud = 'map'; this.mini.dataset.scale = '1';
-    this.mini.width = this.mini.height = MINI_PX;
+    this.mini.width = this.mini.height = MINI_PX * MINI_RES;
     hud.appendChild(this.mini);
     // tap the minimap to open the big map, tap again to close
     const toggleMap = (e: Event) => {
@@ -123,7 +124,7 @@ export class Hud {
       this.slots.push(s);
     });
     // fist: put every gun away (long guns on the back, pistol in the pocket) and run empty-handed
-    this.fistSlot = el('slot fist', slotRow, `${ICONS.fist}<i>HANDS</i>`);
+    this.fistSlot = el('slot fist', slotRow, `${ICONS.fist}<i>∞</i>`);
     const fist = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onFist(); };
     this.fistSlot.addEventListener('touchstart', fist, { passive: false });
     this.fistSlot.addEventListener('mousedown', fist);
@@ -143,8 +144,9 @@ export class Hud {
 
   private renderMiniBg(): HTMLCanvasElement {
     const c = document.createElement('canvas');
-    c.width = c.height = MINI_PX;
+    c.width = c.height = MINI_PX * MINI_RES;
     const g = c.getContext('2d')!;
+    g.scale(MINI_RES, MINI_RES);
     const k = MINI_PX / MAP.size;
     // terrain shading by height
     const n = this.map.cells + 1;
@@ -157,7 +159,7 @@ export class Hud {
     g.fillStyle = '#e8d9c0';
     if (this.map.albedo) { // real-terrain map: aerial photo on top of the generated colours
       const img = new Image();
-      img.onload = () => { g.drawImage(img, 0, 0, MINI_PX, MINI_PX); g.fillStyle = '#e8d9c0'; for (const p of this.map.props) if (p.p.startsWith('house') || p.p === 'farmhouse') g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8); this.miniTimer = 0; };
+      img.onload = () => { g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, MINI_PX, MINI_PX); g.fillStyle = '#e8d9c0'; for (const p of this.map.props) if (p.p.startsWith('house') || p.p === 'farmhouse') g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8); this.miniTimer = 0; };
       img.src = `/assets/maps/${this.map.albedo}`;
     }
     for (const p of this.map.props) if (p.p.startsWith('house') || p.p === 'farmhouse') g.fillRect((p.x + MAP.size / 2) * k - 4, (p.z + MAP.size / 2) * k - 4, 8, 8);
@@ -257,11 +259,17 @@ export class Hud {
     p.weapons.forEach((w, i) => {
       this.slots[i].classList.toggle('sel', i === p.slot && w.owned && !p.holstered);
       this.slots[i].classList.toggle('empty', !w.owned);
-      (this.slots[i].querySelector('i') as HTMLElement).textContent = w.owned ? `${w.mag}/${w.reserve}` : w.reserve ? `— /${w.reserve}` : '—';
+      const sel = i === p.slot && w.owned && !p.holstered;
+      const txt = !w.owned ? (w.reserve ? String(w.reserve) : '') : sel ? `${w.mag}<small>/${w.reserve}</small>` : String(w.mag + w.reserve);
+      const ie = this.slots[i].querySelector('i') as HTMLElement;
+      if (ie.innerHTML !== txt) ie.innerHTML = txt;
+      this.slots[i].style.setProperty('--fill', w.owned ? String(sel ? w.mag / WEAPONS[w.id].mag : 1) : '0');
     });
     const w = p.weapons[p.slot];
-    this.ammo.innerHTML = w.owned ? `<b>${w.mag}</b><span>/ ${w.reserve}</span>` : '<span class="noweap">NO WEAPON · find one!</span>';
-    this.ammo.classList.toggle('low', w.mag <= Math.ceil(WEAPONS[w.id].mag * 0.2));
+    const anyGun = p.weapons.some((x) => x.owned);
+    this.ammo.classList.toggle('none', !anyGun);
+    this.ammo.innerHTML = anyGun ? '' : '<span class="noweap">NO WEAPON · find one!</span>';
+    this.slots.forEach((e, i) => e.classList.toggle('low', i === p.slot && w.owned && w.mag <= Math.ceil(WEAPONS[w.id].mag * 0.2)));
     this.reloadBar.style.opacity = reloadFrac > 0 ? '1' : '0';
     (this.reloadBar.firstElementChild as HTMLElement).style.width = `${reloadFrac * 100}%`;
     this.hpFill.style.width = `${(Math.max(0, p.hp) / MAX_HP) * 100}%`;
@@ -285,8 +293,10 @@ export class Hud {
   private drawMini(zone: ZoneState, me: { x: number; z: number; yaw: number }) {
     const g = this.mini.getContext('2d')!;
     const k = MINI_PX / MAP.size, o = MAP.size / 2;
-    g.clearRect(0, 0, MINI_PX, MINI_PX);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, this.mini.width, this.mini.height);
     g.drawImage(this.miniBg, 0, 0);
+    g.setTransform(MINI_RES, 0, 0, MINI_RES, 0, 0);
     // outside zone tint
     g.save();
     g.fillStyle = 'rgba(40,90,200,0.35)';
@@ -302,10 +312,10 @@ export class Hud {
       const a = Math.min(1, (m.until - now) / 1000);
       const sx = (m.x + o) * k, sz = (m.z + o) * k, mx = (me.x + o) * k, mz = (me.z + o) * k;
       const L = Math.hypot(sx - mx, sz - mz) || 1;
-      g.strokeStyle = `rgba(255,30,30,${a})`; g.lineWidth = 6;
-      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 14, mz + (sz - mz) / L * 14); g.lineTo(mx + (sx - mx) / L * Math.min(L, 60), mz + (sz - mz) / L * Math.min(L, 60)); g.stroke();
+      g.strokeStyle = `rgba(255,30,30,${a})`; g.lineWidth = 9;
+      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 24, mz + (sz - mz) / L * 24); g.lineTo(mx + (sx - mx) / L * Math.min(L, 90), mz + (sz - mz) / L * Math.min(L, 90)); g.stroke();
       g.fillStyle = `rgba(255,30,30,${a})`; g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 3;
-      g.beginPath(); g.arc(sx, sz, 15, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath(); g.arc(sx, sz, 24, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     // gunfire nearby: mark + a short line from me toward it
     this.shotMarks = this.shotMarks.filter((m) => m.until > now);
@@ -313,9 +323,9 @@ export class Hud {
       const a = Math.min(1, (m.until - now) / 1200);
       const sx = (m.x + o) * k, sz = (m.z + o) * k, mx = (me.x + o) * k, mz = (me.z + o) * k;
       const L = Math.hypot(sx - mx, sz - mz) || 1;
-      g.strokeStyle = `rgba(255,150,40,${a})`; g.lineWidth = 4;
-      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 14, mz + (sz - mz) / L * 14); g.lineTo(mx + (sx - mx) / L * 34, mz + (sz - mz) / L * 34); g.stroke();
-      g.fillStyle = `rgba(255,150,40,${a})`; g.beginPath(); g.arc(sx, sz, 6, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = `rgba(255,150,40,${a})`; g.lineWidth = 7;
+      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 24, mz + (sz - mz) / L * 24); g.lineTo(mx + (sx - mx) / L * 56, mz + (sz - mz) / L * 56); g.stroke();
+      g.fillStyle = `rgba(255,150,40,${a})`; g.strokeStyle = `rgba(0,0,0,${a * 0.6})`; g.lineWidth = 2; g.beginPath(); g.arc(sx, sz, 12, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     // place names
     g.font = `bold ${this.mini.classList.contains('big') ? 13 : 15}px sans-serif`; g.textAlign = 'center';
@@ -340,11 +350,11 @@ export class Hud {
     const px = (me.x + o) * k, pz = (me.z + o) * k;
     g.save(); g.translate(px, pz); g.rotate(-me.yaw);
     // view cone: where you are looking
-    const cone = g.createRadialGradient(0, 0, 4, 0, 0, 70);
-    cone.addColorStop(0, 'rgba(255,255,255,.55)'); cone.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = cone; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 70, -Math.PI / 2 - 0.55, -Math.PI / 2 + 0.55); g.closePath(); g.fill();
-    g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 1.5;
-    g.beginPath(); g.moveTo(0, -14); g.lineTo(9, 9); g.lineTo(0, 4); g.lineTo(-9, 9); g.closePath(); g.fill(); g.stroke();
+    const cone = g.createRadialGradient(0, 0, 6, 0, 0, 100);
+    cone.addColorStop(0, 'rgba(255,255,255,.6)'); cone.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = cone; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 100, -Math.PI / 2 - 0.55, -Math.PI / 2 + 0.55); g.closePath(); g.fill();
+    g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(0, -26); g.lineTo(17, 17); g.lineTo(0, 8); g.lineTo(-17, 17); g.closePath(); g.fill(); g.stroke();
     g.restore();
   }
 
@@ -415,6 +425,17 @@ export class Hud {
     const t = el('toast', this.toastEl, text);
     while (this.toastEl.children.length > 3) this.toastEl.firstElementChild!.remove();
     setTimeout(() => t.remove(), 1800);
+  }
+
+  private killEl: HTMLDivElement | null = null;
+  private killTimer = 0;
+  /** you took someone down: white skull on a red blood splash at the top of the screen */
+  killBanner(kills: number) {
+    this.killEl?.remove();
+    this.killEl = el('kill-banner', this.root, `<div class="kb-blood"></div>${ICONS.skull}<b>${kills}</b>`);
+    clearTimeout(this.killTimer);
+    const e = this.killEl;
+    this.killTimer = window.setTimeout(() => { e.classList.add('out'); setTimeout(() => e.remove(), 400); }, 1800);
   }
 
   killFeed(html: string, mine: boolean) {

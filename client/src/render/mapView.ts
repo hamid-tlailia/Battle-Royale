@@ -93,7 +93,7 @@ function detailTex(name: string): THREE.Texture {
   let t = detailCache.get(name);
   if (!t) {
     t = new THREE.TextureLoader().load(`/assets/maps/${name}.webp`);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.colorSpace = THREE.NoColorSpace;
     detailCache.set(name, t);
   }
   return t;
@@ -134,7 +134,7 @@ function applyPhoto(geo: THREE.BufferGeometry, mat: THREE.MeshLambertMaterial, m
   const [dg, dr] = map.detail ?? ['detail_grass', 'detail_rock'];
   const uniforms = { photoMap: { value: blank as THREE.Texture }, detailGrass: { value: detailTex(dg) }, detailRock: { value: detailTex(dr) }, rockMix: { value: map.id === 'desert' ? 0 : 1 } };
   new THREE.TextureLoader().load(`/assets/maps/${map.albedo}`, (t) => {
-    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = true;
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.generateMipmaps = true;
     uniforms.photoMap.value = t;
   });
   mat.onBeforeCompile = (sh) => {
@@ -149,8 +149,10 @@ function applyPhoto(geo: THREE.BufferGeometry, mat: THREE.MeshLambertMaterial, m
         // close-up grain from real CC0 photos: grass where the scan photo is green, lichen rock where it is grey
         float sat = max(ph.r, max(ph.g, ph.b)) - min(ph.r, min(ph.g, ph.b));
         float rockW = (1.0 - smoothstep(0.03, 0.1, sat)) * rockMix;
-        float dg = texture2D(detailGrass, vGround / 3.0).r, dr = texture2D(detailRock, vGround / 2.2).r;
-        float grain = mix(1.0, mix(dg, dr, rockW) * 2.0, 0.85);
+        // two scales of real grain: blades / pebbles up close + clumps further out (no blurry smear at your feet)
+        float dg = texture2D(detailGrass, vGround / 3.0).r * 0.6 + texture2D(detailGrass, vGround / 0.85).r * 0.4;
+        float dr = texture2D(detailRock, vGround / 2.2).r * 0.6 + texture2D(detailRock, vGround / 0.7).r * 0.4;
+        float grain = mix(1.0, mix(dg, dr, rockW) * 2.0, 0.95);
         diffuseColor.rgb = mix(diffuseColor.rgb, ph.rgb * grain * 1.12, clamp(vPhotoMask * ph.a, 0.0, 1.0));`);
   };
   mat.customProgramCacheKey = () => 'photo-terrain';

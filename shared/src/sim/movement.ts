@@ -138,7 +138,7 @@ function findVault(phys: PhysicsWorld, col: RAPIER.Collider, s: MoveState): { h:
   const rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
   const feet = feetY(s);
   // Must be something directly in front, otherwise it's a normal jump.
-  const near = (h: number) => phys.rayWorld(s.x, feet + h, s.z, fx, 0, fz, PLAYER.radius + 0.9);
+  const near = (h: number) => phys.rayWorld(s.x, feet + h, s.z, fx, 0, fz, PLAYER.radius + 0.9, false);
   if (near(0.35) === null && near(1.0) === null && near(1.6) === null) return null;
   const r = SHAPE.BALL.r;
   for (let h = 0.5; h <= 2.3; h += 0.15) {

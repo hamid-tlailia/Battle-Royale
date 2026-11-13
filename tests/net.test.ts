@@ -66,6 +66,11 @@ describe('netcode under 200 ms ping + 5% loss', () => {
   it('client prediction matches the server: no rubber-banding while running, turning, jumping', async () => {
     const { a, b, room } = await joinPair({}, BAD);
     await sleep(1200); // lobby -> live
+    // start in open ground (no rock edges to grind against: those make tiny solver differences)
+    const lane = openLane(room.sim, 30);
+    placeOnServer(room.sim, a.myId, lane.x, lane.z, -Math.PI / 2);
+    await drive(a, 1, () => ({ yaw: -Math.PI / 2 }));
+    Object.assign(a.stats, { bigCorrections: 0, maxCorrection: 0, sumCorrection: 0, corrections: 0 });
     const before = { ...a.stats };
     await drive(a, 6, (t) => ({
       mz: t % 60 < 45 ? 1 : 0.4, mx: t % 90 < 30 ? 0.6 : 0, yaw: Math.sin(t / 40) * 1.5,

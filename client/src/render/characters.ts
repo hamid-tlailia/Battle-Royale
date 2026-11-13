@@ -9,18 +9,18 @@ type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'run_free' | 
 
 /** Outfit colours (multiplied over the camo texture). Index 0 = original woodland camo. Chosen in the lobby. */
 export const SKINS: { name: string; color?: number; outfit?: string }[] = [
-  { name: 'Woodland', color: 0xffffff },
-  { name: 'Desert', color: 0xffe2b0 },
-  { name: 'Arctic', color: 0xdfeeff },
-  { name: 'Night', color: 0x8a90a8 },
   { name: 'SWAT', outfit: 'swat' },
   { name: 'Agent', outfit: 'tactical' },
-  { name: 'Ranger', outfit: 'ranger' },
-  { name: 'Jumpsuit', outfit: 'jumpsuit' },
-  { name: 'Civilian', outfit: 'civilian' },
-  { name: 'Hoodie', outfit: 'hoodie' },
-  { name: 'Survivor', outfit: 'survivor' },
-];
+  { name: 'Operator', outfit: 'fsb' },
+  { name: 'Recon', outfit: 'ksk' },
+  { name: 'Woodland', outfit: 'bundeswehr' },
+  { name: 'Commando', outfit: 'sfarmy' },
+  { name: 'Rifleman', outfit: 'rusoldier' },
+  { name: 'Desert', outfit: 'uasoldier' },
+  { name: 'Veteran', outfit: 'ww2' },
+  { name: 'Ghost', outfit: 'crouchsold' },
+  { name: 'Infantry', outfit: 'armyman' },
+]
 
 /** Soft bright rim on characters so players stand out from grass, rocks and shade (visible at range). */
 /**

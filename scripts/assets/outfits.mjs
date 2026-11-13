@@ -21,6 +21,7 @@ for (const [name, o] of Object.entries(OUTFITS)) {
   const root = doc.getRoot();
   const buffer = root.listBuffers()[0];
   root.listNodes().forEach((n) => n.setName(n.getName().replace(/_\d+$/, '')));
+  if (o.rename) root.listNodes().forEach((n) => n.setName(n.getName().split(o.rename[0]).join(o.rename[1])));
   root.listAnimations().forEach((a) => a.dispose());
   // only the skinned body; static props (guns, hats on separate rigs) are dropped
   const meshNodes = root.listNodes().filter((n) => n.getMesh() && n.getSkin());
@@ -41,7 +42,7 @@ for (const [name, o] of Object.entries(OUTFITS)) {
     if (sg && !m?.getBaseColorTexture()) { const d = sg.getDiffuseFactor(); f[0] = d[0]; f[1] = d[1]; f[2] = d[2]; }
     const gain = o.gain ?? 1;
     let img;
-    if (tex) img = await sharp(Buffer.from(tex.getImage())).resize(CELL, CELL).removeAlpha().linear([f[0] * gain, f[1] * gain, f[2] * gain], [0, 0, 0]).toBuffer();
+    if (tex) img = await sharp(await sharp(Buffer.from(tex.getImage())).resize(CELL, CELL).removeAlpha().toColourspace('srgb').png().toBuffer()).linear([f[0] * gain, f[1] * gain, f[2] * gain], [0, 0, 0]).toBuffer();
     else img = await sharp({ create: { width: CELL, height: CELL, channels: 3, background: { r: Math.round(f[0] ** (1 / 2.2) * 255), g: Math.round(f[1] ** (1 / 2.2) * 255), b: Math.round(f[2] ** (1 / 2.2) * 255) } } }).png().toBuffer();
     layers.push({ input: await sharp(img).png().toBuffer(), left: col * CELL, top: row * CELL });
     let uv = p.getAttribute('TEXCOORD_0');

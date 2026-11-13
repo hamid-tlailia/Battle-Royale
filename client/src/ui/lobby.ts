@@ -111,10 +111,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     <div class="lb-tip">${ICONS.chat}<span class="lb-tip-txt"></span></div>
     <div class="lb-sheet"><button class="lb-x" aria-label="Close">✕</button>
       <section data-sec="outfit"><h3>OUTFIT</h3>
-        <div class="skins">${SKINS.map((s, i) => s.outfit
-          ? `<button class="outfit" data-skin="${i}">${s.name}</button>`
-          : `<button data-skin="${i}" title="${s.name}" style="--c:#${(s.color ?? 0xffffff).toString(16).padStart(6, '0')}"></button>`).join('')}</div>
-        <p class="hint">Drag the soldier to turn him around.</p></section>
+        <div class="skins outfits">${SKINS.map((s, i) => `<button class="ocard" data-skin="${i}"><img src="/assets/outfits/${s.outfit}.webp" alt="" loading="lazy"><span>${s.name}</span><em>✓</em></button>`).join('')}</div>
+        <p class="hint">Tap an outfit to wear it · drag the soldier to turn around.</p></section>
       <section data-sec="map"><h3>MAP</h3>
         <div class="maps">${MAP_LIST.map((m) => `<button data-map="${m.id}"><b>${m.name}</b><small>${m.desc}</small></button>`).join('')}</div>
         <p class="hint">Everyone lands empty-handed — loot weapons, ammo, medkits, armor, scopes and ice walls.</p></section>
@@ -145,7 +143,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xe6f4ff, 0x3f5a30, 1.9));
   const sun = new THREE.DirectionalLight(0xfff0d0, 2.2); sun.position.set(3, 5, 4); scene.add(sun);
-  buildLobbyBackdrop(scene, assets);
+  const portraitMode = new URLSearchParams(location.search).has('portrait'); // tool: full-body outfit pictures
+  if (!portraitMode) buildLobbyBackdrop(scene, assets);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   camera.position.set(0, 1.3, 5.6); camera.lookAt(0, 0.95, 0);
   let view: CharacterView | null = null;

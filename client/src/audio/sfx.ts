@@ -215,6 +215,23 @@ export class Sfx {
     o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.13);
   }
 
+  /** optic up / down: short metallic click + cloth swish */
+  scope(on: boolean) {
+    const d = this.chain(0.35, 0, 0); if (!d) return;
+    const t = this.ctx!.currentTime;
+    this.burst(d, t, 0.03, on ? 3600 : 2800, 4, 0.9, 0.025);
+    this.burst(d, t + 0.02, 0.12, 900, 1, 0.25, 0.1);
+  }
+
+  /** drawing / switching a weapon: clip-slap + bolt rack */
+  equip() {
+    if (this.sample('clip', 0.42, 0, 0, 1.25)) return;
+    const d = this.chain(0.4, 0, 0); if (!d) return;
+    const t = this.ctx!.currentTime;
+    this.burst(d, t, 0.04, 2600, 3, 0.8, 0.035);
+    this.burst(d, t + 0.12, 0.05, 3400, 3, 0.7, 0.04);
+  }
+
   frost() {
     const d = this.chain(0.6, 0, 0); if (!d) return;
     const t = this.ctx!.currentTime;

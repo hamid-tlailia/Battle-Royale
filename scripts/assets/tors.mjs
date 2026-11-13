@@ -54,6 +54,28 @@ for (const node of root.listNodes()) {
     }
   }
 }
+// keep only outcrops that stand on the ground: connected pieces whose lowest point is near the terrain
+// (photogrammetry leaves loose floating shards of foliage / overhangs that would hover in the air)
+{
+  const T = idx.length / 3, key = (q) => `${pos[q * 3].toFixed(3)},${pos[q * 3 + 1].toFixed(3)},${pos[q * 3 + 2].toFixed(3)}`;
+  const par = Array.from({ length: T }, (_, i) => i), find = (a) => { while (par[a] !== a) a = par[a] = par[par[a]]; return a; };
+  const owner = new Map();
+  for (let t = 0; t < T; t++) for (let j = 0; j < 3; j++) { const k = key(t * 3 + j); if (owner.has(k)) par[find(t)] = find(owner.get(k)); else owner.set(k, t); }
+  const lowRise = new Map(), count = new Map();
+  for (let t = 0; t < T; t++) {
+    const r = find(t); count.set(r, (count.get(r) ?? 0) + 1);
+    for (let j = 0; j < 3; j++) { const q = t * 3 + j; const rise = pos[q * 3 + 1] - grid(pos[q * 3], pos[q * 3 + 2]); lowRise.set(r, Math.min(lowRise.get(r) ?? Infinity, rise)); }
+  }
+  const P2 = [], U2 = [], I2 = [];
+  let dropped = 0;
+  for (let t = 0; t < T; t++) {
+    const r = find(t);
+    if (lowRise.get(r) > 0.35 || count.get(r) < 40) { dropped++; continue; }
+    for (let j = 0; j < 3; j++) { const q = t * 3 + j; P2.push(pos[q * 3], pos[q * 3 + 1], pos[q * 3 + 2]); U2.push(uv[q * 2], uv[q * 2 + 1]); I2.push(I2.length); }
+  }
+  pos.splice(0, pos.length); for (const x of P2) pos.push(x); uv.splice(0, uv.length); for (const x of U2) uv.push(x); idx.splice(0, idx.length); for (const x of I2) idx.push(x);
+  console.log('dropped floating triangles', dropped);
+}
 console.log('tor triangles', idx.length / 3, 'base', lo.toFixed(2));
 const prim = doc.createPrimitive()
   .setAttribute('POSITION', doc.createAccessor().setType('VEC3').setArray(new Float32Array(pos)).setBuffer(buffer))

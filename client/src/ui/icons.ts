@@ -1,4 +1,5 @@
-/** Original SVG icon set for the touch buttons (stroke = currentColor). */
+/** Touch-button / menu icons: library shapes (ui/iconlib.ts) where they exist, a few original ones. */
+import { LIB } from './iconlib';
 /** filled shapes (white silhouettes) */
 const fill = (body: string) => `<g fill="currentColor" stroke="none">${body}</g>`;
 const svg = (body: string) => `<g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
@@ -45,4 +46,7 @@ const RAW = {
   settings: fill('<path fill-rule="evenodd" d="M39.06 20.32 L44.82 21.28 L44.82 26.72 L39.06 27.68 L37.25 32.04 L40.65 36.80 L36.80 40.65 L32.04 37.25 L27.68 39.06 L26.72 44.82 L21.28 44.82 L20.32 39.06 L15.96 37.25 L11.20 40.65 L7.35 36.80 L10.75 32.04 L8.94 27.68 L3.18 26.72 L3.18 21.28 L8.94 20.32 L10.75 15.96 L7.35 11.20 L11.20 7.35 L15.96 10.75 L20.32 8.94 L21.28 3.18 L26.72 3.18 L27.68 8.94 L32.04 10.75 L36.80 7.35 L40.65 11.20 L37.25 15.96Z M24 17a7 7 0 1 0 0.01 0Z"/>'),
 };
 
-export const ICONS = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, wrap(v)])) as Record<keyof typeof RAW, string>;
+const bulletBody = LIB.bullet.replace(/^<svg[^>]*>|<\/svg>$/g, '');
+// fire: a big cartridge with muzzle sparks
+const FIRE = `<svg viewBox="0 0 48 48"><svg x="6" y="4" width="36" height="40" viewBox="0 0 24 24">${bulletBody}</svg>${svg('<path d="M8 12l5 4M6 24h6M8 36l5-4M40 12l-5 4M42 24h-6M40 36l-5-4" stroke-width="3"/>')}</svg>`;
+export const ICONS = { ...Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, wrap(v)])), ...LIB, fire: FIRE } as Record<keyof typeof RAW | 'skull' | 'bullet', string>;

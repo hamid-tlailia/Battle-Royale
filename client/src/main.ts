@@ -21,6 +21,9 @@ app.innerHTML = `
   <div id="rotate" class="rotate"><div>⟳</div><p>Rotate your phone to landscape</p></div>
 `;
 
+document.getElementById('preboot')?.remove(); // static logo from index.html: shown before any script loads
+// installed app: the native logo splash stays up until the page has drawn its own logo (no blank green screen)
+requestAnimationFrame(() => (window as unknown as { Capacitor?: { Plugins?: { SplashScreen?: { hide: (o?: object) => void } } } }).Capacitor?.Plugins?.SplashScreen?.hide({ fadeOutDuration: 250 }));
 const bar = document.getElementById('bar') as HTMLDivElement;
 /** If loading fails or hangs, say why on screen (instead of an endless loading bar). */
 const bootMsg = (t: string) => { const sub = document.querySelector('#boot .sub'); if (sub) { sub.textContent = t; (sub as HTMLElement).style.color = '#ffb0a0'; } };

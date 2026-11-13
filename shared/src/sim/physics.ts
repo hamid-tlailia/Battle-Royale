@@ -12,6 +12,9 @@ export function initPhysics(): Promise<void> {
   return initPromise;
 }
 
+/** props players walk through (only walls, trees, rocks and players block movement) */
+const COVER_PROPS = new Set<string>(['car1', 'car2', 'car3', 'car4', 'fence', 'stump', 'well', 'wagon', 'haybale']);
+
 const quatY = (rot: number) => ({ x: 0, y: Math.sin(rot / 2), z: 0, w: Math.cos(rot / 2) });
 
 /**
@@ -24,9 +27,12 @@ export class PhysicsWorld {
   readonly players = new Map<number, RAPIER.Collider>();
   readonly worldGroups = groups(GROUP_WORLD, 0xffff);
   readonly playerGroups = groups(GROUP_PLAYER, 0xffff);
+  /** cover props (cars, fences, crates...): a separate world that stops bullets and sight, never players */
+  readonly cover: RAPIER.World;
 
   constructor(readonly map: MapData) {
     this.world = new RAPIER.World({ x: 0, y: 0, z: 0 });
+    this.cover = new RAPIER.World({ x: 0, y: 0, z: 0 });
     this.world.timestep = 1 / 30;
 
     const { vertices, indices } = terrainMesh(map);
@@ -50,16 +56,17 @@ export class PhysicsWorld {
     };
     for (const pr of map.props) {
       const c = PREFABS[pr.p].collider;
+      const W = COVER_PROPS.has(pr.p) ? this.cover : this.world;
       let desc: RAPIER.ColliderDesc | null = null;
       if (c.type === 'trimesh') desc = RAPIER.ColliderDesc.trimesh(shapeVerts(pr.p, c.v, pr.s), new Uint32Array(c.i));
       else if (c.type === 'hull') desc = RAPIER.ColliderDesc.convexHull(shapeVerts(pr.p, c.v, pr.s));
       else if (c.type === 'cylinder') {
         const h = c.height * pr.s;
-        this.world.createCollider(RAPIER.ColliderDesc.cylinder(h / 2, c.radius * pr.s).setTranslation(pr.x, pr.y + h / 2, pr.z).setCollisionGroups(this.worldGroups));
+        W.createCollider(RAPIER.ColliderDesc.cylinder(h / 2, c.radius * pr.s).setTranslation(pr.x, pr.y + h / 2, pr.z).setCollisionGroups(this.worldGroups));
         continue;
       }
       if (!desc) continue;
-      this.world.createCollider(desc.setTranslation(pr.x, pr.y, pr.z).setRotation(quatY(pr.rot)).setCollisionGroups(this.worldGroups));
+      W.createCollider(desc.setTranslation(pr.x, pr.y, pr.z).setRotation(quatY(pr.rot)).setCollisionGroups(this.worldGroups));
     }
     // Invisible boundary: a ring of tall boxes around the valley.
     const segs = 32, R = MAP.playRadius + 8;
@@ -85,6 +92,7 @@ export class PhysicsWorld {
     this.controller = c;
 
     this.world.step(); // build acceleration structures
+    this.cover.step();
   }
 
   addPlayer(id: number, x: number, y: number, z: number): RAPIER.Collider {
@@ -162,13 +170,18 @@ export class PhysicsWorld {
 
   /** Raycast against world geometry, also returning the collider handle (bullets vs ice walls). */
   rayWorldHit(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number): { t: number; handle: number } | null {
-    const hit = this.world.castRay(new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz }), maxDist, true, undefined, groups(0xffff, GROUP_WORLD));
+    const ray = new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz });
+    const hit = this.world.castRay(ray, maxDist, true, undefined, groups(0xffff, GROUP_WORLD));
+    const c = this.cover.castRay(ray, hit ? hit.timeOfImpact : maxDist, true);
+    if (c) return { t: c.timeOfImpact, handle: -1 };
     return hit ? { t: hit.timeOfImpact, handle: hit.collider.handle } : null;
   }
 
   /** Raycast against world geometry only (camera collision, line of sight). */
-  rayWorld(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number): number | null {
-    const hit = this.world.castRay(new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz }), maxDist, true, undefined, groups(0xffff, GROUP_WORLD));
-    return hit ? hit.timeOfImpact : null;
+  rayWorld(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number, cover = true): number | null {
+    const ray = new RAPIER.Ray({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz });
+    const hit = this.world.castRay(ray, maxDist, true, undefined, groups(0xffff, GROUP_WORLD));
+    const c = cover ? this.cover.castRay(ray, hit ? hit.timeOfImpact : maxDist, true) : null;
+    return c ? c.timeOfImpact : hit ? hit.timeOfImpact : null;
   }
 }

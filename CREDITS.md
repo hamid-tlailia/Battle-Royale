@@ -17,11 +17,15 @@ they were converted (rescaled, re-textured at lower resolution, compressed, spli
 | Low Poly wood fence on grass | Wooden fence | [cattleya](https://sketchfab.com/cattleya) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/low-poly-wood-fence-on-grass-d35a038f74ea47819459cabae8c28c62 |
 | S.W.A.T. Operator | Outfit: SWAT | [SpatialNeglect](https://sketchfab.com/jeandiz) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/swat-operator-9e82fabf26194896b5ad4a364d864eab |
 | Game Ready Low Poly Tactical Character | Outfit: Tactical | [DanlyVostok](https://sketchfab.com/1799danly) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/game-ready-low-poly-tactical-character-68213c7d97a04b1b963599180210f5bd |
-| Military tactical suit (LowPolyGameReady) | Outfit: Ranger | [DanlyVostok](https://sketchfab.com/1799danly) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/military-tactical-suit-lowpolygameready-ef698ce36b1545a78ce592dd3db4c7ed |
-| Jumpsuit Low Poly Game Ready (Striker14) | Outfit: Jumpsuit | [DanlyVostok](https://sketchfab.com/1799danly) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/jumpsuit-low-poly-game-ready-striker14-da288adbddf949aa85962968732f0999 |
-| .Fuse Civilian 1 | Outfit: Civilian | [Leonardo Carvalho](https://sketchfab.com/livrosparacriancas) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fuse-civilian-1-6fc4bddf4d364e6b9fa2f050011e03ce |
-| .Fuse Civilian 2 | Outfit: Hoodie | [Leonardo Carvalho](https://sketchfab.com/livrosparacriancas) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fuse-civilian-2-671bd73d045f47b4952fe2899772e124 |
-| .Fuse Woman 1 | Outfit: Survivor | [Leonardo Carvalho](https://sketchfab.com/livrosparacriancas) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fuse-woman-1-c6436897da494b4e8e1f8188aea620c6 |
+| FSB Operator | Outfit: Operator | [SpatialNeglect](https://sketchfab.com/jeandiz) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/fsb-operator-43a561e941704eefb1ab0614be4f0049 |
+| German KSK operator - rigged | Outfit: Recon | [42manako](https://sketchfab.com/42manako) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/german-ksk-operator-rigged-110daf3d1884412989e41dc95866c579 |
+| German Bundeswehr soldier - rigged | Outfit: Woodland | [42manako](https://sketchfab.com/42manako) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/german-bundeswehr-soldier-rigged-3d7944fea17b494abf220cc11ddabfd1 |
+| Special Forces Army Man | Outfit: Commando | [Chepuha54](https://sketchfab.com/flynnslayer) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/special-forces-army-man-4edb7058bfec48a696e260a36b900b1b |
+| Russian Soldier | Outfit: Rifleman | [doctortex](https://sketchfab.com/doctortex) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/russian-soldier-e9aa211b67264dc086af1d2f4d4e3d84 |
+| Ukrainian Soldier | Outfit: Desert | [doctortex](https://sketchfab.com/doctortex) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/ukrainian-soldier-94f74f6bdd994733a8a40c7ff088e12f |
+| WW2 Panzergrenadier 2k (CC0) | Outfit: Veteran | [britdawgmasterfunk](https://sketchfab.com/britdawgmasterfunk) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/ww2-panzergrenadier-2k-cc0-6a104431bcb8400080b79446ec019696 |
+| Soldier Crouched Alert Anim | Outfit: Ghost | [britdawgmasterfunk](https://sketchfab.com/britdawgmasterfunk) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/soldier-crouched-alert-anim-9b73b36ba2184bd1bde5b42810752b69 |
+| Army soldier Character | Outfit: Infantry | [joneborden123](https://sketchfab.com/joneborden123) | [CC Attribution](http://creativecommons.org/licenses/by/4.0/) | https://sketchfab.com/3d-models/army-soldier-character-cc995450452744ec8f852d8bf5f335d6 |
 
 ## Sounds
 | Sound | Author | License | Source |
@@ -50,5 +54,9 @@ Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (ori
 | Kar98k Free Model | sniper model | Danya | CC-BY 4.0 | https://sketchfab.com/3d-models/e88c90c8e203401fa28e8f4ef03e657f |
 | aerial_grass_rock, lichen_rock, dry_ground_rocks | close-up ground / rock grain | Poly Haven | CC0 | https://polyhaven.com/textures |
 
+
+## Icons
+
+- Button and menu icons from [game-icons.net](https://game-icons.net) (Lorc, Delapouite and contributors, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)) and [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache 2.0).
 
 Game code, map generation, terrain and UI are original work.

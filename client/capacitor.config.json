@@ -6,5 +6,17 @@
     "url": "https://last-war-hamidos-projects-d2f8b328.vercel.app",
     "errorPath": "offline.html"
   },
-  "android": { "backgroundColor": "#16240f" }
+  "android": {
+    "backgroundColor": "#16240f"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 4000,
+      "backgroundColor": "#13200f",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "launchFadeOutDuration": 250
+    }
+  }
 }
