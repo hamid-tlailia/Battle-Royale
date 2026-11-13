@@ -64,14 +64,14 @@ namespace LastWar
             if ((scanTimer -= dt) <= 0f)
             {
                 scanTimer = 0.3f;
-                Fighter best = null; float bd = 70f;
+                Fighter best = null; float bd = 55f;
                 foreach (Fighter f in GameBoot.Instance.Fighters)
                 {
                     if (f == fighter || !f.Alive || f.air == 1) continue;
                     float d = Vector3.Distance(f.transform.position, transform.position);
                     if (d < bd && CanSee(f)) { bd = d; best = f; }
                 }
-                if (best != enemy) { aimErr = (1.3f - skill) * 0.3f; reactUntil = Time.time + Random.Range(0.5f, 1.3f) * (1.4f - skill); }
+                if (best != enemy) { aimErr = (1.3f - skill) * 0.45f; reactUntil = Time.time + Random.Range(0.8f, 1.8f) * (1.4f - skill); }
                 enemy = best;
                 // heard a gunshot nearby and nobody in sight: go and look
                 if (enemy == null && lastShooter != fighter && Time.time - lastGunfireTime < 2f && Vector3.Distance(lastGunfire, transform.position) < 120f)
@@ -89,14 +89,14 @@ namespace LastWar
                 float dist = to.magnitude;
                 // weapon by distance: close range < 15 m, long range beyond
                 fighter.SelectSlot(dist < 15f ? 1 : 0);
-                aimErr = Mathf.MoveTowards(aimErr, 0.035f * (1.3f - skill), dt * 0.04f);
+                aimErr = Mathf.MoveTowards(aimErr, 0.09f * (1.3f - skill), dt * 0.03f); // never laser-accurate
                 Vector3 aim = (Quaternion.Euler(Random.Range(-1f, 1f) * aimErr * 57f, Random.Range(-1f, 1f) * aimErr * 57f, 0) * to).normalized;
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(to.x, 0, to.z)), dt * 8f);
                 body.AimDir = aim;
-                if ((burstTimer -= dt) < 0f) burstTimer = Random.Range(0.8f, 2.2f);
+                if ((burstTimer -= dt) < 0f) burstTimer = Random.Range(1.2f, 2.8f);
                 // no shooting in the first seconds of the match, nor before the bot has reacted
                 bool mayShoot = Time.time >= reactUntil && GameBoot.Instance.MatchTime > 12f;
-                if (mayShoot && burstTimer > 0.6f) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
+                if (mayShoot && burstTimer > 1.5f) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
                 if (dist > 30f) move = new Vector3(to.x, 0, to.z).normalized * 0.5f;
             }
             else

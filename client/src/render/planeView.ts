@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 function colored(geo: THREE.BufferGeometry, hex: number) {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -40,6 +41,15 @@ export class PlaneView {
     }
     this.root.visible = false;
     scene.add(this.root);
+    // real transport plane (Lowpoly AC-130 by S1Priv, CC BY): replaces the placeholder once loaded
+    new GLTFLoader().load('/assets/plane.glb', (g) => {
+      const m = g.scene;
+      m.scale.setScalar(1.6);
+      m.position.set(0, -2.3 * 1.6, -1.7 * 1.6); // model centre -> plane origin; nose already toward -Z
+      m.traverse((o) => { const mesh = o as THREE.Mesh; if (mesh.isMesh) { mesh.frustumCulled = false; const mat = mesh.material as THREE.MeshStandardMaterial; if (mat) mat.fog = false; } });
+      mesh.visible = false; for (const p of this.props) p.visible = false;
+      this.root.add(m);
+    }, undefined, () => { /* keep the placeholder */ });
   }
 
   update(dt: number, visible: boolean, x: number, y: number, z: number, yaw: number) {

@@ -202,7 +202,7 @@ namespace LastWar
 
             if (f.healEnd > 0) { reloadBar.gameObject.SetActive(true); reloadFill.color = new Color(1f, .42f, .42f); reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.healEnd - Time.time) / 3f), 4) * K; }
             else reloadFill.color = new Color(1f, .83f, .3f);
-            input.ShowScope(f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
+            input.ShowScope(f.air == 0 && f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
 
             // top: ALIVE n   KILLS n
             GameBoot gb = GameBoot.Instance;

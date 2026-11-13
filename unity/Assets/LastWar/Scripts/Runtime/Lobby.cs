@@ -166,10 +166,7 @@ namespace LastWar
         {
             if (!nodes.TryGetValue(id, out RectTransform rt)) return;
             var g = rt.GetComponent<Graphic>(); if (g != null) g.raycastTarget = true;
-            var tr = rt.gameObject.AddComponent<EventTrigger>();
-            var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
-            e.callback.AddListener(_ => a());
-            tr.triggers.Add(e);
+            Clickable.Add(rt.gameObject, a);
         }
 
         static Color ParseColor(string css)
@@ -209,14 +206,14 @@ namespace LastWar
             SetTab(what == "outfit" ? 1 : what == "map" ? 2 : what == "friends" ? 3 : 0);
             shade = UiKit.Img(canvas.transform, "shade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .25f), true).rectTransform;
             shade.pivot = new Vector2(.5f, .5f);
-            var st = shade.gameObject.AddComponent<EventTrigger>(); var se = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick }; se.callback.AddListener(_ => Close()); st.triggers.Add(se);
+            Clickable.Add(shade.gameObject, () => Close());
             var bg = UiKit.Img(canvas.transform, "sheet", UiKit.Get("Lobby/sheet"), Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
             sheet = bg.rectTransform;
             Place(sheet, new LobbyNode { x = L.sheet.x, y = L.sheet.y, w = L.sheet.w, h = L.sheet.h });
             // close button
             var x = UiKit.Img(sheet, "x", UiKit.Get("Lobby/close"), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(34, 34) * (s / UiKit.K), Color.white, true);
             var xt = UiKit.Txt(x.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(34, 34) * (s / UiKit.K), 16 * s / UiKit.K, TextAnchor.MiddleCenter, Color.white); xt.rectTransform.pivot = new Vector2(.5f, .5f); xt.text = "X";
-            var xtr = x.gameObject.AddComponent<EventTrigger>(); var xe = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick }; xe.callback.AddListener(_ => Close()); xtr.triggers.Add(xe);
+            Clickable.Add(x.gameObject, () => Close());
             string title = what == "friends" ? "PLAY WITH FRIENDS" : what.ToUpper();
             var tt = UiKit.Txt(sheet, new Vector2(0, 1), new Vector2(16, -14) * (s / UiKit.K), new Vector2(300, 22) * (s / UiKit.K), 15 * s / UiKit.K, TextAnchor.UpperLeft, new Color(1f, .83f, .3f));
             tt.text = title;
@@ -261,9 +258,7 @@ namespace LastWar
                 var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), Vector2.zero, Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, on ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : Color.white);
                 name.rectTransform.pivot = new Vector2(.5f, 0); name.rectTransform.sizeDelta = new Vector2(cw, 18 * s); name.text = SoldierBody.OutfitNames[i];
                 if (on) { var ck = UiKit.Txt(card.rectTransform, new Vector2(1, 1), new Vector2(-4, -2) * k, new Vector2(20, 20) * k, 12 * k, TextAnchor.MiddleCenter, new Color(27 / 255f, 20 / 255f, 4 / 255f)); ck.rectTransform.pivot = new Vector2(1, 1); ck.text = ""; }
-                var tr = card.gameObject.AddComponent<EventTrigger>(); var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
-                e.callback.AddListener(_ => { Profile.Skin = skin; SpawnSoldier(); Open("outfit"); if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[skin]); });
-                tr.triggers.Add(e);
+                Clickable.Add(card.gameObject, () => { Profile.Skin = skin; SpawnSoldier(); Open("outfit"); if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[skin]); });
             }
             content.sizeDelta = new Vector2(0, Mathf.CeilToInt(SoldierBody.OutfitFiles.Length / (float)cols) * (ch + gap));
         }
@@ -282,9 +277,7 @@ namespace LastWar
                 if (on) card.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f);
                 var t = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 30) * k, new Vector2(300, 28) * k, 17 * k, TextAnchor.LowerRight, Color.white); t.rectTransform.pivot = new Vector2(1, 0); t.text = names[i];
                 var d = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerRight, new Color(1, 1, 1, .85f)); d.rectTransform.pivot = new Vector2(1, 0); d.fontStyle = FontStyle.Normal; d.text = desc[i];
-                var tr = card.gameObject.AddComponent<EventTrigger>(); var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
-                e.callback.AddListener(_ => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Show("Loading " + (id == "desert" ? "Red Canyon" : "Highlands") + "…"); SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); });
-                tr.triggers.Add(e);
+                Clickable.Add(card.gameObject, () => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Show("Loading " + (id == "desert" ? "Red Canyon" : "Highlands") + "…"); SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); });
             }
             content.sizeDelta = new Vector2(0, ids.Length * (h + 10 * s));
         }
@@ -330,7 +323,7 @@ namespace LastWar
             var fillArea = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fillArea.SetParent(rt, false); fillArea.anchorMin = new Vector2(0, .3f); fillArea.anchorMax = new Vector2(1, .7f); fillArea.offsetMin = fillArea.offsetMax = Vector2.zero;
             var fill = UiKit.Img(fillArea, "f", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(1f, .83f, .3f, .7f));
             var handleArea = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); handleArea.SetParent(rt, false); handleArea.anchorMin = Vector2.zero; handleArea.anchorMax = Vector2.one; handleArea.offsetMin = handleArea.offsetMax = Vector2.zero;
-            var handle = UiKit.Img(handleArea, "h", null, new Vector2(0, .5f), Vector2.zero, new Vector2(18, 18) * k, new Color(1f, .83f, .3f), true);
+            var handle = UiKit.Img(handleArea, "h", null, new Vector2(0, .5f), Vector2.zero, new Vector2(11, 11) * k, new Color(1f, .83f, .3f), true);
             handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.localRotation = Quaternion.Euler(0, 0, 45);
             var sl = go.GetComponent<Slider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.minValue = min; sl.maxValue = max; sl.value = val; sl.onValueChanged.AddListener(v => on(v));
@@ -348,8 +341,7 @@ namespace LastWar
                 b.rectTransform.anchoredPosition = new Vector2(i * (bw + 4 * s), -y); b.rectTransform.sizeDelta = new Vector2(bw, 28 * s);
                 var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(bw / s, 28) * k, 11 * k, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = opts[i];
                 imgs.Add(b); txts.Add(t);
-                var tr = b.gameObject.AddComponent<EventTrigger>(); var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
-                e.callback.AddListener(_ => { on(idx); Paint(idx); }); tr.triggers.Add(e);
+                Clickable.Add(b.gameObject, () => { on(idx); Paint(idx); });
             }
             void Paint(int on2) { for (int i = 0; i < imgs.Count; i++) { imgs[i].color = i == on2 ? Color.white : new Color(.13f, .15f, .17f); txts[i].color = i == on2 ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : new Color(.6f, .64f, .67f); } }
             Paint(sel);

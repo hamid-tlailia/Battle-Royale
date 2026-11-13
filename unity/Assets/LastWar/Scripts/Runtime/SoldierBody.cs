@@ -220,7 +220,7 @@ namespace LastWar
 
         Transform BuildChute()
         {
-            var g = new GameObject("Chute").transform; g.SetParent(transform, false); g.localPosition = Vector3.up * 6f;
+            var g = new GameObject("Chute").transform; g.SetParent(transform, false); g.localPosition = Vector3.up * 4.3f;
             Material red = MapBuilder.NewLit(new Color(0.85f, 0.26f, 0.18f)), white = MapBuilder.NewLit(new Color(0.95f, 0.95f, 0.95f));
             red.SetFloat("_Cull", 0f); white.SetFloat("_Cull", 0f);
             for (int i = 0; i < 8; i++)
@@ -249,7 +249,7 @@ namespace LastWar
             for (int i = 0; i < 8; i++)
             {
                 float a = i / 8f * Mathf.PI * 2f;
-                Vector3 top = new Vector3(Mathf.Cos(a) * 2.9f, 0.4f, Mathf.Sin(a) * 2.9f), bottom = new Vector3(0, -4.4f, 0);
+                Vector3 top = new Vector3(Mathf.Cos(a) * 2.9f, 0.4f, Mathf.Sin(a) * 2.9f), bottom = new Vector3((i % 2 == 0 ? 0.25f : -0.25f), -2.4f, 0.1f); // to the hands
                 var l = new GameObject("line", typeof(MeshFilter), typeof(MeshRenderer)).transform;
                 l.SetParent(g, false); l.localPosition = (top + bottom) / 2f; l.localRotation = Quaternion.FromToRotation(Vector3.up, top - bottom);
                 l.localScale = new Vector3(0.025f, (top - bottom).magnitude / 2f, 0.025f);

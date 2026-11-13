@@ -51,6 +51,21 @@ namespace LastWar
         void BuildPlane()
         {
             plane = new GameObject("Plane").transform;
+            // real transport plane (Lowpoly AC-130 by S1Priv, CC BY), nose turned to +Z; the box plane below is only a fallback
+            GameObject model = MapBuilder.Model("plane");
+            if (model != null)
+            {
+                Transform m = Instantiate(model, plane, false).transform;
+                m.localScale = Vector3.one * 1.6f; m.localRotation = Quaternion.Euler(0, 180f, 0);
+                m.localPosition = new Vector3(0, -2.3f * 1.6f, 1.7f * 1.6f);
+                foreach (Renderer r in m.GetComponentsInChildren<Renderer>(true))
+                {
+                    var mats = r.sharedMaterials;
+                    for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]);
+                    r.sharedMaterials = mats; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+                return;
+            }
             Mesh cyl = Resources.GetBuiltinResource<Mesh>("Cylinder.fbx"), sph = Resources.GetBuiltinResource<Mesh>("Sphere.fbx"), cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
             Color body = new Color(0x6d / 255f, 0x7f / 255f, 0x5a / 255f), dark = new Color(0x3b / 255f, 0x46 / 255f, 0x36 / 255f), glass = new Color(0x2a / 255f, 0x3a / 255f, 0x4a / 255f), stripe = new Color(0xd8 / 255f, 0xb0 / 255f, 0x4a / 255f);
             Transform Part(Mesh m, Color c, Vector3 pos, Vector3 scale, Vector3 euler, Transform parent = null)
