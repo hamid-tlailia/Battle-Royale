@@ -1,4 +1,7 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
 
 namespace LastWar
 {
@@ -18,7 +21,6 @@ namespace LastWar
         CharacterController cc;
         Vector3 velocity;
         Transform model;
-        Animation anim;
         string currentClip;
         float camDist = 3.6f;
 
@@ -45,7 +47,13 @@ namespace LastWar
             // keep it as it is; log the skeleton height to be sure
             Transform head = null;
             foreach (Transform t in m.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("HeadTop")) head = t;
-            Debug.Log($"[LastWar] soldier head top {(head != null ? (head.position.y - transform.position.y).ToString("0.###") : "not found")} m above the feet");
+            if (head != null)
+            {
+                float h = head.position.y - transform.position.y;
+                if (h > 0.2f) m.transform.localScale *= 1.8f / (h * 1.03f); // head-top joint sits just inside the helmet
+                Debug.Log($"[LastWar] soldier head top {h:0.###} m -> scale {m.transform.localScale.x:0.###}");
+            }
+            SetupAnimation(m);
             foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
                 smr.updateWhenOffscreen = true;
@@ -62,18 +70,56 @@ namespace LastWar
                 smr.sharedMaterials = mats;
             }
             model = m.transform;
-            anim = m.GetComponentInChildren<Animation>();
-            Debug.Log($"[LastWar] soldier scale {m.transform.localScale.x:0.###}, legacy animation {(anim != null ? anim.GetClipCount() + " clips" : "none")}, animator {(m.GetComponentInChildren<Animator>() != null)}");
+
             Play("idle");
         }
 
         void Awake() { cc = GetComponent<CharacterController>(); }
 
+        // ---- animation: the model's clips (imported for Mecanim) played through a Playables mixer, cross-faded
+        PlayableGraph graph;
+        AnimationMixerPlayable mixer;
+        readonly Dictionary<string, int> clipIndex = new Dictionary<string, int>();
+        float[] weights;
+
+        void SetupAnimation(GameObject m)
+        {
+            Animator animator = m.GetComponentInChildren<Animator>();
+            if (animator == null) animator = m.AddComponent<Animator>();
+            animator.applyRootMotion = false;
+            AnimationClip[] clips = Resources.LoadAll<AnimationClip>("Models/soldier");
+            Debug.Log($"[LastWar] soldier clips: {clips.Length} ({string.Join(", ", System.Array.ConvertAll(clips, c => c.name))})");
+            if (clips.Length == 0) return;
+            graph = PlayableGraph.Create("soldier");
+            mixer = AnimationMixerPlayable.Create(graph, clips.Length);
+            for (int k = 0; k < clips.Length; k++)
+            {
+                var cp = AnimationClipPlayable.Create(graph, clips[k]);
+                graph.Connect(cp, 0, mixer, k);
+                string n = clips[k].name; int bar = n.LastIndexOf('|'); if (bar >= 0) n = n.Substring(bar + 1);
+                clipIndex[n] = k;
+            }
+            weights = new float[clips.Length];
+            AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(mixer);
+            graph.Play();
+        }
+
         void Play(string clip)
         {
-            if (anim == null || clip == currentClip || anim.GetClip(clip) == null) return;
-            anim.CrossFade(clip, 0.2f); currentClip = clip;
+            if (clip == currentClip) return;
+            if (clipIndex.ContainsKey(clip)) currentClip = clip;
         }
+
+        void BlendAnimation(float dt)
+        {
+            if (weights == null || currentClip == null) return;
+            int target = clipIndex[currentClip];
+            float sum = 0;
+            for (int k = 0; k < weights.Length; k++) { weights[k] = Mathf.MoveTowards(weights[k], k == target ? 1f : 0f, dt * 6f); sum += weights[k]; }
+            for (int k = 0; k < weights.Length; k++) mixer.SetInputWeight(k, sum > 0 ? weights[k] / sum : 0);
+        }
+
+        void OnDestroy() { if (graph.IsValid()) graph.Destroy(); }
 
         void Update()
         {
@@ -102,6 +148,7 @@ namespace LastWar
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
             if (!cc.isGrounded && !NearGround()) Play("jump");
             else Play(hs > 5.2f || (input.Sprint && hs > 0.5f) ? "run" : hs > 0.4f ? "walk" : "idle");
+            BlendAnimation(dt);
         }
 
         bool NearGround() => Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 0.5f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore);
