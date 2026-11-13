@@ -79,8 +79,8 @@ namespace LastWar
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
             fps.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
-            var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(20, -20); rt.sizeDelta = new Vector2(500, 60);
-            fps.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); fps.fontSize = 28; fps.color = Color.white;
+            var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(16, -10); rt.sizeDelta = new Vector2(500, 40);
+            fps.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); fps.fontSize = 20; fps.color = new Color(1, 1, 1, .6f);
         }
 
         public void Restart()

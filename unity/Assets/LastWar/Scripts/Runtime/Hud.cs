@@ -1,22 +1,29 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace LastWar
 {
     /// <summary>
-    /// In-match HUD: health / armour, weapon slots with ammo, alive + kills, zone timer, crosshair dot that turns
-    /// red over an enemy, hit marker (red on headshots), kill feed, damage flash, skull banner on kills, end screen.
+    /// In-match HUD with the web game's look (sizes in CSS px x UiKit.K): weapon box (current gun big with ammo
+    /// and gun silhouette, the others small below; tap = equip, tap the current one = reload), armour + health
+    /// bars, ALIVE / KILLS box and zone banner on top, kill feed top-left, skull-on-blood kill banner, crosshair
+    /// dot that turns red on an enemy, hit ring, damage flash, end screen.
     /// </summary>
     public class Hud : MonoBehaviour
     {
+        class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
-        Image hpFill, armorFill, dot, flash;
-        Text hpText, aliveText, zoneText, feedText, bannerText, centerText;
+        readonly Slot[] slots = new Slot[3];
+        Image hpFill, armorFill, dot, hitRing, flash, reloadFill; RectTransform reloadBar;
+        Text hpText, aliveText, zoneText, centerText, bannerCount;
+        Image aliveBox, zoneBox; RectTransform banner;
+        readonly List<Image> feedBg = new List<Image>(); readonly List<Text> feedTxt = new List<Text>();
+        readonly List<(string text, bool mine, float t)> feed = new List<(string, bool, float)>();
         RectTransform endPanel; Text endTitle, endSub;
-        readonly List<string> feed = new List<string>(); readonly List<float> feedTime = new List<float>();
-        float hitT, flashT, bannerT; bool hitHead;
-        static Font font;
+        float hitT, flashT, bannerT; bool hitKill;
+        static readonly Vector2 BC = new Vector2(.5f, 0), TC = new Vector2(.5f, 1), C = new Vector2(.5f, .5f);
 
         public static Hud Create(TouchControls input, PlayerController player)
         {
@@ -26,143 +33,209 @@ namespace LastWar
             return h;
         }
 
-        RectTransform Rect(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, Color color)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            var rt = (RectTransform)go.transform; rt.SetParent(parent, false);
-            rt.anchorMin = rt.anchorMax = anchor; rt.pivot = anchor; rt.anchoredPosition = pos; rt.sizeDelta = size;
-            var img = go.GetComponent<Image>(); img.color = color; img.raycastTarget = false;
-            return rt;
-        }
-
-        Text Txt(Transform parent, Vector2 anchor, Vector2 pos, Vector2 size, int fs, TextAnchor align)
-        {
-            var t = new GameObject("text", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            var rt = (RectTransform)t.transform; rt.SetParent(parent, false);
-            rt.anchorMin = rt.anchorMax = anchor; rt.pivot = anchor; rt.anchoredPosition = pos; rt.sizeDelta = size;
-            if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            t.font = font; t.fontSize = fs; t.alignment = align; t.color = Color.white; t.fontStyle = FontStyle.Bold; t.raycastTarget = false;
-            var sh = t.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0, 0, 0, 0.7f); sh.effectDistance = new Vector2(2, -2);
-            return t;
-        }
-
         void Build()
         {
             Transform c = input.Canvas.transform;
-            // damage flash behind everything
-            flash = Rect("Flash", c, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000, 4000), new Color(0.8f, 0, 0, 0)).GetComponent<Image>();
-            flash.transform.SetAsFirstSibling();
+            flash = UiKit.Img(c, "Flash", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0.8f, 0, 0, 0));
+            flash.rectTransform.pivot = C; flash.transform.SetAsFirstSibling();
 
-            // health + armour bars, bottom centre above the weapon slots
-            RectTransform hpBg = Rect("HpBg", c, new Vector2(0.5f, 0), new Vector2(0, 132), new Vector2(520, 22), new Color(0, 0, 0, 0.5f));
-            hpFill = Rect("Hp", hpBg, new Vector2(0, 0.5f), Vector2.zero, new Vector2(520, 22), new Color(0.92f, 0.95f, 0.92f, 0.95f)).GetComponent<Image>();
-            RectTransform arBg = Rect("ArBg", c, new Vector2(0.5f, 0), new Vector2(0, 158), new Vector2(520, 10), new Color(0, 0, 0, 0.45f));
-            armorFill = Rect("Ar", arBg, new Vector2(0, 0.5f), Vector2.zero, new Vector2(520, 10), new Color(0.35f, 0.7f, 1f, 0.95f)).GetComponent<Image>();
-            hpText = Txt(c, new Vector2(0.5f, 0), new Vector2(0, 172), new Vector2(300, 34), 24, TextAnchor.MiddleCenter);
+            // ---- bottom centre: bars (bottom 6), reload bar, weapon box
+            RectTransform hpBg = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 6), new Vector2(240, 10), new Color(0, 0, 0, .45f)).rectTransform;
+            hpFill = UiKit.Img(hpBg, "Hp", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(240, 10), new Color(0.48f, 0.85f, 0.32f));
+            hpText = UiKit.Txt(hpBg, new Vector2(1, .5f), Vector2.zero, new Vector2(30, 14), 12, TextAnchor.MiddleLeft, Color.white);
+            hpText.rectTransform.pivot = new Vector2(0, .5f); hpText.rectTransform.anchoredPosition = new Vector2(5 * UiKit.K, 0);
+            RectTransform arBg = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(240, 7), new Color(0, 0, 0, .45f)).rectTransform;
+            armorFill = UiKit.Img(arBg, "Ar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(240, 7), new Color(0.35f, 0.67f, 1f));
+            reloadBar = UiKit.Img(c, "Reload", UiKit.Round, BC, new Vector2(0, 28), new Vector2(140, 4), new Color(0, 0, 0, .4f)).rectTransform;
+            reloadFill = UiKit.Img(reloadBar, "fill", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(0, 4), new Color(1f, 0.83f, 0.3f));
 
-            aliveText = Txt(c, new Vector2(1, 1), new Vector2(-30, -20), new Vector2(520, 44), 32, TextAnchor.UpperRight);
-            zoneText = Txt(c, new Vector2(0.5f, 1), new Vector2(0, -20), new Vector2(800, 40), 28, TextAnchor.UpperCenter);
-            feedText = Txt(c, new Vector2(1, 1), new Vector2(-30, -80), new Vector2(620, 220), 24, TextAnchor.UpperRight);
-            bannerText = Txt(c, new Vector2(0.5f, 1), new Vector2(0, -90), new Vector2(900, 70), 44, TextAnchor.MiddleCenter);
-            centerText = Txt(c, new Vector2(0.5f, 0.5f), new Vector2(0, 180), new Vector2(1000, 60), 34, TextAnchor.MiddleCenter);
+            for (int k = 0; k < 3; k++)
+            {
+                int slot = k;
+                var s = new Slot();
+                s.bg = UiKit.Img(c, "Slot" + k, UiKit.Round, BC, Vector2.zero, new Vector2(50, 36), new Color(24 / 255f, 32 / 255f, 40 / 255f, .6f), true);
+                s.rt = s.bg.rectTransform; s.rt.pivot = new Vector2(.5f, 0);
+                s.gun = UiKit.Img(s.rt, "gun", null, new Vector2(1, 1), Vector2.zero, new Vector2(40, 19), Color.white);
+                s.gun.preserveAspect = true;
+                s.ammo = UiKit.Txt(s.rt, Vector2.zero, Vector2.zero, new Vector2(80, 20), 10, TextAnchor.LowerLeft, Color.white);
+                s.line = UiKit.Img(s.rt, "line", null, Vector2.zero, Vector2.zero, new Vector2(40, 2), new Color(1, 1, 1, .75f));
+                var trigger = s.bg.gameObject.AddComponent<EventTrigger>();
+                var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+                e.callback.AddListener(_ => input.SlotPressed = slot);
+                trigger.triggers.Add(e);
+                input.RegisterBlocker(s.rt);
+                slots[k] = s;
+            }
 
-            // crosshair: a dot, plus an X hit marker around it
-            dot = Rect("Dot", c, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10, 10), Color.white).GetComponent<Image>();
-            dot.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            hitMarkText = Txt(c, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90), 56, TextAnchor.MiddleCenter);
-            hitMarkText.rectTransform.pivot = new Vector2(0.5f, 0.5f); hitMarkText.text = "X"; hitMarkText.color = new Color(1, 1, 1, 0);
+            // ---- top centre: ALIVE / KILLS box and the zone banner under it
+            aliveBox = UiKit.Img(c, "Alive", UiKit.Round, TC, new Vector2(0, -6), new Vector2(160, 26), new Color(0, 0, 0, .4f));
+            aliveText = UiKit.Txt(aliveBox.rectTransform, C, Vector2.zero, new Vector2(300, 26), 16, TextAnchor.MiddleCenter, Color.white);
+            aliveText.rectTransform.pivot = C;
+            zoneBox = UiKit.Img(c, "ZoneTxt", UiKit.Round, TC, new Vector2(0, -36), new Vector2(200, 18), new Color(20 / 255f, 60 / 255f, 140 / 255f, .5f));
+            zoneText = UiKit.Txt(zoneBox.rectTransform, C, Vector2.zero, new Vector2(400, 18), 11, TextAnchor.MiddleCenter, Color.white);
+            zoneText.rectTransform.pivot = C;
+            centerText = UiKit.Txt(c, C, new Vector2(0, 60), new Vector2(400, 20), 13, TextAnchor.MiddleCenter, new Color(1f, 0.42f, 0.36f));
+            centerText.rectTransform.pivot = C;
 
-            // end screen
-            endPanel = Rect("End", c, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000, 4000), new Color(0, 0, 0, 0.6f));
-            endPanel.GetComponent<Image>().raycastTarget = true;
-            endTitle = Txt(endPanel, new Vector2(0.5f, 0.5f), new Vector2(0, 120), new Vector2(1200, 120), 96, TextAnchor.MiddleCenter);
-            endSub = Txt(endPanel, new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(1200, 60), 36, TextAnchor.MiddleCenter);
-            RectTransform again = Rect("Again", endPanel, new Vector2(0.5f, 0.5f), new Vector2(0, -110), new Vector2(360, 100), new Color(0.85f, 0.55f, 0.1f, 0.95f));
-            again.pivot = new Vector2(0.5f, 0.5f);
-            again.GetComponent<Image>().raycastTarget = true;
-            Text at = Txt(again, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(360, 100), 40, TextAnchor.MiddleCenter); at.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            at.text = "PLAY AGAIN";
+            // ---- kill feed, top-left under the buttons row
+            for (int k = 0; k < 5; k++)
+            {
+                var bg = UiKit.Img(c, "Feed" + k, UiKit.Round, new Vector2(0, 1), new Vector2(8, -54 - k * 20), new Vector2(100, 17), new Color(0, 0, 0, .45f));
+                var t = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(8, 0), new Vector2(300, 17), 11, TextAnchor.MiddleLeft, Color.white);
+                feedBg.Add(bg); feedTxt.Add(t); bg.gameObject.SetActive(false);
+            }
+
+            // ---- kill banner: white skull on a blood splash, kill count bottom-right
+            banner = UiKit.Img(c, "KillBanner", null, TC, new Vector2(0, -84), new Vector2(84, 72), Color.clear).rectTransform;
+            banner.pivot = new Vector2(.5f, .5f); banner.anchoredPosition = new Vector2(0, -120) * UiKit.K;
+            var blood = UiKit.Img(banner, "blood", UiKit.Get("blood"), C, Vector2.zero, new Vector2(96, 84), Color.white); blood.rectTransform.pivot = C;
+            var skull = UiKit.Img(banner, "skull", UiKit.Get("icon_skull"), C, Vector2.zero, new Vector2(40, 40), Color.white); skull.rectTransform.pivot = C;
+            bannerCount = UiKit.Txt(banner, new Vector2(1, 0), new Vector2(-2, 2), new Vector2(40, 20), 18, TextAnchor.LowerRight, Color.white);
+            banner.gameObject.SetActive(false);
+
+            // ---- crosshair: 6 px dot with a dark edge; ring on hits (red on a kill)
+            var edge = UiKit.Img(c, "DotEdge", UiKit.Disc, C, Vector2.zero, new Vector2(9, 9), new Color(0, 0, 0, .55f)); edge.rectTransform.pivot = C;
+            dot = UiKit.Img(edge.rectTransform, "Dot", UiKit.Disc, C, Vector2.zero, new Vector2(6, 6), Color.white); dot.rectTransform.pivot = C;
+            hitRing = UiKit.Img(c, "HitRing", UiKit.Ring, C, Vector2.zero, new Vector2(20, 20), new Color(1, 1, 1, 0)); hitRing.rectTransform.pivot = C;
+
+            // ---- end screen
+            endPanel = UiKit.Img(c, "End", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .6f), true).rectTransform;
+            endPanel.pivot = C;
+            var card = UiKit.Img(endPanel, "card", UiKit.Round, C, Vector2.zero, new Vector2(300, 170), new Color(0.09f, 0.11f, 0.13f, .95f)); card.rectTransform.pivot = C;
+            card.gameObject.AddComponent<Outline>().effectColor = new Color(1f, 0.83f, 0.3f, .45f);
+            endTitle = UiKit.Txt(card.rectTransform, C, new Vector2(0, 45), new Vector2(300, 40), 30, TextAnchor.MiddleCenter, Color.white); endTitle.rectTransform.pivot = C;
+            endSub = UiKit.Txt(card.rectTransform, C, new Vector2(0, 5), new Vector2(300, 20), 14, TextAnchor.MiddleCenter, Color.white); endSub.rectTransform.pivot = C;
+            var again = UiKit.Img(card.rectTransform, "Again", UiKit.Round, C, new Vector2(0, -45), new Vector2(150, 34), new Color(1f, 0.78f, 0.25f), true);
+            again.rectTransform.pivot = C;
+            var at = UiKit.Txt(again.rectTransform, C, Vector2.zero, new Vector2(150, 34), 14, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); at.rectTransform.pivot = C;
+            at.text = "PLAY AGAIN"; Destroy(at.GetComponent<Shadow>());
             again.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             endPanel.gameObject.SetActive(false);
         }
 
-        Text hitMarkText;
-
         void Hit(Fighter victim, Fighter attacker, float dmg, bool head, Vector3 point)
         {
-            if (attacker != null && attacker == player.fighter && victim != attacker) { hitT = 0.25f; hitHead = head; }
+            if (attacker != null && attacker == player.fighter && victim != attacker) { hitT = 0.3f; hitKill = !victim.Alive || head; }
             if (victim == player.fighter) flashT = Mathf.Min(0.5f, flashT + dmg / 60f);
         }
 
         void Kill(Fighter victim, Fighter killer, string weapon, bool head)
         {
-            string w = weapon == "zone" ? "the zone" : (Tuning.Weapon(weapon) != null ? Tuning.Weapon(weapon).name : weapon);
-            string line = killer != null && killer != victim ? $"{killer.displayName}  [{w}{(head ? " HEADSHOT" : "")}]  {victim.displayName}" : $"{victim.displayName} was killed by {w}";
-            feed.Insert(0, line); feedTime.Insert(0, Time.time);
-            if (feed.Count > 5) { feed.RemoveAt(5); feedTime.RemoveAt(5); }
-            if (killer == player.fighter && victim != killer) { bannerT = 2.2f; bannerText.text = (head ? "HEADSHOT  ·  " : "") + "ELIMINATED " + victim.displayName.ToUpper(); }
+            WeaponDef w = Tuning.Weapon(weapon);
+            string how = weapon == "zone" ? "zone" : w != null ? w.name : weapon;
+            bool mine = killer == player.fighter || victim == player.fighter;
+            string line = killer != null && killer != victim
+                ? $"{killer.displayName}<color=#ffd38a>  [{how}{(head ? " · HEAD" : "")}]  </color>{victim.displayName}"
+                : $"{victim.displayName}<color=#ffd38a>  [{how}]</color>";
+            feed.Insert(0, (line, mine, Time.time));
+            if (feed.Count > 5) feed.RemoveAt(5);
+            if (killer == player.fighter && victim != killer)
+            {
+                bannerT = 2.2f; banner.gameObject.SetActive(true); bannerCount.text = player.fighter.kills.ToString();
+                hitKill = true; hitT = 0.4f;
+            }
         }
 
         void Update()
         {
-            Fighter f = player.fighter; float dt = Time.deltaTime;
-            hpFill.rectTransform.sizeDelta = new Vector2(520 * f.hp / Fighter.MaxHp, 22);
-            hpFill.color = f.hp > 35 ? new Color(0.92f, 0.95f, 0.92f, 0.95f) : new Color(1f, 0.3f, 0.25f, 0.95f);
-            armorFill.rectTransform.sizeDelta = new Vector2(520 * f.armor / 100f, 10);
+            Fighter f = player.fighter; float dt = Time.deltaTime; const float K = UiKit.K;
+            hpFill.rectTransform.sizeDelta = new Vector2(240 * f.hp / Fighter.MaxHp, 10) * K;
+            hpFill.color = f.hp > 30 ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
+            armorFill.rectTransform.sizeDelta = new Vector2(240 * f.armor / 100f, 7) * K;
             hpText.text = Mathf.CeilToInt(f.hp).ToString();
 
-            GameBoot g = GameBoot.Instance;
-            aliveText.text = $"ALIVE {g.AliveCount}    KILLS {f.kills}";
+            // weapon box: current gun 209 x 46 on top, the others 103 x 36 below
+            int small = 0;
+            for (int k = 0; k < 3; k++)
+            {
+                Slot s = slots[k]; GunState g = f.guns[k]; bool sel = k == f.slot;
+                float w = sel ? 209 : 103, h = sel ? 46 : 36;
+                s.rt.sizeDelta = new Vector2(w, h) * K;
+                s.rt.anchoredPosition = sel ? new Vector2(0, 74) * K : new Vector2(small++ == 0 ? -53 : 53, 35) * K;
+                s.bg.color = sel ? new Color(28 / 255f, 38 / 255f, 48 / 255f, .68f) : new Color(24 / 255f, 32 / 255f, 40 / 255f, .6f);
+                s.gun.sprite = g != null ? UiKit.Get("gun_" + g.def.id) : null; s.gun.enabled = s.gun.sprite != null;
+                s.gun.rectTransform.sizeDelta = (sel ? new Vector2(100, 28) : new Vector2(40, 19)) * K;
+                s.gun.rectTransform.anchoredPosition = (sel ? new Vector2(-10, -5) : new Vector2(-3, -3)) * K;
+                bool low = g != null && g.mag <= g.def.mag / 4;
+                string col = low && sel ? "#ff6b5b" : "#ffffff";
+                s.ammo.text = g == null ? "" : sel
+                    ? $"<color={col}>{g.mag}</color><size={Mathf.RoundToInt(13 * K)}>/{g.reserve}</size>"
+                    : $"{g.mag}<size={Mathf.RoundToInt(6.5f * K)}>/{g.reserve}</size>";
+                s.ammo.fontSize = Mathf.RoundToInt((sel ? 21 : 10) * K);
+                s.ammo.rectTransform.anchoredPosition = (sel ? new Vector2(9, 10) : new Vector2(5, 7)) * K;
+                float fill = g == null ? 0 : (float)g.mag / g.def.mag;
+                float lw = (w - (sel ? 18 : 10)) * fill;
+                s.line.rectTransform.sizeDelta = new Vector2(lw, sel ? 3 : 2) * K;
+                s.line.rectTransform.anchoredPosition = new Vector2(sel ? 9 : 5, 4) * K;
+                s.line.color = sel ? Color.white : new Color(1, 1, 1, .75f);
+            }
+            bool reloading = f.reloadEnd > 0 && f.Gun != null;
+            reloadBar.gameObject.SetActive(reloading);
+            if (reloading) reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.reloadEnd - Time.time) / f.Gun.def.reloadTime), 4) * K;
+            input.ShowScope(f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
+
+            // top: ALIVE n   KILLS n
+            GameBoot gb = GameBoot.Instance;
+            int ls = Mathf.RoundToInt(10 * K);
+            aliveText.text = $"<size={ls}><color=#ffffffb3>ALIVE</color></size>  {gb.AliveCount}     <size={ls}><color=#ffffffb3>KILLS</color></size>  {f.kills}";
+            aliveBox.rectTransform.sizeDelta = new Vector2(aliveText.preferredWidth + 24 * K, 26 * K);
 
             Zone z = Zone.Instance;
+            bool outside = false;
             if (z != null)
             {
                 int s = Mathf.CeilToInt(z.SecondsLeft); string tm = $"{s / 60}:{s % 60:00}";
-                if (!z.Active) zoneText.text = $"ZONE APPEARS IN {tm}";
-                else if (z.PhaseEnds > 1e30f) zoneText.text = "FINAL ZONE";
-                else zoneText.text = z.Shrinking ? $"ZONE SHRINKING  {tm}" : $"ZONE SHRINKS IN {tm}";
-                bool outside = z.Active && z.Outside(player.transform.position);
-                zoneText.color = outside ? new Color(1f, 0.45f, 0.35f) : Color.white;
-                centerText.text = outside && f.Alive ? "YOU ARE OUTSIDE THE ZONE" : "";
-                centerText.color = new Color(1f, 0.4f, 0.3f);
+                zoneText.text = !z.Active ? $"SAFE ZONE APPEARS IN {tm}" : z.PhaseEnds > 1e30f ? "FINAL ZONE" : z.Shrinking ? $"ZONE SHRINKING {tm}" : $"ZONE SHRINKS IN {tm}";
+                outside = z.Active && z.Outside(player.transform.position) && f.Alive;
             }
+            zoneBox.color = outside ? new Color(200 / 255f, 30 / 255f, 30 / 255f, .5f + .25f * Mathf.PingPong(Time.time * 2f, 1f)) : new Color(20 / 255f, 60 / 255f, 140 / 255f, .5f);
+            zoneBox.rectTransform.sizeDelta = new Vector2(zoneText.preferredWidth + 20 * K, 18 * K);
+            centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : "";
 
-            // weapon slots
-            for (int k = 0; k < 3; k++)
-            {
-                GunState gs = f.guns[k];
-                string ammo = gs == null ? "" : (k == f.slot && f.reloadEnd > 0 ? "RELOADING" : $"{gs.mag} / {gs.reserve}");
-                input.SlotLabels[k].text = gs == null ? Tuning.SlotNames[k] : $"{gs.def.name.ToUpper()}\n<size=22>{ammo}</size>";
-                input.SlotFrames[k].color = k == f.slot ? new Color(0.85f, 0.55f, 0.1f, 0.55f) : new Color(0.05f, 0.07f, 0.09f, 0.45f);
-            }
-            input.ShowScope(f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
-
-            // crosshair dot red when it is on an enemy
+            // crosshair: red dot on an enemy
             bool onEnemy = false;
             Camera cam = player.cam;
-            if (cam != null && Physics.Raycast(cam.ViewportPointToRay(new Vector3(0.5f, 0.5f)), out RaycastHit h, 250f, ~0, QueryTriggerInteraction.Ignore))
+            if (cam != null && Physics.Raycast(cam.ViewportPointToRay(new Vector3(.5f, .5f)), out RaycastHit hit, 250f, ~0, QueryTriggerInteraction.Ignore))
             {
-                Fighter t = h.collider.GetComponentInParent<Fighter>();
+                Fighter t = hit.collider.GetComponentInParent<Fighter>();
                 onEnemy = t != null && t != f && t.Alive;
             }
-            dot.color = onEnemy ? new Color(1f, 0.15f, 0.1f) : Color.white;
-            dot.enabled = f.Alive;
+            dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
+            dot.transform.parent.gameObject.SetActive(f.Alive);
+            hitT -= dt;
+            float ha = Mathf.Clamp01(hitT * 5f);
+            hitRing.color = hitKill ? new Color(1f, 0.23f, 0.19f, ha) : new Color(1, 1, 1, ha);
+            hitRing.rectTransform.localScale = Vector3.one * (hitKill ? 1.4f : 1.1f);
 
-            hitT -= dt; hitMarkText.color = hitHead ? new Color(1f, 0.15f, 0.1f, Mathf.Clamp01(hitT * 5f)) : new Color(1, 1, 1, Mathf.Clamp01(hitT * 5f));
-            flashT = Mathf.Max(0, flashT - dt); flash.color = new Color(0.8f, 0f, 0f, flashT * 0.6f);
-            bannerT -= dt; bannerText.color = new Color(1f, 0.25f, 0.2f, Mathf.Clamp01(bannerT * 2f));
+            flashT = Mathf.Max(0, flashT - dt); flash.color = new Color(.8f, 0, 0, flashT * .6f);
 
-            var sb = new System.Text.StringBuilder();
-            for (int k = 0; k < feed.Count; k++) if (Time.time - feedTime[k] < 8f) sb.AppendLine(feed[k]);
-            feedText.text = sb.ToString();
+            // kill banner: pops in (scale 2.2 -> 1), fades after 2 s
+            if (banner.gameObject.activeSelf)
+            {
+                bannerT -= dt;
+                float age = 2.2f - bannerT;
+                banner.localScale = Vector3.one * Mathf.Lerp(2.2f, 1f, Mathf.Clamp01(age / .28f));
+                foreach (Graphic gr in banner.GetComponentsInChildren<Graphic>()) { Color cc = gr.color; cc.a = gr == banner.GetComponent<Image>() ? 0 : Mathf.Clamp01(bannerT / .4f); gr.color = cc; }
+                if (bannerT <= 0) banner.gameObject.SetActive(false);
+            }
 
-            // end of the match
-            if (g.Result != 0 && !endPanel.gameObject.activeSelf)
+            // kill feed: 8 s per line
+            for (int k = 0; k < feedBg.Count; k++)
+            {
+                bool show = k < feed.Count && Time.time - feed[k].t < 8f;
+                feedBg[k].gameObject.SetActive(show);
+                if (!show) continue;
+                feedTxt[k].text = feed[k].text;
+                feedBg[k].color = feed[k].mine ? new Color(200 / 255f, 150 / 255f, 30 / 255f, .55f) : new Color(0, 0, 0, .45f);
+                feedBg[k].rectTransform.sizeDelta = new Vector2(feedTxt[k].preferredWidth + 16 * K, 17 * K);
+            }
+
+            if (gb.Result != 0 && !endPanel.gameObject.activeSelf)
             {
                 endPanel.gameObject.SetActive(true); endPanel.SetAsLastSibling();
-                endTitle.text = g.Result > 0 ? "VICTORY" : "ELIMINATED";
-                endTitle.color = g.Result > 0 ? new Color(1f, 0.8f, 0.25f) : new Color(1f, 0.35f, 0.3f);
-                endSub.text = $"PLACE #{g.Rank}   ·   {f.kills} KILLS";
+                endTitle.text = gb.Result > 0 ? "VICTORY" : "ELIMINATED";
+                endTitle.color = gb.Result > 0 ? new Color(1f, 0.83f, 0.3f) : new Color(1f, 0.36f, 0.3f);
+                endSub.text = $"#{gb.Rank} <size={Mathf.RoundToInt(10 * K)}>/ {gb.Fighters.Count}</size>     KILLS {f.kills}";
             }
         }
     }

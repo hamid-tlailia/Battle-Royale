@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -5,8 +6,9 @@ using UnityEngine.UI;
 namespace LastWar
 {
     /// <summary>
-    /// Mobile controls built in code: joystick (left half), look by dragging (right half), round action buttons.
-    /// Also reads keyboard + mouse in the editor / WebGL (WASD, mouse look while the right button is held, Space, Shift).
+    /// Mobile controls with the web game's look and layout: metal round buttons with white icons, red FIRE
+    /// (right, plus a smaller one on the left), joystick on the left, look by dragging (FIRE also drags the camera).
+    /// Keyboard + mouse in the editor / WebGL: WASD, right mouse look, left mouse fire, Space, Shift, R, Q, 1-3.
     /// </summary>
     public class TouchControls : MonoBehaviour
     {
@@ -20,22 +22,20 @@ namespace LastWar
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
         public bool ReloadPressed;  // true for one frame
         public Canvas Canvas => canvas;
-        public readonly Text[] SlotLabels = new Text[3];
-        public readonly Image[] SlotFrames = new Image[3];
-        RectTransform fireBtn, scopeBtn;
-        int fireFinger = -1;
 
+        class Btn { public RectTransform rt; public Image bg; public Sprite normal; public bool pressed; }
+        readonly List<Btn> btns = new List<Btn>();
+        readonly List<RectTransform> blockers = new List<RectTransform>();
+        Btn fireBtn, fireLeft, scopeBtn, runBtn;
         RectTransform joyBase, joyKnob;
-        int joyFinger = -1, lookFinger = -1;
+        int joyFinger = -1, lookFinger = -1, fireFinger = -1;
         Vector2 joyOrigin, lookLast;
-        const float JoyRadius = 90f;
+        const float JoyRadius = 35f * UiKit.K;
         Canvas canvas;
-        readonly System.Collections.Generic.List<RectTransform> buttons = new System.Collections.Generic.List<RectTransform>();
 
         public static TouchControls Create()
         {
-            var go = new GameObject("Controls");
-            var tc = go.AddComponent<TouchControls>();
+            var tc = new GameObject("Controls").AddComponent<TouchControls>();
             tc.BuildUi();
             return tc;
         }
@@ -50,97 +50,57 @@ namespace LastWar
             canvas.gameObject.AddComponent<GraphicRaycaster>();
             if (FindFirstObjectByType<EventSystem>() == null) { var es = new GameObject("EventSystem"); es.AddComponent<EventSystem>(); es.AddComponent<StandaloneInputModule>(); }
 
-            joyBase = Circle("Joystick", new Vector2(260, 230), 220, new Color(0, 0, 0, 0.25f), new Color(1, 1, 1, 0.45f));
-            joyKnob = Circle("Knob", Vector2.zero, 100, new Color(1, 1, 1, 0.55f), Color.clear);
-            joyKnob.SetParent(joyBase, false);
-            joyKnob.anchorMin = joyKnob.anchorMax = new Vector2(0.5f, 0.5f); joyKnob.anchoredPosition = Vector2.zero;
+            // joystick: thin white ring on a faint dark disc, white knob (web .joy-base / .joy-knob)
+            joyBase = UiKit.Img(canvas.transform, "Joystick", UiKit.Disc, Vector2.zero, new Vector2(40, 50), new Vector2(120, 120), new Color(0, 0, 0, 0.18f)).rectTransform;
+            var ring = UiKit.Img(joyBase, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(120, 120), new Color(1, 1, 1, 0.5f));
+            joyKnob = UiKit.Img(joyBase, "Knob", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(50, 50), new Color(1, 1, 1, 0.75f)).rectTransform;
 
-            AddButton("JUMP", new Vector2(-150, 250), 140, () => JumpPressed = true);
-            AddButton("RUN", new Vector2(-150, 450), 110, () => Sprint = !Sprint);
-            AddButton("RELOAD", new Vector2(-470, 140), 110, () => ReloadPressed = true);
-            scopeBtn = AddButton("SCOPE", new Vector2(-330, 520), 120, () => Scoped = !Scoped);
-            // FIRE is read straight from the touches (it also turns the camera while held)
-            fireBtn = AddButton("FIRE", new Vector2(-340, 300), 200, null);
-            fireBtn.GetComponent<Image>().color = new Color(0.55f, 0.08f, 0.06f, 0.6f);
-            // weapon slots, bottom centre: tap to equip, tap the equipped one to reload
-            for (int k = 0; k < 3; k++)
-            {
-                int slot = k;
-                var go = new GameObject("Slot" + k, typeof(RectTransform), typeof(Image));
-                var rt = (RectTransform)go.transform; rt.SetParent(canvas.transform, false);
-                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0); rt.sizeDelta = new Vector2(250, 92);
-                rt.anchoredPosition = new Vector2((k - 1) * 265, 70);
-                var img = go.GetComponent<Image>(); img.color = new Color(0.05f, 0.07f, 0.09f, 0.55f);
-                var o = go.AddComponent<Outline>(); o.effectColor = new Color(1, 1, 1, 0.35f); o.effectDistance = new Vector2(2, 2);
-                SlotFrames[k] = img;
-                SlotLabels[k] = Label(rt, "", 26);
-                var trigger = go.AddComponent<EventTrigger>();
-                var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-                e.callback.AddListener(_ => SlotPressed = slot);
-                trigger.triggers.Add(e);
-                buttons.Add(rt);
-            }
+            Vector2 BR = new Vector2(1, 0), BL = Vector2.zero, TL = new Vector2(0, 1);
+            // positions = the web defaults (style.css .btn-*): centre from the corner, in CSS px
+            fireBtn = Button("fire", "btn_fire", 84, BR, new Vector2(-68, 150), null);
+            fireLeft = Button("fire", "btn_fire", 60, TL, new Vector2(60, -139), null);
+            Button("jump", "btn", 64, BR, new Vector2(-56, 58), () => JumpPressed = true);
+            Button("reload", "btn", 50, BR, new Vector2(-153, 125), () => ReloadPressed = true);
+            scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => Scoped = !Scoped);
+            runBtn = Button("sprint", "btn", 52, BL, new Vector2(194, 202), () => Sprint = !Sprint);
         }
 
-        public void ShowScope(bool show) { if (scopeBtn.gameObject.activeSelf != show) scopeBtn.gameObject.SetActive(show); if (!show) Scoped = false; }
-
-        public static Text Label(RectTransform parent, string text, int size)
+        Btn Button(string icon, string bg, float size, Vector2 corner, Vector2 centre, System.Action onDown)
         {
-            var txt = new GameObject("t", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            txt.transform.SetParent(parent, false);
-            var r = (RectTransform)txt.transform; r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one; r.offsetMin = r.offsetMax = Vector2.zero;
-            txt.text = text; txt.alignment = TextAnchor.MiddleCenter; txt.fontSize = size; txt.fontStyle = FontStyle.Bold; txt.color = Color.white;
-            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); txt.raycastTarget = false;
-            return txt;
+            // the exported button picture has 14% padding for its shadow: 100 px button = 128 px picture
+            var img = UiKit.Img(canvas.transform, icon, UiKit.Get(bg), corner, Vector2.zero, Vector2.one * size * 1.28f, Color.white, true);
+            var rt = img.rectTransform; rt.pivot = new Vector2(.5f, .5f); rt.anchoredPosition = centre * UiKit.K;
+            var ic = UiKit.Img(rt, "icon", UiKit.Get("icon_" + icon), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * size * 0.58f, Color.white);
+            ic.rectTransform.pivot = new Vector2(.5f, .5f);
+            var b = new Btn { rt = rt, bg = img, normal = img.sprite };
+            var trigger = rt.gameObject.AddComponent<EventTrigger>();
+            var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+            down.callback.AddListener(_ => { b.pressed = true; onDown?.Invoke(); });
+            var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
+            up.callback.AddListener(_ => b.pressed = false);
+            trigger.triggers.Add(down); trigger.triggers.Add(up);
+            btns.Add(b); blockers.Add(rt);
+            return b;
         }
 
-        RectTransform Circle(string name, Vector2 pos, float size, Color fill, Color ring)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            var rt = (RectTransform)go.transform; rt.SetParent(canvas.transform, false);
-            rt.anchorMin = rt.anchorMax = new Vector2(0, 0); rt.sizeDelta = new Vector2(size, size); rt.anchoredPosition = pos;
-            var img = go.GetComponent<Image>(); img.sprite = CircleSprite(); img.color = fill;
-            if (ring.a > 0) { var o = go.AddComponent<Outline>(); o.effectColor = ring; o.effectDistance = new Vector2(3, 3); }
-            return rt;
-        }
+        /// <summary>a HUD element that takes taps (weapon slots): touches on it don't turn the camera</summary>
+        public void RegisterBlocker(RectTransform rt) { blockers.Add(rt); }
 
-        RectTransform AddButton(string label, Vector2 posFromRight, float size, System.Action onDown)
-        {
-            var rt = Circle(label, Vector2.zero, size, new Color(0.08f, 0.1f, 0.12f, 0.65f), new Color(0.85f, 0.88f, 0.9f, 0.6f));
-            rt.anchorMin = rt.anchorMax = new Vector2(1, 0); rt.anchoredPosition = posFromRight;
-            var txt = new GameObject("t", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            txt.transform.SetParent(rt, false); ((RectTransform)txt.transform).sizeDelta = rt.sizeDelta;
-            txt.text = label; txt.alignment = TextAnchor.MiddleCenter; txt.fontSize = label.Length > 5 ? 24 : 30; txt.fontStyle = FontStyle.Bold; txt.color = Color.white;
-            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); txt.raycastTarget = false;
-            if (onDown != null)
-            {
-                var trigger = rt.gameObject.AddComponent<EventTrigger>();
-                var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-                e.callback.AddListener(_ => onDown());
-                trigger.triggers.Add(e);
-            }
-            buttons.Add(rt);
-            return rt;
-        }
+        public void ShowScope(bool show) { if (scopeBtn.rt.gameObject.activeSelf != show) scopeBtn.rt.gameObject.SetActive(show); if (!show) Scoped = false; }
 
-        static Sprite circle;
-        static Sprite CircleSprite()
-        {
-            if (circle != null) return circle;
-            const int S = 128; var tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
-            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
-                {
-                    float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(S / 2f, S / 2f)) / (S / 2f);
-                    tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01((1f - d) * 40f)));
-                }
-            tex.Apply();
-            circle = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f));
-            return circle;
-        }
+        public void SetVisible(bool v) { canvas.enabled = v; }
 
-        bool OverButton(Vector2 screen)
+        bool Over(Btn b, Vector2 screen) => b != null && b.rt.gameObject.activeInHierarchy && Hit(b.rt, screen);
+        // the round part only (the picture is 1.28x the button)
+        static bool Hit(RectTransform rt, Vector2 screen)
         {
-            foreach (RectTransform b in buttons) if (RectTransformUtility.RectangleContainsScreenPoint(b, screen)) return true;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, screen, null, out Vector2 local)) return false;
+            return local.magnitude <= rt.rect.width / 2.56f * 1.1f;
+        }
+        bool OverBlocker(Vector2 screen)
+        {
+            foreach (RectTransform r in blockers)
+                if (r.gameObject.activeInHierarchy && (btns.Exists(b => b.rt == r) ? Hit(r, screen) : RectTransformUtility.RectangleContainsScreenPoint(r, screen))) return true;
             return false;
         }
 
@@ -154,11 +114,19 @@ namespace LastWar
                 joyFinger = lookFinger = fireFinger = -1;
                 Desktop();
             }
+            // button states like the web: pressed = gold ring, RUN / SCOPE on = green
+            Sprite pressed = UiKit.Get("btn_pressed"), active = UiKit.Get("btn_active");
+            foreach (Btn b in btns)
+            {
+                bool fire = b == fireBtn || b == fireLeft;
+                bool down = fire ? FireHeld : b.pressed;
+                bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped);
+                b.bg.sprite = on ? active : down && !fire ? pressed : b.normal;
+                b.rt.localScale = Vector3.one * (down ? 0.93f : 1f);
+            }
         }
 
         void LateUpdate() { JumpPressed = false; FirePressed = false; ReloadPressed = false; SlotPressed = -1; }
-
-        bool Over(RectTransform r, Vector2 screen) => r != null && r.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(r, screen);
 
         void Touches()
         {
@@ -168,13 +136,13 @@ namespace LastWar
                 Touch t = Input.GetTouch(k);
                 if (t.phase == TouchPhase.Began)
                 {
-                    if (Over(fireBtn, t.position) && fireFinger < 0)
+                    if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
                         fireFinger = t.fingerId; FirePressed = true;
                         if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                     }
-                    else if (OverButton(t.position)) continue;
-                    if (t.position.x < Screen.width * 0.42f && joyFinger < 0) { joyFinger = t.fingerId; joyOrigin = t.position; }
+                    else if (OverBlocker(t.position)) continue;
+                    else if (t.position.x < Screen.width * 0.42f && joyFinger < 0) { joyFinger = t.fingerId; joyOrigin = t.position; }
                     else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                 }
                 if (t.fingerId == fireFinger && (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)) fireFinger = -1;
@@ -207,11 +175,13 @@ namespace LastWar
             if (Input.GetKeyDown(KeyCode.Space)) JumpPressed = true;
             if (Input.GetKeyDown(KeyCode.LeftShift)) Sprint = !Sprint;
             if (Input.GetMouseButton(1)) LookDelta = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * 12f;
-            bool onUi = OverButton(Input.mousePosition) && !Over(fireBtn, Input.mousePosition);
+            Vector2 mp = Input.mousePosition;
+            bool onFire = Over(fireBtn, mp) || Over(fireLeft, mp);
+            bool onUi = OverBlocker(mp) && !onFire;
             if (Input.GetMouseButtonDown(0) && !onUi) FirePressed = true;
             FireHeld = Input.GetMouseButton(0) && !onUi;
             if (Input.GetKeyDown(KeyCode.R)) ReloadPressed = true;
-            if (Input.GetKeyDown(KeyCode.Q) && scopeBtn.gameObject.activeSelf) Scoped = !Scoped;
+            if (Input.GetKeyDown(KeyCode.Q) && scopeBtn.rt.gameObject.activeSelf) Scoped = !Scoped;
             for (int k = 0; k < 3; k++) if (Input.GetKeyDown(KeyCode.Alpha1 + k)) SlotPressed = k;
         }
     }
