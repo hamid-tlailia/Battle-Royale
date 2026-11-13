@@ -18,6 +18,8 @@ export class Controls {
   dropStraight = false;
   /** joystick pushed past its rim toward the top: auto-sprint while held */
   sprintLock = false;
+  private joyStartY = 0;
+  private pullBack = false;
   onSprintLock: (on: boolean) => void = () => {};
   onSprintChange: (on: boolean) => void = () => {};
   scoped = false;
@@ -165,6 +167,7 @@ export class Controls {
         const fixed = layoutOf('joy');
         const ox = fixed ? fixed.x * window.innerWidth : t.clientX, oy = fixed ? fixed.y * window.innerHeight : t.clientY;
         this.joyOrigin = { x: ox, y: oy };
+        this.joyStartY = t.clientY; this.pullBack = false;
         this.placeJoy(ox, oy, 1);
       } else if (!leftSide && this.lookId === null) {
         this.lookId = t.identifier;
@@ -192,6 +195,7 @@ export class Controls {
         this.mz = (-dy / clen) * mapped;
         // raw distance (not clamped): pushing well past the rim upward locks sprint
         const rawDx = t.clientX - this.joyOrigin.x, rawDy = t.clientY - this.joyOrigin.y;
+        this.pullBack = t.clientY - this.joyStartY > this.JOY_R * 0.45;
         const lock = Math.hypot(rawDx, rawDy) > this.JOY_R * 1.35 && rawDy < 0 && Math.abs(rawDx) < -rawDy * 0.7;
         if (lock !== this.sprintLock) { this.sprintLock = lock; this.onSprintLock(lock); }
       } else if (t.identifier === this.lookId) {
@@ -206,7 +210,7 @@ export class Controls {
       const up = this.buttonTouches.get(t.identifier);
       if (up) { up(); this.buttonTouches.delete(t.identifier); }
       if (t.identifier === this.joyId) {
-        this.joyId = null; this.mx = 0; this.mz = 0;
+        this.joyId = null; this.mx = 0; this.mz = 0; this.pullBack = false;
         // letting go while sprint-locked keeps running (auto-run) until you pull back, crouch or aim
         if (this.sprintLock) { this.sprintLock = false; this.onSprintLock(false); if (!this.sprintToggle) { this.sprintToggle = true; this.crouchToggle = false; this.proneToggle = false; this.onSprintChange(true); } }
         this.showJoystickIdle();
@@ -253,7 +257,8 @@ export class Controls {
     if (this.sprintToggle) {
       // auto-run survives jumping and the scope; shooting or pulling the stick back stops it
       // (while scoped it pauses)
-      if (mz < -0.3) { this.sprintToggle = false; this.onSprintChange(false); }
+      // (just touching the stick never stops it, even with a fixed joystick: only a real pull downward does)
+      if (this.pullBack || this.keys.has('KeyS') || this.keys.has('ArrowDown')) { this.sprintToggle = false; this.pullBack = false; this.onSprintChange(false); }
       else if (!this.scoped) { mz = 1; mx *= 0.5; }
     }
     if (this.keys.size) {

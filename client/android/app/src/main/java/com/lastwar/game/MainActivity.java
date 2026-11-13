@@ -2,6 +2,8 @@ package com.lastwar.game;
 
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -14,6 +16,15 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideBars();
+        // phone back button = browser back: during a match the game asks "LEAVE MATCH?" instead of closing the app
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView wv = bridge != null ? bridge.getWebView() : null;
+                if (wv != null && wv.canGoBack()) { wv.goBack(); return; }
+                moveTaskToBack(true); // lobby: put the game in the background (it keeps its state)
+            }
+        });
     }
 
     @Override

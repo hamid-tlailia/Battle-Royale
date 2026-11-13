@@ -682,7 +682,7 @@ export class Game {
     this.hud.setSlots(shown, shown === me ? reloadFrac : 0, shown === me ? healFrac : 0);
     this.hud.setSpectating(shown === me ? null : shown.name);
     const out = me.alive && outsideZone(zone, me.move.x, me.move.z);
-    this.hud.setInfo(this.aliveCount(), me.kills, zone, { x: meV.view.root.position.x, z: meV.view.root.position.z, yaw: this.controls.yaw }, out, dt);
+    this.hud.setInfo(this.aliveCount(), me.kills, zone, me.move.air === 1 ? { x: this.planePos.x, z: this.planePos.z, yaw: this.planeYaw } : { x: meV.view.root.position.x, z: meV.view.root.position.z, yaw: this.controls.yaw }, out, dt);
     this.hud.update(dt, this.camera);
 
     this.cpuMs = this.cpuMs * 0.9 + (performance.now() - now) * 0.1;
@@ -739,9 +739,10 @@ export class Game {
     } else {
       const targetDist = scoped ? 1.6 : move.air ? 6.5 : 3.6;
       this.camDist += (targetDist - this.camDist) * Math.min(1, dt * 12);
-      const shoulder = scoped ? 0.55 : 0.65;
+      // over the right shoulder, far enough to the side that the gun in your hands stays in view
+      const shoulder = scoped ? 0.55 : move.air ? 0.65 : 1.05;
       const dir = this.dir.copy(right).multiplyScalar(shoulder).addScaledVector(fwd, -this.camDist);
-      dir.y += scoped ? 0.15 : 0.35;
+      dir.y += scoped ? 0.15 : 0.45;
       const len = dir.length();
       dir.divideScalar(len);
       const hit = this.sim.phys.rayWorld(this.pivot.x, this.pivot.y, this.pivot.z, dir.x, dir.y, dir.z, len + 0.2);
@@ -752,7 +753,7 @@ export class Game {
       this.camera.position.copy(this.camPos);
       if (scoped) fov = Math.max(w.scopeFov, 45);
     }
-    this.aim.copy(this.pivot).addScaledVector(right, firstPerson ? 0 : this.controls.scoped ? 0.55 : 0.65).addScaledVector(fwd, 100);
+    this.aim.copy(this.pivot).addScaledVector(right, firstPerson ? 0 : this.controls.scoped ? 0.55 : move.air ? 0.65 : 1.05).addScaledVector(fwd, 100);
     this.camera.lookAt(this.aim);
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 20);
@@ -773,6 +774,12 @@ export class Game {
     const cam = this.camera.position, tx = q.move.x, ty = q.move.y + 0.15, tz = q.move.z;
     const dx = tx - cam.x, dy = ty - cam.y, dz = tz - cam.z;
     return { yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(dy, Math.hypot(dx, dz)), dist: Math.hypot(dx, dy, dz), tx, ty, tz };
+  }
+  private hbBig = {} as ReturnType<typeof hitboxOf>;
+  private grow(h: ReturnType<typeof hitboxOf>) {
+    Object.assign(this.hbBig, h);
+    this.hbBig.br = h.br + 0.3; this.hbBig.hr = h.hr + 0.3; this.hbBig.hy = h.hy + 0.1;
+    return this.hbBig;
   }
   private aimAssist(dt: number, me: SimPlayer) {
     const cam = this.camera.position;
@@ -795,8 +802,10 @@ export class Game {
       const q = this.sim.players.get(this.lock.id);
       const a = q && q.alive ? this.angTo(q) : null;
       // released: target dead, hidden (wall, rock, ice wall) or you aimed away for a moment
-      this.lock.off = onEnemy ? 0 : this.lock.off + dt;
-      if (!a || a.dist > 150 || this.lock.off > 0.3 || !this.sim.los(cam.x, cam.y, cam.z, a.tx, a.ty, a.tz)) this.lock = null;
+      // still on them? a generous box around the whole body, head included (moving the aim from chest to head keeps the lock)
+      const near = !!q && q.alive && !!rayHitbox(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, this.grow(hitboxOf(q.move, this.hb)), wall);
+      this.lock.off = onEnemy || near ? 0 : this.lock.off + dt;
+      if (!a || a.dist > 150 || this.lock.off > 0.6 || !this.sim.los(cam.x, cam.y, cam.z, a.tx, a.ty, a.tz)) this.lock = null;
       else {
         let dy = a.yaw - this.lock.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         this.controls.yaw += dy;
@@ -837,7 +846,7 @@ export class Game {
   dispose() {
     if (!this.running && !this.renderer.domElement.isConnected) return;
     window.removeEventListener('popstate', this.onBack);
-    if (history.state?.lwMatch) history.replaceState(null, '', location.pathname + location.search);
+    if (history.state?.lwMatch) history.back(); // drop the match's history entry (the listener is already gone)
     sfx.stopMusic();
     this.running = false;
     this.net?.leave();
@@ -845,6 +854,7 @@ export class Game {
     this.renderer.dispose(); this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
     this.hudEl.innerHTML = '';
+    this.hudEl.className = ''; // celebrating / in-plane / sky... would hide the next match's buttons
   }
 }
 
