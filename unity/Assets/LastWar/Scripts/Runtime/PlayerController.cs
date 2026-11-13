@@ -41,15 +41,25 @@ namespace LastWar
             GameObject src = MapBuilder.Model("soldier");
             if (src == null) return;
             var m = Instantiate(src, transform, false);
-            // normalise to 1.8 m tall, feet on the ground
-            var rs = m.GetComponentsInChildren<Renderer>();
-            if (rs.Length > 0)
+            // normalise to 1.8 m tall, feet on the ground: measured on the skeleton (head top vs feet),
+            // because skinned-mesh bounds are in bind space and come out far too small
+            Transform head = null, footL = null, footR = null;
+            foreach (Transform t in m.GetComponentsInChildren<Transform>(true))
             {
-                Bounds b = rs[0].bounds; foreach (Renderer r in rs) b.Encapsulate(r.bounds);
-                float s = 1.8f / Mathf.Max(0.01f, b.size.y);
-                m.transform.localScale *= s;
-                m.transform.localPosition = new Vector3(0, -(b.min.y - transform.position.y) * s, 0);
+                string n = t.name;
+                if (n.EndsWith("HeadTop_End")) head = t;
+                else if (n.EndsWith("LeftToeBase") || (footL == null && n.EndsWith("LeftFoot"))) footL = t;
+                else if (n.EndsWith("RightToeBase") || (footR == null && n.EndsWith("RightFoot"))) footR = t;
             }
+            if (head != null && footL != null)
+            {
+                float feet = Mathf.Min(footL.position.y, footR != null ? footR.position.y : footL.position.y);
+                float h = Mathf.Max(0.05f, head.position.y - feet);
+                float s = 1.8f / (h * 1.04f); // toe/head joints sit a little inside the mesh
+                m.transform.localScale *= s;
+                m.transform.localPosition = new Vector3(0, -(feet - transform.position.y) * s + 0.03f, 0);
+            }
+            foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true)) smr.updateWhenOffscreen = true;
             model = m.transform;
             anim = m.GetComponentInChildren<Animation>();
             Play("idle");
