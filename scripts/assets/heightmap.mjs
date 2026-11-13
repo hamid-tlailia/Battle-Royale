@@ -3,7 +3,8 @@
 import fs from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-const [src, out, sizeS, cellsS, cxS = 'auto', czS = 'auto', id = 'map'] = process.argv.slice(2);
+const [src, out, sizeS, cellsS, cxS = 'auto', czS = 'auto', id = 'map', vscaleS = '1'] = process.argv.slice(2);
+const vscale = +vscaleS; // vertical exaggeration / compression (heights are in source units)
 const size = +sizeS, cells = +cellsS, n = cells + 1;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const doc = await io.read(src);
@@ -51,7 +52,8 @@ for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {
   sm[iz * n + ix] = s / c;
 }
 let lo = Infinity, hi = -Infinity; for (const v of sm) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
-for (let i = 0; i < sm.length; i++) sm[i] -= lo;
+for (let i = 0; i < sm.length; i++) sm[i] = (sm[i] - lo) * vscale;
+hi = lo + (hi - lo) * vscale;
 // coverage mask: 1 where the scan has data, blurred so the edge blends into generated terrain
 let mask = new Float32Array(n * n); for (let i = 0; i < n * n; i++) mask[i] = cnt[i] ? 1 : 0;
 for (let pass = 0; pass < 6; pass++) {

@@ -17,4 +17,8 @@ Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (ori
 | Pine trees pack / Oak trees pack / Lilac bush pack | realistic trees and bushes (near model + billboard) | LOLIPOP | CC-BY 4.0 | https://sketchfab.com/lolipop |
 | Old wooden house (enterable), Abandoned shop | houses | YadroGames | CC-BY 4.0 | https://sketchfab.com/YadroGames |
 | Abandoned Farm House (scan) | house | Frank McMains | CC-BY 4.0 | https://sketchfab.com/3d-models/a7e2881bd0e143a6aa768c75eae6aae8 |
-| aerial_grass_rock, lichen_rock | close-up ground / rock grain | Poly Haven | CC0 | https://polyhaven.com/textures |
+| Red Canyon Landscape (scan) | Red Canyon map: terrain, aerial photo, cliffs | Šimon Ustal | CC-BY 4.0 | https://sketchfab.com/3d-models/6c483f7e87d541e5a1fb17bc2154a0be |
+| Old Ammo Crate | ammo on the ground | SuperMopsek | CC-BY 4.0 | https://sketchfab.com/3d-models/6a834e917e4f4194a29e9f66e6915d8a |
+| Combat Vest | armor on the ground | csheffield | CC-BY 4.0 | https://sketchfab.com/3d-models/ce92c014efd140deb6e918b3c59bf539 |
+| Tactical FIRST AID KIT | medkit on the ground | Ruslan Koschey | CC-BY 4.0 | https://sketchfab.com/3d-models/011c33c121284bc88bb765a85511dae1 |
+| aerial_grass_rock, lichen_rock, dry_ground_rocks | close-up ground / rock grain | Poly Haven | CC0 | https://polyhaven.com/textures |

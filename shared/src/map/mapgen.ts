@@ -1,7 +1,8 @@
 import { MAP } from '../config/game';
 import { fbm, mulberry32, smoothstep } from '../math/rng';
-import { PREFABS, TORS_GREEN_VERTS, type PrefabName } from './prefabs';
+import { PREFABS, TORS_DESERT_VERTS, TORS_GREEN_VERTS, type PrefabName } from './prefabs';
 import { GREEN_GRID } from './data/green';
+import { DESERT_GRID } from './data/desert';
 
 /** Axis-aligned (in local space) box rotated around Y. Used for houses, crates, walls. */
 export interface BoxPrim {
@@ -14,18 +15,20 @@ export interface BoxPrim {
 export interface PropInst { p: PrefabName; x: number; y: number; z: number; rot: number; s: number }
 
 const FARM_NAMES = ['Old Mill', 'Hayfield Farm', 'Stonewall', 'Millbrook', 'West Farm'];
+const DESERT_NAMES = ['Dry Creek', 'Sandstone', 'Rust Flats', 'Coyote Bend', 'Dustwell', 'Mesa Camp', 'Red Wash', 'Cactus Gap', 'Old Quarry', 'Sun Valley'];
 const TOWN_NAMES = ['Pine Hollow', 'Redroof', 'Greystone', 'Fernside', 'Ashby', 'Kestrel Row', 'Moorgate', 'Brookend', 'Larkhill'];
 
 /** Playable maps. 'classic' is fully generated; others start from a real terrain scan. */
-export type MapId = 'classic' | 'green';
+export type MapId = 'classic' | 'green' | 'desert';
 export const MAP_LIST: { id: MapId; name: string; desc: string }[] = [
   { id: 'green', name: 'Highlands', desc: 'Real moorland scan · farm village' },
+  { id: 'desert', name: 'Red Canyon', desc: 'Real desert scan · rock butte' },
   { id: 'classic', name: 'Valley', desc: 'Pine valley · 25 houses' },
 ];
 export const isMapId = (v: unknown): v is MapId => MAP_LIST.some((m) => m.id === v);
 
 /** Terrain scans: 16-bit heights (cm) + 8-bit coverage mask, base64. */
-const GRIDS: Partial<Record<MapId, { cells: number; size: number; heights: string; mask: string }>> = { green: GREEN_GRID };
+const GRIDS: Partial<Record<MapId, { cells: number; size: number; heights: string; mask: string }>> = { green: GREEN_GRID, desert: DESERT_GRID };
 
 function b64(s: string): Uint8Array {
   const bin = atob(s); // browsers and Node >= 16
@@ -42,6 +45,8 @@ export interface MapData {
   mask?: Float32Array;
   /** real-terrain maps: aerial photo covering the whole map (served from /assets/maps) */
   albedo?: string;
+  /** close-up grain textures (ground, rock) */
+  detail?: [string, string];
   seed: number;
   size: number;
   cells: number;
@@ -117,8 +122,9 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   }
   const data: MapData = {
     id, seed, size, cells, heights, boxes: [], props: [], spawns: [], areas: [], mask,
-    snowHeight: id === 'green' ? 70 : MAP.snowHeight,
+    snowHeight: id === 'classic' ? MAP.snowHeight : 999,
     albedo: grid ? `${id}.webp` : undefined,
+    detail: id === 'desert' ? ['detail_sand', 'detail_rock'] : ['detail_grass', 'detail_rock'],
   };
   const groundAt = (x: number, z: number) => terrainHeight(data, x, z);
 
@@ -132,14 +138,14 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   };
 
   // ---------- Real rock outcrops (scan geometry) ----------
-  if (id === 'green') {
-    data.props.push({ p: 'tors_green', x: 0, y: scanBase, z: 0, rot: 0, s: 1 });
-    const v = TORS_GREEN_VERTS; // keep everything else out of the rocks
+  if (id === 'green' || id === 'desert') {
+    data.props.push({ p: id === 'green' ? 'tors_green' : 'tors_desert', x: 0, y: scanBase, z: 0, rot: 0, s: 1 });
+    const v = id === 'green' ? TORS_GREEN_VERTS : TORS_DESERT_VERTS; // keep everything else out of the rocks
     for (let i = 0; i < v.length; i += 3 * 40) occupied.push({ x: v[i], z: v[i + 2], r: 3.5 });
   }
 
   // ---------- Houses (imported enterable models on a stone foundation) ----------
-  const houseTypes: PrefabName[] = ['house_a', 'house_d', 'house_b', 'house_e', 'house_c', 'house_f'];
+  const houseTypes: PrefabName[] = id === 'desert' ? ['house_e', 'house_f', 'house_d', 'house_e', 'house_a', 'house_f'] : ['house_a', 'house_d', 'house_b', 'house_e', 'house_c', 'house_f'];
   let houses = 0;
   for (let tries = 0; tries < 6000 && houses < Math.round((id === 'green' ? 9 : 12) * A * 0.95); tries++) {
     const p = randInValley(MAP.playRadius - 22);
@@ -232,8 +238,8 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
 
   // ---------- Pine trees ----------
   // realistic trees: mostly pines, some broad oaks (green map has more oaks)
-  const pines: PrefabName[] = id === 'green' ? ['tpine1', 'toak1', 'tpine2', 'tpine3', 'toak2', 'tpine4'] : ['tpine1', 'tpine2', 'tpine3', 'tpine4', 'tpine1', 'toak1', 'tpine2', 'tpine3'];
-  for (let i = 0, tries = 0; i < Math.round((id === 'green' ? 150 : 260) * A) && tries < 8000; tries++) {
+  const pines: PrefabName[] = id === 'desert' ? ['toak2', 'toak1'] : id === 'green' ? ['tpine1', 'toak1', 'tpine2', 'tpine3', 'toak2', 'tpine4'] : ['tpine1', 'tpine2', 'tpine3', 'tpine4', 'tpine1', 'toak1', 'tpine2', 'tpine3'];
+  for (let i = 0, tries = 0; i < Math.round((id === 'green' ? 150 : id === 'desert' ? 5 : 260) * A) && tries < 8000; tries++) {
     const p = randInValley(MAP.playRadius + 15);
     const g = groundAt(p.x, p.z);
     if (g > data.snowHeight - 4) continue;
@@ -246,7 +252,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
 
   // ---------- Rocks, stumps & bushes ----------
   const rocks: PrefabName[] = ['rock1', 'rock2', 'rock3', 'rock4'];
-  for (let i = 0, tries = 0; i < Math.round(80 * A) && tries < 5000; tries++) {
+  for (let i = 0, tries = 0; i < Math.round((id === 'desert' ? 25 : 80) * A) && tries < 5000; tries++) {
     const p = randInValley(MAP.playRadius + 20);
     const s = 0.6 + rnd() * 0.9;
     if (!free(p.x, p.z, 2 * s)) continue;
@@ -262,7 +268,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     i++;
   }
   // Bushes have no collider: good for hiding.
-  for (let i = 0, tries = 0; i < Math.round(110 * A) && tries < 4000; tries++) {
+  for (let i = 0, tries = 0; i < Math.round((id === 'desert' ? 20 : 110) * A) && tries < 4000; tries++) {
     const p = randInValley(MAP.playRadius + 5);
     if (!free(p.x, p.z, 0.8)) continue;
     data.props.push({ p: (['tbush1', 'tbush2', 'tbush3'] as PrefabName[])[i % 3], x: p.x, y: groundAt(p.x, p.z) - 0.15, z: p.z, rot: rnd() * Math.PI * 2, s: 0.7 + rnd() * 0.6 });
@@ -281,9 +287,10 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
       if (group.length < 2) continue;
       const x = group.reduce((a, g) => a + g.h.x, 0) / group.length, z = group.reduce((a, g) => a + g.h.z, 0) / group.length;
       if (data.areas.some((a) => Math.hypot(a.x - x, a.z - z) < 50)) continue;
-      data.areas.push({ name: TOWN_NAMES[(k++ + seed) % TOWN_NAMES.length], x, z });
+      const names = id === 'desert' ? DESERT_NAMES : TOWN_NAMES;
+      data.areas.push({ name: names[(k++ + seed) % names.length], x, z });
     }
-    if (id === 'green' && mask) { // the two highest rock outcrops
+    if ((id === 'green' || id === 'desert') && mask) { // the two highest rock outcrops
       const peaks: { x: number; z: number; h: number }[] = [];
       for (let iz = 2; iz < n - 2; iz += 2) for (let ix = 2; ix < n - 2; ix += 2) {
         const x = -half + ix * cell, z = -half + iz * cell, h = heights[iz * n + ix];
@@ -293,7 +300,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
       peaks.sort((a, b) => b.h - a.h);
       const tops: typeof peaks = [];
       for (const pk of peaks) if (tops.length < 2 && tops.every((t) => Math.hypot(t.x - pk.x, t.z - pk.z) > 60)) tops.push(pk);
-      ['Granite Tor', 'Low Tor'].forEach((name, i) => { if (tops[i]) data.areas.push({ name, x: tops[i].x, z: tops[i].z }); });
+      (id === 'desert' ? ['The Butte', 'Red Ridge'] : ['Granite Tor', 'Low Tor']).forEach((name, i) => { if (tops[i]) data.areas.push({ name, x: tops[i].x, z: tops[i].z }); });
     }
   }
 

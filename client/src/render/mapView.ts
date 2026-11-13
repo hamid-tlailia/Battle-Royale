@@ -55,8 +55,10 @@ function buildTerrain(map: MapData): THREE.Mesh {
   const col = new Float32Array(n * 3);
   const uv = new Float32Array(n * 2);
   const nrm = geo.getAttribute('normal');
-  const grassA = new THREE.Color(0x5b8f37), grassB = new THREE.Color(0x7aa846), grassC = new THREE.Color(0x46752c);
-  const dirt = new THREE.Color(0x8a7650), rock = new THREE.Color(0x7d7b74), snow = new THREE.Color(0xf2f5f7);
+  const desert = map.id === 'desert';
+  // generated ground colours (outside the scan photo): grass, or red sand on the desert map
+  const grassA = new THREE.Color(desert ? 0xa8603a : 0x5b8f37), grassB = new THREE.Color(desert ? 0xc27a4a : 0x7aa846), grassC = new THREE.Color(desert ? 0x8f4f30 : 0x46752c);
+  const dirt = new THREE.Color(desert ? 0xd09a68 : 0x8a7650), rock = new THREE.Color(desert ? 0x8a4a32 : 0x7d7b74), snow = new THREE.Color(0xf2f5f7);
   const c = new THREE.Color();
   for (let i = 0; i < n; i++) {
     const x = vertices[i * 3], y = vertices[i * 3 + 1], z = vertices[i * 3 + 2];
@@ -129,7 +131,8 @@ function applyPhoto(geo: THREE.BufferGeometry, mat: THREE.MeshLambertMaterial, m
   geo.setAttribute('photoMask', new THREE.BufferAttribute(m, 1));
   const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
   blank.needsUpdate = true;
-  const uniforms = { photoMap: { value: blank as THREE.Texture }, detailGrass: { value: detailTex('detail_grass') }, detailRock: { value: detailTex('detail_rock') } };
+  const [dg, dr] = map.detail ?? ['detail_grass', 'detail_rock'];
+  const uniforms = { photoMap: { value: blank as THREE.Texture }, detailGrass: { value: detailTex(dg) }, detailRock: { value: detailTex(dr) }, rockMix: { value: map.id === 'desert' ? 0 : 1 } };
   new THREE.TextureLoader().load(`/assets/maps/${map.albedo}`, (t) => {
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = true;
     uniforms.photoMap.value = t;
@@ -140,12 +143,12 @@ function applyPhoto(geo: THREE.BufferGeometry, mat: THREE.MeshLambertMaterial, m
       .replace('#include <common>', '#include <common>\nattribute vec2 photoUv;\nattribute float photoMask;\nvarying vec2 vPhotoUv;\nvarying float vPhotoMask;\nvarying vec2 vGround;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPhotoUv = photoUv;\nvPhotoMask = photoMask;\nvGround = position.xz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D photoMap;\nuniform sampler2D detailGrass;\nuniform sampler2D detailRock;\nvarying vec2 vPhotoUv;\nvarying float vPhotoMask;\nvarying vec2 vGround;')
+      .replace('#include <common>', '#include <common>\nuniform float rockMix;\nuniform sampler2D photoMap;\nuniform sampler2D detailGrass;\nuniform sampler2D detailRock;\nvarying vec2 vPhotoUv;\nvarying float vPhotoMask;\nvarying vec2 vGround;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec4 ph = texture2D(photoMap, vPhotoUv);
         // close-up grain from real CC0 photos: grass where the scan photo is green, lichen rock where it is grey
         float sat = max(ph.r, max(ph.g, ph.b)) - min(ph.r, min(ph.g, ph.b));
-        float rockW = 1.0 - smoothstep(0.03, 0.1, sat);
+        float rockW = (1.0 - smoothstep(0.03, 0.1, sat)) * rockMix;
         float dg = texture2D(detailGrass, vGround / 3.0).r, dr = texture2D(detailRock, vGround / 2.2).r;
         float grain = mix(1.0, mix(dg, dr, rockW) * 2.0, 0.85);
         diffuseColor.rgb = mix(diffuseColor.rgb, ph.rgb * grain * 1.12, clamp(vPhotoMask * ph.a, 0.0, 1.0));`);
@@ -222,13 +225,13 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
     }
     for (const inst of chunks.values()) {
       for (const part of parts) {
-        if (type === 'tors_green') rockDetail(part.material);
+        if (type === 'tors_green' || type === 'tors_desert') rockDetail(part.material);
         const im = new THREE.InstancedMesh(part.geometry, part.material, inst.length);
         inst.forEach((p, i) => {
           m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s));
           im.setMatrixAt(i, m);
         });
-        const tint = tintFor(type, part.material.name);
+        const tint = map.id === 'desert' && (type.startsWith('rock') || type === 'stump') ? [new THREE.Color(0xc07a55), new THREE.Color(0xa86448), new THREE.Color(0xd08e66)] : tintFor(type, part.material.name);
         if (tint) inst.forEach((p, i) => im.setColorAt(i, tint[hashProp(p) % tint.length]));
         im.computeBoundingSphere();
         im.name = type;

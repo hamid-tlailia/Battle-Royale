@@ -9,7 +9,10 @@ import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 await MeshoptEncoder.ready; await MeshoptSimplifier.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
-const src = fs.readFileSync('shared/src/map/data/green.ts', 'utf8');
+// usage: node tors.mjs [id src.glb cx cz srcSize vscale minRise]   (defaults: the green map)
+const [ID = 'green', SRCGLB = 'assets-src/maps/dartmoor.glb', CXs = '-16.6', CZs = '-6.8', SRCSIZE = '440', VS = '1', RISE = '1.2'] = process.argv.slice(2);
+const HS = 440 / +SRCSIZE, VSC = +VS; // horizontal / vertical scale source -> map
+const src = fs.readFileSync(`shared/src/map/data/${ID}.ts`, 'utf8');
 const cells = +src.match(/cells: (\d+)/)[1], size = +src.match(/size: (\d+)/)[1];
 const hb = Buffer.from(src.match(/heights: '([^']+)'/)[1], 'base64');
 const n = cells + 1, cell = size / cells;
@@ -21,8 +24,8 @@ const grid = (x, z) => { // bilinear on the smoothed scan grid (map coords)
   const h = (a, b) => hb.readUInt16LE(((iz + b) * n + ix + a) * 2) / 100;
   return h(0, 0) * (1 - u) * (1 - v) + h(1, 0) * u * (1 - v) + h(0, 1) * (1 - u) * v + h(1, 1) * u * v;
 };
-const CX = -16.6, CZ = -6.8;
-const doc = await io.read('assets-src/maps/dartmoor.glb');
+const CX = +CXs, CZ = +CZs;
+const doc = await io.read(SRCGLB);
 const root = doc.getRoot(), buffer = root.listBuffers()[0];
 // lowest scan point (same base as heightmap.mjs)
 let lo = Infinity;
@@ -38,13 +41,13 @@ for (const node of root.listNodes()) {
     const W = [], v = [0, 0, 0], tv = [0, 0];
     for (let i = 0; i < a.getCount(); i++) {
       a.getElement(i, v);
-      const x = m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] - CX, y = m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] - lo, z = m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] - CZ;
+      const x = (m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] - CX) * HS, y = (m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] - lo) * VSC, z = (m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] - CZ) * HS;
       W.push([x, y, z, y - grid(x, z)]);
     }
     const cnt = ind ? ind.getCount() : a.getCount();
     for (let k = 0; k < cnt; k += 3) {
       const tri = [0, 1, 2].map((j) => (ind ? ind.getScalar(k + j) : k + j));
-      if (Math.max(...tri.map((q) => W[q][3])) < 1.2) continue; // part of the rolling ground
+      if (Math.max(...tri.map((q) => W[q][3])) < +RISE) continue; // part of the rolling ground
       const [qx, , qz] = W[tri[0]];
       if (Math.hypot(qx, qz) > 175 || maskAt(qx, qz) < 0.95) continue; // scan edges / outside the valley
       for (const q of tri) { pos.push(W[q][0], W[q][1], W[q][2]); t.getElement(q, tv); uv.push(tv[0], tv[1]); idx.push(idx.length); }
@@ -77,10 +80,10 @@ prim.setAttribute('NORMAL', doc.createAccessor().setType('VEC3').setArray(N).set
 mat.setNormalTexture(null).setMetallicRoughnessTexture(null).setOcclusionTexture(null).setMetallicFactor(0).setRoughnessFactor(1).setDoubleSided(true);
 // collider: coarser copy
 const ci = Array.from(I), cv = Array.from(P);
-const [simp] = MeshoptSimplifier.simplify(new Uint32Array(ci), new Float32Array(cv), 3, Math.floor(ci.length * 0.25), 0.01, ['LockBorder']);
+const [simp] = MeshoptSimplifier.simplify(new Uint32Array(ci), new Float32Array(cv), 3, Math.floor(ci.length * 0.25 / 3) * 3, 0.01, ["LockBorder"]);
 const remap = new Map(), v2 = [], i2 = [];
 for (const q of simp) { if (!remap.has(q)) { remap.set(q, v2.length / 3); v2.push(cv[q * 3], cv[q * 3 + 1], cv[q * 3 + 2]); } i2.push(remap.get(q)); }
-fs.writeFileSync('shared/src/map/tors_green.json', JSON.stringify({ base: +lo.toFixed(3), collider: { type: 'trimesh', v: v2.map((x) => Math.round(x * 100) / 100), i: i2 } }));
+fs.writeFileSync(`shared/src/map/tors_${ID}.json`, JSON.stringify({ base: +lo.toFixed(3), collider: { type: 'trimesh', v: v2.map((x) => Math.round(x * 100) / 100), i: i2 } }));
 await doc.transform(prune({ keepAttributes: true }), dedup(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], quality: 88 }), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
-await io.write('client/public/assets/tors_green.glb', doc);
-console.log('tris', prim.getIndices().getCount() / 3, 'collider tris', simp.length / 3, 'glb', (fs.statSync('client/public/assets/tors_green.glb').size / 1024).toFixed(0), 'KB', 'json', (fs.statSync('shared/src/map/tors_green.json').size / 1024).toFixed(0), 'KB');
+await io.write(`client/public/assets/tors_${ID}.glb`, doc);
+console.log('tris', prim.getIndices().getCount() / 3, 'collider tris', simp.length / 3, 'glb', (fs.statSync(`client/public/assets/tors_${ID}.glb`).size / 1024).toFixed(0), 'KB', 'json', (fs.statSync(`shared/src/map/tors_${ID}.json`).size / 1024).toFixed(0), 'KB');

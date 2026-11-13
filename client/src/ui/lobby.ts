@@ -37,7 +37,7 @@ function buildLobbyBackdrop(scene: THREE.Scene, assets: GameAssets) {
   const grain = tl.load('/assets/maps/detail_grass.webp'); grain.wrapS = grain.wrapT = THREE.RepeatWrapping; grain.repeat.set(30, 30);
   const ground = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: photo, color: 0xcfe0b0 }));
   scene.add(ground);
-  const detail = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: grain, transparent: true, opacity: 0.25, blending: THREE.MultiplyBlending, depthWrite: false }));
+  const detail = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: grain, transparent: true, opacity: 0.25, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false }));
   detail.position.y = 0.01; scene.add(detail);
   const place = (name: string, x: number, z: number, s: number, rot = 0) => {
     const pf = (assets.prefabs as Record<string, { parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] } | undefined>)[name];
