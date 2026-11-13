@@ -13,6 +13,9 @@ export interface BoxPrim {
 /** Instance of an imported model (house, car, tree, rock...). Origin = bottom centre. */
 export interface PropInst { p: PrefabName; x: number; y: number; z: number; rot: number; s: number }
 
+const FARM_NAMES = ['Old Mill', 'Hayfield Farm', 'Stonewall', 'Millbrook', 'West Farm'];
+const TOWN_NAMES = ['Pine Hollow', 'Redroof', 'Greystone', 'Fernside', 'Ashby', 'Kestrel Row', 'Moorgate', 'Brookend', 'Larkhill'];
+
 /** Playable maps. 'classic' is fully generated; others start from a real terrain scan. */
 export type MapId = 'classic' | 'green';
 export const MAP_LIST: { id: MapId; name: string; desc: string }[] = [
@@ -47,6 +50,8 @@ export interface MapData {
   boxes: BoxPrim[];
   props: PropInst[];
   spawns: { x: number; z: number }[];
+  /** named places (shown on the map and from the plane) */
+  areas: { name: string; x: number; z: number }[];
 }
 
 export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): MapData {
@@ -111,7 +116,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     }
   }
   const data: MapData = {
-    id, seed, size, cells, heights, boxes: [], props: [], spawns: [], mask,
+    id, seed, size, cells, heights, boxes: [], props: [], spawns: [], areas: [], mask,
     snowHeight: id === 'green' ? 70 : MAP.snowHeight,
     albedo: grid ? `${id}.webp` : undefined,
   };
@@ -175,6 +180,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
       occupied.push({ x: p.x, z: p.z, r: 19 });
       flattenTerrain(data, p.x, p.z + 2, 15, 16, avg, 8);
       const rot = Math.floor(rnd() * 4) * (Math.PI / 2), c = Math.cos(rot), sn = Math.sin(rot);
+      data.areas.push({ name: FARM_NAMES[farms % FARM_NAMES.length], x: p.x, z: p.z });
       for (const [pf, lx, lz, r] of parts) {
         const x = p.x + lx * c + lz * sn, z = p.z - lx * sn + lz * c;
         data.props.push({ p: pf, x, y: groundAt(x, z) - 0.05, z, rot: rot + r, s: 1 });
@@ -260,6 +266,34 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     if (!free(p.x, p.z, 0.8)) continue;
     data.props.push({ p: i % 2 ? 'bush1' : 'bush2', x: p.x, y: groundAt(p.x, p.z) - 0.15, z: p.z, rot: rnd() * Math.PI * 2, s: 0.7 + rnd() * 0.6 });
     i++;
+  }
+
+  // ---------- Named places: house clusters (+ the rock tors on the green map) ----------
+  {
+    const houses = data.props.filter((p) => p.p.startsWith('house'));
+    const used = new Set<number>();
+    let k = 0;
+    for (let i = 0; i < houses.length; i++) {
+      if (used.has(i)) continue;
+      const group = houses.map((h, j) => ({ h, j })).filter(({ h, j }) => !used.has(j) && Math.hypot(h.x - houses[i].x, h.z - houses[i].z) < 45);
+      group.forEach(({ j }) => used.add(j));
+      if (group.length < 2) continue;
+      const x = group.reduce((a, g) => a + g.h.x, 0) / group.length, z = group.reduce((a, g) => a + g.h.z, 0) / group.length;
+      if (data.areas.some((a) => Math.hypot(a.x - x, a.z - z) < 50)) continue;
+      data.areas.push({ name: TOWN_NAMES[(k++ + seed) % TOWN_NAMES.length], x, z });
+    }
+    if (id === 'green' && mask) { // the two highest rock outcrops
+      const peaks: { x: number; z: number; h: number }[] = [];
+      for (let iz = 2; iz < n - 2; iz += 2) for (let ix = 2; ix < n - 2; ix += 2) {
+        const x = -half + ix * cell, z = -half + iz * cell, h = heights[iz * n + ix];
+        if (Math.hypot(x, z) > MAP.playRadius - 30 || mask[iz * n + ix] < 0.9) continue;
+        peaks.push({ x, z, h });
+      }
+      peaks.sort((a, b) => b.h - a.h);
+      const tops: typeof peaks = [];
+      for (const pk of peaks) if (tops.length < 2 && tops.every((t) => Math.hypot(t.x - pk.x, t.z - pk.z) > 60)) tops.push(pk);
+      ['Granite Tor', 'Low Tor'].forEach((name, i) => { if (tops[i]) data.areas.push({ name, x: tops[i].x, z: tops[i].z }); });
+    }
   }
 
   // ---------- Spawn points ----------

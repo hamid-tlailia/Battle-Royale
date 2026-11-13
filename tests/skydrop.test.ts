@@ -30,6 +30,28 @@ describe('sky drop', () => {
     expect(maxAirTicks / TICK_RATE).toBeLessThan(60); // whole drop done within a minute
   }, 60000);
 
+  it('gliding reaches 200+ m from the jump point; players who jump together land together', () => {
+    const sim = new GameSim(MAP.seed, { lobby: true, zone: false });
+    const a = sim.addPlayer(1, 'A', false), b = sim.addPlayer(2, 'B', false);
+    sim.startMatch();
+    const path = planePath(sim.seed);
+    const jumpT = Math.floor(path.ticks * 0.45);
+    let ja: { x: number; z: number } | null = null, landA = -1, landB = -1;
+    for (let t = 0; t < path.ticks + 70 * TICK_RATE; t++) {
+      const yawOut = ja ? Math.atan2(-(0 - ja.x), -(0 - ja.z)) : 0; // A glides toward the centre (stays inside the valley)
+      sim.setInput(1, cmd({ seq: t, buttons: t === jumpT ? BTN.JUMP : 0, mz: a.move.air >= 2 ? 1 : 0, yaw: yawOut }));
+      sim.setInput(2, cmd({ seq: t, buttons: t === jumpT ? BTN.JUMP : 0 })); // B falls straight down
+      sim.step();
+      if (!ja && a.move.air === 2) ja = { x: a.move.x, z: a.move.z };
+      if (landA < 0 && ja && a.move.air === 0) landA = t;
+      if (landB < 0 && t > jumpT + 5 && b.move.air === 0) landB = t;
+    }
+    const reach = Math.hypot(a.move.x - ja!.x, a.move.z - ja!.z);
+    console.log(`glide reach ${reach.toFixed(0)} m, A lands after ${((landA - jumpT) / TICK_RATE).toFixed(1)} s, B after ${((landB - jumpT) / TICK_RATE).toFixed(1)} s`);
+    expect(reach).toBeGreaterThan(200);
+    expect(Math.abs(landA - landB) / TICK_RATE).toBeLessThan(6); // gliding far does not make you land much later
+  });
+
   it('nobody can be shot while inside the plane', () => {
     const sim = new GameSim(MAP.seed, { lobby: true, armed: true, loot: false });
     const a = sim.addPlayer(1, 'A', false), b = sim.addPlayer(2, 'B', false);

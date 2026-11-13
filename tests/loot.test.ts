@@ -49,12 +49,40 @@ describe('loot', () => {
     sim.addLoot({ kind: 'weapon', item: 'shotgun', amount: 1, x: sp.x + 3, y: p.move.y - 0.9, z: sp.z }, false);
     for (let i = 0; i < 3; i++) sim.addLoot({ kind: 'ammo', item: 'shotgun', amount: LOOT.ammoBox.shotgun, x: sp.x + 3.2, y: p.move.y - 0.9, z: sp.z }, false);
     const yaw = -Math.PI / 2; // face +x
-    for (let i = 0; i < 40; i++) { sim.setInput(1, cmd({ mz: 1, yaw, seq: i })); sim.step(); }
+    for (let i = 0; i < 40; i++) { sim.setInput(1, cmd({ mz: 1, yaw, seq: i, buttons: BTN.AUTOPICK })); sim.step(); }
     const sg = p.weapons[2];
     expect(sg.owned).toBe(true);
     expect(sg.mag).toBe(WEAPONS.shotgun.mag);
     expect(p.slot).toBe(2);
     expect(sg.reserve).toBe(Math.min(LOOT.maxReserve.shotgun, 3 * LOOT.ammoBox.shotgun));
+  });
+
+  it('auto pick-up off: walking over loot takes nothing; the loot menu takes one item within reach only', () => {
+    const sim = new GameSim(MAP.seed, { loot: false, zone: false });
+    const p = sim.addPlayer(1, 'A', false);
+    const sp = openSpot(sim);
+    place(sim, p, sp.x, sp.z);
+    const y = p.move.y - 0.9;
+    const near = sim.addLoot({ kind: 'weapon', item: 'rifle', amount: 1, x: sp.x + 0.5, y, z: sp.z }, false);
+    const far = sim.addLoot({ kind: 'med', amount: 1, x: sp.x + 6, y, z: sp.z }, false);
+    for (let i = 0; i < 10; i++) { sim.setInput(1, cmd({ seq: i })); sim.step(); }
+    expect(p.weapons[1].owned).toBe(false);
+    sim.setInput(1, cmd({ seq: 20, pick: far.id })); sim.step();
+    expect(p.meds).toBe(0); // out of reach
+    sim.setInput(1, cmd({ seq: 21, pick: near.id })); sim.step();
+    expect(p.weapons[1].owned).toBe(true);
+    expect(sim.loot.has(near.id)).toBe(false);
+  });
+
+  it('auto pick-up stops taking medkits at the cap (5)', () => {
+    const sim = new GameSim(MAP.seed, { loot: false, zone: false });
+    const p = sim.addPlayer(1, 'A', false);
+    const sp = openSpot(sim);
+    place(sim, p, sp.x, sp.z);
+    for (let k = 0; k < 7; k++) sim.addLoot({ kind: 'med', amount: 1, x: sp.x + 0.3, y: p.move.y - 0.9, z: sp.z }, false);
+    for (let i = 0; i < 10; i++) { sim.setInput(1, cmd({ seq: i, buttons: BTN.AUTOPICK })); sim.step(); }
+    expect(p.meds).toBe(LOOT.maxMeds);
+    expect([...sim.loot.values()].filter((l) => l.kind === 'med').length).toBe(2);
   });
 
   it('a medkit heals after its use time; shooting cancels it', () => {

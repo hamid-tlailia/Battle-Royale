@@ -232,8 +232,8 @@ function buildSky(): THREE.Mesh {
     cols.set([c.r, c.g, c.b], i * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  const sky = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
-  sky.renderOrder = -1;
+  const sky = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false, depthTest: false }));
+  sky.renderOrder = -1000; // always behind everything (otherwise it hides terrain > 250 m away when you are up in the plane)
   sky.frustumCulled = false;
   return sky;
 }

@@ -19,6 +19,8 @@ export interface InputCmd {
   weapon?: number;
   /** drop an inventory item on the ground (see DROP codes) — one-shot */
   dropItem?: number;
+  /** pick up this ground loot id (loot menu) */
+  pick?: number;
   /** (fractional) server tick the client was rendering other players at — for lag compensation */
   viewTick?: number;
 }
@@ -68,12 +70,13 @@ export const feetY = (s: MoveState) => s.y - halfTotalOf(s);
 export const SKY = {
   planeAltitude: 115,
   planeSpeed: 24,
-  fallSpeed: 22,
-  diveSpeed: 34,
-  fallSpeedH: 13,
-  chuteSpeed: 5.5,
-  chuteSpeedH: 7,
-  chuteHeight: 45,
+  fallSpeed: 16,
+  diveSpeed: 30,
+  /** horizontal glide while sky-diving / under the canopy: ~250 m of reach from the plane */
+  fallSpeedH: 20,
+  chuteSpeed: 4,
+  chuteSpeedH: 12,
+  chuteHeight: 60,
 } as const;
 
 const VAULT_LIFT_TICKS = 5;
@@ -99,8 +102,9 @@ export function sanitizeInput(i: InputCmd): InputCmd {
   if (Math.abs(aimPitch - pitch) > 0.35) aimPitch = pitch + Math.sign(aimPitch - pitch) * 0.35;
   const weapon = Number.isFinite(i.weapon) ? Math.max(0, Math.min(4, (i.weapon as number) | 0)) : undefined; // 4 = holster
   const dropItem = Number.isFinite(i.dropItem) && (i.dropItem as number) > 0 ? (i.dropItem as number) | 0 : undefined;
+  const pick = Number.isFinite(i.pick) && (i.pick as number) > 0 ? (i.pick as number) >>> 0 : undefined;
   const viewTick = Number.isFinite(i.viewTick) ? (i.viewTick as number) : undefined;
-  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xffff, aimYaw, aimPitch, weapon, viewTick, dropItem };
+  return { seq: i.seq | 0, mx, mz, yaw, pitch, buttons: i.buttons & 0xffff, aimYaw, aimPitch, weapon, viewTick, dropItem, pick };
 }
 
 type ShapeName = 'stand' | 'crouch' | 'ball' | 'prone';
@@ -171,7 +175,8 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
     const tvx = (-sin * input.mz + cos * input.mx) * hs, tvz = (-cos * input.mz - sin * input.mx) * hs;
     const k = Math.min(1, dt * 3);
     s.vx += (tvx - s.vx) * k; s.vz += (tvz - s.vz) * k;
-    const targetVy = s.air === 2 ? (input.mz > 0.5 ? -SKY.diveSpeed : -SKY.fallSpeed) : -SKY.chuteSpeed;
+    const dive = input.mz > 0.5 && input.pitch < -0.6; // push forward while looking straight down = dive; otherwise glide
+    const targetVy = s.air === 2 ? (dive ? -SKY.diveSpeed : -SKY.fallSpeed) : -SKY.chuteSpeed;
     s.vy += (targetVy - s.vy) * Math.min(1, dt * 2.5);
     scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;
     phys.controller.computeColliderMovement(col, scratch);

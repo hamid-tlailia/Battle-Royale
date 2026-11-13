@@ -1,8 +1,8 @@
 import { ICONS } from './icons';
 /** Small settings panel (gear button): look sensitivity, scope sensitivity, aim assist, sound. Saved per device. */
-export interface Settings { sens: number; scopeSens: number; aimAssist: boolean; sound: boolean }
+export interface Settings { sens: number; scopeSens: number; aimAssist: boolean; sound: boolean; autoPickup: boolean }
 const KEY = 'lw.settings.v1';
-const DEFAULTS: Settings = { sens: 1, scopeSens: 1, aimAssist: true, sound: true };
+const DEFAULTS: Settings = { sens: 1, scopeSens: 1, aimAssist: true, sound: true, autoPickup: true };
 
 export function loadSettings(): Settings {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
@@ -25,6 +25,7 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
     ${slider('Scope sensitivity', 'scopeSens')}
     <label class="row"><input type="checkbox" data-c="aimAssist" ${s.aimAssist ? 'checked' : ''}> Aim assist</label>
     <label class="row"><input type="checkbox" data-c="sound" ${s.sound ? 'checked' : ''}> Sound</label>
+    <label class="row"><input type="checkbox" data-c="autoPickup" ${s.autoPickup ? 'checked' : ''}> Auto pick-up (ammo, meds, armor…)</label>
     <button class="layout">CUSTOMIZE BUTTON LAYOUT</button>
     <button class="close">CLOSE</button>`;
   const toggle = (e: Event) => { e.preventDefault(); e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; };

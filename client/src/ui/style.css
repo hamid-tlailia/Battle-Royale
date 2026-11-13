@@ -96,7 +96,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 
 /* ---- sniper scope ---- */
 .scope-lens { position: absolute; left: 50%; top: 50%; width: 94vh; height: 94vh; transform: translate(-50%,-50%); border-radius: 50%;
-  box-shadow: 0 0 0 200vmax #050505, inset 0 0 0 10px #0b0b0b, inset 0 0 50px 22px rgba(0,0,0,.85), inset 0 0 0 2px #333;
+  box-shadow: 0 0 0 200vmax rgba(5,8,5,.55), inset 0 0 0 10px #0b0b0b, inset 0 0 50px 22px rgba(0,0,0,.85), inset 0 0 0 2px #333;
   background: radial-gradient(circle at 35% 30%, rgba(140,190,255,.10), rgba(0,0,0,0) 45%); }
 .scope-lens .reticle { position: absolute; inset: 0; width: 100%; height: 100%; }
 .scope-lens .dot { fill: #111; transition: fill .08s; }
@@ -252,8 +252,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 /* ---------- optics: lens size and reticle differ per zoom ---------- */
 .scope-overlay .reticle { display: none; }
 .scope-overlay[data-zoom="x8"] .r8, .scope-overlay[data-zoom="x4"] .r4, .scope-overlay[data-zoom="x2"] .r2 { display: block; }
-.scope-overlay[data-zoom="x2"] .scope-lens { width: 72vh; height: 72vh; box-shadow: 0 0 0 200vmax rgba(5,5,5,.93), inset 0 0 0 14px #1a1c1f, inset 0 0 0 17px #3a3d42, inset 0 0 40px 18px rgba(0,0,0,.7); }
-.scope-overlay[data-zoom="x4"] .scope-lens { width: 84vh; height: 84vh; box-shadow: 0 0 0 200vmax #050505, inset 0 0 0 12px #121315, inset 0 0 0 15px #2e3135, inset 0 0 50px 22px rgba(0,0,0,.8); }
+.scope-overlay[data-zoom="x2"] .scope-lens { width: 72vh; height: 72vh; box-shadow: 0 0 0 200vmax rgba(5,8,5,.42), inset 0 0 0 14px #1a1c1f, inset 0 0 0 17px #3a3d42, inset 0 0 40px 18px rgba(0,0,0,.7); }
+.scope-overlay[data-zoom="x4"] .scope-lens { width: 84vh; height: 84vh; box-shadow: 0 0 0 200vmax rgba(5,8,5,.5), inset 0 0 0 12px #121315, inset 0 0 0 15px #2e3135, inset 0 0 50px 22px rgba(0,0,0,.8); }
 .scope-overlay[data-zoom="x2"] .dot, .scope-overlay[data-zoom="x4"] .dot { fill: #ff3b30; stroke: #ff3b30; }
 .scope-overlay[data-zoom="x2"].enemy .dot, .scope-overlay[data-zoom="x4"].enemy .dot { fill: #ff0000; stroke: #ff0000; filter: drop-shadow(0 0 2px #f00); }
 .zoom-tag { position: absolute; right: 14%; top: 12%; color: rgba(255,255,255,.75); font-weight: 900; font-size: 13px; text-shadow: 0 1px 2px #000; }
@@ -276,7 +276,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
   background: rgba(12,20,12,.94); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; display: flex; flex-direction: column; }
 .bag-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.12); letter-spacing: 2px; }
 .bag-head button { background: none; border: none; color: #fff; font-size: 18px; }
-.bag-list { overflow-y: auto; padding: 6px 10px 10px; }
+.bag-list { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; min-height: 0; flex: 1; padding: 6px 10px 10px; }
 .bag-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
 .bag-row img { width: 74px; height: 28px; object-fit: contain; }
 .bag-row i { width: 74px; text-align: center; font-style: normal; font-size: 20px; }
@@ -310,3 +310,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .lobby .maps button b { display: block; font-size: 13px; letter-spacing: .5px; }
 .lobby .maps button small { font-size: 10px; opacity: .7; }
 .lobby .maps button.sel { border-color: #ffd34d; background: rgba(255,211,77,.18); }
+
+/* scoped: only fire, scope (to close it), joystick and the minimap stay on screen */
+#hud.scoped-ui .btn:not(.btn-fire):not(.btn-fire-left):not(.btn-scope),
+#hud.scoped-ui .bottom-bar, #hud.scoped-ui .killfeed, #hud.scoped-ui .gear-btn, #hud.scoped-ui .dbg-btn, #hud.scoped-ui .loot-list { opacity: 0; pointer-events: none; }
+#hud.scoped-ui .btn-scope { opacity: .55; }
+
+/* ground-loot menu */
+.loot-list { touch-action: pan-y; overscroll-behavior: contain; position: absolute; right: calc(250px + env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); width: 210px; max-height: 62vh; overflow-y: auto;
+  pointer-events: auto; background: rgba(10,18,10,.78); border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 4px; z-index: 12; }
+.loot-head { font-size: 10px; letter-spacing: 1.5px; opacity: .7; padding: 3px 6px; font-weight: 800; }
+.loot-list .bag-row { padding: 4px 6px; }
+.loot-list .bag-row img { width: 52px; height: 20px; }
+.loot-list .bag-row.taking { opacity: .4; }
+.loot-list button { background: #6fc23c; color: #13200f; }
+
+.area-label { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; font-weight: 900; font-size: 15px; letter-spacing: 1.5px;
+  color: #fff6d0; text-shadow: 0 0 3px #000, 0 2px 6px rgba(0,0,0,.8); text-transform: uppercase; transition: opacity .3s; }

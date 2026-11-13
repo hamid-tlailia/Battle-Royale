@@ -23,6 +23,8 @@ export const LOOT = {
   /** max spare ammo carried per weapon */
   maxReserve: { pistol: 96, rifle: 240, shotgun: 40, sniper: 40 } as Record<WeaponId, number>,
   maxMeds: 5,
+  /** loot menu reach (m) */
+  menuRadius: 2.6,
   maxFrost: 4,
   medHeal: 50,
   /** seconds to use a medkit (cancelled by shooting) */

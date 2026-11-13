@@ -203,11 +203,11 @@ export class GameSim {
     };
     const free = (x: number, y: number, z: number) => !this.phys.shapeBlocked(x, y + 0.35, z, 0.001, 0.25);
     for (const h of this.map.props) {
-      if (!h.p.startsWith('house')) continue;
+      if (!h.p.startsWith('house') && h.p !== 'farmhouse' && h.p !== 'yardwall') continue;
       const [sx, , sz] = PREFABS[h.p].size;
       const c = Math.cos(h.rot), sn = Math.sin(h.rot);
       let n = 0;
-      for (let k = 0; k < 14 && n < 4; k++) {
+      for (let k = 0; k < 20 && n < 6; k++) {
         const lx = (rnd() - 0.5) * sx * 0.7, lz = (rnd() - 0.5) * sz * 0.7;
         const x = h.x + lx * c + lz * sn, z = h.z - lx * sn + lz * c;
         const down = this.phys.rayWorld(x, h.y + 1.6, z, 0, -1, 0, 3);
@@ -217,7 +217,7 @@ export class GameSim {
         place(x, fy + 0.05, z); n++;
       }
     }
-    for (let k = 0, n = 0; k < 900 && n < Math.round(70 * (MAP.playRadius / 125) ** 2); k++) {
+    for (let k = 0, n = 0; k < 2000 && n < Math.round(115 * (MAP.playRadius / 125) ** 2); k++) {
       const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (MAP.playRadius - 8);
       const x = Math.cos(a) * d, z = Math.sin(a) * d, y = this.phys.groundHeight(x, z);
       if (!free(x, y, z)) continue;
@@ -240,10 +240,12 @@ export class GameSim {
   }
 
   /** Walk-over pickup. Returns true if the item was (fully) taken. */
-  private tryPickup(p: SimPlayer, it: LootItem): boolean {
+  private tryPickup(p: SimPlayer, it: LootItem, manual = false): boolean {
     switch (it.kind) {
       case 'weapon': {
         const i = WEAPON_IDS.indexOf(it.item as WeaponId), slot = p.weapons[i];
+        // walking over a gun you already own does nothing (no more endless ammo vacuuming); pick it from the menu
+        if (slot.owned && !manual) return false;
         if (!slot.owned) {
           slot.owned = true; slot.mag = WEAPONS[slot.id].mag;
           if (!p.weapons[p.slot].owned) { p.slot = i; p.holstered = false; }
@@ -284,7 +286,20 @@ export class GameSim {
     }
   }
 
+  /** Loot menu: take one specific item within reach. */
+  private manualPick(p: SimPlayer, id: number) {
+    const it = this.loot.get(id);
+    if (!it || !p.alive || p.move.air) return;
+    const dx = it.x - p.move.x, dz = it.z - p.move.z;
+    if (dx * dx + dz * dz > LOOT.menuRadius * LOOT.menuRadius || Math.abs(it.y - (p.move.y - 0.6)) > 1.8) return;
+    if (it.lockId === p.id && this.tick < (it.lockUntil ?? 0)) return;
+    const before = it.amount;
+    if (this.tryPickup(p, it, true)) { this.loot.delete(it.id); this.events.push({ t: 'loot-', id: it.id, by: p.id, kind: it.kind, item: it.item, amount: before }); }
+  }
+
   private pickups(p: SimPlayer) {
+    // humans choose (settings): walk-over pickup on/off; bots always pick up
+    if (!p.bot && !(p.lastInput.buttons & BTN.AUTOPICK)) return;
     const r2 = LOOT.pickupRadius * LOOT.pickupRadius;
     for (const it of this.loot.values()) {
       const dx = it.x - p.move.x, dz = it.z - p.move.z;
@@ -329,6 +344,7 @@ export class GameSim {
     }
     if (pressed(BTN.FROST) && p.frost > 0) this.placeWall(p);
     if (input.dropItem) this.dropItem(p, input.dropItem);
+    if (input.pick) this.manualPick(p, input.pick);
   }
 
   /** Backpack: drop one item type in front of the player (cannot re-pick it for 2 s). */

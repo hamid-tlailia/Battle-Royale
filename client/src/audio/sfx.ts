@@ -62,6 +62,24 @@ export class Sfx {
     this.windGain = ctx.createGain(); this.windGain.gain.value = this.enabled ? 0.06 : 0;
     src.connect(this.windGain).connect(this.master); src.start();
   }
+  /** synthesised propeller-plane drone (two detuned saws + rumble), level 0..1 */
+  private planeGain: GainNode | null = null;
+  setPlane(level: number) {
+    const ctx = this.ctx; if (!ctx) return;
+    if (!this.planeGain) {
+      if (level <= 0) return;
+      this.planeGain = ctx.createGain(); this.planeGain.gain.value = 0;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+      for (const f of [58, 61.5, 117]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = f > 100 ? 0.25 : 0.5; o.connect(g).connect(lp); o.start(); }
+      const n = ctx.createBufferSource(); n.buffer = this.noise; n.loop = true; const nb = ctx.createBiquadFilter(); nb.type = 'lowpass'; nb.frequency.value = 300; const ng = ctx.createGain(); ng.gain.value = 0.6;
+      n.connect(nb).connect(ng).connect(lp); n.start();
+      // propeller "wub"
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 9; const lg = ctx.createGain(); lg.gain.value = 120; lfo.connect(lg).connect(lp.frequency); lfo.start();
+      lp.connect(this.planeGain).connect(this.master);
+    }
+    this.planeGain.gain.setTargetAtTime(this.enabled ? level * 0.22 : 0, ctx.currentTime, 0.3);
+  }
+
   /** louder wind high up (sky-diving) */
   setWind(level: number) { if (this.windGain) this.windGain.gain.value = this.enabled ? 0.06 + level * 0.3 : 0; }
 
@@ -126,7 +144,9 @@ export class Sfx {
   step(dist: number, pan: number, soft = false, stone = false) {
     // recorded footsteps (CC0, Fantozzi): grass/sand outdoors, stone on house floors
     const n = `${stone ? 'stone' : 'step'}${1 + Math.floor(Math.random() * 6)}`;
-    if (this.sample(n, soft ? 0.45 : 0.9, dist, pan, 0.92 + Math.random() * 0.16)) return;
+    const fade = Math.max(0, 1 - dist / 26) ** 1.5; // steep falloff: you hear people close to you, not across the map
+    if (fade <= 0.01) return;
+    if (this.sample(n, (soft ? 0.45 : 0.9) * fade, dist, pan, 0.92 + Math.random() * 0.16)) return;
     const d = this.chain(soft ? 0.18 : 0.35, dist, pan);
     if (!d) return;
     const t = this.ctx!.currentTime;

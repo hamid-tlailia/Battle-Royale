@@ -48,6 +48,8 @@ export const BTN = {
   PRONE: 64,
   HEAL: 128,
   FROST: 256,
+  /** walk-over pickup enabled (settings) */
+  AUTOPICK: 512,
 } as const;
 
 /** number of selectable outfits (client SKINS table) */

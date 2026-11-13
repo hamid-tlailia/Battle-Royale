@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP, MAX_ARMOR, MAX_HP, WEAPONS, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
+import { MAP, MAX_ARMOR, MAX_HP, WEAPONS, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
 
 const MINI_PX = 360;
 const el = (cls: string, parent: HTMLElement, html = '') => {
@@ -83,7 +83,15 @@ export class Hud {
     const toggleMap = (e: Event) => {
       if (hud.classList.contains('editing')) return;
       e.preventDefault(); e.stopPropagation();
+      if (this.mini.classList.contains('big')) {
+        // tap on the big map = mark where you want to land / go
+        const t = (e as TouchEvent).changedTouches?.[0] ?? (e as MouseEvent);
+        const r = this.mini.getBoundingClientRect();
+        const x = ((t.clientX - r.left) / r.width - 0.5) * MAP.size, z = ((t.clientY - r.top) / r.height - 0.5) * MAP.size;
+        if (Math.hypot(x, z) < MAP.playRadius) { this.waypoint = { x, z }; this.onWaypoint(this.waypoint); }
+      }
       this.mini.classList.toggle('big');
+      this.miniTimer = 0;
     };
     this.mini.addEventListener('touchstart', toggleMap, { passive: false });
     this.mini.addEventListener('mousedown', toggleMap);
@@ -170,6 +178,41 @@ export class Hud {
     this.bag.querySelectorAll<HTMLButtonElement>('[data-drop]').forEach((b) => b.addEventListener('click', () => this.onDrop(+b.dataset.drop!)));
   }
 
+  /** Ground-loot menu: everything within reach, tap TAKE (or the row) to pick that item up. */
+  onPick: (id: number) => void = () => {};
+  private lootList: HTMLDivElement | null = null;
+  private lootKey = '';
+  setNearbyLoot(items: LootItem[]) {
+    const key = items.map((i) => `${i.id}:${i.amount}`).join(',');
+    if (key === this.lootKey) return;
+    this.lootKey = key;
+    if (!items.length) { this.lootList?.remove(); this.lootList = null; return; }
+    if (!this.lootList) {
+      this.lootList = el('loot-list', this.root);
+      this.lootList.dataset.hud = 'loot';
+      this.lootList.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    }
+    const names: Record<string, string> = { pistol: 'Pistol', rifle: 'Assault Rifle', shotgun: 'Shotgun', sniper: 'Sniper' };
+    const row = (it: LootItem) => {
+      let img = '', label = '', sub = '';
+      switch (it.kind) {
+        case 'weapon': img = this.icons[it.item as string] ? `<img src="${this.icons[it.item as string]}" alt="">` : ''; label = names[it.item as string]; sub = 'weapon'; break;
+        case 'ammo': img = `<i class="ammo-ic"></i>`; label = `${names[it.item as string]} ammo`; sub = `${it.amount} rounds`; break;
+        case 'med': img = '<i class="med-ic">✚</i>'; label = 'Medkit'; sub = `× ${it.amount}`; break;
+        case 'armor': img = '<i class="armor-ic">🛡</i>'; label = 'Armor vest'; sub = '+50 armor'; break;
+        case 'scope': img = '<i class="scope-ic">◎</i>'; label = `×${it.item} scope`; sub = 'assault rifle'; break;
+        case 'frost': img = '<i class="frost-ic">❄</i>'; label = 'Ice wall'; sub = `× ${it.amount}`; break;
+      }
+      return `<div class="bag-row" data-pick="${it.id}">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div><button data-pick="${it.id}">TAKE</button></div>`;
+    };
+    this.lootList.innerHTML = `<div class="loot-head">ON THE GROUND</div>${items.slice(0, 8).map(row).join('')}`;
+    this.lootList.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) => {
+      const go = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onPick(+b.dataset.pick!); b.closest('.bag-row')?.classList.add('taking'); };
+      b.addEventListener(b.tagName === 'BUTTON' ? 'touchstart' : 'touchend', go, { passive: false });
+      b.addEventListener('click', go);
+    });
+  }
+
   setSlots(p: SimPlayer, reloadFrac: number, healFrac = 0) {
     this.renderBag(p);
     this.armorTxt.textContent = String(Math.round(p.armor));
@@ -227,6 +270,18 @@ export class Hud {
       g.fillStyle = `rgba(255,40,40,${Math.min(1, (m.until - now) / 1000)})`;
       g.beginPath(); g.arc((m.x + o) * k, (m.z + o) * k, 9, 0, Math.PI * 2); g.fill();
     }
+    // place names
+    g.font = `bold ${this.mini.classList.contains('big') ? 13 : 15}px sans-serif`; g.textAlign = 'center';
+    for (const a of this.map.areas) {
+      g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.65)'; g.strokeText(a.name, (a.x + o) * k, (a.z + o) * k);
+      g.fillStyle = '#fff6d0'; g.fillText(a.name, (a.x + o) * k, (a.z + o) * k);
+    }
+    // marker
+    if (this.waypoint) {
+      const wx = (this.waypoint.x + o) * k, wz = (this.waypoint.z + o) * k;
+      g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(wx, wz - 11); g.lineTo(wx + 8, wz); g.lineTo(wx, wz + 11); g.lineTo(wx - 8, wz); g.closePath(); g.fill(); g.stroke();
+    }
     // me
     const px = (me.x + o) * k, pz = (me.z + o) * k;
     g.save(); g.translate(px, pz); g.rotate(-me.yaw);
@@ -236,6 +291,22 @@ export class Hud {
   }
 
   private hitMarks: { x: number; z: number; until: number }[] = [];
+  /** landing / travel marker set by tapping the big map */
+  waypoint: { x: number; z: number } | null = null;
+  onWaypoint: (w: { x: number; z: number }) => void = () => {};
+  private areaEls = new Map<string, HTMLDivElement>();
+  /** place names floating over the world while you are high up (from the plane / sky-diving) */
+  setAreaLabels(list: { name: string; sx: number; sy: number; alpha: number }[]) {
+    const seen = new Set<string>();
+    for (const a of list) {
+      seen.add(a.name);
+      let e = this.areaEls.get(a.name);
+      if (!e) { e = el('area-label', this.root); e.textContent = a.name; this.areaEls.set(a.name, e); }
+      e.style.transform = `translate(${a.sx}px, ${a.sy}px) translate(-50%, -50%)`;
+      e.style.opacity = String(a.alpha);
+    }
+    for (const [n, e] of this.areaEls) if (!seen.has(n)) { e.remove(); this.areaEls.delete(n); }
+  }
   private planeHint: HTMLDivElement | null = null;
   private specEl: HTMLDivElement | null = null;
 
@@ -249,7 +320,7 @@ export class Hud {
   }
 
   setPlaneHint(inPlane: boolean, falling: boolean) {
-    const text = inPlane ? 'Tap <b>JUMP</b> to drop' : falling ? 'Push forward to dive · parachute opens automatically' : '';
+    const text = inPlane ? 'Tap the map to mark a landing spot · tap <b>JUMP</b> to drop' : falling ? 'Steer to glide (~250 m) · look down + forward to dive · parachute opens by itself' : '';
     if (!text) { this.planeHint?.remove(); this.planeHint = null; return; }
     if (!this.planeHint) this.planeHint = el('plane-hint', this.root);
     if (this.planeHint.innerHTML !== text) this.planeHint.innerHTML = text;

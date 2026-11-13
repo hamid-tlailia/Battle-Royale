@@ -23,6 +23,10 @@ export class Controls {
   healQueued = 0;
   /** backpack: item to drop with the next input */
   dropQueued = 0;
+  /** loot menu: ground item to pick with the next input */
+  pickQueued = 0;
+  /** settings: walk-over pickup */
+  autoPickup = true;
   private lastSlot = 1;
   frostQueued = 0;
   fireHeld = false;
@@ -124,6 +128,7 @@ export class Controls {
   }
   /** returns the queued backpack drop once */
   takeDrop(): number | undefined { const d = this.dropQueued; this.dropQueued = 0; return d || undefined; }
+  takePick(): number | undefined { const d = this.pickQueued; this.pickQueued = 0; return d || undefined; }
   frost() { this.frostQueued = 3; }
   /** crouching / lying down stops auto-run (otherwise the player keeps walking) */
   private stopRun() { if (this.sprintToggle) { this.sprintToggle = false; this.onSprintChange(false); } }
@@ -158,6 +163,9 @@ export class Controls {
   };
 
   private onTouchMove = (e: TouchEvent) => {
+    // let lists (backpack, ground loot, settings) scroll with the finger
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest?.('.bag-panel, .loot-list, .settings-panel')) return;
     if (e.cancelable) e.preventDefault();
     for (const t of Array.from(e.changedTouches)) {
       if (t.identifier === this.joyId) {
@@ -220,6 +228,7 @@ export class Controls {
     if (this.proneToggle) b |= BTN.PRONE;
     if ((this.sprintLock || this.sprintToggle || this.keys.has('ShiftLeft')) && !this.fireHeld && !this.scoped) b |= BTN.SPRINT;
     if (this.scoped) b |= BTN.SCOPE;
+    if (this.autoPickup) b |= BTN.AUTOPICK;
     if (this.fireHeld) b |= BTN.FIRE;
     return b;
   }

@@ -22,7 +22,7 @@ export interface LobbyInfo { phase: string; countdown: number; humans: number; m
 const PITCH_K = 10000;
 
 // ------------------------------------------------------------------ inputs
-const INPUT_BYTES = 4 + 1 + 1 + 4 + 2 + 4 + 2 + 2 + 1 + 4 + 1;
+const INPUT_BYTES = 4 + 1 + 1 + 4 + 2 + 4 + 2 + 2 + 1 + 4 + 1 + 4;
 
 export function encodeInputs(inputs: InputCmd[]): Uint8Array {
   const n = Math.min(inputs.length, 8);
@@ -43,6 +43,7 @@ export function encodeInputs(inputs: InputCmd[]): Uint8Array {
     v.setUint8(o, i.weapon ?? 255); o += 1;
     v.setFloat32(o, i.viewTick ?? -1); o += 4;
     v.setUint8(o, i.dropItem ?? 0); o += 1;
+    v.setUint32(o, (i.pick ?? 0) >>> 0); o += 4;
   }
   return new Uint8Array(buf);
 }
@@ -56,6 +57,7 @@ export function quantizeInput(i: InputCmd): InputCmd {
     aimYaw: Math.fround(i.aimYaw ?? i.yaw), aimPitch: Math.round((i.aimPitch ?? i.pitch) * PITCH_K) / PITCH_K,
     viewTick: i.viewTick === undefined ? undefined : Math.fround(i.viewTick),
     dropItem: i.dropItem ? i.dropItem & 0xff : undefined,
+    pick: i.pick ? i.pick >>> 0 : undefined,
   };
 }
 
@@ -77,7 +79,8 @@ export function decodeInputs(bytes: Uint8Array): InputCmd[] {
     const w = v.getUint8(o); o += 1;
     const vt = v.getFloat32(o); o += 4;
     const dropItem = v.getUint8(o); o += 1;
-    out.push({ seq, mx, mz, yaw, pitch, aimYaw, aimPitch, buttons, weapon: w === 255 ? undefined : w, viewTick: vt < 0 ? undefined : vt, dropItem: dropItem || undefined });
+    const pick = v.getUint32(o); o += 4;
+    out.push({ seq, mx, mz, yaw, pitch, aimYaw, aimPitch, buttons, weapon: w === 255 ? undefined : w, viewTick: vt < 0 ? undefined : vt, dropItem: dropItem || undefined, pick: pick || undefined });
   }
   return out;
 }

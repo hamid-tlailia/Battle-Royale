@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox, terrainHeight,
-  type Hitbox, type InputCmd, type MapId, type SimEvent, type SimPlayer, type WeaponId,
+  type Hitbox, type InputCmd, type LootItem, type MapId, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
 import { buildMapView } from '../render/mapView';
 import { CharacterView } from '../render/characters';
@@ -132,7 +132,7 @@ export class Game {
     this.hud.onSlot = (i) => { this.controls.weapon = i; };
     this.debug = new DebugOverlay(hudEl);
     const applySettings = (st: Settings) => {
-      this.controls.sensitivity = st.sens; this.controls.scopeSensitivity = st.scopeSens; sfx.enabled = st.sound;
+      this.controls.sensitivity = st.sens; this.controls.scopeSensitivity = st.scopeSens; sfx.enabled = st.sound; this.controls.autoPickup = st.autoPickup;
     };
     applySettings(this.settings);
     settingsPanel(hudEl, this.settings, applySettings, () => editLayout(hudEl));
@@ -218,6 +218,8 @@ export class Game {
     this.controls.bindButton(B.holster, () => { this.controls.toggleHolster(); sync(); });
     this.controls.bindButton(B.bag, () => this.hud.toggleBag());
     this.hud.onDrop = (code) => { this.controls.dropQueued = code; };
+    this.hud.onPick = (id) => { this.controls.pickQueued = id; };
+    this.hud.onWaypoint = (w) => this.setMarker(w);
     this.controls.onSprintChange = () => sync();
     applyLayout(this.hudEl);
     if (!this.controls.isTouch) {
@@ -243,7 +245,7 @@ export class Game {
       if (v) { v.prev.x = me.move.x; v.prev.y = me.move.y; v.prev.z = me.move.z; v.prev.yaw = me.move.yaw; }
       const { mx, mz } = this.controls.axes();
       const aim = me.alive ? this.computeAim(me) : { yaw: this.controls.yaw, pitch: this.controls.pitch };
-      this.net.localTick({ mx, mz, yaw: this.controls.yaw, pitch: this.controls.pitch, buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon, dropItem: this.controls.takeDrop() });
+      this.net.localTick({ mx, mz, yaw: this.controls.yaw, pitch: this.controls.pitch, buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon, dropItem: this.controls.takeDrop(), pick: this.controls.takePick() });
       return;
     }
     if (me.alive) {
@@ -251,7 +253,7 @@ export class Game {
       const aim = this.computeAim(me);
       const input: InputCmd = {
         seq: ++this.seq, mx, mz, yaw: this.controls.yaw, pitch: this.controls.pitch,
-        buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon, dropItem: this.controls.takeDrop(),
+        buttons: this.controls.sampleButtons(), aimYaw: aim.yaw, aimPitch: aim.pitch, weapon: this.controls.weapon, dropItem: this.controls.takeDrop(), pick: this.controls.takePick(),
       };
       this.sim.setInput(this.myId, input);
     }
@@ -396,6 +398,44 @@ export class Game {
     });
   }
 
+  private menuTimer = 0;
+  private areaTimer = 0;
+  private marker: THREE.Mesh | null = null;
+
+  /** Tall light beam where you tapped the big map (visible from the plane). */
+  private setMarker(w: { x: number; z: number }) {
+    if (!this.marker) {
+      this.marker = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 160, 10, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.32, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+      this.scene.add(this.marker);
+    }
+    this.marker.position.set(w.x, this.sim.phys.groundHeight(w.x, w.z) + 80, w.z);
+  }
+
+  /** Place names over the world, only while high up; they fade out as you come down. */
+  private updateAreaLabels(me: SimPlayer) {
+    const h = this.camera.position.y - this.sim.phys.groundHeight(this.camera.position.x, this.camera.position.z);
+    // see the whole valley from the plane; normal (cheap) view distance on the ground
+    const up = THREE.MathUtils.clamp(h - 10, 0, 140);
+    const far = 300 + up * 3.2;
+    if (Math.abs(this.camera.far - far) > 8) { this.camera.far = far; this.camera.updateProjectionMatrix(); }
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = 70 + up * 1.6; fog.far = 240 + up * 3;
+    const k = !me.alive ? 0 : me.move.air === 1 ? 1 : THREE.MathUtils.clamp((h - 22) / 35, 0, 1);
+    const out: { name: string; sx: number; sy: number; alpha: number }[] = [];
+    if (k > 0) {
+      const W = window.innerWidth, H = window.innerHeight;
+      for (const a of this.sim.map.areas) {
+        this.v1.set(a.x, this.sim.phys.groundHeight(a.x, a.z) + 10, a.z).project(this.camera);
+        if (this.v1.z > 1 || Math.abs(this.v1.x) > 1.1 || Math.abs(this.v1.y) > 1.1) continue;
+        const sx = (this.v1.x * 0.5 + 0.5) * W, sy = (-this.v1.y * 0.5 + 0.5) * H;
+        if (out.some((o) => Math.abs(o.sx - sx) < 130 && Math.abs(o.sy - sy) < 26)) continue; // no overlapping names
+        out.push({ name: a.name, sx, sy, alpha: k });
+      }
+    }
+    this.hud.setAreaLabels(out);
+  }
+
   private panOf(p: THREE.Vector3) {
     this.v2.subVectors(p, this.camera.position);
     const right = this.right.set(Math.cos(this.controls.yaw), 0, -Math.sin(this.controls.yaw));
@@ -451,8 +491,27 @@ export class Game {
     this.plane.update(dt, planeOn, this.planePos.x, this.planePos.y, this.planePos.z, this.planeYaw);
     this.hud.setPlaneHint(me.alive && me.move.air === 1, me.move.air >= 2);
     sfx.setWind(me.move.air === 2 ? 1 : me.move.air === 3 ? 0.4 : 0);
+    // engine drone: loud inside, fading with distance once you have jumped
+    sfx.setPlane(!planeOn ? 0 : me.move.air === 1 ? 1 : Math.max(0, 1 - this.planePos.distanceTo(this.camera.position) / 350) * 0.7);
+    this.areaTimer -= dt;
+    if (this.areaTimer <= 0) { this.areaTimer = 0.06; this.updateAreaLabels(me); }
     const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
     this.controls.scopedView = scopedView;
+    this.hudEl.classList.toggle('scoped-ui', scopedView);
+    this.menuTimer -= dt;
+    if (this.menuTimer <= 0) { // ground-loot menu
+      this.menuTimer = 0.2;
+      const near: LootItem[] = [];
+      if (me.alive && !me.move.air) {
+        const r2 = LOOT.menuRadius * LOOT.menuRadius;
+        for (const it of this.sim.loot.values()) {
+          const dx = it.x - me.move.x, dz = it.z - me.move.z;
+          if (dx * dx + dz * dz <= r2 && Math.abs(it.y - (me.move.y - 0.6)) < 1.8) near.push(it);
+        }
+        near.sort((a, b) => (a.kind === 'weapon' ? 0 : 1) - (b.kind === 'weapon' ? 0 : 1));
+      }
+      this.hud.setNearbyLoot(near);
+    }
     this.scopeMode = !scopedView ? 'none' : slot.id === 'sniper' ? 'x8' : slot.id === 'rifle' && me.scope ? (me.scope >= 4 ? 'x4' : 'x2') : 'reddot';
     this.hud.setScope(this.scopeMode);
     if (me.alive) this.aimAssist(dt, me);
@@ -482,7 +541,7 @@ export class Game {
       v.view.ownView = p.id === this.myId;
       v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
       // footsteps
-      if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 40) {
+      if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 26) { // only nearby footsteps, panned left/right
         v.stepAcc += p.speed * dt;
         const stride = p.move.crouch ? 1.4 : 2.0;
         if (v.stepAcc > stride) { v.stepAcc = 0; sfx.step(p.id === this.myId ? 0 : dist, this.panOf(this.v1.set(x, y, z)), p.move.crouch, y - halfTotalOf(p.move) > terrainHeight(this.sim.map, x, z) + 0.3); }

@@ -43,12 +43,29 @@ export class BotBrain {
     this.tx = cx + Math.cos(a) * d; this.tz = cz + Math.sin(a) * d;
   }
 
+  /** sky-dive: each bot glides toward its own landing spot so players spread out */
+  private landX: number | null = null; private landZ = 0;
+
   think(p: SimPlayer, sim: GameSim): InputCmd {
     const s = p.move;
     const dt = 1 / TICK_RATE;
     let buttons = 0, mx = 0, mz = 0;
     let yaw = s.yaw, pitch = 0;
     let weapon = p.slot;
+
+    if (s.air >= 2) {
+      if (this.landX === null) { // pick a spot up to ~220 m away, inside the valley
+        const a = this.rnd() * Math.PI * 2, d = 40 + this.rnd() * 180;
+        let x = s.x + Math.cos(a) * d, z = s.z + Math.sin(a) * d;
+        const r = Math.hypot(x, z), lim = MAP.playRadius - 20;
+        if (r > lim) { x *= lim / r; z *= lim / r; }
+        this.landX = x; this.landZ = z;
+      }
+      const dx = this.landX - s.x, dz = this.landZ - s.z, dist = Math.hypot(dx, dz);
+      const yawT = Math.atan2(-dx, -dz);
+      // glide (never dive: humans and bots that jump together land together)
+      return { seq: ++this.seq, mx: 0, mz: dist > 6 ? 0.85 : 0, yaw: yawT, pitch: 0, buttons: 0, aimYaw: yawT, aimPitch: 0, weapon };
+    }
 
     // ---------- perception (every ~0.3 s) ----------
     if (--this.scanCooldown <= 0) {
