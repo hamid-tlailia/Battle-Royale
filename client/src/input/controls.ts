@@ -82,7 +82,7 @@ export class Controls {
       if (this.isTouch) return;
       if (!this.pointerLocked) { surface.requestPointerLock?.(); return; }
       if (e.button === 2) this.setScope(!this.scoped);
-      if (e.button === 0) this.fireHeld = true;
+      if (e.button === 0) { if (this.frostAim) this.confirmFrost(); else this.fireHeld = true; }
     });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.fireHeld = false; });
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -129,7 +129,10 @@ export class Controls {
   /** returns the queued backpack drop once */
   takeDrop(): number | undefined { const d = this.dropQueued; this.dropQueued = 0; return d || undefined; }
   takePick(): number | undefined { const d = this.pickQueued; this.pickQueued = 0; return d || undefined; }
-  frost() { this.frostQueued = 3; }
+  /** ice wall: first tap shows a preview you aim by turning, FIRE places it, tapping the button again cancels */
+  frostAim = false;
+  frost() { this.frostAim = !this.frostAim; }
+  confirmFrost() { this.frostAim = false; this.frostQueued = 3; }
   /** crouching / lying down stops auto-run (otherwise the player keeps walking) */
   private stopRun() { if (this.sprintToggle) { this.sprintToggle = false; this.onSprintChange(false); } }
   toggleCrouch() { this.crouchToggle = !this.crouchToggle; if (this.crouchToggle) { this.proneToggle = false; this.stopRun(); } }

@@ -139,9 +139,9 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   }
 
   // ---------- Houses (imported enterable models on a stone foundation) ----------
-  const houseTypes: PrefabName[] = ['house_a', 'house_b', 'house_c'];
+  const houseTypes: PrefabName[] = ['house_a', 'house_d', 'house_b', 'house_e', 'house_c', 'house_f'];
   let houses = 0;
-  for (let tries = 0; tries < 2500 && houses < Math.round((id === 'green' ? 9 : 12) * A * 0.95); tries++) {
+  for (let tries = 0; tries < 6000 && houses < Math.round((id === 'green' ? 9 : 12) * A * 0.95); tries++) {
     const p = randInValley(MAP.playRadius - 22);
     const type = houseTypes[houses % houseTypes.length];
     const rotIdx = Math.floor(rnd() * 4);
@@ -152,7 +152,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     if (!free(p.x, p.z, rad)) continue;
     const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]].map(([cx, cz]) => groundAt(p.x + (cx * w) / 2, p.z + (cz * d) / 2));
     const lo = Math.min(...corners), hi = Math.max(...corners);
-    if (hi - lo > 2.5) continue;
+    if (hi - lo > 2.5 + Math.max(w, d) * 0.06) continue; // big buildings may sit on a gentler slope (foundation + levelling)
     occupied.push({ x: p.x, z: p.z, r: rad });
     // Level the ground around the house so doors are reachable from every side.
     const avg = corners.reduce((a, b) => a + b, 0) / corners.length;
@@ -231,7 +231,8 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   }
 
   // ---------- Pine trees ----------
-  const pines: PrefabName[] = ['pine1', 'pine2', 'pine4', 'pine5'];
+  // realistic trees: mostly pines, some broad oaks (green map has more oaks)
+  const pines: PrefabName[] = id === 'green' ? ['tpine1', 'toak1', 'tpine2', 'tpine3', 'toak2', 'tpine4'] : ['tpine1', 'tpine2', 'tpine3', 'tpine4', 'tpine1', 'toak1', 'tpine2', 'tpine3'];
   for (let i = 0, tries = 0; i < Math.round((id === 'green' ? 150 : 260) * A) && tries < 8000; tries++) {
     const p = randInValley(MAP.playRadius + 15);
     const g = groundAt(p.x, p.z);
@@ -239,7 +240,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     if (mask && rnd() < 0.85 * mask[Math.round((p.z + half) / cell) * n + Math.round((p.x + half) / cell)]) continue; // open moorland on the scan
     if (!free(p.x, p.z, 1.3)) continue;
     occupied.push({ x: p.x, z: p.z, r: 0.9 });
-    data.props.push({ p: pines[i % pines.length], x: p.x, y: g - 0.25, z: p.z, rot: rnd() * Math.PI * 2, s: 0.8 + rnd() * 0.5 });
+    data.props.push({ p: pines[i % pines.length], x: p.x, y: g - 0.25, z: p.z, rot: rnd() * Math.PI * 2, s: 0.75 + rnd() * 0.45 });
     i++;
   }
 
@@ -264,7 +265,7 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
   for (let i = 0, tries = 0; i < Math.round(110 * A) && tries < 4000; tries++) {
     const p = randInValley(MAP.playRadius + 5);
     if (!free(p.x, p.z, 0.8)) continue;
-    data.props.push({ p: i % 2 ? 'bush1' : 'bush2', x: p.x, y: groundAt(p.x, p.z) - 0.15, z: p.z, rot: rnd() * Math.PI * 2, s: 0.7 + rnd() * 0.6 });
+    data.props.push({ p: (['tbush1', 'tbush2', 'tbush3'] as PrefabName[])[i % 3], x: p.x, y: groundAt(p.x, p.z) - 0.15, z: p.z, rot: rnd() * Math.PI * 2, s: 0.7 + rnd() * 0.6 });
     i++;
   }
 

@@ -7,13 +7,15 @@ import type { GameAssets } from './assets';
 const CHUNK = 150;
 
 export function buildMapView(map: MapData, assets: GameAssets): THREE.Group {
+  LOD_CELLS.length = 0;
   const g = new THREE.Group();
   g.add(buildTerrain(map));
   g.add(buildBoxes(map));
   g.add(...buildProps(map, assets));
   g.add(buildSky());
   const far = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5d7d52 }));
-  far.position.y = -3;
+  let lowest = Infinity; for (const h of map.heights) lowest = Math.min(lowest, h);
+  far.position.y = Math.min(-3, lowest - 4); // backdrop below the lowest valley of this map
   g.add(far);
   g.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
   return g;
@@ -200,6 +202,24 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
       if (!chunks.has(key)) chunks.set(key, []);
       chunks.get(key)!.push(p);
     }
+    const farParts = (assets.prefabs as Record<string, { parts: typeof parts } | undefined>)[`${type}_far`]?.parts;
+    if (farParts) { // trees/bushes: detailed model near the camera, flat billboard far away (per 50 m cell)
+      const cells = new Map<string, PropInst[]>();
+      for (const p of list) { const k = `${Math.floor(p.x / 50)},${Math.floor(p.z / 50)}`; if (!cells.has(k)) cells.set(k, []); cells.get(k)!.push(p); }
+      for (const inst of cells.values()) {
+        const cell = { cx: 0, cz: 0, near: [] as THREE.Object3D[], far: [] as THREE.Object3D[] };
+        inst.forEach((p) => { cell.cx += p.x / inst.length; cell.cz += p.z / inst.length; });
+        for (const [set, dst] of [[parts, cell.near], [farParts, cell.far]] as const) for (const part of set) {
+          const im = new THREE.InstancedMesh(part.geometry, part.material, inst.length);
+          inst.forEach((p, i) => { m.compose(pos.set(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), sc.set(p.s, p.s, p.s)); im.setMatrixAt(i, m); });
+          im.computeBoundingSphere(); im.name = type;
+          dst.push(im); out.push(im);
+        }
+        cell.far.forEach((o) => { o.visible = false; });
+        LOD_CELLS.push(cell);
+      }
+      continue;
+    }
     for (const inst of chunks.values()) {
       for (const part of parts) {
         if (type === 'tors_green') rockDetail(part.material);
@@ -217,6 +237,20 @@ function buildProps(map: MapData, assets: GameAssets): THREE.Object3D[] {
     }
   }
   return out;
+}
+
+const LOD_CELLS: { cx: number; cz: number; near: THREE.Object3D[]; far: THREE.Object3D[] }[] = [];
+/** distance (m) at which trees switch to their billboard; lower = faster */
+export let TREE_LOD_DIST = 75;
+export function setTreeLodDistance(d: number) { TREE_LOD_DIST = d; }
+/** Call a few times per second with the camera position. */
+export function updateTreeLod(cam: THREE.Vector3) {
+  const d2 = TREE_LOD_DIST * TREE_LOD_DIST;
+  for (const c of LOD_CELLS) {
+    const near = (c.cx - cam.x) ** 2 + (c.cz - cam.z) ** 2 < d2;
+    if (c.near[0]?.visible === near) continue;
+    c.near.forEach((o) => { o.visible = near; }); c.far.forEach((o) => { o.visible = !near; });
+  }
 }
 
 function buildSky(): THREE.Mesh {

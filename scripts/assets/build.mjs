@@ -149,10 +149,13 @@ function colliderMesh(tris, ratio = 1) {
   let ind = [];
   for (let i = 0; i < idx.length; i += 3) if (idx[i] !== idx[i + 1] && idx[i + 1] !== idx[i + 2] && idx[i] !== idx[i + 2]) ind.push(idx[i], idx[i + 1], idx[i + 2]);
   if (ratio < 1) {
-    const [out] = MeshoptSimplifier.simplify(new Uint32Array(ind), new Float32Array(verts), 3, Math.floor(ind.length * ratio), 0.02, ['LockBorder']);
+    const [out] = MeshoptSimplifier.simplify(new Uint32Array(ind), new Float32Array(verts), 3, Math.floor(ind.length * ratio / 3) * 3, 0.05, []); // target must be a multiple of 3
     ind = Array.from(out);
   }
-  return { v: verts.map((x) => Math.round(x * 100) / 100), i: ind };
+  // keep only the vertices the triangles use
+  const remap = new Map(), v2 = [], i2 = [];
+  for (const q of ind) { if (!remap.has(q)) { remap.set(q, v2.length / 3); v2.push(verts[q * 3], verts[q * 3 + 1], verts[q * 3 + 2]); } i2.push(remap.get(q)); }
+  return { v: v2.map((x) => Math.round(x * 100) / 100), i: i2 };
 }
 
 const prefabs = {};
@@ -181,6 +184,26 @@ for (const [n, s] of [['Rock1', 2.4], ['Rock2', 3.2], ['Rock3', 1.8], ['Rock4', 
 for (const n of ['Bush1', 'Bush2']) await prefab(n.toLowerCase(), 'nature', n, { fit: 'max', size: 1.8 }, { type: 'none' });
 await prefab('stump', 'nature', 'Stump1', { fit: 'max', size: 1.0, centerOnBase: true }, 'hull');
 await prefab('fence', 'fence', null, { fit: 'y', size: 1.4, dropMaterials: ['cell_grass'] }, 'trimesh');
+// Realistic trees & bushes (LOLIPOP packs, real scale). Near model = the pack's LOD2, far = its billboard.
+const TREES = [
+  ['tpine1', 'pinesR', 'Pine_big_1', 0.75, 0.32], ['tpine2', 'pinesR', 'Pine_big_2', 0.75, 0.32],
+  ['tpine3', 'pinesR', 'Pine_big_3', 0.72, 0.34], ['tpine4', 'pinesR', 'Pine_medium_1', 0.85, 0.28],
+  ['toak1', 'oaks', 'Big_oak_tree__001', 0.8, 0.5], ['toak2', 'oaks', 'Big_oak_tree__002', 0.8, 0.5],
+];
+for (const [name, src, node, sc, r] of TREES) {
+  const far = src === 'oaks' ? `${node}_Billboard` : `${node}_Billboard_LOD3`;
+  await prefab(name, src, [`${node}_LOD2`], { scale: sc, centerOnBase: true, tex: 512 }, { type: 'cylinder', radius: r, height: 9 });
+  await prefab(`${name}_far`, src, [far], { scale: sc, centerOnBase: false, tex: 256 }, { type: 'none' });
+}
+for (const [name, node] of [['tbush1', 'Lilac_bush_1'], ['tbush2', 'Lilac_bush_2'], ['tbush3', 'Lilac_bush_3']]) {
+  await prefab(name, 'lilac', [`${node}_LOD2`], { scale: 0.5, centerOnBase: true, tex: 256 }, { type: 'none' });
+  await prefab(`${name}_far`, 'lilac', [`${node}_LOD3`], { scale: 0.5, tex: 128 }, { type: 'none' });
+}
+// More real houses (all real scale)
+await prefab('house_d', 'houseD', null, { scale: 1, tex: 512, simplify: 0.35, colliderRatio: 0.2 }, 'trimesh');
+await prefab('house_e', 'shop', ['Wall', 'Roof', 'Irons', 'Tiles', 'Glass', 'Woods'], { scale: 1, tex: 512, simplify: 0.5, colliderRatio: 0.4 }, 'trimesh');
+await prefab('house_f', 'farmhouseB', null, { scale: 1, simplify: 0.05, tex: 1024, colliderRatio: 0.1 }, 'trimesh');
+
 // Farm village (green map). One scale for the whole set (scarecrow ~1.9 m) so pieces stay in proportion.
 const VS = 105; // metres per source unit
 const V = 'maps/village';

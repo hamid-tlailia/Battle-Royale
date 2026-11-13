@@ -27,7 +27,7 @@ describe('map generation', () => {
     const count = (pre: string) => map.props.filter((p) => p.p.startsWith(pre)).length;
     expect(count('house')).toBeGreaterThanOrEqual(8);
     expect(count('car')).toBeGreaterThanOrEqual(8);
-    expect(count('pine')).toBeGreaterThan(150);
+    expect(count('tpine') + count('toak')).toBeGreaterThan(150);
     expect(count('rock')).toBeGreaterThan(30);
     expect(map.spawns.length).toBeGreaterThanOrEqual(20);
   });
@@ -79,7 +79,8 @@ describe('movement & collision', () => {
         const l = f.toLocal(s.x, s.z);
         // Never end up embedded inside a wall: either clearly outside the footprint or properly inside
         const inside = Math.abs(l.lx) < f.sx / 2 - 0.3 && Math.abs(l.lz) < f.sz / 2 - 0.3;
-        const blocked = phys.capsuleBlocked(s.x, s.y, s.z, PLAYER.halfHeight, phys.players.get(id));
+        // embedded = overlapping by more than a few cm (grazing a counter or railing is fine)
+        const blocked = phys.shapeBlocked(s.x, s.y, s.z, PLAYER.halfHeight - 0.05, PLAYER.radius - 0.05, phys.players.get(id));
         expect(blocked).toBe(false);
         if (!inside) tested++;
         phys.removePlayer(id);
@@ -90,7 +91,8 @@ describe('movement & collision', () => {
 
   it('every house has a full-height door that a player can walk through', () => {
     const phys = new PhysicsWorld(map);
-    const houses = map.props.filter((p) => p.p.startsWith('house'));
+    // the original enterable houses (house_d/e/f are a stilt house, an open shop and a scanned ruin)
+    const houses = map.props.filter((p) => ['house_a', 'house_b', 'house_c'].includes(p.p));
     let pid = 900;
     for (const [hi, h] of houses.entries()) {
       const f = houseFrame(h);

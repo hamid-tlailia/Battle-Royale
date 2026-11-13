@@ -14,4 +14,7 @@ Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (ori
 |---|---|---|---|---|
 | Mountain terrain – Haytor, Dartmoor National Park (scan) | Highlands map: terrain heights, aerial photo, rock outcrops | Chris Bibb | CC-BY 4.0 | https://sketchfab.com/3d-models/6d15587128a5451d9e29d6b50061045e |
 | Medieval Farm Village | Highlands map: farmhouse, windmill, well, yard wall, wagon, hay, scarecrow | Ethan Graye | CC-BY 4.0 | https://sketchfab.com/3d-models/aaa109017d76448a94d2a87a4e09e3fd |
+| Pine trees pack / Oak trees pack / Lilac bush pack | realistic trees and bushes (near model + billboard) | LOLIPOP | CC-BY 4.0 | https://sketchfab.com/lolipop |
+| Old wooden house (enterable), Abandoned shop | houses | YadroGames | CC-BY 4.0 | https://sketchfab.com/YadroGames |
+| Abandoned Farm House (scan) | house | Frank McMains | CC-BY 4.0 | https://sketchfab.com/3d-models/a7e2881bd0e143a6aa768c75eae6aae8 |
 | aerial_grass_rock, lichen_rock | close-up ground / rock grain | Poly Haven | CC0 | https://polyhaven.com/textures |

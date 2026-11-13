@@ -24,5 +24,8 @@ export type PrefabName =
   | 'rock1' | 'rock2' | 'rock3' | 'rock4'
   | 'bush1' | 'bush2' | 'stump' | 'fence'
   | 'tors_green'
+  | 'tpine1' | 'tpine2' | 'tpine3' | 'tpine4' | 'toak1' | 'toak2' | 'tbush1' | 'tbush2' | 'tbush3'
+  | 'tpine1_far' | 'tpine2_far' | 'tpine3_far' | 'tpine4_far' | 'toak1_far' | 'toak2_far' | 'tbush1_far' | 'tbush2_far' | 'tbush3_far'
+  | 'house_d' | 'house_e' | 'house_f'
   | 'farmhouse' | 'windmill' | 'windmill_blades' | 'well' | 'yardwall' | 'wagon' | 'haybale' | 'scarecrow';
 export const PREFAB_NAMES = Object.keys(PREFABS) as PrefabName[];

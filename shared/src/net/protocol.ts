@@ -119,7 +119,7 @@ export interface Snapshot {
 }
 
 const PHASES = ['lobby', 'live', 'ended'] as const;
-const SELF_BYTES = 4 * 3 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4;
+const SELF_BYTES = 4 * 3 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 6 * 4 + 2 * 4; // pos/vel/vault as float64
 const OTHER_BYTES = 1 + 12 + 2 + 2 + 2 + 2 + 1 + 1 + 2;
 
 export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick: number, alive: number, me: SimPlayer | null, players: Iterable<SimPlayer>): Uint8Array {
@@ -136,11 +136,12 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
   v.setUint8(o, list.length); o += 1;
   if (me) {
     const m = me.move;
-    for (const f of [m.x, m.y, m.z, m.vx, m.vz, m.vy]) { v.setFloat32(o, f); o += 4; }
+    // full precision: the client replays its inputs from this exact state (float32 rounding caused small mispredictions next to rocks)
+    for (const f of [m.x, m.y, m.z, m.vx, m.vz, m.vy]) { v.setFloat64(o, f); o += 8; }
     v.setUint8(o, (m.grounded ? 1 : 0) | (m.crouch ? 2 : 0) | (m.ball ? 4 : 0) | (me.alive ? 8 : 0) | (m.prone ? 16 : 0) | ((m.air & 3) << 5)); o += 1;
     v.setUint8(o, m.vault); o += 1;
-    v.setFloat32(o, m.vaultLift); o += 4;
-    v.setFloat32(o, m.vaultSide); o += 4;
+    v.setFloat64(o, m.vaultLift); o += 8;
+    v.setFloat64(o, m.vaultSide); o += 8;
     v.setFloat32(o, m.yaw); o += 4;
     v.setFloat32(o, m.pitch); o += 4;
     v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(me.hp)))); o += 1;
@@ -188,10 +189,11 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
   let self: SelfState | null = null;
   if (hasSelf) {
     const f = () => { const x = v.getFloat32(o); o += 4; return x; };
-    const x = f(), y = f(), z = f(), vx = f(), vz = f(), vy = f();
+    const d = () => { const x = v.getFloat64(o); o += 8; return x; };
+    const x = d(), y = d(), z = d(), vx = d(), vz = d(), vy = d();
     const flags = v.getUint8(o); o += 1;
     const vault = v.getUint8(o); o += 1;
-    const vaultLift = f(), vaultSide = f(), yaw = f(), pitch = f();
+    const vaultLift = d(), vaultSide = d(), yaw = f(), pitch = f();
     const hp = v.getUint8(o), armor = v.getUint8(o + 1), slot = v.getUint8(o + 2); o += 3;
     const weapons = [];
     for (let k = 0; k < 4; k++) { weapons.push({ owned: false, mag: v.getUint8(o), reserve: v.getUint16(o + 1) }); o += 3; }

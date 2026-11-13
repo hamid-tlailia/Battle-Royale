@@ -3,7 +3,7 @@ import {
   BTN, DT, LOOT, MAP, SKY, WEAPONS, GameSim, planePath, zoneAt, eyeOffset, halfTotalOf, hitboxOf, outsideZone, rayHitbox, terrainHeight,
   type Hitbox, type InputCmd, type LootItem, type MapId, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
-import { buildMapView } from '../render/mapView';
+import { buildMapView, updateTreeLod } from '../render/mapView';
 import { CharacterView } from '../render/characters';
 import type { GameAssets, GunName } from '../render/assets';
 import { AdaptiveResolution } from '../render/adaptive';
@@ -201,10 +201,13 @@ export class Game {
       B.sprint.classList.toggle('active', this.controls.sprintToggle);
       B.scope.classList.toggle('active', this.controls.scoped);
       B.holster.classList.toggle('active', this.controls.weapon === 4);
+      B.frost.classList.toggle('active', this.controls.frostAim);
     };
     this.syncButtons = sync;
     this.hud.healBtn = B.heal; this.hud.frostBtn = B.frost;
-    const fireDown = () => { this.controls.fireHeld = true; if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
+    const fireDown = () => {
+      if (this.controls.frostAim) { this.controls.confirmFrost(); sync(); return; } // place the previewed ice wall
+      this.controls.fireHeld = true; if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
     this.controls.bindLookButton(B.fire, fireDown, () => { this.controls.fireHeld = false; });
     this.controls.bindButton(B['fire-left'], fireDown, () => { this.controls.fireHeld = false; });
     this.controls.bindButton(B.jump, () => this.controls.jump());
@@ -214,7 +217,7 @@ export class Game {
     this.controls.bindButton(B.sprint, () => { this.controls.toggleSprint(); sync(); });
     this.controls.bindButton(B.scope, () => { this.controls.setScope(!this.controls.scoped); sync(); });
     this.controls.bindButton(B.heal, () => this.controls.heal());
-    this.controls.bindButton(B.frost, () => this.controls.frost());
+    this.controls.bindButton(B.frost, () => { if (this.sim.players.get(this.myId)?.frost) this.controls.frost(); sync(); });
     this.controls.bindButton(B.holster, () => { this.controls.toggleHolster(); sync(); });
     this.controls.bindButton(B.bag, () => this.hud.toggleBag());
     this.hud.onDrop = (code) => { this.controls.dropQueued = code; };
@@ -399,6 +402,23 @@ export class Game {
   }
 
   private menuTimer = 0;
+  private frostGhost: THREE.Mesh | null = null;
+  /** see-through ice wall where it would be placed (same rule as the server: in front, on the ground) */
+  private updateFrostPreview(me: SimPlayer) {
+    const on = this.controls.frostAim && me.alive && me.frost > 0 && !me.move.air;
+    if (!on) { if (this.controls.frostAim && (!me.alive || me.frost <= 0)) this.controls.frostAim = false; if (this.frostGhost) this.frostGhost.visible = false; return; }
+    if (!this.frostGhost) {
+      this.frostGhost = new THREE.Mesh(new THREE.BoxGeometry(LOOT.frostWidth, LOOT.frostHeight, LOOT.frostThick),
+        new THREE.MeshBasicMaterial({ color: 0x9fe6ff, transparent: true, opacity: 0.35, depthWrite: false }));
+      this.frostGhost.add(new THREE.LineSegments(new THREE.EdgesGeometry(this.frostGhost.geometry), new THREE.LineBasicMaterial({ color: 0xffffff })));
+      this.scene.add(this.frostGhost);
+    }
+    const yaw = this.controls.yaw, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    const x = me.move.x + fx * LOOT.frostDistance, z = me.move.z + fz * LOOT.frostDistance;
+    this.frostGhost.position.set(x, this.sim.phys.groundHeight(x, z) + LOOT.frostHeight / 2, z);
+    this.frostGhost.rotation.set(0, yaw, 0);
+    this.frostGhost.visible = true;
+  }
   private areaTimer = 0;
   private marker: THREE.Mesh | null = null;
 
@@ -494,10 +514,11 @@ export class Game {
     // engine drone: loud inside, fading with distance once you have jumped
     sfx.setPlane(!planeOn ? 0 : me.move.air === 1 ? 1 : Math.max(0, 1 - this.planePos.distanceTo(this.camera.position) / 350) * 0.7);
     this.areaTimer -= dt;
-    if (this.areaTimer <= 0) { this.areaTimer = 0.06; this.updateAreaLabels(me); }
+    if (this.areaTimer <= 0) { this.areaTimer = 0.06; this.updateAreaLabels(me); updateTreeLod(this.camera.position); }
     const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
     this.controls.scopedView = scopedView;
     this.hudEl.classList.toggle('scoped-ui', scopedView);
+    this.updateFrostPreview(me);
     this.menuTimer -= dt;
     if (this.menuTimer <= 0) { // ground-loot menu
       this.menuTimer = 0.2;
