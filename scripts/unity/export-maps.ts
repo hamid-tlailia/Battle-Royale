@@ -7,7 +7,7 @@
  */
 import fs from 'node:fs';
 import sharp from 'sharp';
-import { MAP, MAP_LIST, generateMap, PREFABS, ZONE_PHASES, ZONE_DELAY, ZONE_START_RADIUS, WEAPONS, LOOT, SKY, PLAYER } from '../../shared/src';
+import { MAP, MAP_LIST, generateMap, PREFABS, ZONE_PHASES, ZONE_DELAY, ZONE_START_RADIUS, WEAPONS, SKY, PLAYER } from '../../shared/src';
 
 const OUT = 'unity/Assets/LastWar/Resources';
 fs.mkdirSync(`${OUT}/Maps`, { recursive: true });
@@ -65,5 +65,10 @@ const shapes = Object.entries(PREFABS).map(([name, v]) => {
 fs.writeFileSync(`${OUT}/Data/prefabs.json`, JSON.stringify({ shapes }));
 
 // tuning tables (weapons, loot, zone, sky-dive, player) so both versions play the same
-fs.writeFileSync(`${OUT}/Data/tuning.json`, JSON.stringify({ weapons: WEAPONS, loot: LOOT, zone: { phases: ZONE_PHASES, delay: ZONE_DELAY, startRadius: ZONE_START_RADIUS }, sky: SKY, player: PLAYER }));
+// (arrays, not dictionaries: Unity's JsonUtility)
+fs.writeFileSync(`${OUT}/Data/tuning.json`, JSON.stringify({
+  weapons: Object.values(WEAPONS),
+  zonePhases: ZONE_PHASES, zoneDelay: ZONE_DELAY, zoneStartRadius: ZONE_START_RADIUS,
+  player: PLAYER, sky: SKY,
+}));
 console.log('data written');
