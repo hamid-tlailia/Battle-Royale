@@ -51,13 +51,15 @@ namespace LastWar
         void BuildPlane()
         {
             plane = new GameObject("Plane").transform;
-            // real transport plane (Lowpoly AC-130 by S1Priv, CC BY), nose turned to +Z; the box plane below is only a fallback
+            // real transport plane (C130 by manilov.ap, CC BY), nose turned to +Z; the box plane below is only a fallback
             GameObject model = MapBuilder.Model("plane");
             if (model != null)
             {
                 Transform m = Instantiate(model, plane, false).transform;
-                m.localScale = Vector3.one * 1.6f; m.localRotation = Quaternion.Euler(0, 180f, 0);
-                m.localPosition = new Vector3(0, -2.3f * 1.6f, 1.7f * 1.6f);
+                // the file is turned off its axis (and glTFast mirrors X): nose to +Z, centred, ~26 m long
+                const float k = 0.85f;
+                m.localScale = Vector3.one * k; m.localRotation = Quaternion.Euler(0, -53.13f, 0);
+                m.localPosition = new Vector3(1.462f * k, -4.065f * k, -4.963f * k);
                 foreach (Renderer r in m.GetComponentsInChildren<Renderer>(true))
                 {
                     var mats = r.sharedMaterials;
