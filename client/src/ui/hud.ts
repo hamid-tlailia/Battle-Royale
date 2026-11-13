@@ -295,6 +295,16 @@ export class Hud {
       g.fillStyle = `rgba(255,40,40,${Math.min(1, (m.until - now) / 1000)})`;
       g.beginPath(); g.arc((m.x + o) * k, (m.z + o) * k, 9, 0, Math.PI * 2); g.fill();
     }
+    // gunfire nearby: mark + a short line from me toward it
+    this.shotMarks = this.shotMarks.filter((m) => m.until > now);
+    for (const m of this.shotMarks) {
+      const a = Math.min(1, (m.until - now) / 1200);
+      const sx = (m.x + o) * k, sz = (m.z + o) * k, mx = (me.x + o) * k, mz = (me.z + o) * k;
+      const L = Math.hypot(sx - mx, sz - mz) || 1;
+      g.strokeStyle = `rgba(255,150,40,${a})`; g.lineWidth = 4;
+      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 14, mz + (sz - mz) / L * 14); g.lineTo(mx + (sx - mx) / L * 34, mz + (sz - mz) / L * 34); g.stroke();
+      g.fillStyle = `rgba(255,150,40,${a})`; g.beginPath(); g.arc(sx, sz, 6, 0, Math.PI * 2); g.fill();
+    }
     // place names
     g.font = `bold ${this.mini.classList.contains('big') ? 13 : 15}px sans-serif`; g.textAlign = 'center';
     for (const a of this.map.areas) {
@@ -323,6 +333,16 @@ export class Hud {
   }
 
   private hitMarks: { x: number; z: number; until: number }[] = [];
+  private shotMarks: { x: number; z: number; until: number }[] = [];
+  /** someone fired nearby: orange mark on the map where the shot came from (2.5 s) */
+  addShotMark(x: number, z: number) {
+    const now = performance.now();
+    const near = this.shotMarks.find((m) => Math.hypot(m.x - x, m.z - z) < 6);
+    if (near) { near.until = now + 2500; return; }
+    this.shotMarks.push({ x, z, until: now + 2500 });
+    if (this.shotMarks.length > 12) this.shotMarks.shift();
+    this.miniTimer = 0;
+  }
   /** route points set by tapping the big map (first = next) */
   waypoints: { x: number; z: number }[] = [];
   onWaypoint: (w: { x: number; z: number }[]) => void = () => {};

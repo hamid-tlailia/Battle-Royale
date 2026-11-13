@@ -22,6 +22,21 @@ export const SKINS: { name: string; color?: number; outfit?: string }[] = [
   { name: 'Survivor', outfit: 'survivor' },
 ];
 
+/** Soft bright rim on characters so players stand out from grass, rocks and shade (visible at range). */
+const rimmed = new WeakSet<THREE.Material>();
+function addRim(mat: THREE.Material) {
+  if (rimmed.has(mat)) return; // (material clones do not inherit onBeforeCompile)
+  rimmed.add(mat);
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
+      float rimK = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+      outgoingLight += vec3(1.0, 0.93, 0.8) * pow(rimK, 2.2) * 0.55 + diffuseColor.rgb * 0.12;
+      #include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => 'char-rim';
+  mat.needsUpdate = true;
+}
+
 const outfitCache = new Map<string, Promise<GLTF | null>>();
 const outfitLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 /** Loads (once) a real-clothes outfit model. */
@@ -166,6 +181,7 @@ export class CharacterView {
         sm.material = mat;
       }
       if (sm.name.includes('lod')) this.bodyLod = sm; else this.body = sm;
+      addRim(sm.material as THREE.Material);
     });
     const lod = this.bodyLod as THREE.SkinnedMesh | null; // (narrowed to null by TS after the traverse callback)
     if (lod) lod.visible = false;
@@ -266,8 +282,8 @@ export class CharacterView {
     else if (air === 3) clip = 'idle';
     else if (this.airTime > 0.15) clip = 'jump';
     else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
+    else if (st.speed > 5.2) clip = 'run'; // sprinting always uses the real run
     else if (st.armed === false) clip = st.speed > 0.4 ? 'walk' : 'idle'; // empty hands: no rifle pose
-    else if (st.speed > 5.2) clip = 'run';
     else if (st.speed > 0.4) clip = 'walk_fire';
     else clip = st.firing ? 'fire' : 'idle_rifle';
     if (clip === 'jump' && this.wasGrounded) this.actions.get('jump')?.reset();

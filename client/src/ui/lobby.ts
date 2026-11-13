@@ -3,6 +3,7 @@ import { GAME_TITLE, MAP_LIST, WEAPON_IDS, isMapId, type MapId } from '@lw/share
 import { loadSettings, settingsPanel } from './settings';
 import { editLayoutStandalone } from './layout';
 import { createHudButtons } from './buttons';
+import { ICONS } from './icons';
 import type { GameAssets, GunName } from '../render/assets';
 import { CharacterView, SKINS } from '../render/characters';
 
@@ -58,29 +59,40 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   const profile = loadProfile();
   const el = document.createElement('div');
   el.className = 'lobby';
+  const tab = (id: string, icon: string, label: string) => `<button class="lb-tab" data-tab="${id}">${icon}<span>${label}</span></button>`;
   el.innerHTML = `
     <canvas class="lobby-3d"></canvas>
-    <div class="lobby-title"><img class="lobby-logo" src="/logo.png" alt="${GAME_TITLE}"><span class="srv">checking server…</span></div>
-    <div class="lobby-settings"></div>
-    <div class="lobby-panel">
-      <label class="lbl">NAME</label>
-      <input class="name" maxlength="14" placeholder="Soldier" value="${profile.name.replace(/"/g, '')}">
-      <label class="lbl">OUTFIT</label>
-      <div class="skins">${SKINS.map((s, i) => s.outfit
-        ? `<button class="outfit" data-skin="${i}">${s.name}</button>`
-        : `<button data-skin="${i}" title="${s.name}" style="--c:#${(s.color ?? 0xffffff).toString(16).padStart(6, '0')}"></button>`).join('')}</div>
-      <label class="lbl">MAP</label>
-      <div class="maps">${MAP_LIST.map((m) => `<button data-map="${m.id}"><b>${m.name}</b><small>${m.desc}</small></button>`).join('')}</div>
-      <p class="hint">Everyone lands empty-handed — loot weapons, ammo, medkits, armor, scopes and ice walls.</p>
-      ${inviteRoom ? `<button class="big join-invite">JOIN FRIEND'S ROOM</button>` : ''}
-      <button class="big quick">PLAY ONLINE</button>
-      <div class="row">
-        <button class="mid squad">FRIENDS ROOM</button>
-        <button class="mid bots">VS BOTS</button>
-      </div>
-      <div class="row joinrow"><input class="code" placeholder="room code"><button class="mid joinbtn">JOIN</button></div>
-      <p class="note"></p>
-      <a class="apk-link" href="/download/last-war.apk" download="last-war.apk">⬇ DOWNLOAD ANDROID APP (APK)</a>
+    <div class="lb-top">
+      <img class="lobby-logo" src="/logo.png" alt="${GAME_TITLE}">
+      <div class="lb-profile"><input class="name" maxlength="14" placeholder="Your name" value="${profile.name.replace(/"/g, '')}"><span class="srv">checking server…</span></div>
+    </div>
+    <nav class="lb-nav">
+      ${tab('outfit', ICONS.outfit, 'OUTFIT')}
+      ${tab('map', ICONS.map, 'MAP')}
+      ${tab('friends', ICONS.friends, 'FRIENDS')}
+      ${tab('settings', ICONS.settings, 'SETTINGS')}
+    </nav>
+    <div class="lb-sheet">
+      <section data-sec="outfit"><h3>OUTFIT</h3>
+        <div class="skins">${SKINS.map((s, i) => s.outfit
+          ? `<button class="outfit" data-skin="${i}">${s.name}</button>`
+          : `<button data-skin="${i}" title="${s.name}" style="--c:#${(s.color ?? 0xffffff).toString(16).padStart(6, '0')}"></button>`).join('')}</div>
+        <p class="hint">Drag the soldier to turn him around.</p></section>
+      <section data-sec="map"><h3>MAP</h3>
+        <div class="maps">${MAP_LIST.map((m) => `<button data-map="${m.id}"><b>${m.name}</b><small>${m.desc}</small></button>`).join('')}</div>
+        <p class="hint">Everyone lands empty-handed — loot weapons, ammo, medkits, armor, scopes and ice walls.</p></section>
+      <section data-sec="friends"><h3>PLAY WITH FRIENDS</h3>
+        ${inviteRoom ? `<button class="big join-invite">JOIN FRIEND'S ROOM</button>` : ''}
+        <button class="mid squad">CREATE FRIENDS ROOM</button>
+        <div class="row joinrow"><input class="code" placeholder="room code"><button class="mid joinbtn">JOIN</button></div>
+        <p class="note"></p>
+        <a class="apk-link" href="/download/last-war.apk" download="last-war.apk">⬇ DOWNLOAD ANDROID APP (APK)</a></section>
+      <section data-sec="settings"><h3>SETTINGS</h3><div class="lobby-settings"></div></section>
+    </div>
+    <div class="lb-play">
+      <div class="lb-mapname"></div>
+      <button class="big bots">PLAY <small>vs bots</small></button>
+      <button class="mid quick">PLAY ONLINE</button>
     </div>`;
   root.appendChild(el);
   // inside the installed app the download link makes no sense
@@ -118,7 +130,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     if (!alive) return;
     requestAnimationFrame(loop);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    view!.update({ x: 0, y: 0.9, z: 0, yaw, pitch: 0, speed: 0, crouch: false, grounded: true }, dt, 3, true);
+    view!.update({ x: 0, y: 0.9, z: 0, yaw, pitch: -0.55, speed: 0, crouch: false, grounded: true }, dt, 3, true); // gun at low ready
     resize();
     renderer.render(scene, camera);
   };
@@ -126,7 +138,23 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
 
   // ---- settings (same panel as in game; saved on the device)
   const st = loadSettings();
-  settingsPanel(el.querySelector('.lobby-settings') as HTMLElement, st, () => {}, () => editLayoutStandalone((r) => { createHudButtons(r); }));
+  const setHost = el.querySelector('.lobby-settings') as HTMLElement;
+  settingsPanel(setHost, st, () => {}, () => editLayoutStandalone((r) => { createHudButtons(r); }));
+  (setHost.querySelector('.gear-btn') as HTMLElement).style.display = 'none'; // the SETTINGS tab opens it
+  const setPanel = setHost.querySelector('.settings-panel') as HTMLElement;
+  // ---- sections: one panel at a time, nothing to scroll past
+  const sheet = el.querySelector('.lb-sheet') as HTMLElement;
+  let open: string | null = null;
+  const show = (id: string | null) => {
+    open = open === id ? null : id;
+    sheet.classList.toggle('open', open !== null);
+    el.querySelectorAll<HTMLElement>('[data-sec]').forEach((x) => x.classList.toggle('on', x.dataset.sec === open));
+    el.querySelectorAll<HTMLElement>('[data-tab]').forEach((x) => x.classList.toggle('on', x.dataset.tab === open));
+    if (open === 'settings') setPanel.style.display = 'block';
+  };
+  el.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab!)));
+  setPanel.querySelector('.close')?.addEventListener('click', () => { if (open === 'settings') show('settings'); });
+  if (inviteRoom) show('friends');
 
   // ---- form
   const nameIn = el.querySelector('.name') as HTMLInputElement;
@@ -134,6 +162,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     el.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.classList.toggle('sel', +b.dataset.skin! === profile.skin));
     el.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) => b.classList.toggle('sel', +b.dataset.slot! === profile.slot));
     el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.classList.toggle('sel', b.dataset.map === profile.map));
+    (el.querySelector('.lb-mapname') as HTMLElement).textContent = `MAP · ${MAP_LIST.find((m) => m.id === profile.map)?.name ?? ''}`;
   };
   sel();
   el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.addEventListener('click', () => { profile.map = b.dataset.map as MapId; saveProfile(profile); sel(); }));

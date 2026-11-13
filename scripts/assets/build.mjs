@@ -222,12 +222,18 @@ await prefab('scarecrow', V, ['Scarecrow001'], { scale: VS, simplify: 0.4, tex: 
 
 // ---------------------------------------------------------------- weapons
 // Each gun: barrel along -Z, grip near origin, real length.
-const GUNS = { pistol: ['PMm_1', 0.22], rifle: ['Cylinder.002_13', 0.88], shotgun: ['Cylinder.005_19', 1.0], sniper: ['Cylinder.008_5', 1.2] };
+const GUNS = { pistol: ['PMm_1', 0.22], rifle: ['Cylinder.002_13', 0.88] };
 for (const [name, [node, len]] of Object.entries(GUNS)) {
   const { doc } = await bakePrefab(`${SRC}/guns.glb`, node, { fit: 'max', size: len });
   bakeColorsAndMerge(doc);
   orientGun(doc, name === 'pistol' ? 0.22 : 0.33);
   await finalize(doc, `${OUT}/gun_${name}.glb`, 256);
+}
+// real textured models: pump-action shotgun and bolt-action sniper
+for (const [name, src, len, grip] of [['shotgun', 'gunShotgun', 1.0, 0.3], ['sniper', 'gunSniper', 1.15, 0.3]]) {
+  const { doc } = await bakePrefab(`${SRC}/${src}.glb`, null, { fit: 'max', size: len, simplify: 0.6 });
+  orientGun(doc, grip);
+  await finalize(doc, `${OUT}/gun_${name}.glb`, 512);
 }
 
 // ---------------------------------------------------------------- character
@@ -376,28 +382,28 @@ async function buildSoldier() {
  * vertically at the middle of the body. The muzzle is the thinner end of the long axis.
  */
 function orientGun(doc, gripFrac) {
-  const prim = doc.getRoot().listNodes().find((n) => n.getName() === 'prefab').getMesh().listPrimitives()[0];
-  const pos = prim.getAttribute('POSITION');
-  const pts = []; for (let i = 0; i < pos.getCount(); i++) pts.push(pos.getElement(i, []));
-  const ext = (k) => [Math.min(...pts.map((p) => p[k])), Math.max(...pts.map((p) => p[k]))];
+  // all primitives of the gun (textured models have one per material)
+  const prims = doc.getRoot().listNodes().find((n) => n.getName() === 'prefab').getMesh().listPrimitives();
+  const all = () => prims.flatMap((pr) => { const a = pr.getAttribute('POSITION'); const o = []; for (let i = 0; i < a.getCount(); i++) o.push(a.getElement(i, [])); return o; });
+  const pts = all();
+  const ext = (k) => { let lo = Infinity, hi = -Infinity; for (const p of pts) { lo = Math.min(lo, p[k]); hi = Math.max(hi, p[k]); } return [lo, hi]; };
   const ex = ext(0), ez = ext(2);
   const axis = ex[1] - ex[0] > ez[1] - ez[0] ? 0 : 2;
   const [lo, hi] = axis === 0 ? ex : ez;
   const len = hi - lo;
-  // thickness (y extent) of the last 15% at each end
-  const thick = (from, to) => { const ys = pts.filter((p) => p[axis] >= from && p[axis] <= to).map((p) => p[1]); return ys.length ? Math.max(...ys) - Math.min(...ys) : 0; };
+  // thickness (y extent) of the last 15% at each end: the muzzle is the thinner end
+  const thick = (from, to) => { let a = Infinity, b = -Infinity; for (const p of pts) if (p[axis] >= from && p[axis] <= to) { a = Math.min(a, p[1]); b = Math.max(b, p[1]); } return b > a ? b - a : 0; };
   const tLo = thick(lo, lo + len * 0.15), tHi = thick(hi - len * 0.15, hi);
   const muzzleAtHi = tHi < tLo;
-  // rotation about Y taking the muzzle direction to -Z
   let rot;
   if (axis === 0) rot = muzzleAtHi ? Math.PI / 2 : -Math.PI / 2; // +X -> -Z needs +90deg
   else rot = muzzleAtHi ? Math.PI : 0;
-  transformPrimitive(prim, mat4([1, 1, 1], [0, Math.sin(rot / 2), 0, Math.cos(rot / 2)], [0, 0, 0]));
-  const p2 = []; for (let i = 0; i < pos.getCount(); i++) p2.push(prim.getAttribute('POSITION').getElement(i, []));
-  const zMax = Math.max(...p2.map((p) => p[2])), ys = p2.map((p) => p[1]);
-  const xs = p2.map((p) => p[0]);
-  const t = [-(Math.min(...xs) + Math.max(...xs)) / 2, -(Math.min(...ys) + Math.max(...ys)) / 2, -(zMax - len * gripFrac)];
-  transformPrimitive(prim, mat4([1, 1, 1], [0, 0, 0, 1], t));
+  for (const pr of prims) transformPrimitive(pr, mat4([1, 1, 1], [0, Math.sin(rot / 2), 0, Math.cos(rot / 2)], [0, 0, 0]));
+  const p2 = all();
+  let zMax = -Infinity, y0 = Infinity, y1 = -Infinity, x0 = Infinity, x1 = -Infinity;
+  for (const p of p2) { zMax = Math.max(zMax, p[2]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); }
+  const t = [-(x0 + x1) / 2, -(y0 + y1) / 2, -(zMax - len * gripFrac)];
+  for (const pr of prims) transformPrimitive(pr, mat4([1, 1, 1], [0, 0, 0, 1], t));
   console.log('gun axis', axis ? 'z' : 'x', 'muzzle', muzzleAtHi ? 'hi' : 'lo', 'len', len.toFixed(2));
 }
 

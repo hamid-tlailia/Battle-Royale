@@ -18,7 +18,7 @@ export const PLAYER = {
   eyeAboveCenter: 0.6,    // camera pivot above capsule center (standing)
   maxPitch: 1.35,
   controllerOffset: 0.02,
-  maxSlopeDeg: 58,
+  maxSlopeDeg: 60,
   autostepHeight: 0.45,
   /** m/s² — reach full speed in ~0.15 s on the ground */
   groundAccel: 40,

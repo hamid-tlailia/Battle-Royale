@@ -79,6 +79,7 @@ export class Game {
   private tmpM = new THREE.Matrix4();
   private v1 = new THREE.Vector3();
   private v2 = new THREE.Vector3();
+  private v3 = new THREE.Vector3();
   private camPos = new THREE.Vector3();
   private focus = new THREE.Vector3();
   private pivot = new THREE.Vector3();
@@ -289,7 +290,8 @@ export class Game {
     if (!v) return;
     v.firingT = 0.35;
     const muzzle = v.view.muzzleWorld(this.v1);
-    this.fx.muzzle(muzzle);
+    if (this.controls.scopedView) muzzle.copy(this.camera.position).addScaledVector(this.camera.getWorldDirection(this.v3), 6);
+    else this.fx.muzzle(muzzle);
     this.fx.tracer(muzzle, this.aim);
     sfx.shot(w, 0, 0);
   }
@@ -307,14 +309,18 @@ export class Game {
           if (!v) break;
           v.firingT = 0.35;
           const muzzle = v.view.muzzleWorld(this.v1);
-          this.fx.muzzle(muzzle);
+          // looking through your own scope: no flash/tracer right in front of the lens (they covered the view)
+          const ownScoped = e.id === this.myId && this.controls.scopedView;
+          if (ownScoped) muzzle.copy(this.camera.position).addScaledVector(this.camera.getWorldDirection(this.v3), 6);
+          else this.fx.muzzle(muzzle);
           for (let i = 0; i < e.ends.length; i += 3) {
             this.v2.set(e.ends[i], e.ends[i + 1], e.ends[i + 2]);
-            this.fx.tracer(muzzle, this.v2);
+            if (!ownScoped || i === 0) this.fx.tracer(muzzle, this.v2);
             this.fx.impact(this.v2, 'dust', 2);
           }
           const dist = muzzle.distanceTo(ear);
           sfx.shot(e.weapon, e.id === this.myId ? 0 : dist, this.panOf(muzzle));
+          if (e.id !== this.myId && dist < 220) this.hud.addShotMark(e.ox, e.oz);
           break;
         }
         case 'hit': {
@@ -446,10 +452,10 @@ export class Game {
     const h = this.camera.position.y - this.sim.phys.groundHeight(this.camera.position.x, this.camera.position.z);
     // see the whole valley from the plane; normal (cheap) view distance on the ground
     const up = THREE.MathUtils.clamp(h - 10, 0, 140);
-    const far = 300 + up * 3.2;
+    const far = 380 + up * 2.8;
     if (Math.abs(this.camera.far - far) > 8) { this.camera.far = far; this.camera.updateProjectionMatrix(); }
     const fog = this.scene.fog as THREE.Fog;
-    fog.near = 70 + up * 1.6; fog.far = 240 + up * 3;
+    fog.near = 110 + up * 1.4; fog.far = 340 + up * 2.6; // people stay visible ~250 m away
     const k = !me.alive ? 0 : me.move.air === 1 ? 1 : THREE.MathUtils.clamp((h - 22) / 35, 0, 1);
     // route arrow: next point relative to where you look; reached points are removed
     const wp = this.hud.waypoints[0];
@@ -540,6 +546,7 @@ export class Game {
     const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
     this.controls.scopedView = scopedView;
     this.hudEl.classList.toggle('scoped-ui', scopedView);
+    this.hudEl.classList.toggle('sky', me.alive && me.move.air >= 2);
     this.updateFrostPreview(me);
     this.menuTimer -= dt;
     if (this.menuTimer <= 0) { // ground-loot menu

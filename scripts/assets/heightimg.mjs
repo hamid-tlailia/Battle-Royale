@@ -22,6 +22,13 @@ for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {
 for (let pass = 0; pass < 300; pass++) { let left = 0; for (let i = 0; i < n * n; i++) { if (!Number.isNaN(h[i])) continue; const ix = i % n, iz = (i / n) | 0; let s = 0, c = 0;
   for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = ix + dx, z = iz + dz; if (x >= 0 && z >= 0 && x < n && z < n && !Number.isNaN(h[z * n + x])) { s += h[z * n + x]; c++; } }
   if (c) h[i] = s / c; else left++; } if (!left) break; }
+// smoothing passes (playable slopes): SMOOTH env, default 2
+for (let pass = 0; pass < +(process.env.SMOOTH ?? 2); pass++) {
+  const t = Float32Array.from(h);
+  for (let iz = 1; iz < n - 1; iz++) for (let ix = 1; ix < n - 1; ix++) {
+    const i = iz * n + ix; h[i] = (t[i] * 4 + t[i - 1] + t[i + 1] + t[i - n] + t[i + n]) / 8;
+  }
+}
 let lo = Infinity, hi = -Infinity; for (const v of h) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
 const hb = Buffer.alloc(n * n * 2), mb = Buffer.alloc(n * n);
 for (let i = 0; i < n * n; i++) { hb.writeUInt16LE(Math.round((h[i] - lo) * vs * 100), i * 2); mb[i] = Math.round(Math.min(1, mask[i]) * 255); }

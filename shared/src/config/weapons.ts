@@ -46,7 +46,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     range: 35, falloffStart: 7, minDamageFrac: 0.25, hipSpread: 0.085, adsSpread: 0.065, pellets: 9, scopeFov: 52, startReserve: 25,
   },
   sniper: {
-    id: 'sniper', name: 'Sniper', damage: 86, headMult: 2.2, rpm: 40, auto: false, mag: 5, reloadTime: 3.0,
+    id: 'sniper', name: 'Sniper', damage: 90, headMult: 2.2, rpm: 36, auto: false, mag: 5, reloadTime: 3.0,
     range: 320, falloffStart: 160, minDamageFrac: 0.85, hipSpread: 0.07, adsSpread: 0.0, pellets: 1, scopeFov: 12, startReserve: 20,
   },
 };

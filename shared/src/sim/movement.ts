@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { BTN, MAP, PLAYER } from '../config/game';
 import type { PhysicsWorld } from './physics';
+import { terrainHeight } from '../map/mapgen';
 
 export interface InputCmd {
   seq: number;
@@ -262,8 +263,23 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
 
   scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;
   phys.controller.computeColliderMovement(col, scratch);
-  const mv = phys.controller.computedMovement();
+  let mv = phys.controller.computedMovement();
   let grounded = phys.controller.computedGrounded();
+  // climb assist: walking up a steep hillside the controller loses most of the horizontal motion;
+  // lift a little and retry so you keep your pace on any slope you can stand on (real cliffs still block)
+  const want = Math.hypot(scratch.x, scratch.z), got = Math.hypot(mv.x, mv.z);
+  // only where the terrain itself rises ahead (hills), never against walls / props on flat ground
+  const ax = s.x + (scratch.x / Math.max(want, 1e-6)) * 0.7, az = s.z + (scratch.z / Math.max(want, 1e-6)) * 0.7;
+  const rising = want > 0.02 && terrainHeight(phys.map, ax, az) - terrainHeight(phys.map, s.x, s.z) > 0.12;
+  if (s.vault === 0 && rising && (grounded || s.grounded) && got < want * 0.7) {
+    const lift = (want - got) * 1.3;
+    const tx0 = mv.x, ty0 = mv.y, tz0 = mv.z, g0 = grounded;
+    phys.controller.computeColliderMovement(col, { x: scratch.x, y: Math.max(scratch.y, 0) + lift, z: scratch.z });
+    const m2 = phys.controller.computedMovement();
+    const got2 = Math.hypot(m2.x, m2.z);
+    if (got2 > got * 1.15 && m2.y > -0.01) { mv = { x: m2.x, y: m2.y, z: m2.z }; grounded = true; }
+    else { mv = { x: tx0, y: ty0, z: tz0 }; grounded = g0; }
+  }
   // on bumpy hillsides the controller's contact flickers: feet within a few cm of the ground count as grounded
   // (walking uphill keeps full ground acceleration and jumping works on slopes)
   if (!grounded && s.vy <= 0.5) {

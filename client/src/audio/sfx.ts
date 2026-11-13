@@ -122,6 +122,10 @@ export class Sfx {
     const d = this.chain(w === 'sniper' ? 1.3 : w === 'shotgun' ? 1.1 : 0.9, dist, pan);
     if (!d) return;
     const t = this.ctx!.currentTime;
+    if (dist < 30 && (w === 'sniper' || w === 'shotgun')) { // bolt / pump being worked after the shot
+      const k = this.chain(0.35, dist, pan);
+      if (k) { this.burst(k, t + 0.55, 0.05, 2600, 3, 0.9, 0.04); this.burst(k, t + 0.78, 0.06, 1900, 3, 1, 0.05); }
+    }
     const sample = this.samples.get(w);
     if (sample) {
       const src = this.ctx!.createBufferSource();
