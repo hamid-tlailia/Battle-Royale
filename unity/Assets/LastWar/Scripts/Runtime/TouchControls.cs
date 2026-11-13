@@ -24,7 +24,8 @@ namespace LastWar
         public Canvas Canvas => canvas;
         public bool Crouch, Prone;      // posture toggles
         public bool HealPressed, FrostPressed, BagPressed, GearPressed; // one frame each
-        Btn crouchBtn, proneBtn, healBtn, frostBtn;
+        Btn crouchBtn, proneBtn, healBtn, frostBtn, jumpBtn;
+        int airMode = -1;
         Text healBadge, frostBadge;
 
         class Btn { public RectTransform rt; public Image bg; public Sprite normal; public bool pressed; }
@@ -63,7 +64,7 @@ namespace LastWar
             // positions = the web defaults (style.css .btn-*): centre from the corner, in CSS px
             fireBtn = Button("fire", "btn_fire", 84, BR, new Vector2(-68, 150), null);
             fireLeft = Button("fire", "btn_fire", 60, TL, new Vector2(60, -139), null);
-            Button("jump", "btn", 64, BR, new Vector2(-56, 58), () => JumpPressed = true);
+            jumpBtn = Button("jump", "btn", 64, BR, new Vector2(-56, 58), () => JumpPressed = true);
             Button("reload", "btn", 50, BR, new Vector2(-153, 125), () => ReloadPressed = true);
             scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => Scoped = !Scoped);
             runBtn = Button("sprint", "btn", 52, BL, new Vector2(194, 202), () => { Sprint = !Sprint; if (Sprint) Crouch = Prone = false; });
@@ -107,6 +108,16 @@ namespace LastWar
             var t = UiKit.Txt(bub.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(18, 18), 11, TextAnchor.MiddleCenter, new Color(.07f, .13f, .06f));
             t.rectTransform.pivot = new Vector2(.5f, .5f); Destroy(t.GetComponent<Shadow>()); t.text = "0";
             return t;
+        }
+
+        /// <summary>in the plane / sky-diving only JUMP shows (gold in the plane), like the web #hud.in-plane</summary>
+        public void SetAir(int air)
+        {
+            if (air == airMode) return;
+            airMode = air;
+            foreach (Btn b in btns) b.rt.gameObject.SetActive(air == 0 || b == jumpBtn);
+            jumpBtn.bg.color = air == 1 ? new Color(1f, .85f, .35f) : Color.white;
+            if (air != 0) { Sprint = false; Crouch = Prone = false; Scoped = false; }
         }
 
         /// <summary>counts on the heal / ice-wall buttons (0 = faded, like the web)</summary>

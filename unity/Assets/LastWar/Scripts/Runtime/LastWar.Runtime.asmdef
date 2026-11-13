@@ -1,7 +1,7 @@
 {
     "name": "LastWar.Runtime",
     "rootNamespace": "LastWar",
-    "references": ["UnityEngine.UI"],
+    "references": ["UnityEngine.UI", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

@@ -53,6 +53,8 @@ namespace LastWar
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f : 1f) * (OnEnemy != null && AimAssistOn ? 0.55f : 1f);
             yaw += input.LookDelta.x * sens;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
+            if (fighter.air != 0) { AirUpdate(dt); return; }
+            body.Tilt = 0; body.SetChute(false);
 
             // weapons
             if (input.SlotPressed >= 0) { if (input.SlotPressed == fighter.slot) fighter.Reload(); else fighter.SelectSlot(input.SlotPressed); } // tap the equipped gun = reload
@@ -188,19 +190,61 @@ namespace LastWar
             yaw += by * k * Mathf.Rad2Deg; pitch += bp * k * 0.6f;
         }
 
+        bool dropStraight, planeViewSet;
+        /// <summary>in the plane / falling / under the parachute</summary>
+        void AirUpdate(float dt)
+        {
+            var sky = SkyDrop.Instance;
+            if (sky == null) { fighter.air = 0; cc.enabled = true; return; }
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            body.SetGun(null);
+            if (fighter.air == 1)
+            {
+                // first frame: look the way the plane flies, a little down
+                if (!planeViewSet) { planeViewSet = true; Vector3 d = sky.Dir; yaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; pitch = -0.22f; }
+                AirMove.Ride(fighter, cc); body.SetVisible(false);
+                if ((input.JumpPressed && sky.OverMap && sky.T > 0.5f) || sky.MustJump) { AirMove.Jump(fighter); body.SetVisible(true); dropStraight = false; }
+                return;
+            }
+            // JUMP while falling: drop straight down (tap again to glide)
+            if (input.JumpPressed) dropStraight = !dropStraight;
+            Vector2 mv = input.Move;
+            Quaternion heading = Quaternion.Euler(0, yaw, 0);
+            // stick untouched: glide toward where you look
+            Vector3 wish = mv.sqrMagnitude > 0.01f ? heading * new Vector3(mv.x, 0, mv.y) : heading * Vector3.forward;
+            AirMove.Fall(fighter, cc, Vector3.ClampMagnitude(wish, 1f), dropStraight, Mathf.Max(0, -pitch), GameBoot.Instance.Map.playRadius, dt);
+            body.Tilt = fighter.air == 2 ? 83f : 0f;
+            body.SetChute(fighter.air == 3);
+            body.Play("idle");
+            body.AimDir = transform.forward;
+            if (fighter.air == 0) { velocity = Vector3.zero; dropStraight = false; }
+        }
+
         bool NearGround() => Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 0.5f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore);
 
         void LateUpdate()
         {
             if (cam == null) return;
+            if (fighter.air == 1 && SkyDrop.Instance != null)
+            {
+                // chase camera around the plane
+                Vector3 pp = SkyDrop.Instance.PlanePos;
+                Quaternion lk = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
+                cam.transform.position = pp - lk * Vector3.forward * 30f + Vector3.up * 7f;
+                cam.transform.LookAt(pp);
+                cam.fieldOfView = 70f;
+                return;
+            }
             Vector3 pivot = transform.position + Vector3.up * (cc.height - 0.3f);
             Quaternion look = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
-            float targetDist = Scoped ? 1.4f : 3.6f;
+            float targetDist = Scoped ? 1.4f : fighter.air != 0 ? 6.5f : 3.6f;
             camDist = Mathf.Lerp(camDist, targetDist, Time.deltaTime * 12f);
             Vector3 back = look * new Vector3(Scoped ? 0.55f : 1.05f, Scoped ? 0.15f : 0.45f, -camDist);
             float len = back.magnitude;
             if (Physics.SphereCast(pivot, 0.2f, back / len, out RaycastHit hit, len, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) len = Mathf.Max(0.4f, hit.distance - 0.1f);
             cam.transform.position = pivot + back.normalized * len;
+            // under the canopy: keep the camera below it so turning never hides the soldier
+            if (fighter.air == 3 && cam.transform.position.y > pivot.y + 1.6f) cam.transform.position = new Vector3(cam.transform.position.x, pivot.y + 1.6f, cam.transform.position.z);
             cam.transform.rotation = look;
             float fov = Scoped && fighter.Gun != null ? fighter.Gun.def.scopeFov : 70f;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, Time.deltaTime * 14f);

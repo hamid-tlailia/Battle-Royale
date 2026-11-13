@@ -23,6 +23,8 @@ namespace LastWar
         public float hp = MaxHp, armor = 0f;
         public int kills;
         public int meds, frost;          // medkits, ice walls
+        public int air;                  // 0 ground, 1 in the plane, 2 free fall, 3 parachute
+        public Vector3 airVel;
         public float healEnd;            // Time.time when the medkit finishes (0 = not healing)
         public readonly GunState[] guns = new GunState[3];
         public int slot;
@@ -73,7 +75,7 @@ namespace LastWar
             }
         }
 
-        public bool CanFire => Alive && Gun != null && reloadEnd == 0 && Time.time >= nextShot;
+        public bool CanFire => Alive && air == 0 && Gun != null && reloadEnd == 0 && Time.time >= nextShot;
 
         /// <summary>Fire one shot from `eye` toward `aimDir` (pellets for the shotgun). Returns false if it couldn't.</summary>
         public bool Fire(Vector3 eye, Vector3 aimDir, bool scoped, bool moving)

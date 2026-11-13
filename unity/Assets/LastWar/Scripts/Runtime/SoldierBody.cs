@@ -190,8 +190,87 @@ namespace LastWar
             for (int k = 0; k < weights.Length; k++) mixer.SetInputWeight(k, sum > 0 ? weights[k] / sum : 0);
         }
 
+        // ---- sky-dive pose, visibility, parachute
+        /// <summary>lean forward in degrees around the hips (free fall: ~83 = belly down)</summary>
+        public float Tilt;
+        float tiltNow; Vector3 outfitBase; bool outfitBaseSet;
+        Transform chute; float chuteK;
+        bool visible = true;
+
+        public void SetVisible(bool v)
+        {
+            if (v == visible) return;
+            visible = v;
+            foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+                r.enabled = v && (outfitRoot == null || !r.transform.IsChildOf(model));
+        }
+
+        /// <summary>open (true) or fold (false) the parachute: striped red / white canopy with lines</summary>
+        public void SetChute(bool open)
+        {
+            if (open && chute == null) chute = BuildChute();
+            if (chute == null) return;
+            chuteK = Mathf.MoveTowards(chuteK, open ? 1 : 0, Time.deltaTime * 4f);
+            chute.localScale = Vector3.one * Mathf.Max(0.001f, chuteK);
+            chute.gameObject.SetActive(chuteK > 0.02f);
+        }
+
+        Transform BuildChute()
+        {
+            var g = new GameObject("Chute").transform; g.SetParent(transform, false); g.localPosition = Vector3.up * 6f;
+            Material red = MapBuilder.NewLit(new Color(0.85f, 0.26f, 0.18f)), white = MapBuilder.NewLit(new Color(0.95f, 0.95f, 0.95f));
+            red.SetFloat("_Cull", 0f); white.SetFloat("_Cull", 0f);
+            for (int i = 0; i < 8; i++)
+            {
+                // one gore of a flattened dome (radius 3.2 m)
+                var mesh = new Mesh(); var v = new List<Vector3>(); var tri = new List<int>();
+                const int seg = 4, ring = 6;
+                for (int r = 0; r <= ring; r++) for (int sgi = 0; sgi <= seg; sgi++)
+                    {
+                        float th = r / (float)ring * Mathf.PI * 0.42f, ph = (i + sgi / (float)seg) / 8f * Mathf.PI * 2f;
+                        v.Add(new Vector3(Mathf.Sin(th) * Mathf.Cos(ph) * 3.2f, Mathf.Cos(th) * 3.2f * 0.55f, Mathf.Sin(th) * Mathf.Sin(ph) * 3.2f));
+                    }
+                for (int r = 0; r < ring; r++) for (int sgi = 0; sgi < seg; sgi++)
+                    {
+                        int a0 = r * (seg + 1) + sgi, b0 = a0 + seg + 1;
+                        tri.AddRange(new[] { a0, b0, a0 + 1, a0 + 1, b0, b0 + 1 });
+                    }
+                mesh.SetVertices(v); mesh.SetTriangles(tri, 0); mesh.RecalculateNormals();
+                var part = new GameObject("gore", typeof(MeshFilter), typeof(MeshRenderer));
+                part.transform.SetParent(g, false); part.GetComponent<MeshFilter>().sharedMesh = mesh;
+                part.GetComponent<MeshRenderer>().sharedMaterial = i % 2 == 0 ? red : white;
+            }
+            // lines from the harness to the rim
+            Material line = MapBuilder.NewLit(new Color(0.2f, 0.2f, 0.2f));
+            Mesh cyl = Resources.GetBuiltinResource<Mesh>("Cylinder.fbx");
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i / 8f * Mathf.PI * 2f;
+                Vector3 top = new Vector3(Mathf.Cos(a) * 2.9f, 0.4f, Mathf.Sin(a) * 2.9f), bottom = new Vector3(0, -4.4f, 0);
+                var l = new GameObject("line", typeof(MeshFilter), typeof(MeshRenderer)).transform;
+                l.SetParent(g, false); l.localPosition = (top + bottom) / 2f; l.localRotation = Quaternion.FromToRotation(Vector3.up, top - bottom);
+                l.localScale = new Vector3(0.025f, (top - bottom).magnitude / 2f, 0.025f);
+                l.GetComponent<MeshFilter>().sharedMesh = cyl; l.GetComponent<MeshRenderer>().sharedMaterial = line;
+            }
+            return g;
+        }
+
+        void ApplyTilt()
+        {
+            tiltNow = Mathf.MoveTowards(tiltNow, Tilt, Time.deltaTime * 240f);
+            Vector3 pivot = Vector3.up * 0.95f;
+            Quaternion q = Quaternion.Euler(tiltNow, 0, 0);
+            model.localRotation = q; model.localPosition = pivot - q * pivot;
+            if (outfitRoot != null)
+            {
+                if (!outfitBaseSet) { outfitBase = outfitRoot.localPosition; outfitBaseSet = true; }
+                outfitRoot.localRotation = q; outfitRoot.localPosition = pivot - q * (pivot - outfitBase);
+            }
+        }
+
         void LateUpdate()
         {
+            if (model != null && (Tilt != 0 || tiltNow != 0)) ApplyTilt();
             Retarget();
             // gun: grip in the right hand, barrel (model -Z) along the aim
             if (gun == null || handR == null) return;

@@ -90,6 +90,12 @@ namespace LastWar
                 if (Result != 0) Profile.AddMatch(Player.fighter.kills, Result > 0, Rank);
             };
 
+            // everybody boards the drop plane (?nodrop=1 in the URL: start on the ground, for tests)
+            if (!(Application.absoluteURL ?? "").Contains("nodrop=1"))
+            {
+                SkyDrop.Create(Map);
+                foreach (Fighter f in Fighters) f.air = 1;
+            }
             Zone.Create(Map.playRadius);
             Tracers.Create();
             Hud.Create(controls, Player);

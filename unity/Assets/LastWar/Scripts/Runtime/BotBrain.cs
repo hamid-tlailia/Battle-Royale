@@ -15,6 +15,7 @@ namespace LastWar
         Vector3 target, velocity;
         Fighter enemy;
         float scanTimer, burstTimer, aimErr, stuckTimer, skill, reactUntil;
+        float jumpAt = -1; Vector3 landAt; bool landSet;
         Vector3 lastPos;
         static Vector3 lastGunfire; static float lastGunfireTime = -99f; static Fighter lastShooter;
 
@@ -56,6 +57,8 @@ namespace LastWar
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); cc.enabled = false; enabled = false; return; }
             float dt = Time.deltaTime;
             if (GameBoot.Instance == null || GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
+            if (fighter.air != 0) { AirUpdate(dt); return; }
+            body.Tilt = 0; body.SetChute(false);
 
             // perception every ~0.3 s
             if ((scanTimer -= dt) <= 0f)
@@ -64,7 +67,7 @@ namespace LastWar
                 Fighter best = null; float bd = 70f;
                 foreach (Fighter f in GameBoot.Instance.Fighters)
                 {
-                    if (f == fighter || !f.Alive) continue;
+                    if (f == fighter || !f.Alive || f.air == 1) continue;
                     float d = Vector3.Distance(f.transform.position, transform.position);
                     if (d < bd && CanSee(f)) { bd = d; best = f; }
                 }
@@ -129,6 +132,38 @@ namespace LastWar
 
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
             body.Play(!cc.isGrounded ? "jump" : hs > 5.2f ? "run" : hs > 0.4f ? "walk_fire" : enemy != null ? "fire" : "idle_rifle");
+        }
+
+        /// <summary>ride the plane, jump at its own moment, glide toward its own landing spot (players spread out)</summary>
+        void AirUpdate(float dt)
+        {
+            var sky = SkyDrop.Instance;
+            if (sky == null) { fighter.air = 0; cc.enabled = true; return; }
+            body.SetGun(null);
+            if (fighter.air == 1)
+            {
+                if (jumpAt < 0) jumpAt = 0.12f + Random.value * 0.75f;
+                AirMove.Ride(fighter, cc); body.SetVisible(false);
+                if ((sky.OverMap && sky.Progress >= jumpAt) || sky.MustJump) { AirMove.Jump(fighter); body.SetVisible(true); }
+                return;
+            }
+            if (!landSet)
+            {
+                landSet = true;
+                float a = Random.value * Mathf.PI * 2f, d = 40f + Random.value * 180f;
+                Vector3 p = transform.position + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * d; p.y = 0;
+                float lim = GameBoot.Instance.Map.playRadius - 20f;
+                if (p.magnitude > lim) p = p.normalized * lim;
+                landAt = p;
+            }
+            Vector3 to = landAt - transform.position; to.y = 0;
+            Vector3 wish = to.magnitude > 6f ? to.normalized * 0.85f : Vector3.zero;
+            if (wish.sqrMagnitude > 0) transform.rotation = Quaternion.LookRotation(wish);
+            AirMove.Fall(fighter, cc, wish, false, 0f, GameBoot.Instance.Map.playRadius, dt);
+            body.Tilt = fighter.air == 2 ? 83f : 0f;
+            body.SetChute(fighter.air == 3);
+            body.Play("idle");
+            if (fighter.air == 0) { velocity = Vector3.zero; PickTarget(); }
         }
 
         bool CanSee(Fighter f)

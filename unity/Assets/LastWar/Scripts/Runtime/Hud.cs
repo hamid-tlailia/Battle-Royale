@@ -23,6 +23,7 @@ namespace LastWar
         readonly List<(string text, bool mine, float t)> feed = new List<(string, bool, float)>();
         RectTransform endPanel; Text endTitle, endSub;
         float hitT, flashT, bannerT; bool hitKill;
+        string hintText = ""; float hintAt;
         class Floater { public Text t; public Vector3 pos; public float life; }
         readonly List<Floater> floaters = new List<Floater>();
         readonly List<(Text t, float life)> taken = new List<(Text, float)>();
@@ -193,6 +194,12 @@ namespace LastWar
             reloadBar.gameObject.SetActive(reloading);
             if (reloading) reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.reloadEnd - Time.time) / f.Gun.def.reloadTime), 4) * K;
             input.SetCounts(f.meds, f.frost);
+            input.SetAir(f.air);
+            foreach (Slot sl in slots) sl.rt.gameObject.SetActive(f.air == 0);
+            // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
+            string hint = f.air == 1 ? "Tap <b>JUMP</b> to drop" : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
+            if (hint != hintText) { hintText = hint; hintAt = Time.time; }
+
             if (f.healEnd > 0) { reloadBar.gameObject.SetActive(true); reloadFill.color = new Color(1f, .42f, .42f); reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.healEnd - Time.time) / 3f), 4) * K; }
             else reloadFill.color = new Color(1f, .83f, .3f);
             input.ShowScope(f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
@@ -213,7 +220,8 @@ namespace LastWar
             }
             zoneBox.color = outside ? new Color(200 / 255f, 30 / 255f, 30 / 255f, .5f + .25f * Mathf.PingPong(Time.time * 2f, 1f)) : new Color(20 / 255f, 60 / 255f, 140 / 255f, .5f);
             zoneBox.rectTransform.sizeDelta = new Vector2(zoneText.preferredWidth + 20 * K, 18 * K);
-            centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : "";
+            centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : hintText != "" && Time.time - hintAt < 2.5f ? hintText : "";
+            centerText.color = outside ? new Color(1f, 0.42f, 0.36f) : Color.white;
 
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
