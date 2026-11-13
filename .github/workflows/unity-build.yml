@@ -1,0 +1,64 @@
+name: Unity build (Android APK + WebGL test)
+
+# Builds the Unity version of Last War on GitHub's servers (no local Unity needed).
+# Repository secrets: UNITY_EMAIL, UNITY_PASSWORD, UNITY_LICENSE (contents of Unity_lic.ulf).
+# Build files are kept for 1 day only (download them right away) so Actions storage stays small.
+
+on:
+  push:
+    branches: [ claude/lowpoly-battle-royale-mvp-h7urn3, main ]
+    paths: [ 'unity/**', '.github/workflows/unity-build.yml' ]
+  workflow_dispatch:
+
+concurrency:
+  group: unity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Android
+            method: LastWar.EditorTools.BuildScript.BuildAndroid
+            out: unity/build/Android/*.apk
+            name: LastWar-APK
+          - platform: WebGL
+            method: LastWar.EditorTools.BuildScript.BuildWebGL
+            out: unity/build/WebGL
+            name: LastWar-WebGL
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: unity/Library
+          key: Library-${{ matrix.platform }}-${{ hashFiles('unity/Packages/manifest.json', 'unity/ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: Library-${{ matrix.platform }}-
+
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.0.85f1
+          projectPath: unity
+          targetPlatform: ${{ matrix.platform }}
+          buildMethod: ${{ matrix.method }}
+          androidExportType: androidPackage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.out }}
+          retention-days: 1
+          if-no-files-found: error

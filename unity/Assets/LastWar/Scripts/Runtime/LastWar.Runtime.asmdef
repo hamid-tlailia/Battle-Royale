@@ -1,0 +1,10 @@
+{
+    "name": "LastWar.Runtime",
+    "rootNamespace": "LastWar",
+    "references": ["UnityEngine.UI"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": true,
+    "noEngineReferences": false
+}
