@@ -29,7 +29,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   el.className = 'lobby';
   el.innerHTML = `
     <canvas class="lobby-3d"></canvas>
-    <div class="lobby-title"><h1>${GAME_TITLE}</h1><span class="srv">checking server…</span></div>
+    <div class="lobby-title"><img class="lobby-logo" src="/logo.png" alt="${GAME_TITLE}"><span class="srv">checking server…</span></div>
     <div class="lobby-settings"></div>
     <div class="lobby-panel">
       <label class="lbl">NAME</label>

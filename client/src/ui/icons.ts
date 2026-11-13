@@ -1,22 +1,33 @@
 /** Original SVG icon set for the touch buttons (stroke = currentColor). */
-const svg = (body: string) => `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+/** filled shapes (white silhouettes) */
+const fill = (body: string) => `<g fill="currentColor" stroke="none">${body}</g>`;
+const svg = (body: string) => `<g fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
+const wrap = (g: string) => `<svg viewBox="0 0 48 48">${g}</svg>`;
 
-export const ICONS = {
-  // a cartridge with a muzzle flash: "shoot"
-  fire: svg('<path d="M20 40V20q0-9 6-13 6 4 6 13v20z"/><path d="M18 40h16"/><path d="M26 22v10" stroke-width="2"/><path d="M9 14l4 3M8 24h5M9 34l4-3M43 14l-4 3M44 24h-5M43 34l-4-3"/>'),
-  jump: svg('<path d="M24 36V10M13 21l11-11 11 11"/><path d="M12 43h24"/>'),
-  // kneeling soldier
-  crouch: svg('<circle cx="25" cy="8" r="4.2"/><path d="M24 14l-3 12h9l1 13"/><path d="M21 26l-9 5 1 8"/><path d="M23 17l9 5 7-2"/><path d="M8 43h32"/>'),
-  // soldier lying flat
-  prone: svg('<circle cx="40" cy="30" r="4.2"/><path d="M35 33H17l-11 3"/><path d="M33 33l3-7 7-1"/><path d="M4 41h40"/>'),
-  // rifle scope seen from the side
-  scope: svg('<path d="M6 21h6l4-4h16l4 4h6v8h-6l-4 4H16l-4-4H6z"/><circle cx="24" cy="25" r="3"/><path d="M20 37v6M28 37v6"/>'),
-  reload: svg('<path d="M38 20a15 15 0 1 0 1 9"/><path d="M39 9v11H28"/><path d="M22 18h4v12h-4z" stroke-width="2.4"/>'),
-  sprint: svg('<circle cx="30" cy="8" r="4"/><path d="M22 18l8-4 6 7 6 1"/><path d="M30 14l-5 12 7 6-2 11"/><path d="M25 26l-7 6-8-1"/>'),
-  heal: svg('<rect x="9" y="13" width="30" height="24" rx="4"/><path d="M24 18v14M17 25h14"/><path d="M18 13V9h12v4"/>'),
-  frost: svg('<path d="M24 5v38M8 14l32 20M40 14L8 34"/><path d="M19 8l5 5 5-5M19 40l5-5 5 5"/>'),
-  // pistol going down into a holster
-  holster: svg('<path d="M8 12h24v6H18l-2 9h-6l2-9H8z"/><path d="M30 26v14M24 34l6 6 6-6"/>'),
-  bag: svg('<path d="M14 16h20a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V20a4 4 0 0 1 4-4z"/><path d="M18 16v-4a6 6 0 0 1 12 0v4"/><path d="M16 27h16"/>'),
+const RAW = {
+  // filled cartridge with muzzle sparks: "shoot"
+  fire: fill('<path d="M19 41V21q0-10 5-15 5 5 5 15v20z"/><rect x="17" y="40" width="14" height="4" rx="1"/>') + svg('<path d="M9 13l5 4M7 24h6M9 35l5-4M39 13l-5 4M41 24h-6M39 35l-5-4" stroke-width="3"/>'),
+  // solid up arrow over the ground line
+  jump: fill('<path d="M24 5l15 16h-9v15H18V21H9z"/><rect x="10" y="40" width="28" height="4" rx="2"/>'),
+  // kneeling soldier with rifle
+  crouch: fill('<circle cx="22" cy="8" r="4.5"/>') + svg('<path d="M22 14l1 13h9l1 13M23 27l-9 3 1 9M22 17l10 4 9-1" stroke-width="5.5"/><path d="M28 19l14-3" stroke-width="3"/><path d="M6 44h36" stroke-width="3"/>'),
+  // soldier lying flat with rifle
+  prone: fill('<circle cx="37" cy="27" r="4.5"/>') + svg('<path d="M32 31H16L5 33M30 31l4-6h9" stroke-width="5.5"/><path d="M38 23l8-2" stroke-width="3"/><path d="M3 40h42" stroke-width="3"/>'),
+  // aim-down-sights: corner brackets + reticle
+  scope: svg('<path d="M6 15V6h9M33 6h9v9M42 33v9h-9M15 42H6v-9" stroke-width="4"/><circle cx="24" cy="24" r="9" stroke-width="3.5"/>') + fill('<circle cx="24" cy="24" r="3"/>'),
+  // magazine + circular arrow
+  reload: svg('<path d="M39 22a15 15 0 1 0 0 6" stroke-width="4"/>') + fill('<path d="M44 14v11H33z"/><path d="M20 15h8l-1 18h-6z"/>'),
+  // running figure
+  sprint: fill('<circle cx="30" cy="7" r="4.5"/>') + svg('<path d="M28 14l-5 13 7 6-2 11M23 27l-8 6-7-1M26 16l-8 4-3 7M28 15l7 6 7 0" stroke-width="5.5"/>'),
+  // medkit
+  heal: fill('<path d="M18 9h12v5h8a4 4 0 0 1 4 4v20a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4h8zM21 12v2h6v-2zM21 20v6h-6v6h6v6h6v-6h6v-6h-6v-6z" fill-rule="evenodd"/>'),
+  // throwable frost grenade (snowflake on the body)
+  frost: fill('<path d="M19 6h10v5h-10z"/><path d="M28 7l9-3 2 4-9 3z"/><path d="M24 12c9 0 15 7 15 16s-6 16-15 16-15-7-15-16 6-16 15-16zM24 19v18M16 23.5l16 9M32 23.5l-16 9" fill-rule="evenodd" stroke="#000" stroke-opacity=".55" stroke-width="2.6" stroke-linecap="round"/>'),
+  // pistol going down
+  holster: fill('<path d="M6 10h28v8H20l-3 12H9l3-12H6z"/>') + svg('<path d="M34 24v16M27 33l7 7 7-7" stroke-width="4"/>'),
+  // backpack
+  bag: fill('<path d="M18 7a6 6 0 0 1 12 0v3h2a7 7 0 0 1 7 7v22a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4V17a7 7 0 0 1 7-7h2zm3 0v3h6V7a3 3 0 0 0-6 0zM15 27v8h18v-8z" fill-rule="evenodd"/>'),
   settings: svg('<circle cx="24" cy="24" r="6"/><path d="M24 4v6M24 38v6M4 24h6M38 24h6M10 10l4 4M34 34l4 4M38 10l-4 4M14 34l-4 4"/>'),
-} as const;
+};
+
+export const ICONS = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [k, wrap(v)])) as Record<keyof typeof RAW, string>;

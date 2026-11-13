@@ -14,7 +14,7 @@ app.innerHTML = `
   <div id="game"></div>
   <div id="hud"></div>
   <div id="boot" class="menu">
-    <h1>${GAME_TITLE}</h1>
+    <img class="boot-logo" src="/logo.png" alt="${GAME_TITLE}">
     <p class="sub">Loading…</p>
     <div class="bar"><div id="bar"></div></div>
   </div>

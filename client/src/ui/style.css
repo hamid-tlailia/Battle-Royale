@@ -299,3 +299,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .lobby .skins button.outfit { width: auto; height: 28px; border-radius: 14px; padding: 0 10px; background: rgba(255,255,255,.1);
   color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .4px; }
 .lobby .skins button.outfit.sel { background: rgba(255,211,77,.25); }
+
+/* ---------- logo ---------- */
+.boot-logo { width: min(520px, 70vw); max-height: 52vh; object-fit: contain; filter: drop-shadow(0 6px 18px rgba(0,0,0,.5)); animation: logoIn .8s ease-out; }
+@keyframes logoIn { from { transform: scale(.85); opacity: 0; } }
+.lobby-logo { display: block; width: min(200px, 23vw); filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
