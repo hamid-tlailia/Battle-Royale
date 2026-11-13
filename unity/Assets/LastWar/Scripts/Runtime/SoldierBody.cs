@@ -79,7 +79,6 @@ namespace LastWar
             for (int k = 0; k < clips.Length; k++)
             {
                 var cp = AnimationClipPlayable.Create(graph, clips[k]);
-                if (clips[k].name.StartsWith("death") || clips[k].name == "jump") cp.SetDuration(clips[k].length); // play once, hold the last pose
                 graph.Connect(cp, 0, mixer, k);
                 string n = clips[k].name; int bar = n.LastIndexOf('|'); if (bar >= 0) n = n.Substring(bar + 1);
                 clipIndex[n] = k;
@@ -95,8 +94,10 @@ namespace LastWar
             current = clip;
             // restart one-shot clips (jump, death) from the beginning
             var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[clip]);
-            if (clip.StartsWith("death") || clip == "jump") { cp.SetTime(0); cp.SetDone(false); }
+            if (OneShot(clip)) { cp.SetTime(0); cp.SetSpeed(1); }
         }
+
+        static bool OneShot(string clip) => clip.StartsWith("death") || clip == "jump";
 
         public void SetGun(string id)
         {
@@ -115,6 +116,13 @@ namespace LastWar
         {
             if (weights == null || current == null) return;
             int target = clipIndex[current];
+            // one-shot clips (jump, death) stop on their last frame instead of looping
+            if (OneShot(current))
+            {
+                var cp = (AnimationClipPlayable)mixer.GetInput(target);
+                float len = clips[target].length - 0.02f;
+                if (cp.GetTime() >= len) { cp.SetTime(len); cp.SetSpeed(0); }
+            }
             float sum = 0, dt = Time.deltaTime;
             for (int k = 0; k < weights.Length; k++) { weights[k] = Mathf.MoveTowards(weights[k], k == target ? 1f : 0f, dt * 6f); sum += weights[k]; }
             for (int k = 0; k < weights.Length; k++) mixer.SetInputWeight(k, sum > 0 ? weights[k] / sum : 0);

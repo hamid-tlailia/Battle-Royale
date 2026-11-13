@@ -15,6 +15,8 @@ namespace LastWar
         public int AliveCount { get; private set; }
         public int Result { get; private set; }   // 0 playing, 1 victory, -1 eliminated
         public int Rank { get; private set; }
+        float startTime;
+        public float MatchTime => Time.time - startTime;
         public const int BotCount = 15;
         static readonly string[] BotNames = { "Viper", "Nomad", "Ghost", "Raven", "Falcon", "Cobra", "Wolf", "Shadow", "Hunter", "Blaze", "Storm", "Rogue", "Jackal", "Titan", "Spectre", "Onyx", "Ranger", "Sable", "Mako", "Drift" };
         Text fps;
@@ -22,7 +24,7 @@ namespace LastWar
 
         void Start()
         {
-            Instance = this;
+            Instance = this; startTime = Time.time;
             Application.targetFrameRate = 60;
             QualitySettings.vSyncCount = 0;
 

@@ -14,7 +14,7 @@ namespace LastWar
         CharacterController cc;
         Vector3 target, velocity;
         Fighter enemy;
-        float scanTimer, burstTimer, aimErr, stuckTimer, skill;
+        float scanTimer, burstTimer, aimErr, stuckTimer, skill, reactUntil;
         Vector3 lastPos;
         static Vector3 lastGunfire; static float lastGunfireTime = -99f; static Fighter lastShooter;
 
@@ -68,7 +68,7 @@ namespace LastWar
                     float d = Vector3.Distance(f.transform.position, transform.position);
                     if (d < bd && CanSee(f)) { bd = d; best = f; }
                 }
-                if (best != enemy) aimErr = (1.3f - skill) * 0.25f;
+                if (best != enemy) { aimErr = (1.3f - skill) * 0.3f; reactUntil = Time.time + Random.Range(0.5f, 1.3f) * (1.4f - skill); }
                 enemy = best;
                 // heard a gunshot nearby and nobody in sight: go and look
                 if (enemy == null && lastShooter != fighter && Time.time - lastGunfireTime < 2f && Vector3.Distance(lastGunfire, transform.position) < 120f)
@@ -77,6 +77,8 @@ namespace LastWar
 
             Zone zone = Zone.Instance;
             bool outside = zone != null && zone.Active && zone.Outside(transform.position, 3f);
+            // the next circle is already known: walk into it before the shrink starts
+            bool outsideNext = zone != null && zone.Active && Vector2.Distance(new Vector2(transform.position.x, transform.position.z), zone.NextCentre) > zone.NextRadius - 2f;
             Vector3 move = Vector3.zero; bool sprint = false;
             if (enemy != null && enemy.Alive && !outside)
             {
@@ -84,17 +86,20 @@ namespace LastWar
                 float dist = to.magnitude;
                 // weapon by distance: close range < 15 m, long range beyond
                 fighter.SelectSlot(dist < 15f ? 1 : 0);
-                aimErr = Mathf.MoveTowards(aimErr, 0.02f * (1.3f - skill), dt * 0.08f);
+                aimErr = Mathf.MoveTowards(aimErr, 0.035f * (1.3f - skill), dt * 0.04f);
                 Vector3 aim = (Quaternion.Euler(Random.Range(-1f, 1f) * aimErr * 57f, Random.Range(-1f, 1f) * aimErr * 57f, 0) * to).normalized;
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(to.x, 0, to.z)), dt * 8f);
                 body.AimDir = aim;
                 if ((burstTimer -= dt) < 0f) burstTimer = Random.Range(0.8f, 2.2f);
-                if (burstTimer > 0.6f) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
+                // no shooting in the first seconds of the match, nor before the bot has reacted
+                bool mayShoot = Time.time >= reactUntil && GameBoot.Instance.MatchTime > 12f;
+                if (mayShoot && burstTimer > 0.6f) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
                 if (dist > 30f) move = new Vector3(to.x, 0, to.z).normalized * 0.5f;
             }
             else
             {
-                if (outside && zone != null) { Vector2 c = zone.NextCentre; target = new Vector3(c.x, 0, c.y); sprint = true; }
+                if (outsideNext && Vector2.Distance(new Vector2(target.x, target.z), zone.NextCentre) > zone.NextRadius * 0.8f) PickTarget();
+                sprint = outside || (outsideNext && zone.Shrinking);
                 Vector3 to = target - transform.position; to.y = 0;
                 if (to.magnitude < 2f) PickTarget();
                 move = to.normalized;
