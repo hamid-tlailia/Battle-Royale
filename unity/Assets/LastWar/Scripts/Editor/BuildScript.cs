@@ -115,11 +115,17 @@ namespace LastWar.EditorTools
             SerializedProperty pp = so.FindProperty("postProcessData") ?? so.FindProperty("m_PostProcessData");
             if (pp != null && post != null) { pp.objectReferenceValue = post; so.ApplyModifiedPropertiesWithoutUndo(); }
             UniversalRenderPipelineAsset urp = UniversalRenderPipelineAsset.Create(rendererData);
-            urp.shadowDistance = 90f; urp.shadowCascadeCount = 2; urp.msaaSampleCount = 2; urp.renderScale = 1f;
+            urp.shadowDistance = 90f; urp.shadowCascadeCount = 2; urp.msaaSampleCount = 4; urp.renderScale = 1f;
+            urp.mainLightShadowmapResolution = 2048;
             AssetDatabase.CreateAsset(urp, dir + "/LastWar_URP.asset");
             GraphicsSettings.defaultRenderPipeline = urp;
             int current = QualitySettings.GetQualityLevel();
-            for (int i = 0; i < QualitySettings.names.Length; i++) { QualitySettings.SetQualityLevel(i, false); QualitySettings.renderPipeline = urp; }
+            // every quality level (phones default to a low one): full-size textures, anisotropic filtering, far LODs
+            for (int i = 0; i < QualitySettings.names.Length; i++)
+            {
+                QualitySettings.SetQualityLevel(i, false); QualitySettings.renderPipeline = urp;
+                QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable; QualitySettings.globalTextureMipmapLimit = 0; QualitySettings.lodBias = 2f;
+            }
             QualitySettings.SetQualityLevel(current, false);
             AssetDatabase.SaveAssets();
             Debug.Log("[LastWar] URP asset created");
@@ -141,6 +147,18 @@ namespace LastWar.EditorTools
                 m.SetFloat("_AlphaClip", 1f); m.SetFloat("_Cutoff", 0.5f); m.EnableKeyword("_ALPHATEST_ON");
                 m.SetFloat("_Cull", 0f); m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
                 AssetDatabase.CreateAsset(m, cut);
+            }
+            // terrain: Lit + detail map (fine grass grain over the aerial photo, like the web game's ground shader)
+            string terr = dir + "/LitTerrain.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(terr) == null)
+            {
+                var m = new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true };
+                m.EnableKeyword("_DETAIL_MULX2");
+                var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(Root + "/Resources/Maps/detail_grass.png");
+                m.SetTexture("_DetailAlbedoMap", detail); m.SetFloat("_DetailAlbedoMapScale", 1f);
+                m.SetTextureScale("_DetailAlbedoMap", new Vector2(275f, 275f)); // ~1.6 m per tile on a 440 m map
+                m.SetFloat("_Smoothness", 0.05f);
+                AssetDatabase.CreateAsset(m, terr);
             }
             // zone wall: see-through blue, both sides; tracer: bright additive streak
             Transparent(dir + "/ZoneWall.mat", new Color(0.25f, 0.55f, 1f, 0.28f), false);

@@ -75,7 +75,19 @@ namespace LastWar
             var go = new GameObject("Terrain");
             go.transform.SetParent(parent, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = NewLit(Color.white, tex);
+            Material terrainMat;
+            var baseTerrain = Resources.Load<Material>("Materials/LitTerrain");
+            if (baseTerrain != null)
+            {
+                terrainMat = new Material(baseTerrain);
+                terrainMat.SetTexture("_BaseMap", tex);
+                // desert: sand grain instead of grass
+                var detail = Resources.Load<Texture2D>(map.id == "desert" ? "Maps/detail_sand" : "Maps/detail_grass");
+                if (detail != null) { detail.wrapMode = TextureWrapMode.Repeat; detail.anisoLevel = 8; terrainMat.SetTexture("_DetailAlbedoMap", detail); }
+                terrainMat.SetTextureScale("_DetailAlbedoMap", Vector2.one * (map.size / 1.6f));
+            }
+            else terrainMat = NewLit(Color.white, tex);
+            go.AddComponent<MeshRenderer>().sharedMaterial = terrainMat;
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
         }
 
