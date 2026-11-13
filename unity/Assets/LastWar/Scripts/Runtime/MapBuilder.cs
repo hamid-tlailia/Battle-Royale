@@ -12,7 +12,7 @@ namespace LastWar
     public static class MapBuilder
     {
         /// <summary>props players walk through (bullets still stop): same list as the web game</summary>
-        static readonly HashSet<string> Cover = new HashSet<string> { "stump", "well", "wagon", "haybale" }; // walked through (like the web game); fences block
+        static readonly HashSet<string> Cover = new HashSet<string>(); // nothing is walked through (same as the web game)
         /// <summary>models not placed in Unity (simple far versions / scan rock mesh handled separately)</summary>
         public const int CoverLayer = 8, PlayerLayer = 9;
 
