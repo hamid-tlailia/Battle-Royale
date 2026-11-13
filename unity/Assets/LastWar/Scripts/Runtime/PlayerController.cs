@@ -48,20 +48,6 @@ namespace LastWar
             Debug.Log($"[LastWar] soldier head top {(head != null ? (head.position.y - transform.position.y).ToString("0.###") : "not found")} m above the feet");
             foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
-                smr.BakeMesh(baked, true);
-                Matrix4x4 l2w = Matrix4x4.TRS(smr.transform.position, smr.transform.rotation, Vector3.one); // BakeMesh(useScale) already applied the scale
-                foreach (Vector3 v in baked.vertices) { float y = l2w.MultiplyPoint3x4(v).y; if (y < lo) lo = y; if (y > hi) hi = y; }
-            }
-            Destroy(baked);
-            Debug.Log($"[LastWar] soldier raw height {hi - lo:0.###} (lo {lo:0.###}, root {transform.position.y:0.###}), children {m.transform.childCount}");
-            if (hi > lo)
-            {
-                float s = 1.8f / (hi - lo);
-                m.transform.localScale *= s;
-                m.transform.localPosition = new Vector3(0, -(lo - transform.position.y) * s, 0);
-            }
-            foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-            {
                 smr.updateWhenOffscreen = true;
                 // glTF material -> our URP Lit (always in the build), keeping the colour texture
                 var mats = smr.sharedMaterials;
