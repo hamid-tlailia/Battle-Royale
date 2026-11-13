@@ -327,3 +327,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 
 .area-label { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; font-weight: 900; font-size: 15px; letter-spacing: 1.5px;
   color: #fff6d0; text-shadow: 0 0 3px #000, 0 2px 6px rgba(0,0,0,.8); text-transform: uppercase; transition: opacity .3s; }
+.loot-list { width: 172px; max-height: 50vh; right: calc(232px + env(safe-area-inset-right)); top: 44%; }
+.loot-list .bag-row { gap: 6px; padding: 3px 4px; min-height: 0; }
+.loot-list .bag-txt b { font-size: 11px; line-height: 1.15; }
+.loot-list .bag-txt small { font-size: 9px; }
+.loot-list .bag-row img { width: 42px; height: 16px; }
+.loot-list .bag-row i { font-size: 14px; width: 26px; }
+.loot-list button { padding: 4px 7px; font-size: 10px; border-radius: 6px; }
