@@ -41,10 +41,11 @@ namespace LastWar
             GameObject src = MapBuilder.Model("soldier");
             if (src == null) return;
             var m = Instantiate(src, transform, false);
-            // normalise to 1.8 m tall, feet on the ground: measured on the posed (baked) skinned mesh in world space
-            // (the imported bounds are in bind space and come out far too small)
-            float lo = float.MaxValue, hi = float.MinValue;
-            var baked = new Mesh();
+            // the soldier model is already ~1.8 m with its feet at the origin (Mixamo rig, armature scale 0.01):
+            // keep it as it is; log the skeleton height to be sure
+            Transform head = null;
+            foreach (Transform t in m.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("HeadTop")) head = t;
+            Debug.Log($"[LastWar] soldier head top {(head != null ? (head.position.y - transform.position.y).ToString("0.###") : "not found")} m above the feet");
             foreach (SkinnedMeshRenderer smr in m.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
                 smr.BakeMesh(baked, true);
