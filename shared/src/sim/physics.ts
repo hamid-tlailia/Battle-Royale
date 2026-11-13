@@ -12,8 +12,8 @@ export function initPhysics(): Promise<void> {
   return initPromise;
 }
 
-/** props players walk through (only walls, trees, rocks and players block movement) */
-const COVER_PROPS = new Set<string>(['car1', 'car2', 'car3', 'car4', 'fence', 'stump', 'well', 'wagon', 'haybale']);
+/** props players walk through (walls, trees, rocks, cars and players block movement) */
+const COVER_PROPS = new Set<string>(['fence', 'stump', 'well', 'wagon', 'haybale']);
 
 const quatY = (rot: number) => ({ x: 0, y: Math.sin(rot / 2), z: 0, w: Math.cos(rot / 2) });
 
