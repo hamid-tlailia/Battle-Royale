@@ -476,11 +476,18 @@ export class Hud {
     this.root.classList.toggle('in-plane', inPlane);
   }
 
-  setSpectating(name: string | null) {
+  /** watching someone after you died: only the weapon box, minimap and this card (bottom-right, with LOBBY) */
+  setSpectating(name: string | null, onLobby?: () => void) {
+    this.root.classList.toggle('spectating', !!name);
     if (!name) { this.specEl?.remove(); this.specEl = null; return; }
-    if (!this.specEl) this.specEl = el('spec-banner', this.root);
-    const t = `SPECTATING · <b>${name}</b>`;
-    if (this.specEl.innerHTML !== t) this.specEl.innerHTML = t;
+    if (!this.specEl) {
+      this.specEl = el('spec-banner', this.root, '<span>SPECTATING</span><b></b><button class="spec-lobby">LOBBY</button>');
+      const b = this.specEl.querySelector('.spec-lobby') as HTMLButtonElement;
+      const go = (e: Event) => { e.preventDefault(); e.stopPropagation(); onLobby?.(); };
+      b.addEventListener('click', go); b.addEventListener('touchend', go);
+    }
+    const nameEl = this.specEl.querySelector('b') as HTMLElement;
+    if (nameEl.textContent !== name) nameEl.textContent = name;
   }
 
   /** Short pickup / info message above the weapon bar. */
@@ -520,6 +527,14 @@ export class Hud {
     void this.cross.offsetWidth;
     this.cross.classList.add(kill ? 'killhit' : 'hit');
     this.hitTimer = 0.25;
+  }
+
+  /** damage you take: red number rising from the health bar */
+  damageTaken(dmg: number) {
+    const bars = this.root.querySelector('.bars-wrap') ?? this.root;
+    const d = el('dmg-taken', bars as HTMLElement, `-${Math.round(dmg)}`);
+    d.style.left = `${45 + Math.random() * 20}%`;
+    setTimeout(() => d.remove(), 1100);
   }
 
   hurtFlash() {

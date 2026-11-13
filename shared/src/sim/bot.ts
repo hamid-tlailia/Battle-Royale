@@ -121,9 +121,12 @@ export class BotBrain {
       const dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
       const flat = Math.hypot(dx, dz);
       // error decays while tracking
-      const decay = 0.99 - this.skill * 0.012;
+      // (slower than before and never perfect: bots were hitting almost every shot)
+      const decay = 0.995 - this.skill * 0.006;
       this.aimErrYaw *= decay; this.aimErrPitch *= decay;
-      const wobble = (1.2 - this.skill) * 0.1;
+      const floor = 0.025 * (1.3 - this.skill);
+      if (Math.abs(this.aimErrYaw) < floor) this.aimErrYaw = Math.sign(this.aimErrYaw || 1) * floor;
+      const wobble = (1.2 - this.skill) * 0.14;
       yaw = Math.atan2(-dx, -dz) + this.aimErrYaw + (this.rnd() - 0.5) * wobble;
       pitch = Math.atan2(dy, flat) + this.aimErrPitch + (this.rnd() - 0.5) * wobble;
       // best owned weapon with ammo for this distance

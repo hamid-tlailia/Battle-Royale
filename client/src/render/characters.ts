@@ -158,6 +158,28 @@ export class CharacterView {
   private body: THREE.SkinnedMesh | null = null;
   private bodyLod: THREE.SkinnedMesh | null = null;
   private gun: THREE.Object3D | null = null;
+  /** ground height under any point (set by the game): keeps feet out of slopes */
+  static groundAt: ((x: number, z: number) => number) | null = null;
+  private baseY = 0;
+  private footLift = 0;
+  private static readonly FEET = ['LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'];
+  private static readonly FV = new THREE.Vector3();
+  /** on a slope the uphill foot sinks into the ground: lift the body by the deepest foot (never lowers it) */
+  private fixFeet(st: CharacterState, dt: number) {
+    const ground = CharacterView.groundAt;
+    let target = 0;
+    if (ground && st.grounded && !st.dead && !st.prone && !(st.air ?? 0)) {
+      for (const n of CharacterView.FEET) {
+        const b = this.bones.get(n); if (!b) continue;
+        b.getWorldPosition(CharacterView.FV);
+        const raw = CharacterView.FV.y - this.footLift; // where the foot would be without the lift
+        target = Math.max(target, ground(CharacterView.FV.x, CharacterView.FV.z) + 0.03 - raw);
+      }
+      target = Math.min(target, 0.5);
+    }
+    this.footLift += (target - this.footLift) * Math.min(1, dt * 12);
+    this.model.position.y = this.baseY + this.footLift;
+  }
   private wasGrounded = true;
   private bodyOffset = 0;
   private airTime = 0;
@@ -193,6 +215,7 @@ export class CharacterView {
     const s = 1.8 / h;
     this.model.scale.multiplyScalar(s);
     this.model.position.y = -box.min.y * s;
+    this.baseY = this.model.position.y; this.footLift = 0;
     this.model.rotation.y = Math.PI + this.bodyOffset; // asset faces +Z, game forward is -Z
     this.root.add(this.model);
 
@@ -405,6 +428,7 @@ export class CharacterView {
       // kneel when crouched and still; spread-eagle in free fall (close / visible characters only)
       const pose = st.dead || !visible || dist > 70 ? null : air === 2 ? 'sky' : st.crouch && !st.prone && st.speed <= 0.4 && st.grounded ? 'kneel' : null;
       this.applyPose(pose, this.skipAcc);
+      if (dist < 80 && visible) { this.root.updateMatrixWorld(true); this.fixFeet(st, this.skipAcc); }
       this.skipAcc = 0;
     }
     if (visible && this.gun) this.placeGun(st);

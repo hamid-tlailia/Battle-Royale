@@ -155,6 +155,7 @@ export class Game {
     this.fx = new Effects(this.scene);
     this.loot = new LootView(this.scene, assets);
     this.plane = new PlaneView(this.scene);
+    CharacterView.groundAt = (x, z) => terrainHeight(this.sim.map, x, z);
     this.buildButtons();
 
     // players
@@ -353,7 +354,7 @@ export class Game {
             sfx.hitMarker(e.head);
           }
           if (e.target === this.myId) {
-            this.hud.hurtFlash(); sfx.hurt();
+            this.hud.hurtFlash(); sfx.hurt(); this.hud.damageTaken(e.dmg);
             const att = this.sim.players.get(e.attacker), me2 = this.sim.players.get(this.myId);
             if (att && me2) {
               const ang = Math.atan2(-(att.move.x - me2.move.x), -(att.move.z - me2.move.z)) - this.controls.yaw;
@@ -680,7 +681,7 @@ export class Game {
     const healFrac = me.healEndTick ? 1 - Math.max(0, me.healEndTick - (this.net ? this.net.serverTick : this.sim.tick)) / (LOOT.medTime * 30) : 0;
     const shown = !me.alive && focusV !== meV ? focusV.p : me;
     this.hud.setSlots(shown, shown === me ? reloadFrac : 0, shown === me ? healFrac : 0);
-    this.hud.setSpectating(shown === me ? null : shown.name);
+    this.hud.setSpectating(shown === me ? null : shown.name, () => { this.dispose(); this.onRestart(); });
     const out = me.alive && outsideZone(zone, me.move.x, me.move.z);
     this.hud.setInfo(this.aliveCount(), me.kills, zone, me.move.air === 1 ? { x: this.planePos.x, z: this.planePos.z, yaw: this.planeYaw } : { x: meV.view.root.position.x, z: meV.view.root.position.z, yaw: this.controls.yaw }, out, dt);
     this.hud.update(dt, this.camera);
