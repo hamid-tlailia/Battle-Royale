@@ -21,7 +21,7 @@ export const PLAYER = {
   maxSlopeDeg: 60,
   autostepHeight: 0.45,
   /** m/s² — reach full speed in ~0.15 s on the ground */
-  groundAccel: 40,
+  groundAccel: 60,
   airAccel: 10,
 } as const;
 

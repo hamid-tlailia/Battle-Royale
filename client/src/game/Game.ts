@@ -795,7 +795,7 @@ export class Game {
     }
     this.hud.setOnEnemy(!!onEnemy);
     const assist = this.settings.aimAssist; // false = full control: no help at all
-    this.controls.friction = onEnemy && assist ? 0.55 : 1;
+    this.controls.friction = onEnemy && assist ? 0.8 : 1; // (0.55 made turning feel slow while shooting)
     if (!assist) { this.lock = null; return; }
     // 2) sticky aim: lock on when the dot turns red, follow the target's movement
     if (onEnemy && (!this.lock || this.lock.id !== onEnemy.id)) { const a = this.angTo(onEnemy); this.lock = { id: onEnemy.id, yaw: a.yaw, pitch: a.pitch, off: 0 }; }
@@ -806,12 +806,19 @@ export class Game {
       // still on them? a generous box around the whole body, head included (moving the aim from chest to head keeps the lock)
       const near = !!q && q.alive && !!rayHitbox(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, this.grow(hitboxOf(q.move, this.hb)), wall);
       this.lock.off = onEnemy || near ? 0 : this.lock.off + dt;
-      if (!a || a.dist > 150 || this.lock.off > 0.6 || !this.sim.los(cam.x, cam.y, cam.z, a.tx, a.ty, a.tz)) this.lock = null;
+      // (scoped: long range too — the sniper reaches 320 m)
+      if (!a || a.dist > (this.controls.scoped ? 320 : 150) || this.lock.off > 0.6 || !this.sim.los(cam.x, cam.y, cam.z, a.tx, a.ty, a.tz)) this.lock = null;
       else {
         let dy = a.yaw - this.lock.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         this.controls.yaw += dy;
         this.controls.pitch = Math.max(-1.4, Math.min(1.4, this.controls.pitch + (a.pitch - this.lock.pitch)));
         this.lock.yaw = a.yaw; this.lock.pitch = a.pitch;
+        // through the scope the lock also pulls the aim back onto the body when it drifts off
+        if (this.controls.scoped && !onEnemy) {
+          let dyaw = a.yaw - this.controls.yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+          const k = Math.min(1, dt * 5);
+          this.controls.yaw += dyaw * k; this.controls.pitch += (a.pitch - this.controls.pitch) * k * 0.7;
+        }
       }
     }
     // 3) gentle magnetism toward the closest enemy inside a small cone while aiming / firing
@@ -821,7 +828,7 @@ export class Game {
     for (const q of this.sim.players.values()) {
       if (q === me || !q.alive) continue;
       const a = this.angTo(q);
-      if (a.dist > 110) continue;
+      if (a.dist > (this.controls.scoped ? 260 : 110)) continue;
       let dyaw = a.yaw - yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
       const dp = a.pitch - pitch;
       const ang = Math.hypot(dyaw, dp);

@@ -263,7 +263,8 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   const tx = (-sin * input.mz + cos * input.mx) * speed;
   const tz = (-cos * input.mz - sin * input.mx) * speed;
   // accelerate toward the target velocity (fast on the ground, weak in the air)
-  const accel = (s.grounded ? PLAYER.groundAccel : PLAYER.airAccel) * dt;
+  // (contact with the ground flickers next to walls, window sills and props: only a real jump / fall uses air control)
+  const accel = (s.grounded || (s.vy <= 0.5 && s.vy > -4) ? PLAYER.groundAccel : PLAYER.airAccel) * dt;
   const ddx = tx - s.vx, ddz = tz - s.vz, dl = Math.hypot(ddx, ddz);
   if (dl <= accel) { s.vx = tx; s.vz = tz; } else { s.vx += (ddx / dl) * accel; s.vz += (ddz / dl) * accel; }
   s.vy = Math.max(-PLAYER.maxFallSpeed, s.vy + PLAYER.gravity * dt);

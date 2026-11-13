@@ -407,8 +407,10 @@ export class CharacterView {
       const moveYaw = Math.atan2(-st.vx, -st.vz!);
       let rel = moveYaw - st.yaw;
       rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-      if (Math.abs(rel) <= 1.95) targetOffset = THREE.MathUtils.clamp(rel, -1.15, 1.15);
-      else { reverse = true; let b = rel - Math.sign(rel) * Math.PI; b = Math.atan2(Math.sin(b), Math.cos(b)); targetOffset = THREE.MathUtils.clamp(b, -1.15, 1.15); }
+      // armed: the body turns less (strafing with the gun still pointing ahead keeps it in the hands and in view)
+      const lim = st.armed === false ? 1.15 : 0.55;
+      if (Math.abs(rel) <= 1.95) targetOffset = THREE.MathUtils.clamp(rel, -lim, lim);
+      else { reverse = true; let b = rel - Math.sign(rel) * Math.PI; b = Math.atan2(Math.sin(b), Math.cos(b)); targetOffset = THREE.MathUtils.clamp(b, -lim, lim); }
     }
     let d = targetOffset - this.bodyOffset;
     d = Math.atan2(Math.sin(d), Math.cos(d));
