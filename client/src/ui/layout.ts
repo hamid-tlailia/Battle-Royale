@@ -2,7 +2,8 @@
  * Custom HUD layout: every element with [data-hud] can be dragged and resized in edit mode.
  * Positions are stored as fractions of the screen so they survive rotation / other phones.
  */
-type Layout = Record<string, { x: number; y: number; size: number; hidden?: boolean; op?: number }>;
+/** size = width (px for buttons, % scale for panels); h = height (same units, defaults to size) */
+type Layout = Record<string, { x: number; y: number; size: number; h?: number; hidden?: boolean; op?: number }>;
 /** v2: new default layout (old custom layouts are reset once) */
 const KEY = 'lw.layout.v2';
 
@@ -12,7 +13,7 @@ function load(): Layout {
 function save(l: Layout) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* ignore */ } }
 
 /** Buttons are resized in px; panels (weapon bar, minimap, …) are scaled in % (data-scale). */
-function place(el: HTMLElement, p: { x: number; y: number; size: number; hidden?: boolean; op?: number }) {
+function place(el: HTMLElement, p: { x: number; y: number; size: number; h?: number; hidden?: boolean; op?: number }) {
   el.classList.toggle('hud-hidden', !!p.hidden);
   // see-through (filter, so it combines with the game's own fade rules)
   el.style.filter = p.op !== undefined && p.op < 1 ? `opacity(${p.op})` : '';
@@ -20,8 +21,9 @@ function place(el: HTMLElement, p: { x: number; y: number; size: number; hidden?
   el.style.top = `${p.y * 100}vh`;
   el.style.right = 'auto';
   el.style.bottom = 'auto';
-  if (el.dataset.scale) el.style.transform = `translate(-50%, -50%) scale(${p.size / 100})`;
-  else { el.style.width = el.style.height = `${p.size}px`; el.style.transform = 'translate(-50%, -50%)'; }
+  const h = p.h ?? p.size;
+  if (el.dataset.scale) el.style.transform = `translate(-50%, -50%) scale(${p.size / 100}, ${h / 100})`;
+  else { el.style.width = `${p.size}px`; el.style.height = `${h}px`; el.style.transform = 'translate(-50%, -50%)'; }
 }
 
 export function layoutOf(id: string) { return load()[id] ?? null; }
@@ -39,14 +41,17 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
   let selected: HTMLElement | null = null;
   const bar = document.createElement('div');
   bar.className = 'layout-bar';
-  bar.innerHTML = `<span>Size</span>
+  bar.innerHTML = `<span>Width</span>
     <input class="sz" type="range" min="40" max="130" step="2" value="70">
+    <span>Height</span>
+    <input class="hh" type="range" min="40" max="130" step="2" value="70">
     <span>See-through</span>
     <input class="op" type="range" min="20" max="100" step="5" value="100">
     <button data-a="hide">HIDE</button><button data-a="reset">RESET</button><button data-a="cancel">CANCEL</button><button data-a="save" class="ok">SAVE</button>`;
   hud.appendChild(bar);
   const slider = bar.querySelector('input.sz') as HTMLInputElement;
   const opSlider = bar.querySelector('input.op') as HTMLInputElement;
+  const hSlider = bar.querySelector('input.hh') as HTMLInputElement;
   const current = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
     return { x: (r.left + r.width / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight, size: el.dataset.scale ? 100 : Math.round(r.width) };
@@ -59,6 +64,8 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
     slider.min = el.dataset.scale ? '50' : '40';
     slider.max = el.dataset.scale ? '160' : '130';
     slider.value = String(working[el.dataset.hud!].size);
+    hSlider.min = slider.min; hSlider.max = slider.max;
+    hSlider.value = String(working[el.dataset.hud!].h ?? working[el.dataset.hud!].size);
     opSlider.value = String(Math.round((working[el.dataset.hud!].op ?? 1) * 100));
     hideBtn.textContent = working[el.dataset.hud!].hidden ? 'SHOW' : 'HIDE';
   };
@@ -72,7 +79,14 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
   });
   slider.addEventListener('input', () => {
     if (!selected) return;
-    working[selected.dataset.hud!].size = +slider.value;
+    const p = working[selected.dataset.hud!];
+    if (p.h === undefined) p.h = p.size; // keep the height when only the width changes
+    p.size = +slider.value;
+    place(selected, p);
+  });
+  hSlider.addEventListener('input', () => {
+    if (!selected) return;
+    working[selected.dataset.hud!].h = +hSlider.value;
     place(selected, working[selected.dataset.hud!]);
   });
   opSlider.addEventListener('input', () => {

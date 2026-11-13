@@ -31,7 +31,7 @@ export class Sfx {
   /** Real recorded gunshots (CC-BY 3.0, Vincent Sevedge / OpenGameArt — see CREDITS.md). */
   private async loadSamples() {
     const ctx = this.ctx!;
-    const names = ['pistol', 'rifle', 'shotgun', 'sniper', 'reload', 'clip', 'wind',
+    const names = ['pistol', 'rifle', 'shotgun', 'sniper', 'reload', 'clip', 'wind', 'plane', 'victory',
       ...[1, 2, 3, 4, 5, 6].flatMap((i) => [`step${i}`, `stone${i}`])];
     await Promise.all(names.map(async (n) => {
       try {
@@ -62,23 +62,43 @@ export class Sfx {
     this.windGain = ctx.createGain(); this.windGain.gain.value = this.enabled ? 0.06 : 0;
     src.connect(this.windGain).connect(this.master); src.start();
   }
-  /** synthesised propeller-plane drone (two detuned saws + rumble), level 0..1 */
+  /** propeller-plane engine: real recorded loop (CC-BY 3.0, AntumDeluge), synth drone as fallback; level 0..1 */
   private planeGain: GainNode | null = null;
   setPlane(level: number) {
     const ctx = this.ctx; if (!ctx) return;
     if (!this.planeGain) {
       if (level <= 0) return;
       this.planeGain = ctx.createGain(); this.planeGain.gain.value = 0;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
-      for (const f of [58, 61.5, 117]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = f > 100 ? 0.25 : 0.5; o.connect(g).connect(lp); o.start(); }
-      const n = ctx.createBufferSource(); n.buffer = this.noise; n.loop = true; const nb = ctx.createBiquadFilter(); nb.type = 'lowpass'; nb.frequency.value = 300; const ng = ctx.createGain(); ng.gain.value = 0.6;
-      n.connect(nb).connect(ng).connect(lp); n.start();
-      // propeller "wub"
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 9; const lg = ctx.createGain(); lg.gain.value = 120; lfo.connect(lg).connect(lp.frequency); lfo.start();
-      lp.connect(this.planeGain).connect(this.master);
+      const rec = this.samples.get('plane');
+      if (rec) {
+        const src = ctx.createBufferSource(); src.buffer = rec; src.loop = true; src.playbackRate.value = 0.85;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600;
+        src.connect(lp).connect(this.planeGain).connect(this.master); src.start();
+      } else {
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+        for (const f of [58, 61.5, 117]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = f > 100 ? 0.25 : 0.5; o.connect(g).connect(lp); o.start(); }
+        lp.connect(this.planeGain).connect(this.master);
+      }
     }
-    this.planeGain.gain.setTargetAtTime(this.enabled ? level * 0.22 : 0, ctx.currentTime, 0.3);
+    this.planeGain.gain.setTargetAtTime(this.enabled && !this.quiet ? level * 0.5 : 0, ctx.currentTime, 0.3);
   }
+
+  /** victory: every other sound stops, only the victory music plays */
+  private quiet = false;
+  victory() {
+    const ctx = this.ctx; if (!ctx) return;
+    this.quiet = true;
+    this.planeGain?.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+    this.rushGain?.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+    if (this.windGain) this.windGain.gain.value = 0;
+    const buf = this.samples.get('victory');
+    if (!buf || !this.enabled) return;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const g = ctx.createGain(); g.gain.value = 0.8;
+    src.connect(g).connect(this.master); src.start();
+  }
+  /** back to normal (new match) */
+  resume() { this.quiet = false; }
 
   /** louder wind high up (sky-diving) */
   private rushGain: GainNode | null = null;
@@ -101,7 +121,7 @@ export class Sfx {
   /** dist in metres, pan -1..1 */
   private chain(vol: number, dist: number, pan: number): AudioNode | null {
     const ctx = this.ctx;
-    if (!ctx || !this.enabled) return null;
+    if (!ctx || !this.enabled || this.quiet) return null;
     const att = vol / (1 + (dist / 12) ** 1.4);
     if (att < 0.004) return null;
     const g = ctx.createGain(); g.gain.value = att;

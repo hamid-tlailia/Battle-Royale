@@ -269,7 +269,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
   padding: 6px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; white-space: nowrap; }
 .plane-hint b { color: #ffd34d; }
 .spec-banner { top: auto; bottom: 150px; color: #ffd34d; }
-#hud.in-plane .btn-jump { animation: pulse 1s infinite; background: rgba(255,211,77,.45); border-color: #ffd34d; }
+#hud.in-plane .btn-jump { background: radial-gradient(circle at 50% 35%, rgba(255,215,90,.8), rgba(140,95,10,.85) 72%) !important; }
 @keyframes pulse { 50% { transform: scale(1.12); } }
 
 /* ---------- weapon pictures, backpack, holster ---------- */
@@ -689,3 +689,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .bag-row button { background: linear-gradient(180deg, #e0574a, #9b2318) !important; }
 .loot-list button, .bag-row .bag-use { background: linear-gradient(180deg, #9be06a, #4f9a2a) !important; color: #102007 !important; }
 .lb-sheet .settings-panel { background: none !important; box-shadow: none !important; clip-path: none !important; backdrop-filter: none; padding: 0 !important; }
+
+.plane-hint { transition: opacity .5s; }
+.plane-hint.gone { opacity: 0; }
+.layout-bar input.sz, .layout-bar input.hh { width: 90px; }

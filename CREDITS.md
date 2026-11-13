@@ -35,6 +35,8 @@ they were converted (rescaled, re-textured at lower resolution, compressed, spli
 | Footsteps on grass/sand and stone | Fantozzi | CC0 | https://opengameart.org/content/fantozzis-footsteps-grasssand-stone |
 | Gun reload | StarNinjas | CC0 | https://opengameart.org/content/2-gun-reloads |
 | Clip load (pickup) | Raassh | CC0 | https://opengameart.org/content/gun-reload-sound-effects |
+| Propeller plane engine loop ("Airplane Prop Loop") | Jordan Irwin (AntumDeluge) | [CC-BY 3.0](http://creativecommons.org/licenses/by/3.0/) | https://opengameart.org/content/airplane-prop-loop |
+| Victory jingle ("And the winner is…") + "Dreaming of Victory" (first seconds) | OpenGameArt contributors | CC0 | https://opengameart.org/content/and-the-winner-is · https://opengameart.org/content/dreaming-of-victory |
 | Wind ambience ("Breeze") | Anderson dos Santos | [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://opengameart.org/content/breeze |
 
 Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (original).

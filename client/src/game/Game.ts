@@ -109,6 +109,7 @@ export class Game {
   constructor(container: HTMLElement, private hudEl: HTMLElement, private assets: GameAssets, private onRestart: () => void, opts: GameOptions) {
     this.net = opts.net ?? null;
     this.revealed = !!this.net;
+    sfx.resume();
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setClearColor(0xd4e8f2);
@@ -423,7 +424,7 @@ export class Game {
       this.controls.sprintToggle = false; this.controls.scoped = false; this.controls.mx = this.controls.mz = 0;
       this.hudEl.classList.add('celebrating'); // only the celebration on screen
       this.hud.celebrate(me.kills, this.sim.players.size);
-      sfx.kill();
+      sfx.victory(); // only the victory music
       setTimeout(() => { this.dispose(); this.onRestart(); }, 5000);
       return;
     }

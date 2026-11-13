@@ -468,11 +468,14 @@ export class Hud {
     this.miniTimer = 0;
   }
 
+  private hintAt = 0;
   setPlaneHint(inPlane: boolean, falling: boolean) {
     const text = inPlane ? 'Tap the map to mark a landing spot · tap <b>JUMP</b> to drop' : falling ? 'You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself' : '';
     if (!text) { this.planeHint?.remove(); this.planeHint = null; return; }
     if (!this.planeHint) this.planeHint = el('plane-hint', this.root);
-    if (this.planeHint.innerHTML !== text) this.planeHint.innerHTML = text;
+    // each hint shows for 2.5 s, then gets out of the way
+    if (this.planeHint.innerHTML !== text) { this.planeHint.innerHTML = text; this.planeHint.classList.remove('gone'); this.hintAt = performance.now(); }
+    else if (performance.now() - this.hintAt > 2500) this.planeHint.classList.add('gone');
     this.root.classList.toggle('in-plane', inPlane);
   }
 
