@@ -762,41 +762,61 @@ export class Game {
    * - friction: look slows down while on target
    * - magnetism: while firing/scoped the view is gently pulled toward the nearest enemy near the crosshair
    */
+  /** assist mode: once the dot is red on someone, the aim stays on them while they move */
+  private lock: { id: number; yaw: number; pitch: number; off: number } | null = null;
+  private angTo(q: SimPlayer) {
+    const cam = this.camera.position, tx = q.move.x, ty = q.move.y + 0.15, tz = q.move.z;
+    const dx = tx - cam.x, dy = ty - cam.y, dz = tz - cam.z;
+    return { yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(dy, Math.hypot(dx, dz)), dist: Math.hypot(dx, dy, dz), tx, ty, tz };
+  }
   private aimAssist(dt: number, me: SimPlayer) {
     const cam = this.camera.position;
     const yaw = this.controls.yaw, pitch = this.controls.pitch;
     this.fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-    // 1) is the crosshair on an enemy right now?
-    let onEnemy = false;
+    // 1) is the crosshair on an enemy right now? (walls and ice walls in between count as cover)
+    let onEnemy: SimPlayer | null = null;
     const wall = this.sim.phys.rayWorld(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, 250) ?? 250;
     for (const q of this.sim.players.values()) {
       if (q === me || !q.alive) continue;
-      if (rayHitbox(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, hitboxOf(q.move, this.hb), wall)) { onEnemy = true; break; }
+      if (rayHitbox(cam.x, cam.y, cam.z, this.fwd.x, this.fwd.y, this.fwd.z, hitboxOf(q.move, this.hb), wall)) { onEnemy = q; break; }
     }
-    this.hud.setOnEnemy(onEnemy);
-    this.controls.friction = onEnemy && this.settings.aimAssist ? 0.55 : 1;
-    if (!this.settings.aimAssist) return;
-    // 2) magnetism toward the closest enemy inside a small cone
+    this.hud.setOnEnemy(!!onEnemy);
+    const assist = this.settings.aimAssist; // false = full control: no help at all
+    this.controls.friction = onEnemy && assist ? 0.55 : 1;
+    if (!assist) { this.lock = null; return; }
+    // 2) sticky aim: lock on when the dot turns red, follow the target's movement
+    if (onEnemy && (!this.lock || this.lock.id !== onEnemy.id)) { const a = this.angTo(onEnemy); this.lock = { id: onEnemy.id, yaw: a.yaw, pitch: a.pitch, off: 0 }; }
+    if (this.lock) {
+      const q = this.sim.players.get(this.lock.id);
+      const a = q && q.alive ? this.angTo(q) : null;
+      // released: target dead, hidden (wall, rock, ice wall) or you aimed away for a moment
+      this.lock.off = onEnemy ? 0 : this.lock.off + dt;
+      if (!a || a.dist > 150 || this.lock.off > 0.3 || !this.sim.los(cam.x, cam.y, cam.z, a.tx, a.ty, a.tz)) this.lock = null;
+      else {
+        let dy = a.yaw - this.lock.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        this.controls.yaw += dy;
+        this.controls.pitch = Math.max(-1.4, Math.min(1.4, this.controls.pitch + (a.pitch - this.lock.pitch)));
+        this.lock.yaw = a.yaw; this.lock.pitch = a.pitch;
+      }
+    }
+    // 3) gentle magnetism toward the closest enemy inside a small cone while aiming / firing
     const engaged = this.controls.fireHeld || this.controls.scoped;
-    if (!engaged) return;
+    if (!engaged || this.lock) return;
     let best: { dy: number; dp: number; ang: number } | null = null;
     for (const q of this.sim.players.values()) {
       if (q === me || !q.alive) continue;
-      const tx = q.move.x, ty = q.move.y + 0.15, tz = q.move.z;
-      const dx = tx - cam.x, dy = ty - cam.y, dz = tz - cam.z;
-      const dist = Math.hypot(dx, dy, dz);
-      if (dist > 110) continue;
-      let dyaw = Math.atan2(-dx, -dz) - yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-      const dp = Math.atan2(dy, Math.hypot(dx, dz)) - pitch;
+      const a = this.angTo(q);
+      if (a.dist > 110) continue;
+      let dyaw = a.yaw - yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+      const dp = a.pitch - pitch;
       const ang = Math.hypot(dyaw, dp);
-      const cone = Math.max(0.05, Math.atan(1.0 / dist)) * (this.controls.scoped ? 1.2 : 1.8);
+      const cone = Math.max(0.05, Math.atan(1.0 / a.dist)) * (this.controls.scoped ? 1.2 : 1.8);
       if (ang > cone || (best && ang > best.ang)) continue;
-      if (!this.sim.los(cam.x, cam.y, cam.z, tx, ty, tz)) continue;
+      if (!this.sim.los(cam.x, cam.y, cam.z, a.tx, a.ty, a.tz)) continue;
       best = { dy: dyaw, dp, ang };
     }
     if (!best) return;
-    const rate = this.controls.fireHeld ? 7 : 3.5;
-    const k = Math.min(1, rate * dt);
+    const k = Math.min(1, (this.controls.fireHeld ? 7 : 3.5) * dt);
     this.controls.yaw += best.dy * k;
     this.controls.pitch += best.dp * k * 0.6;
   }

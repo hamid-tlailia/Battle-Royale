@@ -595,3 +595,97 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .bag-panel { left: 0 !important; top: 0 !important; bottom: 0 !important; transform: none !important; width: min(580px, 64vw) !important; max-height: none !important;
   border-radius: 0 14px 14px 0 !important; border-left: none !important; padding-left: env(safe-area-inset-left); animation: bagIn .22s ease-out; }
 @keyframes bagIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+/* =====================================================================================
+   GAME THEME: gunmetal + carbon fibre panels, gold bevelled frames, custom sliders / switches
+   ===================================================================================== */
+:root {
+  --gold: #ffd34d; --gold2: #e9a92a; --gold-dk: #8a5d10;
+  --metal: url('/assets/ui/metal.webp'); --carbon: url('/assets/ui/carbon.png');
+  --panel-bg: linear-gradient(180deg, rgba(30,36,40,.94), rgba(12,15,18,.96));
+}
+/* panels: settings, lobby sheet, backpack, loot list, loading cards */
+.settings-panel, .lb-sheet, .bag-panel, .end-card {
+  background: var(--panel-bg), var(--carbon) !important; background-blend-mode: normal, overlay;
+  border: 2px solid transparent !important;
+  background-clip: padding-box !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,211,77,.35), inset 0 1px 0 rgba(255,255,255,.12), 0 10px 30px rgba(0,0,0,.55) !important;
+  backdrop-filter: blur(4px);
+}
+.settings-panel { border-radius: 4px !important; clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px)); }
+.settings-panel h3, .bag-head b, .lb-sheet h3 {
+  font-weight: 900; letter-spacing: 3px; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff6c8, var(--gold) 45%, var(--gold2) 55%, #b77a12); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.8));
+}
+.settings-panel label { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #dfe6e9; }
+.settings-panel label b { color: var(--gold) !important; font-variant-numeric: tabular-nums; }
+
+/* range sliders: inset groove + gold diamond thumb */
+.settings-panel input[type=range], .layout-bar input[type=range] {
+  -webkit-appearance: none; appearance: none; height: 22px; background: transparent; margin: 6px 0 2px;
+}
+.settings-panel input[type=range]::-webkit-slider-runnable-track, .layout-bar input[type=range]::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 1px; background: linear-gradient(90deg, rgba(255,211,77,.55), rgba(255,211,77,.15)), #0b0d0f;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.08); border: 1px solid #000;
+}
+.settings-panel input[type=range]::-webkit-slider-thumb, .layout-bar input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; margin-top: -7px; transform: rotate(45deg);
+  background: linear-gradient(135deg, #fff2b0, var(--gold) 40%, var(--gold2) 70%, var(--gold-dk));
+  border: 2px solid #2a1c04; box-shadow: 0 0 8px rgba(255,211,77,.6);
+}
+.settings-panel input[type=range]::-moz-range-track { height: 8px; background: #0b0d0f; border: 1px solid #000; }
+.settings-panel input[type=range]::-moz-range-thumb { width: 18px; height: 18px; background: var(--gold); border: 2px solid #2a1c04; transform: rotate(45deg); border-radius: 2px; }
+
+/* checkboxes -> switches */
+.settings-panel input[type=checkbox] {
+  -webkit-appearance: none; appearance: none; width: 42px; height: 22px; border-radius: 3px; position: relative; flex: none; transform: none !important;
+  background: #0b0d0f; border: 1px solid #000; box-shadow: inset 0 1px 3px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.08); vertical-align: middle; margin-right: 10px !important; cursor: pointer;
+}
+.settings-panel input[type=checkbox]::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 16px; border-radius: 2px; transition: left .15s, background .15s;
+  background: linear-gradient(180deg, #8b949b, #4c545a); box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+}
+.settings-panel input[type=checkbox]:checked { background: linear-gradient(90deg, #3f6d20, #6fc23c); }
+.settings-panel input[type=checkbox]:checked::after { left: 20px; background: linear-gradient(180deg, #fff2b0, var(--gold)); }
+.settings-panel label.row { display: flex; align-items: center; text-transform: none; font-size: 13px; letter-spacing: .3px; }
+
+/* segmented choices (graphics, aim) and panel buttons */
+.settings-panel .qual { gap: 0; border: 1px solid #000; box-shadow: inset 0 1px 3px rgba(0,0,0,.8); background: #0b0d0f; padding: 2px; }
+.settings-panel .qual button { border: none !important; border-radius: 0 !important; background: transparent; color: #9aa4aa; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.settings-panel .qual button.on { background: linear-gradient(180deg, #fff2b0, var(--gold) 40%, var(--gold2)) !important; color: #1b1404 !important; text-shadow: none; }
+.settings-panel .layout, .settings-panel .close, .layout-bar button, .bag-row button, .loot-list button, .end-btns button, .lobby button.mid {
+  border-radius: 2px !important; font-weight: 900 !important; letter-spacing: 1.2px; text-transform: uppercase;
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.35) !important;
+}
+.settings-panel .layout { background: linear-gradient(180deg, #3a4247, #1d2226) !important; color: var(--gold) !important; border: none !important; }
+.settings-panel .close { background: linear-gradient(180deg, #9be06a, #4f9a2a) !important; color: #102007 !important; }
+.layout-bar { background: var(--panel-bg), var(--carbon) !important; border-radius: 3px !important; box-shadow: inset 0 0 0 1px rgba(255,211,77,.35), 0 6px 20px rgba(0,0,0,.5); }
+
+/* HUD round buttons: metal ring + dark glass core */
+.btn {
+  background: radial-gradient(circle at 50% 35%, rgba(70,80,86,.62), rgba(14,17,20,.72) 70%) !important;
+  border: 2px solid transparent !important;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.45), inset 0 0 0 2px rgba(205,215,220,.38), inset 0 2px 6px rgba(255,255,255,.15), inset 0 -6px 12px rgba(0,0,0,.45), 0 3px 8px rgba(0,0,0,.35) !important;
+}
+.btn.pressed { transform: scale(.93); box-shadow: 0 0 0 2px rgba(0,0,0,.45), inset 0 0 0 2px var(--gold), inset 0 0 16px rgba(255,211,77,.35) !important; }
+.btn.active { background: radial-gradient(circle at 50% 35%, rgba(150,220,100,.75), rgba(40,80,20,.8) 70%) !important; box-shadow: 0 0 0 2px rgba(0,0,0,.45), inset 0 0 0 2px #c8f59a, 0 0 12px rgba(150,230,90,.45) !important; }
+.btn-fire, .btn-fire-left { background: radial-gradient(circle at 50% 35%, rgba(230,95,70,.75), rgba(110,25,15,.82) 72%) !important;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,190,170,.6), inset 0 -8px 14px rgba(0,0,0,.35), 0 0 14px rgba(255,80,50,.3) !important; }
+.btn svg { filter: drop-shadow(0 1px 1px rgba(0,0,0,.7)); }
+
+/* lobby: textured side tabs and cards */
+.lb-tab, .lb-mapcard, .lb-season, .lb-chip, .lb-gear, .lb-tip, .lb-modes, .lb-banner {
+  background: linear-gradient(90deg, rgba(22,27,30,.9), rgba(22,27,30,.62)), var(--carbon) !important;
+  border: 1px solid rgba(255,211,77,.28) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 14px rgba(0,0,0,.35);
+}
+.lb-tab { clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); border-radius: 3px !important; }
+.lb-tab.on { background: linear-gradient(180deg, #fff2b0, var(--gold) 40%, var(--gold2)) !important; color: #1b1404 !important; }
+.lb-mode.on { background: linear-gradient(180deg, #fff2b0, var(--gold) 40%, var(--gold2)) !important; }
+.lobby button.big.bots { background: linear-gradient(180deg, #fff2b0, var(--gold) 35%, var(--gold2) 75%, #b77a12) !important;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.7), inset 0 -4px 0 rgba(120,70,0,.5), 0 8px 24px rgba(0,0,0,.45), 0 0 24px rgba(255,200,60,.35) !important;
+  clip-path: polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%); border-radius: 2px !important; }
+.bag-row button { background: linear-gradient(180deg, #e0574a, #9b2318) !important; }
+.loot-list button, .bag-row .bag-use { background: linear-gradient(180deg, #9be06a, #4f9a2a) !important; color: #102007 !important; }
+.lb-sheet .settings-panel { background: none !important; box-shadow: none !important; clip-path: none !important; backdrop-filter: none; padding: 0 !important; }

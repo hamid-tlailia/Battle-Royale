@@ -26,7 +26,8 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
     <div class="qual">${(['high', 'medium', 'low'] as const).map((q) => `<button data-q="${q}" class="${s.quality === q ? 'on' : ''}">${q.toUpperCase()}</button>`).join('')}</div>
     ${slider('Look sensitivity', 'sens')}
     ${slider('Scope sensitivity', 'scopeSens')}
-    <label class="row"><input type="checkbox" data-c="aimAssist" ${s.aimAssist ? 'checked' : ''}> Aim assist</label>
+    <label>Aim</label>
+    <div class="qual aimmode"><button data-aim="1" class="${s.aimAssist ? 'on' : ''}">ASSIST</button><button data-aim="0" class="${s.aimAssist ? '' : 'on'}">FULL CONTROL</button></div>
     <label class="row"><input type="checkbox" data-c="sound" ${s.sound ? 'checked' : ''}> Sound</label>
     <label class="row"><input type="checkbox" data-c="autoPickup" ${s.autoPickup ? 'checked' : ''}> Auto pick-up (ammo, meds, armor…)</label>
     <button class="layout">CUSTOMIZE BUTTON LAYOUT</button>
@@ -53,6 +54,12 @@ export function settingsPanel(parent: HTMLElement, s: Settings, onChange: (s: Se
     e.preventDefault(); e.stopPropagation();
     s.quality = b.dataset.q as Settings['quality'];
     panel.querySelectorAll('[data-q]').forEach((x) => x.classList.toggle('on', x === b));
+    save(s); onChange(s);
+  }));
+  panel.querySelectorAll<HTMLButtonElement>('[data-aim]').forEach((b) => b.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    s.aimAssist = b.dataset.aim === '1';
+    panel.querySelectorAll('[data-aim]').forEach((x) => x.classList.toggle('on', x === b));
     save(s); onChange(s);
   }));
   parent.append(btn, panel);
