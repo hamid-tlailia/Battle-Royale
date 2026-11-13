@@ -68,6 +68,13 @@ function buildLobbyBackdrop(scene: THREE.Scene, assets: GameAssets) {
       ['rock2', -9, -9, 1.6, 2, 0xc77a55], ['rock4', 9, -10, 1.5, 0.5, 0xc77a55], ['toak2', 18, -12, 0.7], ['car2', 3, -11, 1, 0.9], ['rock1', -16, -14, 2.2, 0, 0xc77a55]],
   };
   sets[kind].forEach(([n, x, z, sc, r, t]) => place(n, x, z, sc, r ?? 0, t));
+  // glowing platform under the soldier
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.98, 0.1, 48), new THREE.MeshLambertMaterial({ color: 0x3a4148 }));
+  disc.position.y = 0.05; scene.add(disc);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.03, 8, 64).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x8fe8ff }));
+  ring.position.y = 0.11; scene.add(ring);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.016, 6, 64).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd34d }));
+  ring2.position.y = 0.11; scene.add(ring2);
   // distant hills / mesas
   const hills = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, desert ? 22 : 14, 40, 1, true), new THREE.MeshBasicMaterial({ color: desert ? 0xb06a48 : 0x5f8a58, side: THREE.BackSide, fog: true }));
   hills.position.y = desert ? 7 : 4; scene.add(hills);
@@ -81,19 +88,28 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   el.innerHTML = `
     <canvas class="lobby-3d"></canvas>
     <div class="lb-top">
+      <img class="lobby-logo" src="/logo.png" alt="${GAME_TITLE}">
       <div class="lb-banner">
         <canvas class="lb-avatar" width="96" height="96"></canvas>
         <div class="lb-who"><b class="lb-name"></b><div class="lb-lv"><span class="lb-level"></span><i><em></em></i></div><span class="srv">checking server…</span></div>
+        <span class="lb-rank">${ICONS.rank}</span>
       </div>
-      <img class="lobby-logo" src="/logo.png" alt="${GAME_TITLE}">
     </div>
-    <button class="lb-gear" data-tab="settings" aria-label="Settings">${ICONS.settings}</button>
+    <div class="lb-chips">
+      <span class="lb-chip">${ICONS.trophy}<b class="lb-wins">0</b></span>
+      <span class="lb-chip">${ICONS.fire}<b class="lb-kills">0</b></span>
+      <button class="lb-gear" data-tab="settings" aria-label="Settings">${ICONS.settings}</button>
+    </div>
     <nav class="lb-nav">
+      <button class="lb-tab on" data-home>${ICONS.home}<span>LOBBY</span></button>
       ${tab('outfit', ICONS.outfit, 'OUTFIT')}
       ${tab('map', ICONS.map, 'MAP')}
       ${tab('friends', ICONS.friends, 'FRIENDS')}
     </nav>
-    <div class="lb-sheet">
+    <button class="lb-mapcard" data-tab="map"><img class="lb-mapimg" alt=""><span class="lb-pin">${ICONS.pin}</span><div><b class="lb-mapname"></b><small>Select map ›</small></div></button>
+    <div class="lb-season"><div class="lb-season-top">${ICONS.rank}<div><b>SEASON 1</b><small class="lb-season-lv"></small></div></div><div class="lb-season-bar"><span>★</span><i><em></em></i><small class="lb-season-xp"></small></div></div>
+    <div class="lb-tip">${ICONS.chat}<span class="lb-tip-txt"></span></div>
+    <div class="lb-sheet"><button class="lb-x" aria-label="Close">✕</button>
       <section data-sec="outfit"><h3>OUTFIT</h3>
         <div class="skins">${SKINS.map((s, i) => s.outfit
           ? `<button class="outfit" data-skin="${i}">${s.name}</button>`
@@ -113,9 +129,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
         <div class="lobby-settings"></div></section>
     </div>
     <div class="lb-play">
-      <div class="lb-mapname"></div>
-      <button class="big bots">PLAY <small>vs bots</small></button>
-      <button class="mid quick">PLAY ONLINE</button>
+      <div class="lb-modes"><span class="lb-mode on">SOLO</span><span class="lb-mode" data-tab="friends">FRIENDS</span><button class="lb-mode quick">ONLINE</button></div>
+      <button class="big bots">PLAY <small>Battle royale · vs bots</small></button>
     </div>`;
   root.appendChild(el);
   // inside the installed app the download link makes no sense
@@ -155,7 +170,7 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     if (!alive) return;
     requestAnimationFrame(loop);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    view!.update({ x: 0, y: 0.9, z: 0, yaw, pitch: -0.55, speed: 0, crouch: false, grounded: true }, dt, 3, true); // gun at low ready
+    view!.update({ x: 0, y: 1.0, z: 0, yaw, pitch: -0.55, speed: 0, crouch: false, grounded: true }, dt, 3, true); // gun at low ready
     resize();
     renderer.render(scene, camera);
     if (portraitFrames > 0 && --portraitFrames % 30 === 0) drawPortrait();
@@ -187,6 +202,23 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     if (open === 'settings') setPanel.style.display = 'block';
   };
   el.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab!)));
+  const home = el.querySelector('[data-home]') as HTMLElement;
+  const close = () => { if (open) show(open); };
+  home.addEventListener('click', close);
+  el.querySelector('.lb-x')!.addEventListener('click', close);
+  new MutationObserver(() => home.classList.toggle('on', !sheet.classList.contains('open'))).observe(sheet, { attributes: true });
+  // tips line
+  const tips = ['Welcome to Last War!', 'Tap the map in the plane to mark where you land.', 'Hold FIRE: pistol, rifle and shotgun keep shooting.', 'Ice walls stop bullets — place them with FIRE.', 'Orange marks on the map = gunfire nearby.', 'Dead players drop a crate with all their loot.'];
+  let tipI = 0; const tipEl = el.querySelector('.lb-tip-txt') as HTMLElement;
+  const nextTip = () => { if (!alive) return; tipEl.textContent = tips[tipI++ % tips.length]; setTimeout(nextTip, 6000); };
+  nextTip();
+  // season card + counters from saved progress
+  const pr = loadProgress(), lv = levelOf(pr.xp);
+  (el.querySelector('.lb-wins') as HTMLElement).textContent = String(pr.wins);
+  (el.querySelector('.lb-kills') as HTMLElement).textContent = String(pr.kills);
+  (el.querySelector('.lb-season-lv') as HTMLElement).textContent = `Level ${lv.level} · ${pr.matches} matches`;
+  (el.querySelector('.lb-season-bar em') as HTMLElement).style.width = `${Math.round(lv.frac * 100)}%`;
+  (el.querySelector('.lb-season-xp') as HTMLElement).textContent = `${Math.round(lv.frac * 100)} / 100`;
   setPanel.querySelector('.close')?.addEventListener('click', () => { if (open === 'settings') show('settings'); });
   if (inviteRoom) show('friends');
 
@@ -196,7 +228,8 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     el.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.classList.toggle('sel', +b.dataset.skin! === profile.skin));
     el.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) => b.classList.toggle('sel', +b.dataset.slot! === profile.slot));
     el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.classList.toggle('sel', b.dataset.map === profile.map));
-    (el.querySelector('.lb-mapname') as HTMLElement).textContent = `MAP · ${MAP_LIST.find((m) => m.id === profile.map)?.name ?? ''}`;
+    (el.querySelector('.lb-mapname') as HTMLElement).textContent = MAP_LIST.find((m) => m.id === profile.map)?.name ?? '';
+    (el.querySelector('.lb-mapimg') as HTMLImageElement).src = `/assets/maps/${profile.map}.webp`;
   };
   sel();
   el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.addEventListener('click', () => { profile.map = b.dataset.map as MapId; saveProfile(profile); sel(); }));

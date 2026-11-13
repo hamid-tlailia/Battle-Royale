@@ -469,3 +469,47 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .slot.fist { width: 46px; height: 40px; }
 .slot.fist.sel { width: 56px; height: 54px; }
 .slot.fist.sel::after { background: #ffd34d; }
+
+/* ---------- lobby v3 ---------- */
+.lb-top { align-items: flex-start; }
+.lb-top .lobby-logo { width: min(130px, 15vw); }
+.lb-rank { color: #ffd34d; display: flex; } .lb-rank svg { width: 30px; height: 30px; filter: drop-shadow(0 1px 2px #000); }
+.lb-chips { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); display: flex; gap: 8px; align-items: center; }
+.lb-chip { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 12px; background: rgba(8,16,8,.7); border: 1px solid rgba(255,255,255,.2); font-weight: 900; }
+.lb-chip svg { width: 20px; height: 20px; color: #ffd34d; }
+.lb-chips .lb-gear { position: static; }
+.lb-nav { top: calc(118px + env(safe-area-inset-top)); transform: none; }
+.lb-tab { width: 150px; }
+.lb-mapcard { position: absolute; right: calc(12px + env(safe-area-inset-right)); top: calc(68px + env(safe-area-inset-top)); width: min(230px, 28vw); height: 112px; padding: 0;
+  border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,.3); background: #20301c; color: #fff; text-align: left; }
+.lb-mapimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lb-mapcard div { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px; background: linear-gradient(transparent, rgba(0,0,0,.8)); display: flex; flex-direction: column; }
+.lb-mapcard b { font-size: 17px; } .lb-mapcard small { font-size: 11px; opacity: .85; }
+.lb-pin { position: absolute; top: 6px; right: 8px; color: #fff; } .lb-pin svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 2px #000); }
+.lb-season { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); width: min(250px, 30vw);
+  background: linear-gradient(90deg, rgba(8,16,8,.85), rgba(8,16,8,.6)); border: 1px solid rgba(255,211,77,.4); border-radius: 12px; padding: 8px 10px; }
+.lb-season-top { display: flex; align-items: center; gap: 8px; color: #ffd34d; } .lb-season-top svg { width: 34px; height: 34px; }
+.lb-season-top b { display: block; font-size: 15px; letter-spacing: 1px; } .lb-season-top small { color: #fff; font-size: 11px; }
+.lb-season-bar { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #ffd34d; font-weight: 900; }
+.lb-season-bar i { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; } .lb-season-bar em { display: block; height: 100%; background: #ffd34d; }
+.lb-season-bar small { color: #fff; font-size: 10px; }
+.lb-tip { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(92px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 10px;
+  background: rgba(8,16,8,.6); font-size: 12px; max-width: 46vw; } .lb-tip svg { width: 18px; height: 18px; color: #fff; flex: none; }
+.lb-modes { display: flex; gap: 4px; background: rgba(8,16,8,.7); border-radius: 12px; padding: 4px; border: 1px solid rgba(255,255,255,.2); }
+.lb-mode { flex: 1; text-align: center; padding: 6px 4px; border-radius: 9px; font-size: 12px; font-weight: 900; letter-spacing: 1px; color: #fff; background: none; border: none; }
+.lb-mode.on { background: linear-gradient(#ffe07a, #f0b43c); color: #1b1404; }
+.lb-mode:disabled { opacity: .4; }
+.lb-sheet { top: calc(118px + env(safe-area-inset-top)); bottom: calc(110px + env(safe-area-inset-bottom)); }
+.lb-x { position: absolute; top: 6px; right: 8px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.1); color: #fff; font-size: 16px; font-weight: 900; z-index: 2; }
+.lb-sheet { position: absolute; }
+.lb-play .big.bots small { font-size: 10px; }
+.lb-nav { top: calc(84px + env(safe-area-inset-top)); gap: 5px; }
+.lb-tab { width: 132px; padding: 6px 10px; font-size: 12px; }
+.lb-tab svg { width: 19px; height: 19px; }
+.lb-season { width: min(220px, 27vw); padding: 6px 9px; }
+.lb-season-top svg { width: 26px; height: 26px; } .lb-season-top b { font-size: 13px; }
+.lb-tip { left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); max-width: 34vw; font-size: 11px; white-space: nowrap; overflow: hidden; }
+.lb-sheet { top: calc(84px + env(safe-area-inset-top)); bottom: calc(12px + env(safe-area-inset-bottom)); left: calc(150px + env(safe-area-inset-left)); }
+.lb-banner { padding: 4px 10px 4px 4px; } .lb-avatar { width: 46px; height: 46px; }
+.lb-mapcard { height: 96px; }
+.lb-mapcard div b { background: none; }

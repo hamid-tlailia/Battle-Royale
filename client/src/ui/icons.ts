@@ -25,6 +25,11 @@ const RAW = {
   frost: fill('<path d="M19 6h10v5h-10z"/><path d="M28 7l9-3 2 4-9 3z"/><path d="M24 12c9 0 15 7 15 16s-6 16-15 16-15-7-15-16 6-16 15-16zM24 19v18M16 23.5l16 9M32 23.5l-16 9" fill-rule="evenodd" stroke="#000" stroke-opacity=".55" stroke-width="2.6" stroke-linecap="round"/>'),
   // pistol going down
   holster: fill('<path d="M6 10h28v8H20l-3 12H9l3-12H6z"/>') + svg('<path d="M34 24v16M27 33l7 7 7-7" stroke-width="4"/>'),
+  home: fill('<path d="M24 6L4 23h6v19h10V30h8v12h10V23h6z"/>'),
+  pin: fill('<path d="M24 4a13 13 0 0 1 13 13c0 10-13 27-13 27S11 27 11 17A13 13 0 0 1 24 4zm0 8a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" fill-rule="evenodd"/>'),
+  trophy: fill('<path d="M14 6h20v10a10 10 0 0 1-20 0zM14 9H6a8 8 0 0 0 9 9M34 9h8a8 8 0 0 1-9 9M21 26h6v8h6v6H15v-6h6z"/>'),
+  chat: fill('<path d="M8 8h32a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H22l-9 8v-8H8a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4z"/>'),
+  rank: fill('<path d="M24 4l5 10 11 1-8 8 2 11-10-5-10 5 2-11-8-8 11-1z"/>') + svg('<path d="M6 30l8 6M42 30l-8 6M10 38l6 4M38 38l-6 4" stroke-width="3"/>'),
   // armor vest
   vest: fill('<path d="M15 5h6l3 5 3-5h6l6 9-3 4v24H12V18l-3-4z"/>') + svg('<path d="M17 26h14M17 32h14" stroke="#000" stroke-opacity=".45" stroke-width="2.4"/>'),
   // clenched fist (empty hands)
