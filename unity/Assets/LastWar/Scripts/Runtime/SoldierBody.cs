@@ -23,14 +23,85 @@ namespace LastWar
         public Vector3? Muzzle => gun != null ? gun.position + AimDir.normalized * 0.55f : (Vector3?)null;
         static AnimationClip[] clips;
 
-        public static SoldierBody Attach(GameObject owner)
+        /// <summary>outfits in the web game's order (SKINS): index = saved skin</summary>
+        public static readonly string[] OutfitFiles = { "swat", "tactical", "fsb", "ksk", "bundeswehr", "sfarmy", "rusoldier", "uasoldier", "ww2", "crouchsold", "armyman" };
+        public static readonly string[] OutfitNames = { "SWAT", "Agent", "Operator", "Recon", "Woodland", "Commando", "Rifleman", "Desert", "Veteran", "Ghost", "Infantry" };
+
+        /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
+        public static SoldierBody Attach(GameObject owner, int skin = -1)
         {
             var body = owner.AddComponent<SoldierBody>();
-            body.Build();
+            body.Build(skin);
             return body;
         }
 
-        void Build()
+        // ---- outfit driven by the (hidden) animated soldier: same mixamo bone names, rest-pose corrected
+        Transform outfitRoot;
+        readonly List<Transform> srcBones = new List<Transform>(), dstBones = new List<Transform>();
+        readonly List<Quaternion> srcBind = new List<Quaternion>(), dstBind = new List<Quaternion>();
+        Transform srcHips, dstHips; Vector3 srcHipsBind, dstHipsBind;
+
+        static string BoneKey(string n) { int c = n.LastIndexOf(':'); return c >= 0 ? n.Substring(c + 1) : n; }
+
+        void SetupOutfit(int skin)
+        {
+            if (skin < 0 || skin >= OutfitFiles.Length) return;
+            GameObject src = MapBuilder.Model("outfit_" + OutfitFiles[skin]);
+            if (src == null) return;
+            GameObject o = Instantiate(src, transform, false);
+            outfitRoot = o.transform;
+            // 1.8 m from the head-top joint, feet on the ground
+            var dst = new Dictionary<string, Transform>();
+            foreach (Transform t in o.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) dst[BoneKey(t.name)] = t;
+            if (dst.TryGetValue("HeadTop_End", out Transform head))
+            {
+                float foot = float.MaxValue;
+                foreach (string f in new[] { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" }) if (dst.TryGetValue(f, out Transform ft)) foot = Mathf.Min(foot, ft.position.y);
+                if (foot == float.MaxValue) foot = transform.position.y;
+                float h = head.position.y - foot;
+                if (h > 0.1f) { o.transform.localScale *= 1.8f / (h * 1.03f); }
+                foot = float.MaxValue;
+                foreach (string f in new[] { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" }) if (dst.TryGetValue(f, out Transform ft)) foot = Mathf.Min(foot, ft.position.y);
+                if (foot != float.MaxValue) o.transform.position += Vector3.up * (transform.position.y + 0.03f - foot);
+            }
+            foreach (Renderer r in o.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is SkinnedMeshRenderer smr) smr.updateWhenOffscreen = true;
+                var mats = r.sharedMaterials;
+                for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]);
+                r.sharedMaterials = mats;
+            }
+            foreach (Animator a in o.GetComponentsInChildren<Animator>(true)) a.enabled = false;
+            // pair bones by name, parents first; remember both rest poses (relative to their model roots)
+            foreach (Transform t in model.GetComponentsInChildren<Transform>(true))
+            {
+                if (!t.name.Contains("mixamorig") || !dst.TryGetValue(BoneKey(t.name), out Transform d)) continue;
+                srcBones.Add(t); dstBones.Add(d);
+                srcBind.Add(Quaternion.Inverse(model.rotation) * t.rotation);
+                dstBind.Add(Quaternion.Inverse(outfitRoot.rotation) * d.rotation);
+                if (BoneKey(t.name) == "Hips") { srcHips = t; dstHips = d; srcHipsBind = model.InverseTransformPoint(t.position); dstHipsBind = outfitRoot.InverseTransformPoint(d.position); }
+            }
+            // the soldier keeps animating, invisible
+            foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+            if (dst.TryGetValue("RightHand", out Transform rh)) handR = rh;
+        }
+
+        void Retarget()
+        {
+            if (outfitRoot == null) return;
+            Quaternion srcInv = Quaternion.Inverse(model.rotation), dstRot = outfitRoot.rotation;
+            for (int i = 0; i < srcBones.Count; i++)
+                dstBones[i].rotation = dstRot * (srcInv * srcBones[i].rotation * Quaternion.Inverse(srcBind[i])) * dstBind[i];
+            if (srcHips != null)
+            {
+                // hips movement (crouch / jump / death), scaled between the two bodies
+                Vector3 d = model.InverseTransformPoint(srcHips.position) - srcHipsBind;
+                float k = srcHipsBind.y > 0.01f ? dstHipsBind.y / srcHipsBind.y : 1f;
+                dstHips.position = outfitRoot.TransformPoint(dstHipsBind + d * k);
+            }
+        }
+
+        void Build(int skin)
         {
             GameObject src = MapBuilder.Model("soldier");
             if (src == null) return;
@@ -52,6 +123,7 @@ namespace LastWar
             }
             SetupAnimation(m);
             Play("idle");
+            SetupOutfit(skin);
         }
 
         public static Material Lit(Material src) => MapBuilder.LitFrom(src);
@@ -61,6 +133,7 @@ namespace LastWar
             Animator animator = m.GetComponentInChildren<Animator>();
             if (animator == null) animator = m.AddComponent<Animator>();
             animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate; // keeps driving an outfit even though its own mesh is hidden
             if (clips == null) clips = Resources.LoadAll<AnimationClip>("Models/soldier");
             if (clips.Length == 0) return;
             graph = PlayableGraph.Create("soldier");
@@ -119,6 +192,7 @@ namespace LastWar
 
         void LateUpdate()
         {
+            Retarget();
             // gun: grip in the right hand, barrel (model -Z) along the aim
             if (gun == null || handR == null) return;
             gun.position = handR.position;

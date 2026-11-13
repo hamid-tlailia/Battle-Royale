@@ -39,7 +39,7 @@ namespace LastWar
             pc.fighter = go.AddComponent<Fighter>();
             pc.fighter.isPlayer = true; pc.fighter.displayName = "You";
             pc.fighter.GiveStartingGuns("rifle", "shotgun");
-            pc.body = SoldierBody.Attach(go);
+            pc.body = SoldierBody.Attach(go, Profile.Skin);
             return pc;
         }
 
@@ -50,19 +50,34 @@ namespace LastWar
             float dt = Time.deltaTime;
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
-            float sens = lookSensitivity * (Scoped ? cam.fieldOfView / 70f : 1f) * (OnEnemy != null && AimAssistOn ? 0.55f : 1f);
+            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f : 1f) * (OnEnemy != null && AimAssistOn ? 0.55f : 1f);
             yaw += input.LookDelta.x * sens;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
 
             // weapons
             if (input.SlotPressed >= 0) { if (input.SlotPressed == fighter.slot) fighter.Reload(); else fighter.SelectSlot(input.SlotPressed); } // tap the equipped gun = reload
             if (input.ReloadPressed) fighter.Reload();
+            if (input.HealPressed) fighter.Heal();
+            if (input.BagPressed) BagPanel.Toggle(input, fighter);
+            if (input.GearPressed) SettingsPanel.Open(input.Canvas, true);
+
+            // posture: stand 1.8 m, crouch 1.2 m, prone 0.7 m (jump = stand up)
+            if (input.JumpPressed && (input.Crouch || input.Prone)) { input.Crouch = input.Prone = false; input.JumpPressed = false; }
+            float targetH = input.Prone ? 0.7f : input.Crouch ? 1.2f : 1.8f;
+            if (!Mathf.Approximately(cc.height, targetH))
+            {
+                float h = Mathf.MoveTowards(cc.height, targetH, dt * 6f);
+                // standing up under something low: stay down
+                if (h > cc.height && Physics.SphereCast(transform.position + Vector3.up * 0.3f, 0.3f, Vector3.up, out _, h, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) h = cc.height;
+                cc.height = h; cc.radius = Mathf.Min(0.4f, h / 2f); cc.center = new Vector3(0, h / 2f, 0);
+                fighter.HeadHeight = h;
+            }
 
             // movement relative to the camera's heading
             Vector2 mv = input.Move;
             if (input.Sprint && mv.y > -0.3f && !Scoped) mv = new Vector2(mv.x * 0.5f, 1f);
             bool sprinting = input.Sprint && mv.y > 0.5f && !input.FireHeld && !Scoped;
-            float speed = sprinting ? SprintSpeed : WalkSpeed;
+            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.25f : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
             Vector3 want = heading * new Vector3(mv.x, 0, mv.y) * speed;
             bool grounded = cc.isGrounded;
@@ -85,7 +100,9 @@ namespace LastWar
             bool fired = wantFire && fighter.Fire(eye, aim, Scoped, flat.sqrMagnitude > 1f);
 
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
-            if (!cc.isGrounded && !NearGround()) body.Play("jump");
+            if (input.Prone) body.Play("prone");
+            else if (input.Crouch) body.Play(hs > 0.4f ? "crouch_walk" : fired || input.FireHeld ? "crouch_fire" : "crouch_idle");
+            else if (!cc.isGrounded && !NearGround()) body.Play("jump");
             else if (hs > 5.2f || (input.Sprint && hs > 0.5f && !input.FireHeld)) body.Play("run");
             else if (hs > 0.4f) body.Play("walk_fire");
             else body.Play(fired || input.FireHeld ? "fire" : "idle_rifle");
@@ -94,7 +111,7 @@ namespace LastWar
         /// <summary>direction from the soldier's eye to whatever the crosshair (screen centre) is on</summary>
         public Vector3 AimDirection(out Vector3 eye)
         {
-            eye = transform.position + Vector3.up * 1.55f;
+            eye = transform.position + Vector3.up * (cc.height - 0.25f);
             Ray r = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
             Vector3 target = r.origin + r.direction * 300f;
             foreach (RaycastHit h in Physics.RaycastAll(r, 300f, ~0, QueryTriggerInteraction.Ignore))
@@ -137,9 +154,12 @@ namespace LastWar
             if (OnEnemy != null && lockTarget != OnEnemy) { Angles(OnEnemy, out lockYaw, out lockPitch, out _, out _); lockTarget = OnEnemy; lockOff = 0; }
             if (lockTarget != null)
             {
-                lockOff = OnEnemy != null ? 0 : lockOff + dt;
                 Angles(lockTarget, out float qy, out float qp, out float dist, out Vector3 t);
-                if (!lockTarget.Alive || dist > 150f || lockOff > 0.3f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
+                // still on them? anywhere on / just around the body, head included (moving from chest to head keeps the lock)
+                float off = Vector3.Angle(cam.transform.forward, t - cam.transform.position) * Mathf.Deg2Rad;
+                bool near = off < Mathf.Atan(0.9f / Mathf.Max(1f, dist));
+                lockOff = OnEnemy != null || near ? 0 : lockOff + dt;
+                if (!lockTarget.Alive || dist > 150f || lockOff > 0.6f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
                 else
                 {
                     yaw += Mathf.DeltaAngle(lockYaw, qy);
@@ -173,11 +193,11 @@ namespace LastWar
         void LateUpdate()
         {
             if (cam == null) return;
-            Vector3 pivot = transform.position + Vector3.up * 1.5f;
+            Vector3 pivot = transform.position + Vector3.up * (cc.height - 0.3f);
             Quaternion look = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
             float targetDist = Scoped ? 1.4f : 3.6f;
             camDist = Mathf.Lerp(camDist, targetDist, Time.deltaTime * 12f);
-            Vector3 back = look * new Vector3(Scoped ? 0.55f : 0.65f, Scoped ? 0.15f : 0.35f, -camDist);
+            Vector3 back = look * new Vector3(Scoped ? 0.55f : 1.05f, Scoped ? 0.15f : 0.45f, -camDist);
             float len = back.magnitude;
             if (Physics.SphereCast(pivot, 0.2f, back / len, out RaycastHit hit, len, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) len = Mathf.Max(0.4f, hit.distance - 0.1f);
             cam.transform.position = pivot + back.normalized * len;

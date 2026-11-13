@@ -22,6 +22,10 @@ namespace LastWar
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
         public bool ReloadPressed;  // true for one frame
         public Canvas Canvas => canvas;
+        public bool Crouch, Prone;      // posture toggles
+        public bool HealPressed, FrostPressed, BagPressed, GearPressed; // one frame each
+        Btn crouchBtn, proneBtn, healBtn, frostBtn;
+        Text healBadge, frostBadge;
 
         class Btn { public RectTransform rt; public Image bg; public Sprite normal; public bool pressed; }
         readonly List<Btn> btns = new List<Btn>();
@@ -62,7 +66,19 @@ namespace LastWar
             Button("jump", "btn", 64, BR, new Vector2(-56, 58), () => JumpPressed = true);
             Button("reload", "btn", 50, BR, new Vector2(-153, 125), () => ReloadPressed = true);
             scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => Scoped = !Scoped);
-            runBtn = Button("sprint", "btn", 52, BL, new Vector2(194, 202), () => Sprint = !Sprint);
+            runBtn = Button("sprint", "btn", 52, BL, new Vector2(194, 202), () => { Sprint = !Sprint; if (Sprint) Crouch = Prone = false; });
+            crouchBtn = Button("crouch", "btn", 54, BR, new Vector2(-131, 49), () => { Crouch = !Crouch; if (Crouch) { Prone = false; Sprint = false; } });
+            proneBtn = Button("prone", "btn", 50, BR, new Vector2(-201, 45), () => { Prone = !Prone; if (Prone) { Crouch = false; Sprint = false; } });
+            healBtn = Button("heal", "btn", 50, BL, new Vector2(215, 95), () => HealPressed = true);
+            frostBtn = Button("frost", "btn", 48, BR, new Vector2(-220, 188), () => FrostPressed = true);
+            healBadge = Badge(healBtn); frostBadge = Badge(frostBtn);
+            Button("bag", "btn", 42, TL, new Vector2(125, -27), () => BagPressed = true);
+            // settings: small dark square, top-left (web .gear-btn)
+            var gear = UiKit.Img(canvas.transform, "gear", UiKit.Round, TL, new Vector2(56, -8), new Vector2(30, 26), new Color(0, 0, 0, .25f), true);
+            gear.gameObject.AddComponent<Outline>().effectColor = new Color(1, 1, 1, .3f);
+            var gi = UiKit.Img(gear.rectTransform, "icon", UiKit.Get("icon_settings"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(18, 18), Color.white); gi.rectTransform.pivot = new Vector2(.5f, .5f);
+            var gt = gear.gameObject.AddComponent<EventTrigger>(); var ge = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ge.callback.AddListener(_ => GearPressed = true); gt.triggers.Add(ge);
+            blockers.Add(gear.rectTransform);
         }
 
         Btn Button(string icon, string bg, float size, Vector2 corner, Vector2 centre, System.Action onDown)
@@ -81,6 +97,23 @@ namespace LastWar
             trigger.triggers.Add(down); trigger.triggers.Add(up);
             btns.Add(b); blockers.Add(rt);
             return b;
+        }
+
+        Text Badge(Btn b)
+        {
+            // yellow count bubble on the top-right of the button (web .btn-heal b)
+            var bub = UiKit.Img(b.rt, "badge", UiKit.Round, new Vector2(1, 1), new Vector2(-6, -6), new Vector2(18, 18), new Color(1f, .83f, .3f));
+            bub.rectTransform.pivot = new Vector2(1, 1);
+            var t = UiKit.Txt(bub.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(18, 18), 11, TextAnchor.MiddleCenter, new Color(.07f, .13f, .06f));
+            t.rectTransform.pivot = new Vector2(.5f, .5f); Destroy(t.GetComponent<Shadow>()); t.text = "0";
+            return t;
+        }
+
+        /// <summary>counts on the heal / ice-wall buttons (0 = faded, like the web)</summary>
+        public void SetCounts(int meds, int frost)
+        {
+            healBadge.text = meds.ToString(); frostBadge.text = frost.ToString();
+            healBtn.bg.color = new Color(1, 1, 1, meds > 0 ? 1f : .45f); frostBtn.bg.color = new Color(1, 1, 1, frost > 0 ? 1f : .45f);
         }
 
         /// <summary>a HUD element that takes taps (weapon slots): touches on it don't turn the camera</summary>
@@ -120,13 +153,13 @@ namespace LastWar
             {
                 bool fire = b == fireBtn || b == fireLeft;
                 bool down = fire ? FireHeld : b.pressed;
-                bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped);
+                bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped) || (b == crouchBtn && Crouch) || (b == proneBtn && Prone);
                 b.bg.sprite = on ? active : down && !fire ? pressed : b.normal;
                 b.rt.localScale = Vector3.one * (down ? 0.93f : 1f);
             }
         }
 
-        void LateUpdate() { JumpPressed = false; FirePressed = false; ReloadPressed = false; SlotPressed = -1; }
+        void LateUpdate() { JumpPressed = false; FirePressed = false; ReloadPressed = false; SlotPressed = -1; HealPressed = FrostPressed = BagPressed = GearPressed = false; }
 
         void Touches()
         {
@@ -138,11 +171,11 @@ namespace LastWar
                 {
                     if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
-                        fireFinger = t.fingerId; FirePressed = true;
+                        fireFinger = t.fingerId; FirePressed = true; Sprint = false;
                         if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                     }
                     else if (OverBlocker(t.position)) continue;
-                    else if (t.position.x < Screen.width * 0.42f && joyFinger < 0) { joyFinger = t.fingerId; joyOrigin = t.position; }
+                    else if (t.position.x < Screen.width * 0.42f && joyFinger < 0) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
                     else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                 }
                 if (t.fingerId == fireFinger && (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)) fireFinger = -1;
@@ -178,7 +211,11 @@ namespace LastWar
             Vector2 mp = Input.mousePosition;
             bool onFire = Over(fireBtn, mp) || Over(fireLeft, mp);
             bool onUi = OverBlocker(mp) && !onFire;
-            if (Input.GetMouseButtonDown(0) && !onUi) FirePressed = true;
+            if (Input.GetMouseButtonDown(0) && !onUi) { FirePressed = true; Sprint = false; }
+            if (Input.GetKeyDown(KeyCode.C)) { Crouch = !Crouch; Prone = false; }
+            if (Input.GetKeyDown(KeyCode.Z)) { Prone = !Prone; Crouch = false; }
+            if (Input.GetKeyDown(KeyCode.H)) HealPressed = true;
+            if (Input.GetKeyDown(KeyCode.Tab)) BagPressed = true;
             FireHeld = Input.GetMouseButton(0) && !onUi;
             if (Input.GetKeyDown(KeyCode.R)) ReloadPressed = true;
             if (Input.GetKeyDown(KeyCode.Q) && scopeBtn.rt.gameObject.activeSelf) Scoped = !Scoped;

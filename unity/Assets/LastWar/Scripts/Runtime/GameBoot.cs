@@ -6,9 +6,11 @@ using UnityEngine.UI;
 
 namespace LastWar
 {
-    /// <summary>Entry point of the Main scene: sun, sky, camera, map, player, controls.</summary>
+    /// <summary>Entry point of the Main scene: sun, sky, camera, map; then the lobby, or a match after PLAY.</summary>
     public class GameBoot : MonoBehaviour
     {
+        /// <summary>false = lobby (app start, after a match), true = the next load is a match</summary>
+        public static bool InMatch;
         public static GameBoot Instance { get; private set; }
         public MapData Map { get; private set; }
         public PlayerController Player { get; private set; }
@@ -28,6 +30,7 @@ namespace LastWar
             Instance = this; startTime = Time.time;
             Application.targetFrameRate = 60;
             QualitySettings.vSyncCount = 0;
+            Profile.ApplyQuality();
 
             // sun + ambient + fog
             var sun = new GameObject("Sun").AddComponent<Light>();
@@ -47,9 +50,11 @@ namespace LastWar
             cam.fieldOfView = 70f; cam.nearClipPlane = 0.1f; cam.farClipPlane = 500f;
             cam.gameObject.AddComponent<AudioListener>();
 
-            string mapId = PlayerPrefs.GetString("lw.map", "green");
-            Map = MapData.Load(mapId);
+            Map = MapData.Load(Profile.Map);
             MapBuilder.Build(Map);
+            // test switch: ?play=1 in the WebGL URL goes straight into a match
+            if (!InMatch && (Application.absoluteURL ?? "").Contains("play=1")) InMatch = true;
+            if (!InMatch) { Lobby.Create(Map, cam); Loader.HideSoon(); return; }
 
             var controls = TouchControls.Create();
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
@@ -73,7 +78,7 @@ namespace LastWar
             {
                 Vec2 s = Map.spawns[1 + (b * (n - 1) / BotCount) % (n - 1)];
                 Vector3 p = Coords.ToUnity(s.x, Map.HeightAt(s.x, s.z) + 0.2f, s.z);
-                Fighters.Add(BotBrain.Spawn(p, BotNames[b % BotNames.Length], 1000 + b * 7919).fighter);
+                Fighters.Add(BotBrain.Spawn(p, BotNames[b % BotNames.Length], 1000 + b * 7919 + Random.Range(0, 99999)).fighter);
             }
             AliveCount = Fighters.Count;
             Fighter.OnKill += (victim, killer, w, head) =>
@@ -82,6 +87,7 @@ namespace LastWar
                 if (Result != 0) return;
                 if (victim == Player.fighter) { Result = -1; Rank = AliveCount + 1; }
                 else if (AliveCount <= 1 && Player.fighter.Alive) { Result = 1; Rank = 1; }
+                if (Result != 0) Profile.AddMatch(Player.fighter.kills, Result > 0, Rank);
             };
 
             Zone.Create(Map.playRadius);
@@ -93,18 +99,22 @@ namespace LastWar
             fps.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
             var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(16, -10); rt.sizeDelta = new Vector2(500, 40);
             fps.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); fps.fontSize = 20; fps.color = new Color(1, 1, 1, .6f);
+            Loader.HideSoon();
         }
 
+        /// <summary>end of a match: back to the lobby behind a loading card</summary>
         public void Restart()
         {
             Fighter.ClearEvents();
+            InMatch = false;
+            Loader.Show("Back to the lobby…");
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
         void Update()
         {
             fpsAcc += Time.unscaledDeltaTime; fpsFrames++;
-            if (fpsAcc >= 1f && fps != null) { fps.text = $"LAST WAR · {Map.name} · {fpsFrames / fpsAcc:0} fps"; fpsAcc = 0; fpsFrames = 0; }
+            if (fpsAcc >= 1f && fps != null && Map != null) { fps.text = $"LAST WAR · {Map.name} · {fpsFrames / fpsAcc:0} fps"; fpsAcc = 0; fpsFrames = 0; }
         }
     }
 }

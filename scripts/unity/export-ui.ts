@@ -34,7 +34,7 @@ const BTN = `
 body { margin: 0; background: transparent; }
 canvas { display: block; }`;
 
-const iconIds = ['fire', 'jump', 'crouch', 'prone', 'scope', 'reload', 'sprint', 'heal', 'frost', 'bag', 'settings', 'skull', 'vest', 'fist', 'map', 'holster'] as const;
+const iconIds = ['fire', 'jump', 'crouch', 'prone', 'scope', 'reload', 'sprint', 'heal', 'frost', 'bag', 'settings', 'skull', 'vest', 'fist', 'map', 'holster', 'home', 'outfit', 'friends', 'trophy', 'rank', 'pin', 'chat'] as const;
 const html = `<!doctype html><html><head><style>${BTN}</style>
 <script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script></head><body>
 ${['', 'fire', 'active', 'pressed'].map((c) => `<div class="w" id="btn${c ? '_' + c : ''}"><div class="b ${c}"></div></div>`).join('')}

@@ -22,6 +22,8 @@ namespace LastWar
         public bool isPlayer;
         public float hp = MaxHp, armor = 0f;
         public int kills;
+        public int meds, frost;          // medkits, ice walls
+        public float healEnd;            // Time.time when the medkit finishes (0 = not healing)
         public readonly GunState[] guns = new GunState[3];
         public int slot;
         public bool Alive => hp > 0f;
@@ -54,8 +56,16 @@ namespace LastWar
             if (isPlayer) Sfx.Play("reload", transform.position, 0.7f);
         }
 
+        /// <summary>use a medkit: +50 HP after 3 s (cancelled by firing)</summary>
+        public void Heal()
+        {
+            if (meds <= 0 || hp >= MaxHp || healEnd > 0 || !Alive) return;
+            healEnd = Time.time + 3f;
+        }
+
         void Update()
         {
+            if (healEnd > 0 && Time.time >= healEnd) { healEnd = 0; meds--; hp = Mathf.Min(MaxHp, hp + 50f); }
             if (reloadEnd > 0 && Time.time >= reloadEnd)
             {
                 GunState g = Gun; int take = Mathf.Min(g.def.mag - g.mag, g.reserve);
@@ -69,6 +79,7 @@ namespace LastWar
         public bool Fire(Vector3 eye, Vector3 aimDir, bool scoped, bool moving)
         {
             if (!CanFire) return false;
+            healEnd = 0; // shooting cancels a medkit
             GunState g = Gun;
             if (g.mag <= 0) { Reload(); return false; }
             g.mag--; nextShot = Time.time + g.def.Interval;

@@ -31,7 +31,7 @@ namespace LastWar
             var rnd = new System.Random(seed);
             b.fighter.GiveStartingGuns(rnd.Next(4) == 0 ? "sniper" : "rifle", rnd.Next(2) == 0 ? "shotgun" : "smg");
             b.skill = 0.35f + (float)rnd.NextDouble() * 0.5f;
-            b.body = SoldierBody.Attach(go);
+            b.body = SoldierBody.Attach(go, rnd.Next(SoldierBody.OutfitFiles.Length));
             return b;
         }
 

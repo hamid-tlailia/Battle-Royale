@@ -25,6 +25,7 @@ namespace LastWar
         float hitT, flashT, bannerT; bool hitKill;
         class Floater { public Text t; public Vector3 pos; public float life; }
         readonly List<Floater> floaters = new List<Floater>();
+        readonly List<(Text t, float life)> taken = new List<(Text, float)>();
         static readonly Vector2 BC = new Vector2(.5f, 0), TC = new Vector2(.5f, 1), C = new Vector2(.5f, .5f);
 
         public static Hud Create(TouchControls input, PlayerController player)
@@ -110,7 +111,7 @@ namespace LastWar
             var again = UiKit.Img(card.rectTransform, "Again", UiKit.Round, C, new Vector2(0, -45), new Vector2(150, 34), new Color(1f, 0.78f, 0.25f), true);
             again.rectTransform.pivot = C;
             var at = UiKit.Txt(again.rectTransform, C, Vector2.zero, new Vector2(150, 34), 14, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); at.rectTransform.pivot = C;
-            at.text = "PLAY AGAIN"; Destroy(at.GetComponent<Shadow>());
+            at.text = "LOBBY"; Destroy(at.GetComponent<Shadow>());
             again.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             endPanel.gameObject.SetActive(false);
         }
@@ -128,7 +129,14 @@ namespace LastWar
                 t.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .6f);
                 floaters.Add(new Floater { t = t, pos = point + new Vector3(Random.Range(-.2f, .2f), .3f, 0), life = 0.9f });
             }
-            if (victim == player.fighter) flashT = Mathf.Min(0.5f, flashT + dmg / 60f);
+            if (victim == player.fighter)
+            {
+                flashT = Mathf.Min(0.5f, flashT + dmg / 60f);
+                // damage you take: red number rising from the health bar (web .dmg-taken)
+                var t = UiKit.Txt(input.Canvas.transform, BC, new Vector2(Random.Range(-30f, 30f), 24), new Vector2(60, 24), 20, TextAnchor.MiddleCenter, new Color(1f, .23f, .19f));
+                t.rectTransform.pivot = new Vector2(.5f, 0); t.text = "-" + Mathf.RoundToInt(dmg);
+                taken.Add((t, 1.1f));
+            }
         }
 
         void Kill(Fighter victim, Fighter killer, string weapon, bool head)
@@ -184,6 +192,9 @@ namespace LastWar
             bool reloading = f.reloadEnd > 0 && f.Gun != null;
             reloadBar.gameObject.SetActive(reloading);
             if (reloading) reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.reloadEnd - Time.time) / f.Gun.def.reloadTime), 4) * K;
+            input.SetCounts(f.meds, f.frost);
+            if (f.healEnd > 0) { reloadBar.gameObject.SetActive(true); reloadFill.color = new Color(1f, .42f, .42f); reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.healEnd - Time.time) / 3f), 4) * K; }
+            else reloadFill.color = new Color(1f, .83f, .3f);
             input.ShowScope(f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
 
             // top: ALIVE n   KILLS n
@@ -219,6 +230,15 @@ namespace LastWar
                 if (fl.life <= 0 || sp.z <= 0) { Destroy(fl.t.gameObject); floaters.RemoveAt(k); continue; }
                 fl.t.rectTransform.anchoredPosition = (new Vector2(sp.x, sp.y) - new Vector2(Screen.width, Screen.height) / 2f) / input.Canvas.scaleFactor;
                 Color cc = fl.t.color; cc.a = Mathf.Clamp01(fl.life / 0.3f); fl.t.color = cc;
+            }
+
+            for (int k = taken.Count - 1; k >= 0; k--)
+            {
+                var (tt, life) = taken[k]; life -= dt;
+                if (life <= 0) { Destroy(tt.gameObject); taken.RemoveAt(k); continue; }
+                taken[k] = (tt, life);
+                tt.rectTransform.anchoredPosition += new Vector2(0, 30 * UiKit.K * dt);
+                Color cc = tt.color; cc.a = Mathf.Clamp01(life / 0.5f); tt.color = cc;
             }
 
             flashT = Mathf.Max(0, flashT - dt); flash.color = new Color(.8f, 0, 0, flashT * .6f);
