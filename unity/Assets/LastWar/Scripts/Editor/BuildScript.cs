@@ -131,10 +131,32 @@ namespace LastWar.EditorTools
             string dir = Root + "/Resources/Materials";
             Directory.CreateDirectory(dir);
             string path = dir + "/Lit.mat";
-            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
-            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true };
-            AssetDatabase.CreateAsset(mat, path);
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) == null)
+                AssetDatabase.CreateAsset(new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true }, path);
+            // zone wall: see-through blue, both sides; tracer: bright additive streak
+            Transparent(dir + "/ZoneWall.mat", new Color(0.25f, 0.55f, 1f, 0.28f), false);
+            Transparent(dir + "/Tracer.mat", new Color(1f, 0.85f, 0.5f, 0.9f), true);
             AssetDatabase.SaveAssets();
+        }
+
+        static void Transparent(string path, Color color, bool additive)
+        {
+            var old = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (old != null) return;
+            var m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            m.SetFloat("_Surface", 1f);
+            m.SetFloat("_Blend", additive ? 2f : 0f);
+            m.SetFloat("_Cull", 0f);
+            m.SetFloat("_ZWrite", 0f);
+            m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            m.SetFloat("_DstBlend", (float)(additive ? UnityEngine.Rendering.BlendMode.One : UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha));
+            m.SetFloat("_SrcBlendAlpha", 1f);
+            m.SetFloat("_DstBlendAlpha", (float)(additive ? UnityEngine.Rendering.BlendMode.One : UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha));
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.SetOverrideTag("RenderType", "Transparent");
+            m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            m.SetColor("_BaseColor", color);
+            AssetDatabase.CreateAsset(m, path);
         }
     }
 }

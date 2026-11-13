@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace LastWar
@@ -9,6 +11,12 @@ namespace LastWar
         public static GameBoot Instance { get; private set; }
         public MapData Map { get; private set; }
         public PlayerController Player { get; private set; }
+        public readonly List<Fighter> Fighters = new List<Fighter>();
+        public int AliveCount { get; private set; }
+        public int Result { get; private set; }   // 0 playing, 1 victory, -1 eliminated
+        public int Rank { get; private set; }
+        public const int BotCount = 15;
+        static readonly string[] BotNames = { "Viper", "Nomad", "Ghost", "Raven", "Falcon", "Cobra", "Wolf", "Shadow", "Hunter", "Blaze", "Storm", "Rogue", "Jackal", "Titan", "Spectre", "Onyx", "Ranger", "Sable", "Mako", "Drift" };
         Text fps;
         float fpsAcc; int fpsFrames;
 
@@ -44,11 +52,39 @@ namespace LastWar
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
             Vector3 pos = Coords.ToUnity(sp.x, Map.HeightAt(sp.x, sp.z) + 0.2f, sp.z);
             Player = PlayerController.Spawn(pos, controls, cam);
+            Fighters.Add(Player.fighter);
+
+            // bots on other spawn points, spread over the map
+            int n = Map.spawns != null ? Map.spawns.Length : 0;
+            for (int b = 0; b < BotCount && n > 1; b++)
+            {
+                Vec2 s = Map.spawns[1 + (b * (n - 1) / BotCount) % (n - 1)];
+                Vector3 p = Coords.ToUnity(s.x, Map.HeightAt(s.x, s.z) + 0.2f, s.z);
+                Fighters.Add(BotBrain.Spawn(p, BotNames[b % BotNames.Length], 1000 + b * 7919).fighter);
+            }
+            AliveCount = Fighters.Count;
+            Fighter.OnKill += (victim, killer, w, head) =>
+            {
+                AliveCount = 0; foreach (Fighter f in Fighters) if (f.Alive) AliveCount++;
+                if (Result != 0) return;
+                if (victim == Player.fighter) { Result = -1; Rank = AliveCount + 1; }
+                else if (AliveCount <= 1 && Player.fighter.Alive) { Result = 1; Rank = 1; }
+            };
+
+            Zone.Create(Map.playRadius);
+            Tracers.Create();
+            Hud.Create(controls, Player);
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
             fps.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
             var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(20, -20); rt.sizeDelta = new Vector2(500, 60);
             fps.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); fps.fontSize = 28; fps.color = Color.white;
+        }
+
+        public void Restart()
+        {
+            Fighter.ClearEvents();
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
         void Update()
