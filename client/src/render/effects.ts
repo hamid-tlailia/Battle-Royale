@@ -61,9 +61,9 @@ export class Effects {
     for (let k = 0; k < n; k++) {
       const i = this.nextPuff++ % Effects.P;
       this.puffPos[i].copy(p);
-      this.puffVel[i].set((Math.random() - 0.5) * 2.4, Math.random() * 2.2, (Math.random() - 0.5) * 2.4);
+      this.puffVel[i].set((Math.random() - 0.5) * (kind === 'dust' ? 1.4 : 2.4), Math.random() * (kind === 'dust' ? 1.5 : 2.2), (Math.random() - 0.5) * (kind === 'dust' ? 1.4 : 2.4));
       this.puffMax[i] = this.puffLife[i] = 0.35 + Math.random() * 0.25;
-      this.puffSize[i] = kind === 'dust' ? 0.12 + Math.random() * 0.12 : 0.07 + Math.random() * 0.06;
+      this.puffSize[i] = kind === 'dust' ? 0.05 + Math.random() * 0.06 : 0.07 + Math.random() * 0.06; // small grains, not bricks
       this.puffs.setColorAt(i, col);
     }
     this.puffs.instanceColor!.needsUpdate = true;

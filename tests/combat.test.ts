@@ -150,12 +150,22 @@ describe('anti-cheat: fire rate, ammo, aim', () => {
     void a;
   });
 
-  it('semi-auto weapons need the trigger released between shots', () => {
+  it('the sniper (bolt action) needs the trigger released between shots', () => {
     const { sim } = duel(30);
-    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 0 }));
+    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 3 }));
     let shots = 0;
     for (let i = 0; i < TICK_RATE * 2; i++) { sim.step(); shots += sim.events.filter((e) => e.t === 'shot').length; }
     expect(shots).toBe(1);
+  });
+
+  it('holding the trigger keeps firing the pistol, rifle and shotgun at their own rates', () => {
+    for (const w of [0, 1, 2]) {
+      const { sim } = duel(30);
+      sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: w }));
+      let shots = 0;
+      for (let i = 0; i < TICK_RATE * 2; i++) { sim.step(); shots += sim.events.filter((e) => e.t === 'shot').length; }
+      expect(shots, `weapon ${w}`).toBeGreaterThan(1);
+    }
   });
 
   it('reload refills from reserve and takes the configured time', () => {

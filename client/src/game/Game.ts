@@ -263,7 +263,7 @@ export class Game {
       this.sim.setInput(this.myId, input);
     }
     for (const v of this.views.values()) { v.prev.x = v.p.move.x; v.prev.y = v.p.move.y; v.prev.z = v.p.move.z; v.prev.yaw = v.p.move.yaw; }
-    this.sim.step();
+    if (!this.frozen) this.sim.step(); // match over: everything stops for the celebration
     this.handleEvents(this.sim.events);
   }
 
@@ -317,7 +317,9 @@ export class Game {
           for (let i = 0; i < e.ends.length; i += 3) {
             this.v2.set(e.ends[i], e.ends[i + 1], e.ends[i + 2]);
             if (!ownScoped || i === 0) this.fx.tracer(muzzle, this.v2);
-            this.fx.impact(this.v2, 'dust', 2);
+            // a puff only where the bullet really struck something (not at the end of its range in mid-air)
+            const flown = Math.hypot(e.ends[i] - e.ox, e.ends[i + 1] - e.oy, e.ends[i + 2] - e.oz);
+            if (flown < WEAPONS[e.weapon].range - 0.5) this.fx.impact(this.v2, 'dust', 2);
           }
           const dist = muzzle.distanceTo(ear);
           sfx.shot(e.weapon, e.id === this.myId ? 0 : dist, this.panOf(muzzle));
@@ -394,12 +396,20 @@ export class Game {
     el.querySelector('.go')?.addEventListener('click', () => net.startNow());
   }
 
+  private frozen = false;
   private showEnd(win: boolean) {
     if (this.ended && !win) return;
     this.ended = true;
     const me = this.sim.players.get(this.myId)!;
     this.controls.fireHeld = false;
     addMatch(me.kills, win ? 1 : me.place, this.sim.players.size, win);
+    if (win) { // 5 s of celebration, then back to the lobby
+      this.frozen = true;
+      this.hud.celebrate(me.kills, this.sim.players.size);
+      sfx.kill();
+      setTimeout(() => { this.dispose(); this.onRestart(); }, 5000);
+      return;
+    }
     this.hud.showEnd(win, win ? 1 : me.place, this.sim.players.size, me.kills, this.killerName, () => {
       this.dispose();
       this.onRestart();

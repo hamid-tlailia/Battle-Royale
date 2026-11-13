@@ -422,3 +422,50 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .lb-sheet input.name { width: 100%; font-weight: 800; }
 .lb-nav { transform: translateY(-50%); }
 .lb-sheet .lobby-settings { position: static !important; left: auto !important; top: auto !important; width: 100%; }
+
+/* no blue armor bar: armor / bag shown as small icons above the health bar */
+.bar.armor { display: none; }
+.status-row { display: flex; gap: 10px; align-items: center; height: 18px; margin-bottom: 2px; }
+.status-row span { display: flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
+.status-row svg { width: 17px; height: 17px; }
+.status-row .st-armor { color: #6fb6ff; } .status-row .st-armor[data-lv="2"] { color: #c58bff; }
+.status-row .st-armor.none { opacity: .45; color: #fff; }
+.status-row .st-bag { color: #ffd34d; }
+
+/* hidden HUD elements: gone in the game, faint (still selectable) in the layout editor */
+.hud-hidden { visibility: hidden !important; pointer-events: none !important; }
+.editing .hud-hidden { visibility: visible !important; pointer-events: auto !important; opacity: .25; outline: 2px dashed #ff6b6b; }
+.layout-bar span { white-space: nowrap; max-width: none; font-size: 12px; opacity: .8; }
+.layout-bar { flex-wrap: nowrap; white-space: nowrap; max-width: 96vw; }
+.layout-bar input[type=range] { width: 120px; }
+.layout-bar button[data-a=hide] { background: #c0392b; }
+/* lobby: the settings panel stays visible inside its section (even after the layout editor) */
+.lb-sheet section[data-sec=settings].on .settings-panel { display: block !important; }
+
+/* victory celebration */
+.celebrate { position: absolute; inset: 0; z-index: 60; pointer-events: auto; overflow: hidden; background: radial-gradient(ellipse at center, rgba(255,211,77,.25), rgba(0,0,0,.55)); animation: cbIn .4s ease-out; }
+.celebrate .cb-box { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); text-align: center; animation: cbPop .7s cubic-bezier(.2,1.6,.4,1); }
+.celebrate h1 { margin: 0; font-size: clamp(54px, 15vh, 110px); letter-spacing: 10px; font-weight: 900; color: #ffd34d; text-shadow: 0 4px 0 #8a5a0c, 0 0 30px rgba(255,211,77,.8); }
+.celebrate .cb-place { font-size: 56px; font-weight: 900; } .celebrate .cb-place small { font-size: 26px; opacity: .8; }
+.celebrate p { font-size: 18px; font-weight: 700; margin: 4px 0 0; }
+.celebrate i { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 2px; animation: confetti linear infinite; }
+@keyframes confetti { to { top: 110%; transform: rotate(720deg) translateX(40px); } }
+@keyframes cbPop { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
+@keyframes cbIn { from { opacity: 0; } }
+/* ---------- weapon panel: dark angled cards, white gun silhouettes, active weapon larger ---------- */
+.slots { gap: 5px; align-items: flex-end; }
+.slot { width: 66px; height: 40px; border-radius: 4px; border: none; background: linear-gradient(160deg, rgba(34,46,58,.88), rgba(18,26,34,.88));
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); position: relative; padding-bottom: 6px; }
+.slot::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; background: rgba(255,255,255,.35); }
+.slot img { width: 54px; height: 20px; filter: brightness(0) invert(1) drop-shadow(0 1px 1px #000); }
+.slot i { font-size: 10px; font-weight: 800; opacity: 1; color: #fff; }
+.slot b { font-size: 9px; opacity: .55; }
+.slot.sel { width: 112px; height: 54px; background: linear-gradient(160deg, rgba(40,54,68,.95), rgba(20,28,36,.95)); border: none; }
+.slot.sel img { width: 88px; height: 28px; }
+.slot.sel i { font-size: 14px; }
+.slot.sel::after { background: #ffd34d; height: 3px; }
+.slot.empty { opacity: .35; border: none; }
+.slot.empty img { filter: brightness(0) invert(1) opacity(.35); }
+.slot.fist { width: 46px; height: 40px; }
+.slot.fist.sel { width: 56px; height: 54px; }
+.slot.fist.sel::after { background: #ffd34d; }

@@ -2,7 +2,7 @@
  * Custom HUD layout: every element with [data-hud] can be dragged and resized in edit mode.
  * Positions are stored as fractions of the screen so they survive rotation / other phones.
  */
-type Layout = Record<string, { x: number; y: number; size: number }>;
+type Layout = Record<string, { x: number; y: number; size: number; hidden?: boolean }>;
 /** v2: new default layout (old custom layouts are reset once) */
 const KEY = 'lw.layout.v2';
 
@@ -12,7 +12,8 @@ function load(): Layout {
 function save(l: Layout) { try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* ignore */ } }
 
 /** Buttons are resized in px; panels (weapon bar, minimap, …) are scaled in % (data-scale). */
-function place(el: HTMLElement, p: { x: number; y: number; size: number }) {
+function place(el: HTMLElement, p: { x: number; y: number; size: number; hidden?: boolean }) {
+  el.classList.toggle('hud-hidden', !!p.hidden);
   el.style.left = `${p.x * 100}vw`;
   el.style.top = `${p.y * 100}vh`;
   el.style.right = 'auto';
@@ -36,9 +37,9 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
   let selected: HTMLElement | null = null;
   const bar = document.createElement('div');
   bar.className = 'layout-bar';
-  bar.innerHTML = `<span>Drag to move · tap + slider to resize</span>
+  bar.innerHTML = `<span>Drag · size</span>
     <input type="range" min="40" max="130" step="2" value="70">
-    <button data-a="reset">RESET</button><button data-a="cancel">CANCEL</button><button data-a="save" class="ok">SAVE</button>`;
+    <button data-a="hide">HIDE</button><button data-a="reset">RESET</button><button data-a="cancel">CANCEL</button><button data-a="save" class="ok">SAVE</button>`;
   hud.appendChild(bar);
   const slider = bar.querySelector('input')!;
   const current = (el: HTMLElement) => {
@@ -53,7 +54,16 @@ export function editLayout(hud: HTMLElement, onDone?: () => void) {
     slider.min = el.dataset.scale ? '50' : '40';
     slider.max = el.dataset.scale ? '160' : '130';
     slider.value = String(working[el.dataset.hud!].size);
+    hideBtn.textContent = working[el.dataset.hud!].hidden ? 'SHOW' : 'HIDE';
   };
+  const hideBtn = bar.querySelector('[data-a=hide]') as HTMLButtonElement;
+  hideBtn.addEventListener('click', () => {
+    if (!selected) return;
+    const p = working[selected.dataset.hud!];
+    p.hidden = !p.hidden;
+    place(selected, p);
+    hideBtn.textContent = p.hidden ? 'SHOW' : 'HIDE';
+  });
   slider.addEventListener('input', () => {
     if (!selected) return;
     working[selected.dataset.hud!].size = +slider.value;

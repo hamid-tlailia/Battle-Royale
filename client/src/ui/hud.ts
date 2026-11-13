@@ -21,6 +21,7 @@ export class Hud {
   private armorFill: HTMLDivElement;
   private hpTxt: HTMLDivElement;
   private armorTxt!: HTMLElement;
+  private statusRow!: HTMLDivElement;
   private toastEl!: HTMLDivElement;
   healBtn: HTMLElement | null = null;
   frostBtn: HTMLElement | null = null;
@@ -129,6 +130,8 @@ export class Hud {
     this.ammo = el('ammo', bottom);
     this.reloadBar = el('reload-bar', bottom, '<div></div>');
     const bars = el('bars', bottom);
+    // small status icons above the health bar: armor vest (level + points) and backpack
+    this.statusRow = el('status-row', bars, `<span class="st-armor">${ICONS.vest}<b>0</b></span><span class="st-bag">${ICONS.bag}<b>Lv1</b></span>`);
     const armor = el('bar armor', bars, '<div></div><em>🛡</em><span></span>');
     const hp = el('bar hp', bars, '<div></div><em>❤</em><span></span>');
     this.armorTxt = armor.querySelector('span') as HTMLElement;
@@ -240,6 +243,10 @@ export class Hud {
     this.setHealRing(healFrac);
     this.renderBag(p);
     this.armorTxt.textContent = String(Math.round(p.armor));
+    const lv = p.armor <= 0 ? 0 : p.armor > 50 ? 2 : 1;
+    const st = this.statusRow.querySelector('.st-armor') as HTMLElement;
+    st.classList.toggle('none', lv === 0); st.dataset.lv = String(lv);
+    (st.querySelector('b') as HTMLElement).textContent = lv ? `Lv${lv} · ${Math.round(p.armor)}` : '—';
     this.healBtn?.querySelector('b')?.replaceChildren(String(p.meds));
     this.frostBtn?.querySelector('b')?.replaceChildren(String(p.frost));
     this.healBtn?.classList.toggle('empty', p.meds === 0);
@@ -469,6 +476,21 @@ export class Hud {
       return true;
     });
     if (this.hitTimer > 0) { this.hitTimer -= dt; if (this.hitTimer <= 0) this.cross.classList.remove('hit', 'killhit'); }
+  }
+
+  /** Victory: banner + confetti for 5 s (the game then returns to the lobby). */
+  celebrate(kills: number, total: number) {
+    const o = el('celebrate', this.root, `<div class="cb-box"><h1>VICTORY</h1><div class="cb-place">#1 <small>/ ${total}</small></div><p>Last one standing · ${kills} kill${kills === 1 ? '' : 's'}</p></div>`);
+    const colors = ['#ffd34d', '#ff6b6b', '#6fcf6f', '#56a8f5', '#ffffff', '#c58bff'];
+    for (let i = 0; i < 90; i++) {
+      const c = document.createElement('i');
+      c.style.left = `${Math.random() * 100}%`;
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = `${Math.random() * 1.6}s`;
+      c.style.animationDuration = `${2.2 + Math.random() * 2}s`;
+      c.style.transform = `rotate(${Math.random() * 360}deg)`;
+      o.appendChild(c);
+    }
   }
 
   showEnd(win: boolean, place: number, total: number, kills: number, killer: string | null, onAgain: () => void, onSpectate?: () => void) {
