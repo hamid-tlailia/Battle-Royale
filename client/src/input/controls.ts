@@ -168,6 +168,7 @@ export class Controls {
         const ox = fixed ? fixed.x * window.innerWidth : t.clientX, oy = fixed ? fixed.y * window.innerHeight : t.clientY;
         this.joyOrigin = { x: ox, y: oy };
         this.joyStartY = t.clientY; this.pullBack = false;
+        this.stopRun(); // any touch on the stick takes over from auto-run
         this.placeJoy(ox, oy, 1);
       } else if (!leftSide && this.lookId === null) {
         this.lookId = t.identifier;

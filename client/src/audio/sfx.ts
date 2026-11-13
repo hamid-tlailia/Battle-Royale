@@ -247,7 +247,7 @@ export class Sfx {
 
   /** optic up / down: short metallic click + cloth swish */
   scope(on: boolean) {
-    const d = this.chain(0.35, 0, 0); if (!d) return;
+    const d = this.chain(1.0, 0, 0); if (!d) return;
     const t = this.ctx!.currentTime;
     this.burst(d, t, 0.03, on ? 3600 : 2800, 4, 0.9, 0.025);
     this.burst(d, t + 0.02, 0.12, 900, 1, 0.25, 0.1);

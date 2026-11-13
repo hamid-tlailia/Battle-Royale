@@ -34,6 +34,8 @@ export interface SimPlayer {
   prevButtons: number;
   /** semi-auto: a trigger press waiting to be fired (survives switch/fire cooldown) */
   triggerArmed: boolean;
+  /** shotgun: the second blast of a press is still to come */
+  burst?: number;
   kills: number;
   lastInput: InputCmd;
   /** server: inputs to process this tick (0 = starved, 2 = catch-up). null = use lastInput */
@@ -142,15 +144,25 @@ export function weaponLogic(p: SimPlayer, input: InputCmd, tick: number, fire: (
   // (only a reload cancels it); full-auto fires while held
   if (!held && (w.auto || p.reloadEndTick)) p.triggerArmed = false;
   const wantFire = w.auto ? held : p.triggerArmed;
-  if (wantFire && !p.reloadEndTick && !p.move.vault && tick >= p.nextFireTick) {
+  if (slot.id !== 'shotgun') p.burst = 0;
+  if (p.burst && !p.reloadEndTick && !p.move.vault && tick >= p.nextFireTick && slot.mag > 0) {
+    // shotgun: the second blast of the same press, 0.15 s after the first (no need to keep holding)
+    slot.mag--; p.burst = 0;
+    p.nextFireTick = tick + fireInterval(w);
+    fire(slot.id);
+    if (slot.mag === 0) startReload();
+  } else if (wantFire && !p.burst && !p.reloadEndTick && !p.move.vault && tick >= p.nextFireTick) {
     if (slot.mag > 0) {
       slot.mag--;
-      p.nextFireTick = tick + fireInterval(w);
+      const double = slot.id === 'shotgun' && slot.mag > 0;
+      p.burst = double ? 1 : 0;
+      p.nextFireTick = tick + (double ? Math.round(0.15 * TICK_RATE) : fireInterval(w));
       fire(slot.id);
       p.triggerArmed = false;
       if (slot.mag === 0) startReload();
     } else startReload();
   }
+  if (p.reloadEndTick) p.burst = 0;
   p.prevButtons = input.buttons;
 }
 
@@ -642,7 +654,7 @@ export class GameSim {
     const o = this.eye(p);
     const scoped = (input.buttons & BTN.SCOPE) !== 0;
     const moving = p.speed > 1;
-    const spread = (scoped ? w.adsSpread : w.hipSpread) * (moving ? 1.4 : 1) * (p.move.crouch ? 0.7 : 1) * (p.move.grounded ? 1 : 2);
+    const spread = (scoped ? w.adsSpread : w.hipSpread) * (moving ? 1.2 : 1) * (p.move.crouch ? 0.7 : 1) * (p.move.grounded ? 1 : 1.6);
     const yaw = input.aimYaw ?? input.yaw, pitch = input.aimPitch ?? input.pitch;
     // deterministic per-shot randomness (client prediction can reproduce it)
     const rnd = mulberry32((this.tick * 2654435761) ^ (p.id * 40503));

@@ -1,7 +1,7 @@
 import { BTN, MAP, TICK_RATE } from '../config/game';
 import { mulberry32 } from '../math/rng';
 import type { GameSim, SimPlayer } from './game';
-import { eyeOffset, type InputCmd } from './movement';
+import { eyeOffset, syncCollider, type InputCmd } from './movement';
 
 /**
  * Bot AI. Produces exactly the same InputCmd a human client sends, so bots obey every
@@ -14,6 +14,8 @@ export class BotBrain {
   private rnd: () => number;
   private tx = 0; private tz = 0;
   private stuckTimer = 0;
+  /** seconds in a row without getting anywhere (shut in a building): after 8 the bot is put back outside */
+  private stuckCount = 0;
   private lastX = 0; private lastZ = 0;
   private jumpTicks = 0;
   private seq = 0;
@@ -39,6 +41,16 @@ export class BotBrain {
     this.rnd = mulberry32(seed);
     this.skill = 0.35 + this.rnd() * 0.45;
     this.pickTarget(0, 0, MAP.playRadius - 10);
+  }
+
+  /** walls on (nearly) every side within 8 m: shut in a room with no way out */
+  private walledIn(s: { x: number; y: number; z: number }, sim: GameSim) {
+    let hits = 0;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      if (sim.phys.rayWorld(s.x, s.y + 0.4, s.z, Math.cos(a), 0, Math.sin(a), 8) !== null) hits++;
+    }
+    return hits >= 7;
   }
 
   private heardTick = -1;
@@ -198,7 +210,15 @@ export class BotBrain {
       if (moved < 1.0 && (mz !== 0 || mx !== 0)) {
         this.jumpTicks = 4;
         if (this.rnd() < 0.4) this.pickTarget(s.x, s.z, 25);
-      }
+        if (++this.stuckCount >= 10 && !s.air && this.walledIn(s, sim)) {
+          // walled in (closed room, between props): step out to the nearest free spot outside
+          const a = this.rnd() * Math.PI * 2;
+          const sp = sim.phys.findSpawn(s.x + Math.cos(a) * 12, s.z + Math.sin(a) * 12);
+          Object.assign(s, { x: sp.x, y: sp.y, z: sp.z, vx: 0, vy: 0, vz: 0, crouch: false, prone: false });
+          syncCollider(sim.phys, p.id, s);
+          this.stuckCount = 0;
+        }
+      } else this.stuckCount = 0;
       this.lastX = s.x; this.lastZ = s.z; this.stuckTimer = 0;
     }
     if (this.jumpTicks > 0) { this.jumpTicks--; buttons |= BTN.JUMP; }

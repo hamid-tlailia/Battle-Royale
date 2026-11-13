@@ -579,7 +579,7 @@ export class Game {
     sfx.setPlane(!planeOn || !this.revealed ? 0 : me.move.air === 1 ? 1 : Math.max(0, 1 - this.planePos.distanceTo(this.camera.position) / 350) * 0.7);
     this.areaTimer -= dt;
     if (this.areaTimer <= 0) { this.areaTimer = 0.06; this.updateAreaLabels(me); updateTreeLod(this.camera.position); }
-    const scopedView = me.alive && this.controls.scoped && !me.reloadEndTick && !me.move.vault && !me.move.air && !me.holstered;
+    const scopedView = me.alive && this.controls.scoped && !me.move.vault && !me.move.air && !me.holstered;
     this.controls.scopedView = scopedView;
     this.hudEl.classList.toggle('scoped-ui', scopedView);
     this.hudEl.classList.toggle('sky', me.alive && me.move.air >= 2);
@@ -605,8 +605,8 @@ export class Game {
     // long-range guns take the attached scope (sniper: its own x8 when none is attached); the rest aim with a red dot
     this.scopeMode = !scopedView ? 'none' : (slot.id === 'sniper' || slot.id === 'rifle') && me.scope ? (`x${me.scope}` as 'x2' | 'x4' | 'x8') : slot.id === 'sniper' ? 'x8' : 'reddot';
     this.hud.setScope(this.scopeMode);
-    // the scope button only exists while a gun is in your hands
-    const gunInHand = me.alive && slot.owned && !me.holstered;
+    // the scope button only exists while a LONG-RANGE gun is in your hands (close-range guns don't need one)
+    const gunInHand = me.alive && slot.owned && !me.holstered && (slot.id === 'rifle' || slot.id === 'sniper');
     if (this.scopeBtn && this.scopeBtn.classList.contains('hud-off') === gunInHand) this.scopeBtn.classList.toggle('hud-off', !gunInHand);
     if (!gunInHand && this.controls.scoped) { this.controls.setScope(false); this.syncButtons(); }
     if ((this.scopeMode !== 'none') !== this.lastScoped) { this.lastScoped = this.scopeMode !== 'none'; if (me.alive) sfx.scope(this.lastScoped); }
