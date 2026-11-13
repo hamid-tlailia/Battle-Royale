@@ -38,7 +38,6 @@ namespace LastWar
         // ---- outfit driven by the (hidden) animated soldier: same mixamo bone names, rest-pose corrected
         Transform outfitRoot;
         readonly List<Transform> srcBones = new List<Transform>(), dstBones = new List<Transform>();
-        readonly List<Quaternion> srcBind = new List<Quaternion>(), dstBind = new List<Quaternion>();
         Transform srcHips, dstHips; Vector3 srcHipsBind, dstHipsBind;
 
         static string BoneKey(string n) { int c = n.LastIndexOf(':'); return c >= 0 ? n.Substring(c + 1) : n; }
@@ -72,32 +71,36 @@ namespace LastWar
                 r.sharedMaterials = mats;
             }
             foreach (Animator a in o.GetComponentsInChildren<Animator>(true)) a.enabled = false;
-            // pair bones by name, parents first; remember both rest poses (relative to their model roots)
+            // pair bones by name (the web game's retargetClips): local rotations copy straight across mixamo rigs,
+            // the hips get the rest-frame difference of their parents, hips movement is scaled between the bodies
             foreach (Transform t in model.GetComponentsInChildren<Transform>(true))
             {
                 if (!t.name.Contains("mixamorig") || !dst.TryGetValue(BoneKey(t.name), out Transform d)) continue;
+                if (BoneKey(t.name) == "Hips")
+                {
+                    srcHips = t; dstHips = d;
+                    hipsCorr = Quaternion.Inverse(d.parent.rotation) * t.parent.rotation;
+                    srcHipsBind = transform.InverseTransformPoint(t.position); dstHipsBind = transform.InverseTransformPoint(d.position);
+                    continue;
+                }
                 srcBones.Add(t); dstBones.Add(d);
-                srcBind.Add(Quaternion.Inverse(model.rotation) * t.rotation);
-                dstBind.Add(Quaternion.Inverse(outfitRoot.rotation) * d.rotation);
-                if (BoneKey(t.name) == "Hips") { srcHips = t; dstHips = d; srcHipsBind = model.InverseTransformPoint(t.position); dstHipsBind = outfitRoot.InverseTransformPoint(d.position); }
             }
             // the soldier keeps animating, invisible
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             if (dst.TryGetValue("RightHand", out Transform rh)) handR = rh;
         }
 
+        Quaternion hipsCorr = Quaternion.identity;
         void Retarget()
         {
             if (outfitRoot == null) return;
-            Quaternion srcInv = Quaternion.Inverse(model.rotation), dstRot = outfitRoot.rotation;
-            for (int i = 0; i < srcBones.Count; i++)
-                dstBones[i].rotation = dstRot * (srcInv * srcBones[i].rotation * Quaternion.Inverse(srcBind[i])) * dstBind[i];
+            for (int i = 0; i < srcBones.Count; i++) dstBones[i].localRotation = srcBones[i].localRotation;
             if (srcHips != null)
             {
-                // hips movement (crouch / jump / death), scaled between the two bodies
-                Vector3 d = model.InverseTransformPoint(srcHips.position) - srcHipsBind;
+                dstHips.localRotation = hipsCorr * srcHips.localRotation;
+                Vector3 d = transform.InverseTransformPoint(srcHips.position) - srcHipsBind;
                 float k = srcHipsBind.y > 0.01f ? dstHipsBind.y / srcHipsBind.y : 1f;
-                dstHips.position = outfitRoot.TransformPoint(dstHipsBind + d * k);
+                dstHips.position = transform.TransformPoint(dstHipsBind + d * k);
             }
         }
 

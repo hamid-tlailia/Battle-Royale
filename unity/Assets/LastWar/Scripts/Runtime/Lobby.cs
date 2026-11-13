@@ -94,7 +94,7 @@ namespace LastWar
             };
             var (have, need) = Profile.LevelProgress;
             var dynamic = new Dictionary<string, string> {
-                { "name", Profile.Name }, { "level", "LV " + Profile.Level }, { "server", "● offline — play vs bots" },
+                { "name", Profile.Name }, { "level", "LV " + Profile.Level }, { "server", "offline - play vs bots" },
                 { "chip0_text", Profile.Wins.ToString() }, { "chip1_text", Profile.Kills.ToString() },
                 { "mapcard_name", Profile.Map == "desert" ? "Red Canyon" : "Highlands" },
                 { "season_lv", $"Level {Profile.Level} · {Profile.Matches} matches" }, { "season_xp", $"{have} / {need}" },
@@ -110,7 +110,7 @@ namespace LastWar
                     t.fontStyle = int.TryParse(n.weight, out int wt) && wt >= 600 ? FontStyle.Bold : FontStyle.Normal;
                     bool centred = n.id.StartsWith("mode") || n.id.StartsWith("play") || n.align == "center";
                     t.alignment = centred ? TextAnchor.MiddleCenter : n.align == "right" || n.align == "end" ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
-                    t.text = dynamic.TryGetValue(n.id, out string dv) ? dv : n.text;
+                    t.text = (dynamic.TryGetValue(n.id, out string dv) ? dv : n.text).Replace("›", ">").Replace("—", "-").Replace("●", "");
                     if (n.id == "mode2") t.color = new Color(1, 1, 1, .45f); // ONLINE: not in the app yet
                     if (n.id == "play_text") { t.alignment = TextAnchor.LowerCenter; Destroy(t.GetComponent<Shadow>()); }
                     if (n.id == "play_sub") Destroy(t.GetComponent<Shadow>());
@@ -143,8 +143,13 @@ namespace LastWar
 
         void Place(RectTransform rt, LobbyNode n)
         {
-            float cx = n.x + n.w / 2f;
-            float ax = cx < L.W * 0.42f ? 0 : cx > L.W * 0.58f ? 1 : 0.5f;
+            // anchor by group so the pieces of one card stay together on any screen width
+            string id = n.id ?? "";
+            float ax;
+            if (id.StartsWith("chip") || id.StartsWith("gear") || id.StartsWith("mapcard") || id.StartsWith("mode") || id.StartsWith("play")) ax = 1;
+            else if (id.StartsWith("tip")) ax = 0.5f;
+            else if (id == "" ) { float cx = n.x + n.w / 2f; ax = cx < L.W * 0.42f ? 0 : cx > L.W * 0.58f ? 1 : 0.5f; }
+            else ax = 0;
             rt.anchorMin = rt.anchorMax = new Vector2(ax, 1); rt.pivot = new Vector2(0, 1);
             rt.anchoredPosition = new Vector2((n.x - ax * L.W) * s, -n.y * s);
             rt.sizeDelta = new Vector2(n.w * s, n.h * s);
@@ -210,7 +215,7 @@ namespace LastWar
             Place(sheet, new LobbyNode { x = L.sheet.x, y = L.sheet.y, w = L.sheet.w, h = L.sheet.h });
             // close button
             var x = UiKit.Img(sheet, "x", UiKit.Get("Lobby/close"), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(34, 34) * (s / UiKit.K), Color.white, true);
-            var xt = UiKit.Txt(x.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(34, 34) * (s / UiKit.K), 16 * s / UiKit.K, TextAnchor.MiddleCenter, Color.white); xt.rectTransform.pivot = new Vector2(.5f, .5f); xt.text = "✕";
+            var xt = UiKit.Txt(x.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(34, 34) * (s / UiKit.K), 16 * s / UiKit.K, TextAnchor.MiddleCenter, Color.white); xt.rectTransform.pivot = new Vector2(.5f, .5f); xt.text = "X";
             var xtr = x.gameObject.AddComponent<EventTrigger>(); var xe = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick }; xe.callback.AddListener(_ => Close()); xtr.triggers.Add(xe);
             string title = what == "friends" ? "PLAY WITH FRIENDS" : what.ToUpper();
             var tt = UiKit.Txt(sheet, new Vector2(0, 1), new Vector2(16, -14) * (s / UiKit.K), new Vector2(300, 22) * (s / UiKit.K), 15 * s / UiKit.K, TextAnchor.UpperLeft, new Color(1f, .83f, .3f));
@@ -255,7 +260,7 @@ namespace LastWar
                 pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw, ch - 22 * s);
                 var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), Vector2.zero, Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, on ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : Color.white);
                 name.rectTransform.pivot = new Vector2(.5f, 0); name.rectTransform.sizeDelta = new Vector2(cw, 18 * s); name.text = SoldierBody.OutfitNames[i];
-                if (on) { var ck = UiKit.Txt(card.rectTransform, new Vector2(1, 1), new Vector2(-4, -2) * k, new Vector2(20, 20) * k, 12 * k, TextAnchor.MiddleCenter, new Color(27 / 255f, 20 / 255f, 4 / 255f)); ck.rectTransform.pivot = new Vector2(1, 1); ck.text = "✓"; }
+                if (on) { var ck = UiKit.Txt(card.rectTransform, new Vector2(1, 1), new Vector2(-4, -2) * k, new Vector2(20, 20) * k, 12 * k, TextAnchor.MiddleCenter, new Color(27 / 255f, 20 / 255f, 4 / 255f)); ck.rectTransform.pivot = new Vector2(1, 1); ck.text = ""; }
                 var tr = card.gameObject.AddComponent<EventTrigger>(); var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
                 e.callback.AddListener(_ => { Profile.Skin = skin; SpawnSoldier(); Open("outfit"); if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[skin]); });
                 tr.triggers.Add(e);
