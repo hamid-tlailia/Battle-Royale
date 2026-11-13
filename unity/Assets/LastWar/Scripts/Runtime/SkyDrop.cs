@@ -57,9 +57,9 @@ namespace LastWar
             {
                 Transform m = Instantiate(model, plane, false).transform;
                 // the file is turned off its axis (and glTFast mirrors X): nose to +Z, centred, ~26 m long
-                const float k = 0.85f;
-                m.localScale = Vector3.one * k; m.localRotation = Quaternion.Euler(0, -53.13f, 0);
-                m.localPosition = new Vector3(1.462f * k, -4.065f * k, -4.963f * k);
+                const float ps = 0.85f;
+                m.localScale = Vector3.one * ps; m.localRotation = Quaternion.Euler(0, -53.13f, 0);
+                m.localPosition = new Vector3(1.462f * ps, -4.065f * ps, -4.963f * ps);
                 foreach (Renderer r in m.GetComponentsInChildren<Renderer>(true))
                 {
                     var mats = r.sharedMaterials;
