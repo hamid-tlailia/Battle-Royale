@@ -4,6 +4,7 @@ import { loadSettings, settingsPanel } from './settings';
 import { editLayoutStandalone } from './layout';
 import { createHudButtons } from './buttons';
 import { ICONS } from './icons';
+import { levelOf, loadProgress } from '../meta/progress';
 import type { GameAssets, GunName } from '../render/assets';
 import { CharacterView, SKINS } from '../render/characters';
 
@@ -30,29 +31,46 @@ export type LobbyAction =
  * rocks from the game, hills and a sky gradient with haze.
  */
 function buildLobbyBackdrop(scene: THREE.Scene, assets: GameAssets) {
-  scene.background = new THREE.Color(0xbcd9ea);
-  scene.fog = new THREE.Fog(0xbcd9ea, 18, 60);
+  // a different scene each time you come back to the lobby: forest, farm, desert
+  let idx = 0;
+  try { idx = (+(localStorage.getItem('lw.lobbyScene') ?? '-1') + 1) % 3; localStorage.setItem('lw.lobbyScene', String(idx)); } catch { /* ignore */ }
+  const kind = (['forest', 'farm', 'desert'] as const)[idx];
+  const desert = kind === 'desert';
+  const sky = desert ? 0xe9d3b0 : 0xbcd9ea;
+  scene.background = new THREE.Color(sky);
+  scene.fog = new THREE.Fog(sky, 18, desert ? 80 : 60);
   const tl = new THREE.TextureLoader();
-  const photo = tl.load('/assets/maps/green.webp'); photo.colorSpace = THREE.SRGBColorSpace;
-  photo.repeat.set(0.08, 0.08); photo.offset.set(0.42, 0.5); // a grassy patch of the Highlands photo
-  const grain = tl.load('/assets/maps/detail_grass.webp'); grain.wrapS = grain.wrapT = THREE.RepeatWrapping; grain.repeat.set(30, 30);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: photo, color: 0xcfe0b0 }));
+  const photo = tl.load(desert ? '/assets/maps/desert.webp' : '/assets/maps/green.webp'); photo.colorSpace = THREE.SRGBColorSpace;
+  photo.repeat.set(0.08, 0.08); photo.offset.set(desert ? 0.2 : 0.42, desert ? 0.62 : 0.5);
+  const grain = tl.load(desert ? '/assets/maps/detail_sand.webp' : '/assets/maps/detail_grass.webp'); grain.wrapS = grain.wrapT = THREE.RepeatWrapping; grain.repeat.set(30, 30);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: photo, color: desert ? 0xffe2c8 : 0xcfe0b0 }));
   scene.add(ground);
-  const detail = new THREE.Mesh(new THREE.CircleGeometry(70, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: grain, transparent: true, opacity: 0.25, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false }));
+  const detail = new THREE.Mesh(new THREE.CircleGeometry(90, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: grain, transparent: true, opacity: 0.25, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false }));
   detail.position.y = 0.01; scene.add(detail);
-  const place = (name: string, x: number, z: number, s: number, rot = 0) => {
+  const place = (name: string, x: number, z: number, s: number, rot = 0, tint?: number) => {
     const pf = (assets.prefabs as Record<string, { parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] } | undefined>)[name];
     if (!pf) return;
-    for (const part of pf.parts) { const m = new THREE.Mesh(part.geometry, part.material); m.position.set(x, 0, z); m.rotation.y = rot; m.scale.setScalar(s); scene.add(m); }
+    for (const part of pf.parts) {
+      let mat = part.material;
+      if (tint !== undefined) { mat = (mat as THREE.MeshLambertMaterial).clone(); (mat as THREE.MeshLambertMaterial).color.multiply(new THREE.Color(tint)); }
+      const m = new THREE.Mesh(part.geometry, mat); m.position.set(x, 0, z); m.rotation.y = rot; m.scale.setScalar(s); scene.add(m);
+    }
   };
-  // trees and cover behind and around the soldier (camera looks toward -z)
-  ([['tpine1', -5, -9, 1], ['toak1', 6, -14, 0.9], ['tpine3', 2.5, -18, 1.1], ['tpine2', -11, -16, 1], ['tpine4', 10, -7, 0.9],
-    ['toak2', -16, -26, 1], ['tpine1', 15, -24, 1.1], ['tpine2', -2, -30, 1.2], ['tbush1', -2.8, -3.5, 0.9], ['tbush2', 3.2, -4.2, 1],
-    ['tbush3', -6.5, -5, 1.1], ['rock2', 4.5, -2.5, 0.6], ['rock4', -4, -1.8, 0.45], ['tpine3', -22, -12, 1], ['toak1', 22, -16, 1]] as [string, number, number, number][])
-    .forEach(([n, x, z, sc], i) => place(n, x, z, sc, i * 1.7));
-  // distant green hills
-  const hills = new THREE.Mesh(new THREE.CylinderGeometry(60, 60, 14, 40, 1, true), new THREE.MeshBasicMaterial({ color: 0x5f8a58, side: THREE.BackSide, fog: true }));
-  hills.position.y = 4; scene.add(hills);
+  type P = [string, number, number, number, number?, number?];
+  const sets: Record<typeof kind, P[]> = {
+    forest: [['tpine1', -5, -9, 1], ['toak1', 6, -14, 0.9], ['tpine3', 2.5, -18, 1.1], ['tpine2', -11, -16, 1], ['tpine4', 10, -7, 0.9],
+      ['toak2', -16, -26, 1], ['tpine1', 15, -24, 1.1], ['tpine2', -2, -30, 1.2], ['tbush1', -2.8, -3.5, 0.9], ['tbush2', 3.2, -4.2, 1],
+      ['tbush3', -6.5, -5, 1.1], ['rock2', 4.5, -2.5, 0.6], ['rock4', -4, -1.8, 0.45], ['tpine3', -22, -12, 1], ['toak1', 22, -16, 1]],
+    farm: [['windmill', 7, -16, 1, 0.6], ['windmill_blades', 7, -16, 1, 0.6], ['farmhouse', -9, -13, 1, 0.4], ['yardwall', 0, -24, 1, 0],
+      ['haybale', 2.8, -3.5, 1.4, 0.3], ['haybale', 3.9, -3.2, 1.4, 1.2], ['wagon', -4.2, -4.5, 1, 0.8], ['well', -1.5, -9, 1],
+      ['toak1', -20, -22, 1], ['toak2', 18, -26, 1.1], ['tbush2', 5.5, -6, 1], ['tbush1', -6.5, -6.5, 1], ['scarecrow', 9, -8, 1, -0.4]],
+    desert: [['house_e', -12, -20, 0.8, 0.5], ['house_d', 12, -22, 0.8, -0.6], ['rock1', 4, -4, 1.3, 0, 0xd58a62], ['rock3', -4.5, -3, 1.1, 1, 0xd58a62],
+      ['rock2', -9, -9, 1.6, 2, 0xc77a55], ['rock4', 9, -10, 1.5, 0.5, 0xc77a55], ['toak2', 18, -12, 0.7], ['car2', 3, -11, 1, 0.9], ['rock1', -16, -14, 2.2, 0, 0xc77a55]],
+  };
+  sets[kind].forEach(([n, x, z, sc, r, t]) => place(n, x, z, sc, r ?? 0, t));
+  // distant hills / mesas
+  const hills = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, desert ? 22 : 14, 40, 1, true), new THREE.MeshBasicMaterial({ color: desert ? 0xb06a48 : 0x5f8a58, side: THREE.BackSide, fog: true }));
+  hills.position.y = desert ? 7 : 4; scene.add(hills);
 }
 
 export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promise<boolean>, inviteRoom: string | null, onAction: (a: LobbyAction, p: Profile) => void) {
@@ -63,14 +81,17 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   el.innerHTML = `
     <canvas class="lobby-3d"></canvas>
     <div class="lb-top">
+      <div class="lb-banner">
+        <canvas class="lb-avatar" width="96" height="96"></canvas>
+        <div class="lb-who"><b class="lb-name"></b><div class="lb-lv"><span class="lb-level"></span><i><em></em></i></div><span class="srv">checking server…</span></div>
+      </div>
       <img class="lobby-logo" src="/logo.png" alt="${GAME_TITLE}">
-      <div class="lb-profile"><input class="name" maxlength="14" placeholder="Your name" value="${profile.name.replace(/"/g, '')}"><span class="srv">checking server…</span></div>
     </div>
+    <button class="lb-gear" data-tab="settings" aria-label="Settings">${ICONS.settings}</button>
     <nav class="lb-nav">
       ${tab('outfit', ICONS.outfit, 'OUTFIT')}
       ${tab('map', ICONS.map, 'MAP')}
       ${tab('friends', ICONS.friends, 'FRIENDS')}
-      ${tab('settings', ICONS.settings, 'SETTINGS')}
     </nav>
     <div class="lb-sheet">
       <section data-sec="outfit"><h3>OUTFIT</h3>
@@ -87,7 +108,9 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
         <div class="row joinrow"><input class="code" placeholder="room code"><button class="mid joinbtn">JOIN</button></div>
         <p class="note"></p>
         <a class="apk-link" href="/download/last-war.apk" download="last-war.apk">⬇ DOWNLOAD ANDROID APP (APK)</a></section>
-      <section data-sec="settings"><h3>SETTINGS</h3><div class="lobby-settings"></div></section>
+      <section data-sec="settings"><h3>SETTINGS</h3>
+        <label class="lbl">PLAYER NAME</label><input class="name" maxlength="14" placeholder="Your name" value="${profile.name.replace(/"/g, '')}">
+        <div class="lobby-settings"></div></section>
     </div>
     <div class="lb-play">
       <div class="lb-mapname"></div>
@@ -115,7 +138,9 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     view?.dispose();
     view = new CharacterView(assets, profile.skin, WEAPON_IDS[profile.slot] as GunName);
     scene.add(view.root);
+    portraitFrames = 90; // refresh the banner portrait once the (possibly loading) outfit is shown
   };
+  let portraitFrames = 0;
   rebuild();
   // facing you; turns only when you drag it
   let yaw = Math.PI, last = performance.now(), alive = true, drag: number | null = null;
@@ -133,6 +158,15 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     view!.update({ x: 0, y: 0.9, z: 0, yaw, pitch: -0.55, speed: 0, crouch: false, grounded: true }, dt, 3, true); // gun at low ready
     resize();
     renderer.render(scene, camera);
+    if (portraitFrames > 0 && --portraitFrames % 30 === 0) drawPortrait();
+  };
+  const avatar = el.querySelector('.lb-avatar') as HTMLCanvasElement;
+  const drawPortrait = () => { // head & shoulders from the 3D view, right after it was rendered
+    const head = new THREE.Vector3(0, 1.62, 0).project(camera);
+    const W = canvas.width, H = canvas.height, sx = (head.x * 0.5 + 0.5) * W, sy = (-head.y * 0.5 + 0.5) * H, r = H * 0.09;
+    const g = avatar.getContext('2d')!;
+    g.fillStyle = '#20301c'; g.fillRect(0, 0, 96, 96);
+    try { g.drawImage(canvas, sx - r, sy - r * 0.8, r * 2, r * 2, 0, 0, 96, 96); } catch { /* ignore */ }
   };
   requestAnimationFrame(loop);
 
@@ -168,7 +202,13 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
   el.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) => b.addEventListener('click', () => { profile.map = b.dataset.map as MapId; saveProfile(profile); sel(); }));
   el.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.addEventListener('click', () => { profile.skin = +b.dataset.skin!; saveProfile(profile); sel(); rebuild(); }));
   el.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((b) => b.addEventListener('click', () => { profile.slot = +b.dataset.slot!; saveProfile(profile); sel(); rebuild(); }));
-  nameIn.addEventListener('input', () => { profile.name = nameIn.value.replace(/[^\w \-]/g, '').slice(0, 14); saveProfile(profile); });
+  const nameEl = el.querySelector('.lb-name') as HTMLElement;
+  const showName = () => { nameEl.textContent = profile.name || 'Soldier'; };
+  showName();
+  nameIn.addEventListener('input', () => { profile.name = nameIn.value.replace(/[^\w \-]/g, '').slice(0, 14); saveProfile(profile); showName(); });
+  const prog = levelOf(loadProgress().xp);
+  (el.querySelector('.lb-level') as HTMLElement).textContent = `LV ${prog.level}`;
+  (el.querySelector('.lb-lv em') as HTMLElement).style.width = `${Math.round(prog.frac * 100)}%`;
 
   const note = el.querySelector('.note') as HTMLElement;
   const online = [el.querySelector('.quick'), el.querySelector('.squad'), el.querySelector('.joinbtn'), el.querySelector('.join-invite')].filter(Boolean) as HTMLButtonElement[];

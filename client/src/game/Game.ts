@@ -4,6 +4,7 @@ import {
   type Hitbox, type InputCmd, type LootItem, type MapId, type SimEvent, type SimPlayer, type WeaponId,
 } from '@lw/shared';
 import { buildMapView, updateTreeLod } from '../render/mapView';
+import { addMatch } from '../meta/progress';
 import { CharacterView } from '../render/characters';
 import type { GameAssets, GunName } from '../render/assets';
 import { AdaptiveResolution } from '../render/adaptive';
@@ -398,6 +399,7 @@ export class Game {
     this.ended = true;
     const me = this.sim.players.get(this.myId)!;
     this.controls.fireHeld = false;
+    addMatch(me.kills, win ? 1 : me.place, this.sim.players.size, win);
     this.hud.showEnd(win, win ? 1 : me.place, this.sim.players.size, me.kills, this.killerName, () => {
       this.dispose();
       this.onRestart();
@@ -547,6 +549,10 @@ export class Game {
     this.controls.scopedView = scopedView;
     this.hudEl.classList.toggle('scoped-ui', scopedView);
     this.hudEl.classList.toggle('sky', me.alive && me.move.air >= 2);
+    const wasAir = this.controls.inAir;
+    this.controls.inAir = me.alive && me.move.air >= 2;
+    if (!this.controls.inAir || !wasAir) this.controls.dropStraight = false;
+    this.hudEl.classList.toggle('drop-straight', this.controls.dropStraight);
     this.updateFrostPreview(me);
     this.menuTimer -= dt;
     if (this.menuTimer <= 0) { // ground-loot menu

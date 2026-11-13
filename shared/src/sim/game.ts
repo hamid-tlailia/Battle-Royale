@@ -322,11 +322,10 @@ export class GameSim {
     if (v.meds) drops.push({ kind: 'med', amount: v.meds });
     if (v.frost) drops.push({ kind: 'frost', amount: v.frost });
     if (v.scope) drops.push({ kind: 'scope', item: v.scope, amount: 1 });
-    const y = v.move.y - 0.6;
-    drops.forEach((d, i) => {
-      const a = (i / Math.max(1, drops.length)) * Math.PI * 2;
-      this.addLoot({ ...d, x: v.move.x + Math.cos(a) * 0.9, y, z: v.move.z + Math.sin(a) * 0.9 });
-    });
+    // everything goes into one crate on the ground where the player fell
+    const y = this.phys.groundHeight(v.move.x, v.move.z) + 0.05;
+    const box = 1 + v.id * 7 + (this.tick % 7);
+    drops.forEach((d) => this.addLoot({ ...d, x: v.move.x, y: Math.max(y, v.move.y - halfTotalOf(v.move) + 0.05), z: v.move.z, box }));
   }
 
   // ------------------------------------------------------------------ medkit & frost wall

@@ -13,6 +13,9 @@ export class Controls {
   crouchToggle = false;
   proneToggle = false;
   sprintToggle = false;
+  /** sky-dive: glide toward where you look; JUMP toggles a straight drop */
+  inAir = false;
+  dropStraight = false;
   /** joystick pushed past its rim toward the top: auto-sprint while held */
   sprintLock = false;
   onSprintLock: (on: boolean) => void = () => {};
@@ -120,7 +123,7 @@ export class Controls {
   }
   private buttonTouches = new Map<number, () => void>();
 
-  jump() { this.jumpQueued = 3; }
+  jump() { if (this.inAir) { this.dropStraight = !this.dropStraight; return; } this.jumpQueued = 3; }
   reload() { this.reloadQueued = 3; }
   heal() { this.healQueued = 3; }
   /** put the gun away / take it back out */
@@ -226,6 +229,7 @@ export class Controls {
   sampleButtons(): number {
     let b = 0;
     if (this.jumpQueued > 0) { this.jumpQueued--; b |= BTN.JUMP; }
+    if (this.inAir && this.dropStraight) b |= BTN.JUMP;
     if (this.reloadQueued > 0) { this.reloadQueued--; b |= BTN.RELOAD; }
     if (this.healQueued > 0) { this.healQueued--; b |= BTN.HEAL; }
     if (this.frostQueued > 0) { this.frostQueued--; b |= BTN.FROST; }
@@ -252,6 +256,8 @@ export class Controls {
       if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) mx += 1;
       if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) mx -= 1;
     }
+    // sky-diving with the stick untouched: glide straight toward where the camera looks
+    if (this.inAir && !this.dropStraight && Math.hypot(mx, mz) < 0.15) { mx = 0; mz = 1; }
     const len = Math.hypot(mx, mz);
     if (len > 1) { mx /= len; mz /= len; }
     return { mx, mz };

@@ -220,7 +220,7 @@ export class Hud {
       }
       return `<div class="bag-row" data-pick="${it.id}">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div><button data-pick="${it.id}">TAKE</button></div>`;
     };
-    this.lootList.innerHTML = `<div class="loot-head">ON THE GROUND</div>${items.slice(0, 8).map(row).join('')}`;
+    this.lootList.innerHTML = `<div class="loot-head">${items.some((i) => i.box !== undefined) ? 'CRATE' : 'ON THE GROUND'}</div>${items.slice(0, 8).map(row).join('')}`;
     this.lootList.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) => {
       const go = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onPick(+b.dataset.pick!); b.closest('.bag-row')?.classList.add('taking'); };
       b.addEventListener(b.tagName === 'BUTTON' ? 'touchstart' : 'touchend', go, { passive: false });
@@ -291,9 +291,14 @@ export class Hud {
     // who shot me recently
     const now = performance.now();
     this.hitMarks = this.hitMarks.filter((m) => m.until > now);
-    for (const m of this.hitMarks) {
-      g.fillStyle = `rgba(255,40,40,${Math.min(1, (m.until - now) / 1000)})`;
-      g.beginPath(); g.arc((m.x + o) * k, (m.z + o) * k, 9, 0, Math.PI * 2); g.fill();
+    for (const m of this.hitMarks) { // who is shooting me: big red dot + red line from me toward them
+      const a = Math.min(1, (m.until - now) / 1000);
+      const sx = (m.x + o) * k, sz = (m.z + o) * k, mx = (me.x + o) * k, mz = (me.z + o) * k;
+      const L = Math.hypot(sx - mx, sz - mz) || 1;
+      g.strokeStyle = `rgba(255,30,30,${a})`; g.lineWidth = 6;
+      g.beginPath(); g.moveTo(mx + (sx - mx) / L * 14, mz + (sz - mz) / L * 14); g.lineTo(mx + (sx - mx) / L * Math.min(L, 60), mz + (sz - mz) / L * Math.min(L, 60)); g.stroke();
+      g.fillStyle = `rgba(255,30,30,${a})`; g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 3;
+      g.beginPath(); g.arc(sx, sz, 15, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     // gunfire nearby: mark + a short line from me toward it
     this.shotMarks = this.shotMarks.filter((m) => m.until > now);
@@ -327,6 +332,10 @@ export class Hud {
     // me
     const px = (me.x + o) * k, pz = (me.z + o) * k;
     g.save(); g.translate(px, pz); g.rotate(-me.yaw);
+    // view cone: where you are looking
+    const cone = g.createRadialGradient(0, 0, 4, 0, 0, 70);
+    cone.addColorStop(0, 'rgba(255,255,255,.55)'); cone.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = cone; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 70, -Math.PI / 2 - 0.55, -Math.PI / 2 + 0.55); g.closePath(); g.fill();
     g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 1.5;
     g.beginPath(); g.moveTo(0, -14); g.lineTo(9, 9); g.lineTo(0, 4); g.lineTo(-9, 9); g.closePath(); g.fill(); g.stroke();
     g.restore();
@@ -380,7 +389,7 @@ export class Hud {
   }
 
   setPlaneHint(inPlane: boolean, falling: boolean) {
-    const text = inPlane ? 'Tap the map to mark a landing spot · tap <b>JUMP</b> to drop' : falling ? 'Steer to glide (~250 m) · look down + forward to dive · parachute opens by itself' : '';
+    const text = inPlane ? 'Tap the map to mark a landing spot · tap <b>JUMP</b> to drop' : falling ? 'You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself' : '';
     if (!text) { this.planeHint?.remove(); this.planeHint = null; return; }
     if (!this.planeHint) this.planeHint = el('plane-hint', this.root);
     if (this.planeHint.innerHTML !== text) this.planeHint.innerHTML = text;

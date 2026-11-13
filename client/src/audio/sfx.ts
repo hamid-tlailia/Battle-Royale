@@ -81,7 +81,22 @@ export class Sfx {
   }
 
   /** louder wind high up (sky-diving) */
-  setWind(level: number) { if (this.windGain) this.windGain.gain.value = this.enabled ? 0.06 + level * 0.3 : 0; }
+  private rushGain: GainNode | null = null;
+  setWind(level: number) {
+    if (this.windGain) this.windGain.gain.value = this.enabled ? 0.06 + level * 0.55 : 0;
+    // rushing air while sky-diving (filtered noise), on top of the recorded wind
+    const ctx = this.ctx;
+    if (!ctx || !this.noise) return;
+    if (!this.rushGain) {
+      if (level <= 0) return;
+      const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 650; bp.Q.value = 0.6;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.35; const lg = ctx.createGain(); lg.gain.value = 250; lfo.connect(lg).connect(bp.frequency); lfo.start();
+      this.rushGain = ctx.createGain(); this.rushGain.gain.value = 0;
+      src.connect(bp).connect(this.rushGain).connect(this.master); src.start();
+    }
+    this.rushGain.gain.setTargetAtTime(this.enabled ? level * 0.5 : 0, ctx.currentTime, 0.4);
+  }
 
   /** dist in metres, pan -1..1 */
   private chain(vol: number, dist: number, pan: number): AudioNode | null {

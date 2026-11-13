@@ -396,3 +396,29 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .lb-play .big.bots { margin: 0; font-size: 30px; letter-spacing: 4px; padding: 14px 10px; color: #1b1404; background: linear-gradient(#ffe07a, #f0b43c); box-shadow: 0 5px 0 #9a6a10, 0 8px 20px rgba(0,0,0,.4); }
 .lb-play .big.bots small { display: block; font-size: 11px; letter-spacing: 2px; opacity: .75; }
 .lb-play .mid.quick { padding: 8px; }
+
+#hud.sky .btn-jump { opacity: 1 !important; pointer-events: auto !important; }
+#hud.drop-straight .btn-jump { background: rgba(255,211,77,.5); border-color: #ffd34d; }
+
+/* lobby v2.1: profile banner, settings cog, readable settings */
+.lb-top { gap: 14px; }
+.lb-top .lobby-logo { width: min(120px, 15vw); }
+.lb-banner { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 12px;
+  background: linear-gradient(90deg, rgba(8,16,8,.85), rgba(8,16,8,.45)); border: 1px solid rgba(255,211,77,.45); }
+.lb-avatar { width: 52px; height: 52px; border-radius: 9px; border: 2px solid #ffd34d; background: #20301c; }
+.lb-who { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.lb-who b { font-size: 16px; letter-spacing: .5px; }
+.lb-lv { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 900; color: #ffd34d; }
+.lb-lv i { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; }
+.lb-lv em { display: block; height: 100%; background: #ffd34d; }
+.lb-who .srv { font-size: 10px; color: #ffb38a; } .lb-who .srv.ok { color: #b8f27c; }
+.lb-gear { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); width: 46px; height: 46px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.3); background: rgba(8,16,8,.7); color: #fff; display: flex; align-items: center; justify-content: center; }
+.lb-gear svg { width: 28px; height: 28px; }
+.lb-gear.on { background: #ffd34d; color: #1b1404; }
+.lb-sheet .settings-panel { left: auto !important; transform: none !important; width: 100% !important; overflow: visible; }
+.lb-sheet .settings-panel label { display: block; width: 100%; }
+.lb-sheet .settings-panel label.row { display: flex; align-items: center; gap: 8px; }
+.lb-sheet input.name { width: 100%; font-weight: 800; }
+.lb-nav { transform: translateY(-50%); }
+.lb-sheet .lobby-settings { position: static !important; left: auto !important; top: auto !important; width: 100%; }

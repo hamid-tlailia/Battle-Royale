@@ -4,6 +4,8 @@ import type { WeaponId } from './weapons';
 export type LootKind = 'weapon' | 'ammo' | 'med' | 'armor' | 'scope' | 'frost';
 
 export interface LootItem {
+  /** items spilled by a dead player share a box id (drawn as one crate, listed together) */
+  box?: number;
   id: number;
   kind: LootKind;
   /** weapon / ammo: which weapon. scope: zoom level (2, 4). */

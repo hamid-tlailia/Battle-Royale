@@ -172,11 +172,13 @@ export function simulateMove(phys: PhysicsWorld, id: number, s: MoveState, raw: 
   if (s.air >= 2) {
     const above = s.y - phys.groundHeight(s.x, s.z);
     if (s.air === 2 && above < SKY.chuteHeight) s.air = 3; // parachute opens automatically
-    const hs = s.air === 2 ? SKY.fallSpeedH : SKY.chuteSpeedH;
+    // JUMP held while in the air = drop straight down (no glide)
+    const straight = (input.buttons & BTN.JUMP) !== 0;
+    const hs = straight ? 0 : s.air === 2 ? SKY.fallSpeedH : SKY.chuteSpeedH;
     const tvx = (-sin * input.mz + cos * input.mx) * hs, tvz = (-cos * input.mz - sin * input.mx) * hs;
     const k = Math.min(1, dt * 3);
     s.vx += (tvx - s.vx) * k; s.vz += (tvz - s.vz) * k;
-    const dive = input.mz > 0.5 && input.pitch < -0.6; // push forward while looking straight down = dive; otherwise glide
+    const dive = straight; // straight drop falls fast; otherwise glide
     const targetVy = s.air === 2 ? (dive ? -SKY.diveSpeed : -SKY.fallSpeed) : -SKY.chuteSpeed;
     s.vy += (targetVy - s.vy) * Math.min(1, dt * 2.5);
     scratch.x = s.vx * dt; scratch.y = s.vy * dt; scratch.z = s.vz * dt;

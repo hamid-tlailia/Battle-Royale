@@ -53,6 +53,12 @@ export class LootView {
       if (!pf?.parts.length) { this.add(kind, fallback(), vc); return; }
       pf.parts.forEach((part, i) => this.add(i ? `${kind}#${i}` : kind, part.geometry.clone().rotateX(rotX), part.material));
     };
+    // a dead player's crate (one per box id): the ammo crate model, bigger
+    {
+      const pf = (assets.prefabs as Record<string, { parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] } | undefined>).item_ammo;
+      if (pf?.parts.length) pf.parts.forEach((part, i) => this.add(i ? `deathbox#${i}` : 'deathbox', part.geometry.clone().scale(2.3, 2.6, 2.6), part.material));
+      else this.add('deathbox', colored(new THREE.BoxGeometry(1.1, 0.5, 0.5), 0x7a5a32), vc);
+    }
     real('ammo', 'item_ammo', 0, () => colored(new THREE.BoxGeometry(0.34, 0.2, 0.22), 0xffffff));
     real('med', 'item_med', 0, () => mergeGeometries([
       colored(new THREE.BoxGeometry(0.42, 0.18, 0.3), 0xf4f4f4),
@@ -115,16 +121,18 @@ export class LootView {
     for (const im of this.meshes.values()) im.count = 0;
     let rings = 0;
     const cx = camera.position.x, cz = camera.position.z;
+    const boxes = new Set<number>();
     for (const it of this.items) {
       const d2 = (it.x - cx) ** 2 + (it.z - cz) ** 2;
       if (d2 > 90 * 90) continue;
-      const key = it.kind === 'weapon' ? `weapon:${it.item}` : it.kind;
+      if (it.box !== undefined) { if (boxes.has(it.box)) continue; boxes.add(it.box); }
+      const key = it.box !== undefined ? 'deathbox' : it.kind === 'weapon' ? `weapon:${it.item}` : it.kind;
       const im = this.meshes.get(key);
       if (!im) continue;
       const n = counts.get(key) ?? 0;
       if (n >= MAX) continue;
       // resting on the ground like real objects (scopes / ice-wall charges still hover so they read)
-      const small = it.kind === 'scope' || it.kind === 'frost';
+      const small = it.box === undefined && (it.kind === 'scope' || it.kind === 'frost');
       const lift = small ? 0.28 + Math.sin(this.time * 2 + it.id) * 0.06 : it.kind === 'weapon' ? 0.06 : 0.01;
       this.e.set(0, small ? this.time * 1.2 + it.id : it.id * 2.399, 0);
       this.m.compose(this.p.set(it.x, it.y + lift, it.z), this.q.setFromEuler(this.e), this.s.set(1, 1, 1));
@@ -138,7 +146,7 @@ export class LootView {
       if (rings < MAX) {
         this.m.compose(this.p.set(it.x, it.y + 0.03, it.z), this.q.identity(), this.s.set(1, 1, 1));
         this.ring.setMatrixAt(rings, this.m);
-        this.ring.setColorAt(rings++, this.c.set(RING_COL[it.kind]));
+        this.ring.setColorAt(rings++, this.c.set(it.box !== undefined ? 0xffd34d : RING_COL[it.kind]));
       }
     }
     for (const [key, im] of this.meshes) {

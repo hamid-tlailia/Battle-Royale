@@ -5,7 +5,7 @@ import { toLambert, type GameAssets, type GunName } from './assets';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
-type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'jump' | 'fire' | 'crouch_idle' | 'crouch_walk' | 'crouch_fire' | 'death' | 'death_crouch' | 'prone' | 'death_prone';
+type Clip = 'idle' | 'idle_rifle' | 'walk' | 'walk_fire' | 'run' | 'run_free' | 'jump' | 'fire' | 'crouch_idle' | 'crouch_walk' | 'crouch_fire' | 'death' | 'death_crouch' | 'prone' | 'death_prone';
 
 /** Outfit colours (multiplied over the camo texture). Index 0 = original woodland camo. Chosen in the lobby. */
 export const SKINS: { name: string; color?: number; outfit?: string }[] = [
@@ -23,6 +23,30 @@ export const SKINS: { name: string; color?: number; outfit?: string }[] = [
 ];
 
 /** Soft bright rim on characters so players stand out from grass, rocks and shade (visible at range). */
+/**
+ * Empty-handed sprint: the rifle run for legs and body, with the arms swinging from the walk cycle
+ * (time-stretched to the run's stride so arms and legs stay in step). Cached per clip set.
+ */
+const freeRunCache = new WeakMap<THREE.AnimationClip[], THREE.AnimationClip[]>();
+function withFreeRun(clips: THREE.AnimationClip[]): THREE.AnimationClip[] {
+  const hit = freeRunCache.get(clips);
+  if (hit) return hit;
+  const run = clips.find((c) => c.name === 'run'), walk = clips.find((c) => c.name === 'walk');
+  if (!run || !walk) { freeRunCache.set(clips, clips); return clips; }
+  const isArm = (n: string) => /mixamorig(Left|Right)(Shoulder|Arm|ForeArm|Hand)/.test(n);
+  const k = run.duration / walk.duration;
+  const tracks = [
+    ...run.tracks.filter((t) => !isArm(t.name)),
+    ...walk.tracks.filter((t) => isArm(t.name)).map((t) => {
+      const T = t.constructor as new (n: string, t: ArrayLike<number>, v: ArrayLike<number>) => THREE.KeyframeTrack;
+      return new T(t.name, Array.from(t.times, (x) => x * k), t.values);
+    }),
+  ];
+  const out = [...clips, new THREE.AnimationClip('run_free', run.duration, tracks)];
+  freeRunCache.set(clips, out);
+  return out;
+}
+
 const rimmed = new WeakSet<THREE.Material>();
 function addRim(mat: THREE.Material) {
   if (rimmed.has(mat)) return; // (material clones do not inherit onBeforeCompile)
@@ -103,7 +127,7 @@ export function retargetClips(src: GLTF, dst: GLTF): THREE.AnimationClip[] {
 }
 const LOD_DISTANCE = 14;
 /** Speed (m/s) at which each locomotion clip looks right — used to scale playback rate. */
-const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 2.0, walk_fire: 2.6, run: 6.0, crouch_walk: 1.6 };
+const CLIP_SPEED: Partial<Record<Clip, number>> = { walk: 2.0, walk_fire: 2.6, run: 6.0, run_free: 6.0, crouch_walk: 1.6 };
 
 export interface CharacterState {
   x: number; y: number; z: number; yaw: number;
@@ -188,7 +212,7 @@ export class CharacterView {
 
     this.mixer = new THREE.AnimationMixer(this.model);
     this.actions.clear();
-    for (const clip of clips) {
+    for (const clip of withFreeRun(clips)) {
       const a = this.mixer.clipAction(clip);
       const once = clip.name === 'jump' || clip.name.startsWith('death');
       if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
@@ -282,7 +306,7 @@ export class CharacterView {
     else if (air === 3) clip = 'idle';
     else if (this.airTime > 0.15) clip = 'jump';
     else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
-    else if (st.speed > 5.2) clip = 'run'; // sprinting always uses the real run
+    else if (st.speed > 5.2) clip = st.armed === false ? 'run_free' : 'run'; // empty hands: arms swing freely
     else if (st.armed === false) clip = st.speed > 0.4 ? 'walk' : 'idle'; // empty hands: no rifle pose
     else if (st.speed > 0.4) clip = 'walk_fire';
     else clip = st.firing ? 'fire' : 'idle_rifle';
