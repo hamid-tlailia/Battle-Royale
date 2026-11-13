@@ -12,16 +12,16 @@ namespace LastWar
     public static class MapBuilder
     {
         /// <summary>props players walk through (bullets still stop): same list as the web game</summary>
-        static readonly HashSet<string> Cover = new HashSet<string> { "fence", "stump", "well", "wagon", "haybale" };
+        static readonly HashSet<string> Cover = new HashSet<string> { "stump", "well", "wagon", "haybale" }; // walked through (like the web game); fences block
         /// <summary>models not placed in Unity (simple far versions / scan rock mesh handled separately)</summary>
         public const int CoverLayer = 8, PlayerLayer = 9;
 
         static Dictionary<string, ShapeData> shapes;
         static readonly Dictionary<string, Mesh> colliderMeshes = new Dictionary<string, Mesh>();
 
-        public static Material NewLit(Color color, Texture tex = null)
+        public static Material NewLit(Color color, Texture tex = null, bool cutout = false)
         {
-            Material baseMat = Resources.Load<Material>("Materials/Lit");
+            Material baseMat = Resources.Load<Material>(cutout ? "Materials/LitCutout" : "Materials/Lit");
             var m = baseMat != null ? new Material(baseMat) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
             m.SetColor("_BaseColor", color);
             if (tex != null) m.SetTexture("_BaseMap", tex);
@@ -120,7 +120,17 @@ namespace LastWar
             bool cover = Cover.Contains(p.p);
             if (cover) root.layer = CoverLayer;
             GameObject model = Model(p.p);
-            if (model != null) UnityEngine.Object.Instantiate(model, root.transform, false);
+            if (model != null)
+            {
+                GameObject inst = UnityEngine.Object.Instantiate(model, root.transform, false);
+                // glTFast's own shaders draw grey / nothing in player builds: use URP Lit with the same colour + texture
+                foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
+                {
+                    var mats = r.sharedMaterials;
+                    for (int k = 0; k < mats.Length; k++) mats[k] = LitFrom(mats[k]);
+                    r.sharedMaterials = mats;
+                }
+            }
             if (!shapes.TryGetValue(p.p, out ShapeData shape)) return;
             switch (shape.type)
             {
@@ -135,6 +145,22 @@ namespace LastWar
                     mc.convex = shape.type == "hull";
                     break;
             }
+        }
+
+        static readonly Dictionary<Material, Material> litCache = new Dictionary<Material, Material>();
+        /// <summary>glTF material -> URP Lit (opaque or alpha-cutout), shared per source material</summary>
+        public static Material LitFrom(Material src)
+        {
+            if (src == null) return NewLit(Color.white);
+            if (litCache.TryGetValue(src, out Material m)) return m;
+            if (src.shader != null && src.shader.name.ToLower().Contains("unlit")) { litCache[src] = src; return src; } // scanned rock: keep
+            Texture tex = null; Color col = Color.white;
+            foreach (string prop in new[] { "baseColorTexture", "_BaseMap", "_MainTex" }) if (src.HasProperty(prop) && src.GetTexture(prop) != null) { tex = src.GetTexture(prop); break; }
+            foreach (string prop in new[] { "baseColorFactor", "_BaseColor", "_Color" }) if (src.HasProperty(prop)) { col = src.GetColor(prop); break; }
+            bool cutout = src.renderQueue >= 2450 || (src.HasProperty("alphaCutoff") && src.GetFloat("alphaCutoff") > 0f && src.IsKeywordEnabled("_ALPHATEST_ON"));
+            m = NewLit(new Color(col.r, col.g, col.b, 1f), tex, cutout);
+            litCache[src] = m;
+            return m;
         }
 
         static Mesh ColliderMesh(ShapeData s)

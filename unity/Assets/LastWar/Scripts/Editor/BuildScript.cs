@@ -133,6 +133,15 @@ namespace LastWar.EditorTools
             string path = dir + "/Lit.mat";
             if (AssetDatabase.LoadAssetAtPath<Material>(path) == null)
                 AssetDatabase.CreateAsset(new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true }, path);
+            string cut = dir + "/LitCutout.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(cut) == null)
+            {
+                // leaves, fences with gaps, window frames: alpha-tested (keeps the shader variant in the build)
+                var m = new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true };
+                m.SetFloat("_AlphaClip", 1f); m.SetFloat("_Cutoff", 0.5f); m.EnableKeyword("_ALPHATEST_ON");
+                m.SetFloat("_Cull", 0f); m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                AssetDatabase.CreateAsset(m, cut);
+            }
             // zone wall: see-through blue, both sides; tracer: bright additive streak
             Transparent(dir + "/ZoneWall.mat", new Color(0.25f, 0.55f, 1f, 0.28f), false);
             Transparent(dir + "/Tracer.mat", new Color(1f, 0.85f, 0.5f, 0.9f), true);

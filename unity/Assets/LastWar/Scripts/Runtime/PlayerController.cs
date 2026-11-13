@@ -21,6 +21,10 @@ namespace LastWar
         Vector3 velocity;
         float camDist = 3.6f;
         public bool Scoped => input.Scoped && fighter.Alive;
+        /// <summary>the crosshair is on a living enemy (no wall in between)</summary>
+        public Fighter OnEnemy { get; private set; }
+        public static bool AimAssistOn = true; // false = full control (settings, phase 3)
+        Fighter lockTarget; float lockYaw, lockPitch, lockOff;
 
         public static PlayerController Spawn(Vector3 pos, TouchControls input, Camera cam)
         {
@@ -46,7 +50,7 @@ namespace LastWar
             float dt = Time.deltaTime;
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
-            float sens = lookSensitivity * (Scoped ? cam.fieldOfView / 70f : 1f);
+            float sens = lookSensitivity * (Scoped ? cam.fieldOfView / 70f : 1f) * (OnEnemy != null && AimAssistOn ? 0.55f : 1f);
             yaw += input.LookDelta.x * sens;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
 
@@ -70,6 +74,7 @@ namespace LastWar
             velocity.y += Gravity * dt;
             cc.Move(velocity * dt);
 
+            AimAssist(dt);
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
             body.AimDir = aim;
@@ -95,6 +100,72 @@ namespace LastWar
             foreach (RaycastHit h in Physics.RaycastAll(r, 300f, ~0, QueryTriggerInteraction.Ignore))
                 if (!h.collider.transform.IsChildOf(transform) && Vector3.Distance(r.origin, h.point) < Vector3.Distance(r.origin, target)) target = h.point;
             return (target - eye).normalized;
+        }
+
+        // ------------------------------------------------------------ aim assist (same rules as the web game)
+        void Angles(Fighter q, out float qYaw, out float qPitch, out float dist, out Vector3 t)
+        {
+            Vector3 c = cam.transform.position; t = q.transform.position + Vector3.up * 1.05f;
+            Vector3 d = t - c; dist = d.magnitude;
+            qYaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; qPitch = Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude);
+        }
+
+        bool Los(Vector3 from, Vector3 to, Fighter q)
+        {
+            Vector3 d = to - from;
+            foreach (RaycastHit h in Physics.RaycastAll(from, d.normalized, d.magnitude, ~0, QueryTriggerInteraction.Ignore))
+                if (!h.collider.transform.IsChildOf(transform) && !h.collider.transform.IsChildOf(q.transform)) return false;
+            return true;
+        }
+
+        void AimAssist(float dt)
+        {
+            OnEnemy = null;
+            if (cam == null) return;
+            // 1) is the crosshair on an enemy right now?
+            Ray r = cam.ViewportPointToRay(new Vector3(.5f, .5f, 0));
+            float best = float.MaxValue;
+            foreach (RaycastHit h in Physics.RaycastAll(r, 250f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (h.collider.transform.IsChildOf(transform) || h.distance >= best) continue;
+                best = h.distance;
+                Fighter q = h.collider.GetComponentInParent<Fighter>();
+                OnEnemy = q != null && q != fighter && q.Alive ? q : null;
+            }
+            if (!AimAssistOn) { lockTarget = null; return; }
+            // 2) sticky aim: lock on when the dot turns red and follow the target's movement
+            if (OnEnemy != null && lockTarget != OnEnemy) { Angles(OnEnemy, out lockYaw, out lockPitch, out _, out _); lockTarget = OnEnemy; lockOff = 0; }
+            if (lockTarget != null)
+            {
+                lockOff = OnEnemy != null ? 0 : lockOff + dt;
+                Angles(lockTarget, out float qy, out float qp, out float dist, out Vector3 t);
+                if (!lockTarget.Alive || dist > 150f || lockOff > 0.3f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
+                else
+                {
+                    yaw += Mathf.DeltaAngle(lockYaw, qy);
+                    pitch = Mathf.Clamp(pitch + (qp - lockPitch), -1.2f, 1.2f);
+                    lockYaw = qy; lockPitch = qp;
+                    return;
+                }
+            }
+            // 3) gentle pull toward the closest enemy in a small cone while firing / scoped
+            bool engaged = input.FireHeld || Scoped;
+            if (!engaged || GameBoot.Instance == null) return;
+            float bestAng = float.MaxValue, by = 0, bp = 0;
+            foreach (Fighter q in GameBoot.Instance.Fighters)
+            {
+                if (q == fighter || !q.Alive) continue;
+                Angles(q, out float qy, out float qp, out float dist, out Vector3 t);
+                if (dist > 110f) continue;
+                float dyaw = Mathf.DeltaAngle(yaw, qy) * Mathf.Deg2Rad, dp = qp - pitch;
+                float ang = Mathf.Sqrt(dyaw * dyaw + dp * dp);
+                float cone = Mathf.Max(0.05f, Mathf.Atan(1f / dist)) * (Scoped ? 1.2f : 1.8f);
+                if (ang > cone || ang > bestAng || !Los(cam.transform.position, t, q)) continue;
+                bestAng = ang; by = dyaw; bp = dp;
+            }
+            if (bestAng == float.MaxValue) return;
+            float k = Mathf.Min(1f, (input.FireHeld ? 7f : 3.5f) * dt);
+            yaw += by * k * Mathf.Rad2Deg; pitch += bp * k * 0.6f;
         }
 
         bool NearGround() => Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 0.5f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore);

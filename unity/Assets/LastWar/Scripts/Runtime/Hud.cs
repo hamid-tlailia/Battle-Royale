@@ -23,6 +23,8 @@ namespace LastWar
         readonly List<(string text, bool mine, float t)> feed = new List<(string, bool, float)>();
         RectTransform endPanel; Text endTitle, endSub;
         float hitT, flashT, bannerT; bool hitKill;
+        class Floater { public Text t; public Vector3 pos; public float life; }
+        readonly List<Floater> floaters = new List<Floater>();
         static readonly Vector2 BC = new Vector2(.5f, 0), TC = new Vector2(.5f, 1), C = new Vector2(.5f, .5f);
 
         public static Hud Create(TouchControls input, PlayerController player)
@@ -115,7 +117,17 @@ namespace LastWar
 
         void Hit(Fighter victim, Fighter attacker, float dmg, bool head, Vector3 point)
         {
-            if (attacker != null && attacker == player.fighter && victim != attacker) { hitT = 0.3f; hitKill = !victim.Alive || head; }
+            if (attacker != null && attacker == player.fighter && victim != attacker)
+            {
+                hitT = 0.3f; hitKill = !victim.Alive || head;
+                // floating damage number (web .dmg: white 18 px, head red 26 px, armour blue)
+                bool armor = victim.armor > 0;
+                var t = UiKit.Txt(input.Canvas.transform, C, Vector2.zero, new Vector2(60, 30), head ? 26 : 18, TextAnchor.MiddleCenter,
+                    head ? new Color(1f, 0.17f, 0.17f) : armor ? new Color(0.55f, 0.78f, 1f) : Color.white);
+                t.rectTransform.pivot = C; t.text = Mathf.RoundToInt(dmg).ToString();
+                t.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .6f);
+                floaters.Add(new Floater { t = t, pos = point + new Vector3(Random.Range(-.2f, .2f), .3f, 0), life = 0.9f });
+            }
             if (victim == player.fighter) flashT = Mathf.Min(0.5f, flashT + dmg / 60f);
         }
 
@@ -138,7 +150,7 @@ namespace LastWar
 
         void Update()
         {
-            Fighter f = player.fighter; float dt = Time.deltaTime; const float K = UiKit.K;
+            Fighter f = player.fighter; float dt = Time.deltaTime; const float K = UiKit.K; Camera cam = player.cam;
             hpFill.rectTransform.sizeDelta = new Vector2(240 * f.hp / Fighter.MaxHp, 10) * K;
             hpFill.color = f.hp > 30 ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
             armorFill.rectTransform.sizeDelta = new Vector2(240 * f.armor / 100f, 7) * K;
@@ -192,20 +204,22 @@ namespace LastWar
             zoneBox.rectTransform.sizeDelta = new Vector2(zoneText.preferredWidth + 20 * K, 18 * K);
             centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : "";
 
-            // crosshair: red dot on an enemy
-            bool onEnemy = false;
-            Camera cam = player.cam;
-            if (cam != null && Physics.Raycast(cam.ViewportPointToRay(new Vector3(.5f, .5f)), out RaycastHit hit, 250f, ~0, QueryTriggerInteraction.Ignore))
-            {
-                Fighter t = hit.collider.GetComponentInParent<Fighter>();
-                onEnemy = t != null && t != f && t.Alive;
-            }
+            bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
             dot.transform.parent.gameObject.SetActive(f.Alive);
             hitT -= dt;
             float ha = Mathf.Clamp01(hitT * 5f);
             hitRing.color = hitKill ? new Color(1f, 0.23f, 0.19f, ha) : new Color(1, 1, 1, ha);
             hitRing.rectTransform.localScale = Vector3.one * (hitKill ? 1.4f : 1.1f);
+
+            for (int k = floaters.Count - 1; k >= 0; k--)
+            {
+                Floater fl = floaters[k]; fl.life -= dt; fl.pos += Vector3.up * dt * 1.2f;
+                Vector3 sp = cam != null ? cam.WorldToScreenPoint(fl.pos) : Vector3.back;
+                if (fl.life <= 0 || sp.z <= 0) { Destroy(fl.t.gameObject); floaters.RemoveAt(k); continue; }
+                fl.t.rectTransform.anchoredPosition = (new Vector2(sp.x, sp.y) - new Vector2(Screen.width, Screen.height) / 2f) / input.Canvas.scaleFactor;
+                Color cc = fl.t.color; cc.a = Mathf.Clamp01(fl.life / 0.3f); fl.t.color = cc;
+            }
 
             flashT = Mathf.Max(0, flashT - dt); flash.color = new Color(.8f, 0, 0, flashT * .6f);
 

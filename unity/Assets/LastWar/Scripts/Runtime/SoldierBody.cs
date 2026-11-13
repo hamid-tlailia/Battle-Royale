@@ -22,7 +22,6 @@ namespace LastWar
         /// <summary>world position of the barrel end (null without a gun)</summary>
         public Vector3? Muzzle => gun != null ? gun.position + AimDir.normalized * 0.55f : (Vector3?)null;
         static AnimationClip[] clips;
-        static readonly Dictionary<Material, Material> litCache = new Dictionary<Material, Material>();
 
         public static SoldierBody Attach(GameObject owner)
         {
@@ -55,17 +54,7 @@ namespace LastWar
             Play("idle");
         }
 
-        /// <summary>glTF material -> URP Lit (always included in the build), shared per source material</summary>
-        public static Material Lit(Material src)
-        {
-            if (src == null) return MapBuilder.NewLit(Color.white);
-            if (litCache.TryGetValue(src, out Material m)) return m;
-            Texture tex = null;
-            foreach (string prop in new[] { "baseColorTexture", "_BaseMap", "_MainTex" }) if (src.HasProperty(prop) && src.GetTexture(prop) != null) { tex = src.GetTexture(prop); break; }
-            m = MapBuilder.NewLit(Color.white, tex);
-            litCache[src] = m;
-            return m;
-        }
+        public static Material Lit(Material src) => MapBuilder.LitFrom(src);
 
         void SetupAnimation(GameObject m)
         {
