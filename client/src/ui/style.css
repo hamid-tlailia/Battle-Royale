@@ -571,3 +571,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2b1f; tou
 .bottom-bar { bottom: calc(52px + env(safe-area-inset-bottom)); }
 #hud.editing .bars-wrap { pointer-events: auto; }
 .layout-bar input.op { width: 70px; }
+.bag-row .bag-up { background: rgba(255,255,255,.14); color: #fff; padding: 6px 8px; margin-right: 4px; }
+.bag-row .bag-use { background: #6fc23c; color: #13200f; margin-right: 4px; }
+.bag-row .bag-use.on { background: rgba(255,255,255,.18); color: #fff; }
+.slot img:not([src]), .slot img[src=""] { visibility: hidden; }
+
+/* victory: nothing but the celebration (player stands still) */
+#hud.celebrating > *:not(.celebrate) { opacity: 0 !important; pointer-events: none !important; transition: opacity .3s; }
+
+.match-load { z-index: 60; transition: opacity .6s ease; }
+.match-load.out { opacity: 0; pointer-events: none; }
+.match-load .ml-bar { height: 100%; width: 0; background: #b8f27c; transition: width .2s; }

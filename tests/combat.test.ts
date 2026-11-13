@@ -37,6 +37,10 @@ function duel(dist: number) {
   for (let i = 0; i < 5; i++) sim.step(); // settle
   return { sim, a, b };
 }
+/** armed players carry rifle / shotgun / pistol (slots 0-2); swap the long gun for the sniper */
+function giveSniper(p: { weapons: { id: string; owned: boolean; mag: number; reserve: number }[] }) {
+  Object.assign(p.weapons[0], { id: 'sniper', owned: true, mag: WEAPONS.sniper.mag, reserve: WEAPONS.sniper.startReserve });
+}
 
 describe('hit detection', () => {
   it('ray hits head sphere before body; misses beside the player', () => {
@@ -59,7 +63,7 @@ describe('hit detection', () => {
   it('a body shot at 20 m with the rifle registers and deals correct damage', () => {
     const { sim, a, b } = duel(20);
     const aim = aimAt(sim, a, b.move.x, b.move.y, b.move.z);
-    sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: BTN.FIRE | BTN.SCOPE, weapon: 1 }));
+    sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: BTN.FIRE | BTN.SCOPE, weapon: 0 }));
     sim.step(); // switch delay may apply on first tick
     for (let i = 0; i < 12 && !sim.events.some((e) => e.t === 'hit'); i++) sim.step();
     const hit = sim.events.find((e) => e.t === 'hit');
@@ -71,7 +75,8 @@ describe('hit detection', () => {
     const { sim, a, b } = duel(15);
     const hb = hitboxOf(b.move);
     const aim = aimAt(sim, a, hb.hx, hb.hy, hb.hz);
-    sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: BTN.FIRE | BTN.SCOPE, weapon: 3 }));
+    giveSniper(a);
+    sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: BTN.FIRE | BTN.SCOPE, weapon: 0 }));
     let hit;
     for (let i = 0; i < 20 && !hit; i++) { sim.step(); hit = sim.events.find((e) => e.t === 'hit'); }
     expect(hit && hit.t === 'hit' && hit.head).toBe(true);
@@ -96,7 +101,7 @@ describe('hit detection', () => {
         const hidden = pts.every(([x, y, z]) => [-0.3, 0, 0.3].every((o) => !sim.los(e.x, e.y, e.z, x + o * c, y, z - o * sn)));
         if (!hidden) continue;
         const aim = aimAt(sim, a, hb.ax, (hb.ay + hb.by) / 2, hb.az);
-        for (let i = 0; i < 90; i++) { sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: (i % 2 ? BTN.FIRE : 0) | BTN.SCOPE, weapon: 3, seq: i })); sim.step(); }
+        for (let i = 0; i < 90; i++) { sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: (i % 2 ? BTN.FIRE : 0) | BTN.SCOPE, weapon: 0, seq: i })); sim.step(); }
         expect(b.hp).toBe(100);
         expect(b.armor).toBe(50);
         tested++;
@@ -132,17 +137,17 @@ describe('damage, armor, falloff', () => {
 describe('anti-cheat: fire rate, ammo, aim', () => {
   it('rifle cannot exceed its fire rate and stops when the magazine is empty', () => {
     const { sim, a } = duel(30);
-    a.weapons[1].reserve = 0;
+    a.weapons[0].reserve = 0;
     let shots = 0;
-    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 1 }));
+    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 0 }));
     for (let i = 0; i < TICK_RATE * 5; i++) { sim.step(); shots += sim.events.filter((e) => e.t === 'shot').length; }
     expect(shots).toBe(WEAPONS.rifle.mag); // 30 then empty, no reserve
-    expect(a.weapons[1].mag).toBe(0);
+    expect(a.weapons[0].mag).toBe(0);
   });
 
   it('rate is exactly rpm-limited while holding fire', () => {
     const { sim, a } = duel(30);
-    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 1 }));
+    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 0 }));
     for (let i = 0; i < 10; i++) sim.step(); // switch delay
     let shots = 0;
     for (let i = 0; i < TICK_RATE; i++) { sim.step(); shots += sim.events.filter((e) => e.t === 'shot').length; }
@@ -151,8 +156,9 @@ describe('anti-cheat: fire rate, ammo, aim', () => {
   });
 
   it('the sniper (bolt action) needs the trigger released between shots', () => {
-    const { sim } = duel(30);
-    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 3 }));
+    const { sim, a } = duel(30);
+    giveSniper(a);
+    sim.setInput(1, cmd({ yaw: Math.PI / 2, buttons: BTN.FIRE, weapon: 0 }));
     let shots = 0;
     for (let i = 0; i < TICK_RATE * 2; i++) { sim.step(); shots += sim.events.filter((e) => e.t === 'shot').length; }
     expect(shots).toBe(1);
@@ -170,15 +176,15 @@ describe('anti-cheat: fire rate, ammo, aim', () => {
 
   it('reload refills from reserve and takes the configured time', () => {
     const { sim, a } = duel(30);
-    a.weapons[1].mag = 3;
-    sim.setInput(1, cmd({ yaw: 0, buttons: BTN.RELOAD, weapon: 1 }));
+    a.weapons[0].mag = 3;
+    sim.setInput(1, cmd({ yaw: 0, buttons: BTN.RELOAD, weapon: 0 }));
     sim.step();
-    sim.setInput(1, cmd({ yaw: 0, buttons: 0, weapon: 1 }));
+    sim.setInput(1, cmd({ yaw: 0, buttons: 0, weapon: 0 }));
     const ticks = Math.round(WEAPONS.rifle.reloadTime * TICK_RATE);
     for (let i = 0; i < ticks - 2; i++) sim.step();
-    expect(a.weapons[1].mag).toBe(3);
+    expect(a.weapons[0].mag).toBe(3);
     for (let i = 0; i < 4; i++) sim.step();
-    expect(a.weapons[1].mag).toBe(30);
+    expect(a.weapons[0].mag).toBe(30);
   });
 
   it('aim direction too far from the body orientation is clamped', () => {

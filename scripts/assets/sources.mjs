@@ -14,6 +14,7 @@ export const SOURCES = {
   pines: { uid: '46c3811b9a9445cdb2ff3e663d1f2c11', use: 'Pine trees' },
   nature: { uid: '4e0463f5df36420bb53079f9de35e81f', use: 'Rocks, bushes, stump' },
   fence: { uid: 'd35a038f74ea47819459cabae8c28c62', use: 'Wooden fence' },
+  mp40: { uid: '7ec7e1f9656e4319b8edae0d785699ad', use: 'Submachine gun (SMG)' },
 };
 
 /** Extra player outfits (Mixamo-rigged characters, animated with the soldier's clips). `tris` = body budget. */

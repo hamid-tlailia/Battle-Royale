@@ -1,7 +1,7 @@
 import { BTN, DT, GROUP_PLAYER, MAP, TICK_RATE, groups, SKIN_COUNT } from '../config/game';
 import { LOOT, LOOT_TABLE, type LootItem } from '../config/loot';
 import { PREFABS } from '../map/prefabs';
-import { ARMOR_ABSORB, MAX_ARMOR, MAX_HP, WEAPONS, WEAPON_IDS, damageAt, fireInterval, type WeaponId } from '../config/weapons';
+import { ARMOR_ABSORB, MAX_ARMOR, MAX_HP, SLOT_DEFAULT, SLOT_OF, WEAPONS, WEAPON_IDS, damageAt, fireInterval, scopeBit, type WeaponId } from '../config/weapons';
 import { generateMap, type MapData, type MapId } from '../map/mapgen';
 import { mulberry32 } from '../math/rng';
 import { BotBrain } from './bot';
@@ -45,8 +45,12 @@ export interface SimPlayer {
   speed: number;
   meds: number;
   frost: number;
-  /** best scope found (0 = red dot, 2, 4) */
+  /** scope attached to the long-range gun (0 = iron sight / red dot, 2, 4, 8) */
   scope: number;
+  /** scopes carried (bitmask, see scopeBit) */
+  scopes: number;
+  /** spare ammo of weapon types not in any slot */
+  ammo: Record<WeaponId, number>;
   /** medkit in use until this tick (0 = not healing) */
   healEndTick: number;
   /** weapon put away */
@@ -56,7 +60,26 @@ export interface SimPlayer {
 }
 
 /** Inventory drop codes (InputCmd.dropItem). */
-export const DROP = { weapon: (i: number) => 1 + i, ammo: (i: number) => 11 + i, med: 20, frost: 21, scope: 22 } as const;
+/** weapon: slot 0-2 · ammo: WEAPON_IDS index · scope: drop the attached one · scopeUse: attach zoom (0 = none) */
+export const DROP = { weapon: (i: number) => 1 + i, ammo: (i: number) => 11 + i, med: 20, frost: 21, scope: 22, scopeUse: (zoom: number) => 30 + zoom } as const;
+
+/** total spare ammo of one weapon type (in its slot or in the pouch) */
+export function ammoOf(p: SimPlayer, id: WeaponId): number {
+  const s = p.weapons.find((w) => w.id === id);
+  return s ? s.reserve : p.ammo[id] ?? 0;
+}
+function addAmmo(p: SimPlayer, id: WeaponId, n: number) {
+  const s = p.weapons.find((w) => w.id === id);
+  if (s) s.reserve += n; else p.ammo[id] = (p.ammo[id] ?? 0) + n;
+}
+/** put weapon type `id` into its slot (ammo follows the weapon type) */
+function setSlotWeapon(p: SimPlayer, si: number, id: WeaponId) {
+  const slot = p.weapons[si];
+  if (slot.id === id) return;
+  p.ammo[slot.id] = (p.ammo[slot.id] ?? 0) + slot.reserve;
+  slot.id = id; slot.reserve = p.ammo[id] ?? 0; p.ammo[id] = 0;
+}
+const zeroAmmo = (): Record<WeaponId, number> => ({ pistol: 0, rifle: 0, shotgun: 0, sniper: 0, smg: 0 });
 
 /** Flight path of the drop plane (deterministic from the match seed). */
 export function planePath(seed: number) {
@@ -245,24 +268,31 @@ export class GameSim {
   private tryPickup(p: SimPlayer, it: LootItem, manual = false): boolean {
     switch (it.kind) {
       case 'weapon': {
-        const i = WEAPON_IDS.indexOf(it.item as WeaponId), slot = p.weapons[i];
-        // walking over a gun you already own does nothing (no more endless ammo vacuuming); pick it from the menu
+        const id = it.item as WeaponId, si = SLOT_OF[id], slot = p.weapons[si];
+        // walking over a gun does nothing if that slot is taken (no endless ammo vacuuming / no surprise swaps)
         if (slot.owned && !manual) return false;
-        if (!slot.owned) {
-          slot.owned = true; slot.mag = WEAPONS[slot.id].mag;
-          if (!p.weapons[p.slot].owned) { p.slot = i; p.holstered = false; }
+        if (slot.owned && slot.id === id) { // same gun: take its magazine as ammo
+          if (slot.reserve >= LOOT.maxReserve[id]) return false;
+          slot.reserve = Math.min(LOOT.maxReserve[id], slot.reserve + WEAPONS[id].mag);
           return true;
         }
-        if (slot.reserve >= LOOT.maxReserve[slot.id]) return false;
-        slot.reserve = Math.min(LOOT.maxReserve[slot.id], slot.reserve + WEAPONS[slot.id].mag);
+        if (slot.owned) { // other gun of the same kind: swap (yours goes on the ground)
+          p.ammo[slot.id] += slot.mag;
+          const old = this.addLoot({ kind: 'weapon', item: slot.id, amount: 1, x: it.x, y: it.y, z: it.z + 0.4 });
+          old.lockId = p.id; old.lockUntil = this.tick + 2 * TICK_RATE;
+          if (p.slot === si) p.reloadEndTick = 0;
+        }
+        setSlotWeapon(p, si, id);
+        slot.owned = true; slot.mag = WEAPONS[id].mag;
+        if (!p.weapons[p.slot].owned) { p.slot = si; p.holstered = false; }
         return true;
       }
       case 'ammo': {
-        const slot = p.weapons[WEAPON_IDS.indexOf(it.item as WeaponId)];
-        const room = LOOT.maxReserve[slot.id] - slot.reserve;
+        const id = it.item as WeaponId;
+        const room = LOOT.maxReserve[id] - ammoOf(p, id);
         if (room <= 0) return false;
         const take = Math.min(room, it.amount);
-        slot.reserve += take; it.amount -= take;
+        addAmmo(p, id, take); it.amount -= take;
         return it.amount <= 0;
       }
       case 'med': {
@@ -281,10 +311,13 @@ export class GameSim {
         if (p.armor >= MAX_ARMOR) return false;
         p.armor = Math.min(MAX_ARMOR, p.armor + LOOT.armorVest);
         return true;
-      case 'scope':
-        if ((it.item as number) <= p.scope) return false;
-        p.scope = it.item as number;
+      case 'scope': {
+        const bit = scopeBit(it.item as number);
+        if (!bit || p.scopes & bit) return false;
+        p.scopes |= bit;
+        if (p.scope === 0) p.scope = it.item as number; // first scope goes straight on the gun
         return true;
+      }
     }
   }
 
@@ -319,9 +352,10 @@ export class GameSim {
       if (w.owned) drops.push({ kind: 'weapon', item: w.id, amount: 1 });
       if (w.reserve + (w.owned ? w.mag : 0) > 0) drops.push({ kind: 'ammo', item: w.id, amount: w.reserve + (w.owned ? w.mag : 0) });
     });
+    for (const id of WEAPON_IDS) if (v.ammo[id] > 0) drops.push({ kind: 'ammo', item: id, amount: v.ammo[id] });
     if (v.meds) drops.push({ kind: 'med', amount: v.meds });
     if (v.frost) drops.push({ kind: 'frost', amount: v.frost });
-    if (v.scope) drops.push({ kind: 'scope', item: v.scope, amount: 1 });
+    for (const z of [2, 4, 8]) if (v.scopes & scopeBit(z)) drops.push({ kind: 'scope', item: z, amount: 1 });
     // everything goes into one crate on the ground where the player fell
     const y = this.phys.groundHeight(v.move.x, v.move.z) + 0.05;
     const box = 1 + v.id * 7 + (this.tick % 7);
@@ -353,46 +387,59 @@ export class GameSim {
     const fx = -Math.sin(p.move.yaw), fz = -Math.cos(p.move.yaw);
     const at = { x: p.move.x + fx * 1.6, y: p.move.y - halfTotalOf(p.move) + 0.05, z: p.move.z + fz * 1.6 };
     let item: Omit<LootItem, 'id' | 'x' | 'y' | 'z'> | null = null;
-    if (code >= 1 && code <= 4) {
+    if (code >= 30 && code <= 38) { // attach a carried scope (or none)
+      const z = code - 30;
+      if (z === 0 || p.scopes & scopeBit(z)) p.scope = z;
+      return;
+    }
+    if (code >= 1 && code <= 3) {
       const w = p.weapons[code - 1];
       if (!w.owned) return;
       w.owned = false; w.reserve += w.mag; w.mag = 0;
       if (p.slot === code - 1) { const next = p.weapons.findIndex((x) => x.owned); if (next >= 0) p.slot = next; p.reloadEndTick = 0; }
       item = { kind: 'weapon', item: w.id, amount: 1 };
-    } else if (code >= 11 && code <= 14) {
-      const w = p.weapons[code - 11];
-      if (w.reserve <= 0) return;
-      item = { kind: 'ammo', item: w.id, amount: w.reserve }; w.reserve = 0;
+    } else if (code >= 11 && code < 11 + WEAPON_IDS.length) {
+      const id = WEAPON_IDS[code - 11], n = ammoOf(p, id);
+      if (n <= 0) return;
+      item = { kind: 'ammo', item: id, amount: n }; addAmmo(p, id, -n);
     } else if (code === DROP.med && p.meds > 0) { p.meds--; p.healEndTick = 0; item = { kind: 'med', amount: 1 }; }
     else if (code === DROP.frost && p.frost > 0) { p.frost--; item = { kind: 'frost', amount: 1 }; }
-    else if (code === DROP.scope && p.scope > 0) { item = { kind: 'scope', item: p.scope, amount: 1 }; p.scope = 0; }
+    else if (code === DROP.scope && p.scope > 0) { item = { kind: 'scope', item: p.scope, amount: 1 }; p.scopes &= ~scopeBit(p.scope); p.scope = 0; }
     if (!item) return;
     const it = this.addLoot({ ...item, ...at });
     it.lockId = p.id; it.lockUntil = this.tick + 2 * TICK_RATE;
   }
 
-  private placeWall(p: SimPlayer) {
-    const fx = -Math.sin(p.move.yaw), fz = -Math.cos(p.move.yaw);
+  /** Where an ice wall would go for this player looking along `yaw` (same answer for the preview and the real wall). */
+  wallSpot(p: SimPlayer, yaw = p.move.yaw): { x: number; y: number; z: number; rot: number } | null {
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
     const eye = this.eye(p);
     for (const dist of [LOOT.frostDistance, LOOT.frostDistance + 0.8, LOOT.frostDistance - 0.6]) {
       // stop in front of walls
       const block = this.phys.rayWorld(eye.x, eye.y, eye.z, fx, 0, fz, dist);
       if (block !== null) continue;
       const x = p.move.x + fx * dist, z = p.move.z + fz * dist;
+      // stand on whatever is under that spot at your level (a house floor, not the ground below it)
       const down = this.phys.rayWorld(x, eye.y + 0.5, z, 0, -1, 0, 6);
       if (down === null) continue;
       const y = eye.y + 0.5 - down + LOOT.frostHeight / 2;
       // never trap or overlap a player
       let blocked = false;
-      this.phys.world.intersectionsWithShape({ x, y, z }, quatY(p.move.yaw), new RAPIER.Cuboid(LOOT.frostWidth / 2, LOOT.frostHeight / 2 - 0.05, LOOT.frostThick / 2),
+      this.phys.world.intersectionsWithShape({ x, y, z }, quatY(yaw), new RAPIER.Cuboid(LOOT.frostWidth / 2, LOOT.frostHeight / 2 - 0.05, LOOT.frostThick / 2),
         () => { blocked = true; return false; }, undefined, groups(0xffff, GROUP_PLAYER));
       if (blocked) continue;
-      const w = { id: this.nextWall++, x, y, z, rot: p.move.yaw, hp: LOOT.frostHp, until: this.tick + LOOT.frostLife * TICK_RATE };
-      this.addWallCollider(w);
-      p.frost--;
-      this.events.push({ t: 'wall+', wall: w });
-      return;
+      return { x, y, z, rot: yaw };
     }
+    return null;
+  }
+
+  private placeWall(p: SimPlayer) {
+    const at = this.wallSpot(p);
+    if (!at) return;
+    const w = { id: this.nextWall++, ...at, hp: LOOT.frostHp, until: this.tick + LOOT.frostLife * TICK_RATE };
+    this.addWallCollider(w);
+    p.frost--;
+    this.events.push({ t: 'wall+', wall: w });
   }
 
   private addWallCollider(w: Omit<FrostWall, 'handle'>) {
@@ -509,7 +556,8 @@ export class GameSim {
     const pl: SimPlayer = {
       id, name, skin: bot ? (id * 5 + 3) % SKIN_COUNT : 0, bot: bot ? new BotBrain(this.seed * 31 + id) : null, move,
       hp: MAX_HP, armor: this.opts.armed ? 50 : 0, alive: true,
-      weapons: WEAPON_IDS.map((w) => ({ id: w, owned: !!this.opts.armed, mag: this.opts.armed ? WEAPONS[w].mag : 0, reserve: this.opts.armed ? WEAPONS[w].startReserve : 0 })),
+      weapons: SLOT_DEFAULT.map((w) => ({ id: w, owned: !!this.opts.armed, mag: this.opts.armed ? WEAPONS[w].mag : 0, reserve: this.opts.armed ? WEAPONS[w].startReserve : 0 })),
+      ammo: zeroAmmo(), scopes: 0,
       meds: 0, frost: this.opts.armed ? 2 : 0, scope: 0, healEndTick: 0, holstered: false, jumpAt: 0.12 + this.rnd() * 0.75,
       slot: 1, nextFireTick: 0, reloadEndTick: 0, prevButtons: 0, triggerArmed: false, kills: 0,
       lastInput: { seq: 0, mx: 0, mz: 0, yaw: move.yaw, pitch: 0, buttons: 0 }, queue: null, ackSeq: 0, place: 0, speed: 0,

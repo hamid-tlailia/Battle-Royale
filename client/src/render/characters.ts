@@ -141,6 +141,8 @@ export interface CharacterState {
   air?: number;
   /** world horizontal velocity, used for directional locomotion */
   vx?: number; vz?: number;
+  /** wants to run (auto-run on): keeps the run animation even when a wall stops you */
+  running?: boolean;
 }
 
 /**
@@ -221,6 +223,8 @@ export class CharacterView {
     this.handR = this.model.getObjectByName('mixamorigRightHand') ?? null;
     this.handL = this.model.getObjectByName('mixamorigLeftHand') ?? null;
     this.spine = this.model.getObjectByName('mixamorigSpine2') ?? null;
+    this.bones.clear();
+    this.model.traverse((o) => { if ((o as THREE.Bone).isBone) { const m = /mixamorig:?(\w+)$/.exec(o.name.replace(/[^\w:]/g, '')); if (m) this.bones.set(m[1], o); } });
     this.current = null;
     this.play(keep ?? 'idle_rifle', 0);
     this.mixer.update(0);
@@ -279,11 +283,71 @@ export class CharacterView {
     return g;
   }
 
+  // ---------------------------------------------------------------- procedural poses
+  private bones = new Map<string, THREE.Object3D>();
+  private poseW = 0;
+  private poseKind: 'kneel' | 'sky' | null = null;
+  private static readonly V = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  private static readonly Q = [new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion()];
+  /** turn `bone` so the segment to `child` points along `dir` (model space: +Z forward, +Y up, +X the body's left), blended by w */
+  private aim(bone: string, child: string, dir: [number, number, number], w: number) {
+    const b = this.bones.get(bone), c = this.bones.get(child);
+    if (!b || !c || !b.parent) return;
+    const [v0, v1, v2] = CharacterView.V, [qm, qw, qp, qn] = CharacterView.Q;
+    b.getWorldPosition(v0); c.getWorldPosition(v1);
+    v1.sub(v0).normalize();
+    this.model.getWorldQuaternion(qm);
+    v2.set(dir[0], dir[1], dir[2]).normalize().applyQuaternion(qm);
+    qn.setFromUnitVectors(v1, v2);
+    b.getWorldQuaternion(qw);
+    qn.multiply(qw); // new world rotation
+    b.parent.getWorldQuaternion(qp);
+    qp.invert().multiply(qn);
+    b.quaternion.slerp(qp, w);
+    b.updateMatrixWorld(true);
+  }
+  /** after the animation: kneel (one knee on the ground, feet still) or the free-fall spread */
+  private applyPose(kind: 'kneel' | 'sky' | null, dt: number) {
+    if (kind) this.poseKind = kind;
+    this.poseW = THREE.MathUtils.clamp(this.poseW + (kind ? dt : -dt) * 7, 0, 1);
+    const w = this.poseW;
+    if (w <= 0 || !this.bones.size) return;
+    this.model.updateMatrixWorld(true);
+    if (this.poseKind === 'kneel') {
+      const hips = this.bones.get('Hips'), ul = this.bones.get('RightUpLeg'), kn = this.bones.get('RightLeg');
+      if (hips && ul && kn && hips.parent) {
+        const [v0, v1] = CharacterView.V;
+        const thigh = ul.getWorldPosition(v0).distanceTo(kn.getWorldPosition(v1));
+        // hips at kneeling height above the feet (root origin = feet on the ground)
+        hips.getWorldPosition(v0); this.root.worldToLocal(v0);
+        v0.y += ((thigh * 0.92 + 0.1) - v0.y) * w;
+        this.root.localToWorld(v0); hips.parent.worldToLocal(v0);
+        hips.position.copy(v0); hips.updateMatrixWorld(true);
+      }
+      this.aim('RightUpLeg', 'RightLeg', [-0.04, -1, 0.12], w); // right knee down on the ground
+      this.aim('RightLeg', 'RightFoot', [0, -0.06, -1], w); // shin flat behind
+      this.aim('RightFoot', 'RightToeBase', [0, -0.75, -0.6], w);
+      this.aim('LeftUpLeg', 'LeftLeg', [0.12, -0.1, 1], w); // left thigh forward
+      this.aim('LeftLeg', 'LeftFoot', [0.02, -1, -0.06], w); // shin upright, foot flat
+      this.aim('LeftFoot', 'LeftToeBase', [0.05, -0.3, 1], w);
+    } else if (this.poseKind === 'sky') { // belly down, arms in a W, legs spread with the knees bent
+      this.aim('LeftArm', 'LeftForeArm', [1, 0.15, 0.1], w);
+      this.aim('LeftForeArm', 'LeftHand', [0.35, 1, 0.15], w);
+      this.aim('RightArm', 'RightForeArm', [-1, 0.15, 0.1], w);
+      this.aim('RightForeArm', 'RightHand', [-0.35, 1, 0.15], w);
+      this.aim('LeftUpLeg', 'LeftLeg', [0.4, -1, 0], w);
+      this.aim('LeftLeg', 'LeftFoot', [0.25, -0.55, -0.8], w);
+      this.aim('RightUpLeg', 'RightLeg', [-0.4, -1, 0], w);
+      this.aim('RightLeg', 'RightFoot', [-0.25, -0.55, -0.8], w);
+      this.aim('Head', 'HeadTop_End', [0, 0.6, 0.8], w); // look ahead (down at the ground below)
+    }
+  }
+
   /** dist = distance to camera (for LOD and animation rate). */
   update(st: CharacterState, dt: number, dist: number, visible: boolean) {
     const air = st.air ?? 0;
     if (air === 1) { this.root.visible = false; return; } // inside the plane
-    this.model.rotation.x = air === 2 ? -1.25 : 0; // sky-diving pose
+    this.model.rotation.x = air === 2 ? -1.45 : 0; // sky-diving: belly down
     if (air === 3 && !this.chute) this.chute = this.buildChute();
     if (this.chute) {
       const k = this.chute.scale.x + ((air === 3 ? 1 : 0) - this.chute.scale.x) * Math.min(1, dt * 4);
@@ -306,7 +370,7 @@ export class CharacterView {
     else if (air === 3) clip = 'idle';
     else if (this.airTime > 0.15) clip = 'jump';
     else if (st.crouch) clip = st.firing ? 'crouch_fire' : st.speed > 0.4 ? 'crouch_walk' : 'crouch_idle';
-    else if (st.speed > 5.2) clip = st.armed === false ? 'run_free' : 'run'; // empty hands: arms swing freely
+    else if (st.speed > 5.2 || (st.running && !st.crouch)) clip = st.armed === false ? 'run_free' : 'run'; // empty hands: arms swing freely
     else if (st.armed === false) clip = st.speed > 0.4 ? 'walk' : 'idle'; // empty hands: no rifle pose
     else if (st.speed > 0.4) clip = 'walk_fire';
     else clip = st.firing ? 'fire' : 'idle_rifle';
@@ -329,7 +393,7 @@ export class CharacterView {
     this.model.rotation.y = Math.PI + this.bodyOffset;
     const ref = CLIP_SPEED[clip];
     const act = this.actions.get(clip);
-    if (act) act.timeScale = (ref ? THREE.MathUtils.clamp(st.speed / ref, 0.6, clip === 'walk' ? 2.6 : 1.6) : 1) * (reverse ? -1 : 1);
+    if (act) act.timeScale = (ref ? THREE.MathUtils.clamp((st.running && (clip === 'run' || clip === 'run_free') ? Math.max(st.speed, ref) : st.speed) / ref, 0.6, clip === 'walk' ? 2.6 : 1.6) : 1) * (reverse ? -1 : 1);
 
     // LOD + animation throttling for distant / hidden characters
     const far = dist > LOD_DISTANCE;
@@ -338,6 +402,9 @@ export class CharacterView {
     this.skipAcc += dt;
     if (this.skipFrames === 0 || Math.random() < 1 / (this.skipFrames + 1)) {
       this.mixer.update(this.skipAcc);
+      // kneel when crouched and still; spread-eagle in free fall (close / visible characters only)
+      const pose = st.dead || !visible || dist > 70 ? null : air === 2 ? 'sky' : st.crouch && !st.prone && st.speed <= 0.4 && st.grounded ? 'kneel' : null;
+      this.applyPose(pose, this.skipAcc);
       this.skipAcc = 0;
     }
     if (visible && this.gun) this.placeGun(st);

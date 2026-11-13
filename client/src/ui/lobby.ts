@@ -169,7 +169,10 @@ export function showLobby(root: HTMLElement, assets: GameAssets, serverOk: Promi
     if (!alive) return;
     requestAnimationFrame(loop);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    view!.update({ x: 0, y: 1.0, z: 0, yaw, pitch: -0.55, speed: 0, crouch: false, grounded: true }, dt, 3, true); // gun at low ready
+    const pose = portraitMode ? new URLSearchParams(location.search).get('pose') : null; // tool: check a pose
+    if (pose === 'crouch') view!.update({ x: 0, y: 0.75, z: 0, yaw, pitch: 0, speed: 0, crouch: true, grounded: true }, dt, 3, true);
+    else if (pose === 'sky') view!.update({ x: 0, y: 1.0, z: 0, yaw, pitch: 0, speed: 0, crouch: false, grounded: false, air: 2 }, dt, 3, true);
+    else view!.update({ x: 0, y: 1.0, z: 0, yaw, pitch: -0.55, speed: 0, crouch: false, grounded: true }, dt, 3, true); // gun at low ready
     resize();
     renderer.render(scene, camera);
     if (portraitFrames > 0 && --portraitFrames % 30 === 0) drawPortrait();

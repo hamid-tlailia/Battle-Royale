@@ -1,6 +1,6 @@
 import { Client as ColyseusClient, type Room } from '@colyseus/sdk';
 import {
-  isMapId, type MapId, DT, MSG, TICK_RATE, GameSim, applySelf, quantizeInput, decodeSnapshot, encodeInputs, simulateMove, syncCollider, weaponLogic,
+  isMapId, type MapId, DT, MSG, TICK_RATE, GameSim, applySelf, quantizeInput, decodeSnapshot, encodeInputs, simulateMove, syncCollider, weaponLogic, WEAPON_IDS, SLOT_OF,
   type FrostWall, type InputCmd, type LobbyInfo, type LootItem, type RemoteState, type RosterEntry, type SimEvent, type Snapshot, type WeaponId,
 } from '@lw/shared';
 
@@ -173,9 +173,10 @@ export class NetSession {
       const p = this.sim.players.get(r.id);
       if (p) {
         p.alive = r.alive; p.hp = r.hp; p.armor = r.armor;
-        p.holstered = r.slot === 4;
-        if (r.slot < 4) p.slot = r.slot;
-        p.weapons.forEach((w, i) => { w.owned = i === r.slot; }); // remote: only what's in hand is known
+        p.holstered = r.slot === 6;
+        const held = WEAPON_IDS[r.slot];
+        if (held) { p.slot = SLOT_OF[held]; p.weapons[p.slot].id = held; }
+        p.weapons.forEach((w, i) => { w.owned = !!held && i === p.slot; }); // remote: only what's in hand is known
         // keep the remote collider near its latest position so my prediction collides with it
         if (r.alive) { Object.assign(this.tmpMove, p.move, { x: r.x, y: r.y, z: r.z, crouch: r.crouch, ball: r.ball, prone: r.prone, air: r.air }); syncCollider(this.sim.phys, r.id, this.tmpMove); }
         else this.sim.phys.removePlayer(r.id);

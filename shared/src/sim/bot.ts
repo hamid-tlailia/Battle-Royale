@@ -109,8 +109,10 @@ export class BotBrain {
       yaw = Math.atan2(-dx, -dz) + this.aimErrYaw + (this.rnd() - 0.5) * wobble;
       pitch = Math.atan2(dy, flat) + this.aimErrPitch + (this.rnd() - 0.5) * wobble;
       // best owned weapon with ammo for this distance
-      const pref = flat < 10 ? [2, 1, 0, 3] : flat < 55 ? [1, 2, 3, 0] : [3, 1, 0, 2];
+      // slots: 0 long range, 1 close range, 2 pistol
+      const pref = flat < 12 ? [1, 2, 0] : flat < 55 ? [0, 1, 2] : [0, 2, 1];
       weapon = pref.find((i) => p.weapons[i].owned && p.weapons[i].mag + p.weapons[i].reserve > 0) ?? p.slot;
+      const wid = p.weapons[weapon].id;
       // strafe & occasionally crouch
       // calm movement while fighting: mostly stand/crouch and shoot, sometimes a slow side-step
       if (--this.strafeTicks <= 0) {
@@ -130,10 +132,10 @@ export class BotBrain {
           buttons |= BTN.FIRE;
           if (++this.burst > 3 + this.rnd() * 4) { this.burst = 0; this.burstPause = 14 + Math.floor(this.rnd() * 22); }
         }
-        if (weapon === 3 && flat > 25) buttons |= BTN.SCOPE;
+        if (wid === 'sniper' && flat > 25) buttons |= BTN.SCOPE;
       }
       // semi-auto weapons need the trigger released between shots
-      if (weapon !== 1 && (p.prevButtons & BTN.FIRE)) buttons &= ~BTN.FIRE;
+      if (wid === 'sniper' && (p.prevButtons & BTN.FIRE)) buttons &= ~BTN.FIRE;
     } else {
       // ---------- travel ----------
       this.targetId = mustRun ? null : this.targetId;

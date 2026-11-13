@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  BTN, DT, LOOT, MAP, TICK_RATE, WEAPONS, GameSim, halfTotalOf, initPhysics, simulateMove, type InputCmd, type SimPlayer,
+  BTN, DROP, DT, LOOT, MAP, TICK_RATE, WEAPONS, GameSim, halfTotalOf, initPhysics, simulateMove, type InputCmd, type SimPlayer,
 } from '../shared/src';
 
 beforeAll(async () => { await initPhysics(); });
@@ -50,10 +50,10 @@ describe('loot', () => {
     for (let i = 0; i < 3; i++) sim.addLoot({ kind: 'ammo', item: 'shotgun', amount: LOOT.ammoBox.shotgun, x: sp.x + 3.2, y: p.move.y - 0.9, z: sp.z }, false);
     const yaw = -Math.PI / 2; // face +x
     for (let i = 0; i < 40; i++) { sim.setInput(1, cmd({ mz: 1, yaw, seq: i, buttons: BTN.AUTOPICK })); sim.step(); }
-    const sg = p.weapons[2];
+    const sg = p.weapons[1]; // close-range slot
     expect(sg.owned).toBe(true);
     expect(sg.mag).toBe(WEAPONS.shotgun.mag);
-    expect(p.slot).toBe(2);
+    expect(p.slot).toBe(1);
     expect(sg.reserve).toBe(Math.min(LOOT.maxReserve.shotgun, 3 * LOOT.ammoBox.shotgun));
   });
 
@@ -66,11 +66,11 @@ describe('loot', () => {
     const near = sim.addLoot({ kind: 'weapon', item: 'rifle', amount: 1, x: sp.x + 0.5, y, z: sp.z }, false);
     const far = sim.addLoot({ kind: 'med', amount: 1, x: sp.x + 6, y, z: sp.z }, false);
     for (let i = 0; i < 10; i++) { sim.setInput(1, cmd({ seq: i })); sim.step(); }
-    expect(p.weapons[1].owned).toBe(false);
+    expect(p.weapons[0].owned).toBe(false);
     sim.setInput(1, cmd({ seq: 20, pick: far.id })); sim.step();
     expect(p.meds).toBe(0); // out of reach
     sim.setInput(1, cmd({ seq: 21, pick: near.id })); sim.step();
-    expect(p.weapons[1].owned).toBe(true);
+    expect(p.weapons[0].owned).toBe(true);
     expect(sim.loot.has(near.id)).toBe(false);
   });
 
@@ -99,11 +99,50 @@ describe('loot', () => {
     expect(p.meds).toBe(1);
     // second one, interrupted by firing
     sim.setInput(1, cmd({ buttons: BTN.HEAL, seq: 1 })); sim.step();
-    sim.setInput(1, cmd({ buttons: BTN.FIRE, seq: 2, weapon: 1 })); sim.step();
+    sim.setInput(1, cmd({ buttons: BTN.FIRE, seq: 2, weapon: 0 })); sim.step();
     sim.setInput(1, cmd({ seq: 3 }));
     for (let i = 0; i < LOOT.medTime * TICK_RATE + 5; i++) sim.step();
     expect(p.hp).toBe(30 + LOOT.medHeal);
     expect(p.meds).toBe(1);
+  });
+
+  it('three slots: an SMG goes in the close-range slot; taking it from the menu swaps out the shotgun (ammo stays per type)', () => {
+    const sim = new GameSim(MAP.seed, { loot: false, zone: false });
+    const p = sim.addPlayer(1, 'A', false);
+    const sp = openSpot(sim);
+    place(sim, p, sp.x, sp.z);
+    const y = p.move.y - 0.9;
+    const sg = sim.addLoot({ kind: 'weapon', item: 'shotgun', amount: 1, x: sp.x + 0.4, y, z: sp.z }, false);
+    const am = sim.addLoot({ kind: 'ammo', item: 'smg', amount: 64, x: sp.x + 0.4, y, z: sp.z }, false);
+    const smg = sim.addLoot({ kind: 'weapon', item: 'smg', amount: 1, x: sp.x + 0.4, y, z: sp.z }, false);
+    sim.setInput(1, cmd({ seq: 1, pick: sg.id })); sim.step();
+    sim.setInput(1, cmd({ seq: 2, pick: am.id })); sim.step();
+    expect(p.weapons[1].id).toBe('shotgun');
+    expect(p.ammo.smg).toBe(64); // SMG ammo waits in the pouch
+    sim.setInput(1, cmd({ seq: 3, pick: smg.id })); sim.step();
+    expect(p.weapons[1].id).toBe('smg');
+    expect(p.weapons[1].mag).toBe(WEAPONS.smg.mag);
+    expect(p.weapons[1].reserve).toBe(64);
+    expect([...sim.loot.values()].some((l) => l.kind === 'weapon' && l.item === 'shotgun')).toBe(true); // old gun on the ground
+  });
+
+  it('scopes: the first one goes on the gun; any carried scope can be fitted or taken off', () => {
+    const sim = new GameSim(MAP.seed, { loot: false, zone: false });
+    const p = sim.addPlayer(1, 'A', false);
+    const sp = openSpot(sim);
+    place(sim, p, sp.x, sp.z);
+    const y = p.move.y - 0.9;
+    const s4 = sim.addLoot({ kind: 'scope', item: 4, amount: 1, x: sp.x + 0.4, y, z: sp.z }, false);
+    const s8 = sim.addLoot({ kind: 'scope', item: 8, amount: 1, x: sp.x + 0.4, y, z: sp.z }, false);
+    sim.setInput(1, cmd({ seq: 1, pick: s4.id })); sim.step();
+    sim.setInput(1, cmd({ seq: 2, pick: s8.id })); sim.step();
+    expect(p.scope).toBe(4);
+    sim.setInput(1, cmd({ seq: 3, dropItem: DROP.scopeUse(8) })); sim.step();
+    expect(p.scope).toBe(8);
+    sim.setInput(1, cmd({ seq: 4, dropItem: DROP.scopeUse(0) })); sim.step();
+    expect(p.scope).toBe(0);
+    sim.setInput(1, cmd({ seq: 5, dropItem: DROP.scopeUse(2) })); sim.step();
+    expect(p.scope).toBe(0); // not carried
   });
 
   it('dead players drop their inventory on the ground', () => {
@@ -114,7 +153,7 @@ describe('loot', () => {
     b.meds = 2;
     sim.removePlayer(2); // eliminated
     const near = [...sim.loot.values()].filter((l) => Math.hypot(l.x - b.move.x, l.z - b.move.z) < 2);
-    expect(near.filter((l) => l.kind === 'weapon').length).toBe(4);
+    expect(near.filter((l) => l.kind === 'weapon').length).toBe(3);
     expect(near.some((l) => l.kind === 'med' && l.amount === 2)).toBe(true);
   });
 });
@@ -150,10 +189,10 @@ describe('ice wall', () => {
     const yaw = Math.atan2(-(ea.x - eb.x), -(ea.z - eb.z)), pitch = Math.atan2(ea.y - 0.3 - eb.y, Math.hypot(ea.x - eb.x, ea.z - eb.z));
     let hitsOnA = 0, i = 0;
     while (sim.walls.size && i < 400) {
-      sim.setInput(2, cmd({ yaw, pitch, aimYaw: yaw, aimPitch: pitch, buttons: BTN.FIRE | BTN.SCOPE, weapon: 1, seq: i++ }));
+      sim.setInput(2, cmd({ yaw, pitch, aimYaw: yaw, aimPitch: pitch, buttons: BTN.FIRE | BTN.SCOPE, weapon: 0, seq: i++ }));
       sim.setInput(1, cmd({ yaw: -Math.PI / 2, seq: i }));
       sim.step();
-      if (b.weapons[1].mag === 0 && !b.reloadEndTick) b.weapons[1].mag = 30;
+      if (b.weapons[0].mag === 0 && !b.reloadEndTick) b.weapons[0].mag = 30;
       hitsOnA += sim.events.filter((e) => e.t === 'hit' && e.target === 1).length;
     }
     expect(hitsOnA).toBe(0); // nothing went through while it stood

@@ -141,11 +141,11 @@ export class Sfx {
       const k = this.chain(0.35, dist, pan);
       if (k) { this.burst(k, t + 0.55, 0.05, 2600, 3, 0.9, 0.04); this.burst(k, t + 0.78, 0.06, 1900, 3, 1, 0.05); }
     }
-    const sample = this.samples.get(w);
+    const sample = this.samples.get(w === 'smg' ? 'pistol' : w); // SMG: the pistol report, pitched up and fast
     if (sample) {
       const src = this.ctx!.createBufferSource();
       src.buffer = sample;
-      src.playbackRate.value = 0.94 + Math.random() * 0.12; // no two shots identical
+      src.playbackRate.value = (w === 'smg' ? 1.18 : 0.94) + Math.random() * 0.12; // no two shots identical
       src.connect(d);
       src.start(t);
       // distant shots get a low rumble tail (echo off the mountains)
@@ -153,6 +153,7 @@ export class Sfx {
       return;
     }
     switch (w) {
+      case 'smg':
       case 'pistol': this.burst(d, t, 0.15, 2200, 0.8, 1, 0.12); this.thump(d, t, 180, 60, 0.6, 0.08); break;
       case 'rifle': this.burst(d, t, 0.2, 1500, 0.7, 1, 0.16); this.thump(d, t, 140, 45, 0.9, 0.11); break;
       case 'shotgun': this.burst(d, t, 0.4, 900, 0.5, 1, 0.32); this.thump(d, t, 110, 35, 1, 0.22); break;

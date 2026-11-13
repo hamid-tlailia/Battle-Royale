@@ -103,8 +103,14 @@ export class LootView {
   syncWalls(walls: Map<number, FrostWall>) {
     for (const [id, mesh] of this.walls) if (!walls.has(id)) { mesh.removeFromParent(); this.walls.delete(id); }
     for (const w of walls.values()) {
-      if (this.walls.has(w.id)) continue;
-      const mesh = new THREE.Mesh(this.wallGeo, this.wallMat);
+      const have = this.walls.get(w.id);
+      if (have) { // cracks: the ice clouds over and darkens as it takes hits
+        const k = Math.max(0, Math.min(1, w.hp / LOOT.frostHp));
+        const m = have.material as THREE.MeshLambertMaterial;
+        m.color.setRGB(0.42 + 0.33 * k, 0.6 + 0.32 * k, 0.72 + 0.28 * k); m.emissive.setRGB(0.16 * k, 0.43 * k, 0.6 * k);
+        continue;
+      }
+      const mesh = new THREE.Mesh(this.wallGeo, this.wallMat.clone());
       mesh.position.set(w.x, w.y, w.z);
       mesh.rotation.y = w.rot;
       mesh.scale.set(1, 0.05, 1);

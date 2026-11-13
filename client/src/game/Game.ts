@@ -150,7 +150,7 @@ export class Game {
     // players
     if (!this.net) {
       const mine = this.sim.addPlayer(this.myId, opts.name || 'You', false);
-      mine.skin = opts.skin; mine.slot = opts.slot;
+      mine.skin = opts.skin; mine.slot = 0;
       const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
       for (let i = 1; i <= BOT_COUNT; i++) this.sim.addPlayer(i, names[i % names.length], true);
       this.sim.startMatch(); // board the plane
@@ -372,6 +372,7 @@ export class Game {
           break;
         case 'heal': if (e.id === this.myId) this.hud.toast(`❤ healed · ${Math.round(e.hp)} HP`); break;
         case 'wall+': if (e.wall) sfx.frost(); break;
+        case 'wall-': if (e.broken) sfx.frost(); break;
         case 'zone': if (e.id === this.myId) { this.hud.hurtFlash(); sfx.zoneTick(); } break;
         case 'win': if (e.id === this.myId) setTimeout(() => this.showEnd(true), 800); else if (!me.alive) this.spectate = e.id; break;
       }
@@ -408,6 +409,8 @@ export class Game {
     addMatch(me.kills, win ? 1 : me.place, this.sim.players.size, win);
     if (win) { // 5 s of celebration, then back to the lobby
       this.frozen = true;
+      this.controls.sprintToggle = false; this.controls.scoped = false; this.controls.mx = this.controls.mz = 0;
+      this.hudEl.classList.add('celebrating'); // only the celebration on screen
       this.hud.celebrate(me.kills, this.sim.players.size);
       sfx.kill();
       setTimeout(() => { this.dispose(); this.onRestart(); }, 5000);
@@ -426,7 +429,7 @@ export class Game {
   /** long guns you own that are not in your hands: slung on the back */
   private backList(p: SimPlayer): GunName[] {
     const out: GunName[] = [];
-    p.weapons.forEach((w, i) => { if (i > 0 && w.owned && (p.holstered || i !== p.slot)) out.push(w.id as GunName); });
+    p.weapons.forEach((w, i) => { if (w.id !== 'pistol' && w.owned && (p.holstered || i !== p.slot)) out.push(w.id as GunName); });
     return out;
   }
   private frostGhost: THREE.Mesh | null = null;
@@ -440,10 +443,11 @@ export class Game {
       this.frostGhost.add(new THREE.LineSegments(new THREE.EdgesGeometry(this.frostGhost.geometry), new THREE.LineBasicMaterial({ color: 0xffffff })));
       this.scene.add(this.frostGhost);
     }
-    const yaw = this.controls.yaw, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
-    const x = me.move.x + fx * LOOT.frostDistance, z = me.move.z + fz * LOOT.frostDistance;
-    this.frostGhost.position.set(x, this.sim.phys.groundHeight(x, z) + LOOT.frostHeight / 2, z);
-    this.frostGhost.rotation.set(0, yaw, 0);
+    // exactly where the wall will appear (same placement rule as the game: floors, walls, players)
+    const at = this.sim.wallSpot(me, this.controls.yaw);
+    if (!at) { this.frostGhost.visible = false; return; }
+    this.frostGhost.position.set(at.x, at.y, at.z);
+    this.frostGhost.rotation.set(0, at.rot, 0);
     this.frostGhost.visible = true;
   }
   private areaTimer = 0;
@@ -581,7 +585,8 @@ export class Game {
       }
       this.hud.setNearbyLoot(near);
     }
-    this.scopeMode = !scopedView ? 'none' : slot.id === 'sniper' ? 'x8' : slot.id === 'rifle' && me.scope ? (me.scope >= 4 ? 'x4' : 'x2') : 'reddot';
+    // long-range guns take the attached scope (sniper: its own x8 when none is attached); the rest aim with a red dot
+    this.scopeMode = !scopedView ? 'none' : (slot.id === 'sniper' || slot.id === 'rifle') && me.scope ? (`x${me.scope}` as 'x2' | 'x4' | 'x8') : slot.id === 'sniper' ? 'x8' : 'reddot';
     this.hud.setScope(this.scopeMode);
     if ((this.scopeMode !== 'none') !== this.lastScoped) { this.lastScoped = this.scopeMode !== 'none'; if (me.alive) sfx.scope(this.lastScoped); }
     const equipKey = me.alive && !me.holstered && slot.owned ? me.slot : -1;
@@ -611,7 +616,7 @@ export class Game {
       const want = p.weapons[p.slot].id as GunName;
       if (want !== v.gun) { v.gun = want; v.view.setGun(this.assets, want); }
       v.view.ownView = p.id === this.myId;
-      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered && p.weapons[p.slot].owned, back: p.id === this.myId ? this.backList(p) : undefined, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0, dead: !p.alive }, dt, dist, visible);
+      v.view.update({ x, y, z, yaw, pitch: p.id === this.myId ? this.controls.pitch : p.move.pitch, speed: p.alive && !this.frozen ? p.speed : 0, armed: p.weapons.some((w) => w.owned) && !p.holstered && p.weapons[p.slot].owned, back: p.id === this.myId ? this.backList(p) : undefined, air: p.move.air, vx: p.move.vx, vz: p.move.vz, crouch: p.move.crouch, prone: p.move.prone, ball: p.move.ball, grounded: p.move.grounded || !p.alive, firing: v.firingT > 0 && !this.frozen, dead: !p.alive, running: p.id === this.myId && p.alive && !this.frozen && (this.controls.sprintToggle || this.controls.sprintLock) && !p.move.air }, dt, dist, visible);
       // footsteps
       if (p.alive && p.move.grounded && p.speed > 1.2 && dist < 26) { // only nearby footsteps, panned left/right
         v.stepAcc += p.speed * dt;
@@ -666,6 +671,9 @@ export class Game {
       },
     });
   };
+
+  /** compile every shader up front (behind the loading screen) so the first seconds do not stutter */
+  warmUp() { try { this.renderer.compile(this.scene, this.camera); } catch { /* optional */ } }
 
   private camY = NaN;
   private lastScoped = false;

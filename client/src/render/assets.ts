@@ -3,7 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { PREFAB_NAMES, type PrefabName } from '@lw/shared';
 
-export const GUNS = ['pistol', 'rifle', 'shotgun', 'sniper'] as const;
+export const GUNS = ['pistol', 'rifle', 'shotgun', 'sniper', 'smg'] as const;
 export type GunName = (typeof GUNS)[number];
 
 export interface PrefabParts {

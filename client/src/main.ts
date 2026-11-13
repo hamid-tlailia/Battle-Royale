@@ -1,5 +1,5 @@
 import './ui/style.css';
-import { GAME_TITLE, initPhysics } from '@lw/shared';
+import { GAME_TITLE, MAP_LIST, initPhysics } from '@lw/shared';
 import { sfx } from './audio/sfx';
 import type { GameAssets } from './render/assets';
 
@@ -21,7 +21,10 @@ app.innerHTML = `
   <div id="rotate" class="rotate"><div>⟳</div><p>Rotate your phone to landscape</p></div>
 `;
 
-document.getElementById('preboot')?.remove(); // static logo from index.html: shown before any script loads
+// static logo from index.html (inlined, shown before anything loads): reuse it so the boot screen never flashes blank
+const inlineLogo = (document.querySelector('#preboot img') as HTMLImageElement | null)?.src;
+if (inlineLogo) (document.querySelector('#boot .boot-logo') as HTMLImageElement).src = inlineLogo;
+document.getElementById('preboot')?.remove();
 // installed app: the native logo splash stays up until the page has drawn its own logo (no blank green screen)
 requestAnimationFrame(() => (window as unknown as { Capacitor?: { Plugins?: { SplashScreen?: { hide: (o?: object) => void } } } }).Capacitor?.Plugins?.SplashScreen?.hide({ fadeOutDuration: 250 }));
 const bar = document.getElementById('bar') as HTMLDivElement;
@@ -64,8 +67,22 @@ function showMenu(assets: GameAssets) {
     const back = () => showMenu(assets);
     const gameEl = document.getElementById('game')!, hudEl = document.getElementById('hud')!;
     if (action.kind === 'offline') {
-      const again = () => new Game(gameEl, hudEl, assets, back, { name: profile.name, skin: profile.skin, slot: profile.slot, map: profile.map });
-      again();
+      // loading screen (logo + map + bar), the match is built behind it, then it fades into the plane
+      const load = document.createElement('div');
+      load.className = 'menu match-load';
+      load.innerHTML = `<img class="boot-logo" src="/logo.png" alt=""><p class="sub">Loading ${MAP_LIST.find((m) => m.id === profile.map)?.name ?? ''}…</p><div class="bar"><div class="ml-bar"></div></div>`;
+      app.appendChild(load);
+      const barEl = load.querySelector('.ml-bar') as HTMLElement;
+      const t0 = performance.now();
+      const tick = () => { if (!load.isConnected) return; barEl.style.width = `${Math.min(95, (performance.now() - t0) / 18)}%`; requestAnimationFrame(tick); };
+      tick();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // let it paint first
+      const game = new Game(gameEl, hudEl, assets, back, { name: profile.name, skin: profile.skin, slot: profile.slot, map: profile.map });
+      game.warmUp();
+      await new Promise((r) => setTimeout(r, Math.max(300, 1400 - (performance.now() - t0))));
+      barEl.style.width = '100%';
+      load.classList.add('out');
+      setTimeout(() => load.remove(), 700);
       return;
     }
     const status = document.createElement('div');

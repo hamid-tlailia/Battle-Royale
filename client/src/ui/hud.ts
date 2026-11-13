@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { ICONS } from './icons';
-import { MAP, MAX_ARMOR, MAX_HP, WEAPONS, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
+import { DROP, MAP, MAX_ARMOR, MAX_HP, SLOT_NAMES, WEAPONS, WEAPON_IDS, ammoOf, scopeBit, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
+
+/** player's preferred order of the three weapon slots in the bar / backpack (saved on the device) */
+const ORDER_KEY = 'lw.slotOrder.v1';
+function loadOrder(): number[] { try { const o = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]'); if (Array.isArray(o) && o.length === 3 && [0, 1, 2].every((i) => o.includes(i))) return o; } catch { /* ignore */ } return [0, 1, 2]; }
 
 const MINI_PX = 360; // drawing units
 const MINI_RES = 2; // canvas pixels per unit: the big map stays sharp
@@ -114,9 +118,8 @@ export class Hud {
     const bottom = el('bottom-bar', hud);
     bottom.dataset.hud = 'weapons'; bottom.dataset.scale = '1';
     const slotRow = el('slots', bottom);
-    ['pistol', 'rifle', 'shotgun', 'sniper'].forEach((w, i) => {
-      const pic = this.icons[w] ? `<img src="${this.icons[w]}" alt="">` : `<span>${['Pistol', 'AR', 'Shotgun', 'Sniper'][i]}</span>`;
-      const s = el('slot', slotRow, `<b>${i + 1}</b>${pic}<i></i>`);
+    [0, 1, 2].forEach((i) => {
+      const s = el('slot', slotRow, `<img alt=""><i></i>`);
       const pick = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onSlot(i); };
       s.addEventListener('touchstart', pick, { passive: false });
       s.addEventListener('mousedown', pick);
@@ -124,6 +127,8 @@ export class Hud {
     });
     // fist: put every gun away (long guns on the back, pistol in the pocket) and run empty-handed
     this.fistSlot = el('slot fist', slotRow, `${ICONS.fist}<i>∞</i>`);
+    this.slotRow = slotRow;
+    this.applyOrder();
     const fist = (e: Event) => { e.preventDefault(); e.stopPropagation(); this.onFist(); };
     this.fistSlot.addEventListener('touchstart', fist, { passive: false });
     this.fistSlot.addEventListener('mousedown', fist);
@@ -156,6 +161,18 @@ export class Hud {
       this.mapShade.addEventListener('touchstart', close, { passive: false });
       this.mapShade.addEventListener('mousedown', close);
     }
+  }
+
+  private slotRow!: HTMLDivElement;
+  private order = loadOrder();
+  private applyOrder() { for (const i of this.order) this.slotRow.insertBefore(this.slots[i], this.fistSlot); }
+  /** backpack ▲: move a weapon slot one place up in the bar */
+  private moveSlotUp(i: number) {
+    const k = this.order.indexOf(i);
+    if (k <= 0) return;
+    [this.order[k - 1], this.order[k]] = [this.order[k], this.order[k - 1]];
+    try { localStorage.setItem(ORDER_KEY, JSON.stringify(this.order)); } catch { /* ignore */ }
+    this.applyOrder(); this.bagKey = '';
   }
 
   private renderMiniBg(): HTMLCanvasElement {
@@ -198,28 +215,33 @@ export class Hud {
 
   private renderBag(p: SimPlayer) {
     if (!this.bag) return;
-    const key = JSON.stringify([p.weapons, p.meds, p.frost, p.scope, p.armor]);
+    const key = JSON.stringify([p.weapons, p.ammo, p.meds, p.frost, p.scope, p.scopes, p.armor, this.order]);
     if (key === this.bagKey) return;
     this.bagKey = key;
-    const names = ['Pistol', 'Assault Rifle', 'Shotgun', 'Sniper'];
-    const row = (img: string, label: string, sub: string, code: number) =>
-      `<div class="bag-row">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div>${code ? `<button data-drop="${code}">DROP</button>` : ''}</div>`;
-    // left: weapons + armor · right: ammo, meds, ice walls, scopes
+    const row = (img: string, label: string, sub: string, code: number, extra = '') =>
+      `<div class="bag-row">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div>${extra}${code ? `<button data-drop="${code}">DROP</button>` : ''}</div>`;
+    // left: the three weapon slots (in your bar order, ▲ moves one up) + armor · right: ammo, meds, ice walls, scopes
     let left = '', right = '';
-    p.weapons.forEach((w, i) => {
-      const img = this.icons[w.id] ? `<img src="${this.icons[w.id]}" alt="">` : '<i class="ph"></i>';
-      if (w.owned) left += row(img, names[i], `${w.mag} in magazine`, 1 + i);
-      if (w.reserve > 0) right += row('<i class="ammo-ic"></i>', `${names[i]} ammo`, `${w.reserve} rounds`, 11 + i);
+    this.order.forEach((i, k) => {
+      const w = p.weapons[i];
+      const up = k > 0 ? `<button class="bag-up" data-up="${i}" aria-label="Move up">▲</button>` : '';
+      if (w.owned) left += row(this.icons[w.id] ? `<img src="${this.icons[w.id]}" alt="">` : '<i class="ph"></i>', WEAPONS[w.id].name, `${SLOT_NAMES[i]} · ${w.mag} in magazine`, 1 + i, up);
+      else left += row('<i class="ph">—</i>', SLOT_NAMES[i], 'empty', 0, up);
     });
     left += row('<i class="armor-ic">🛡</i>', 'Armor', `${Math.round(p.armor)} / 100`, 0);
+    WEAPON_IDS.forEach((id, k) => { const n = ammoOf(p, id); if (n > 0) right += row('<i class="ammo-ic"></i>', `${WEAPONS[id].name} ammo`, `${n} rounds`, 11 + k); });
     if (p.meds) right += row('<i class="med-ic">✚</i>', 'Medkit', `× ${p.meds} (+50 HP each)`, 20);
     if (p.frost) right += row('<i class="frost-ic">❄</i>', 'Ice wall', `× ${p.frost}`, 21);
-    if (p.scope) right += row('<i class="scope-ic">◎</i>', `×${p.scope} scope`, 'fits the assault rifle', 22);
+    for (const z of [2, 4, 8]) if (p.scopes & scopeBit(z)) {
+      const on = p.scope === z;
+      right += row('<i class="scope-ic">◎</i>', `×${z} scope`, on ? 'on your long-range gun' : 'tap USE to fit it', on ? DROP.scope : 0,
+        `<button class="bag-use${on ? ' on' : ''}" data-drop="${on ? DROP.scopeUse(0) : DROP.scopeUse(z)}">${on ? 'TAKE OFF' : 'USE'}</button>`);
+    }
     if (!right) right = '<p class="bag-empty">No supplies yet</p>';
-    const html = `<div class="bag-head"><b>BACKPACK</b><button class="bag-close">✕</button></div><div class="bag-cols"><div class="bag-list"><h4>WEAPONS & ARMOR</h4>${left}</div><div class="bag-list"><h4>SUPPLIES</h4>${right}</div></div>`;
-    this.bag.innerHTML = html;
+    this.bag.innerHTML = `<div class="bag-head"><b>BACKPACK</b><button class="bag-close">✕</button></div><div class="bag-cols"><div class="bag-list"><h4>WEAPONS & ARMOR</h4>${left}</div><div class="bag-list"><h4>SUPPLIES</h4>${right}</div></div>`;
     this.bag.querySelector('.bag-close')!.addEventListener('click', () => this.toggleBag());
     this.bag.querySelectorAll<HTMLButtonElement>('[data-drop]').forEach((b) => b.addEventListener('click', () => this.onDrop(+b.dataset.drop!)));
+    this.bag.querySelectorAll<HTMLButtonElement>('[data-up]').forEach((b) => b.addEventListener('click', () => this.moveSlotUp(+b.dataset.up!)));
   }
 
   /** Ground-loot menu: everything within reach, tap TAKE (or the row) to pick that item up. */
@@ -236,7 +258,7 @@ export class Hud {
       this.lootList.dataset.hud = 'loot';
       this.lootList.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
     }
-    const names: Record<string, string> = { pistol: 'Pistol', rifle: 'Assault Rifle', shotgun: 'Shotgun', sniper: 'Sniper' };
+    const names: Record<string, string> = Object.fromEntries(WEAPON_IDS.map((id) => [id, WEAPONS[id].name]));
     const row = (it: LootItem) => {
       let img = '', label = '', sub = '';
       switch (it.kind) {
@@ -244,7 +266,7 @@ export class Hud {
         case 'ammo': img = `<i class="ammo-ic"></i>`; label = `${names[it.item as string]} ammo`; sub = `${it.amount} rounds`; break;
         case 'med': img = '<i class="med-ic">✚</i>'; label = 'Medkit'; sub = `× ${it.amount}`; break;
         case 'armor': img = '<i class="armor-ic">🛡</i>'; label = 'Armor vest'; sub = '+50 armor'; break;
-        case 'scope': img = '<i class="scope-ic">◎</i>'; label = `×${it.item} scope`; sub = 'assault rifle'; break;
+        case 'scope': img = '<i class="scope-ic">◎</i>'; label = `×${it.item} scope`; sub = 'rifle / sniper'; break;
         case 'frost': img = '<i class="frost-ic">❄</i>'; label = 'Ice wall'; sub = `× ${it.amount}`; break;
       }
       return `<div class="bag-row" data-pick="${it.id}">${img}<div class="bag-txt"><b>${label}</b><small>${sub}</small></div><button data-pick="${it.id}">TAKE</button></div>`;
@@ -284,7 +306,9 @@ export class Hud {
       this.slots[i].classList.toggle('sel', i === p.slot && w.owned && !p.holstered);
       this.slots[i].classList.toggle('empty', !w.owned);
       const sel = i === p.slot && w.owned && !p.holstered;
-      const txt = !w.owned ? (w.reserve ? String(w.reserve) : '') : sel ? `${w.mag}<small>/${w.reserve}</small>` : String(w.mag + w.reserve);
+      const img = this.slots[i].querySelector('img') as HTMLImageElement;
+      if (img.dataset.id !== w.id) { img.dataset.id = w.id; img.src = this.icons[w.id] ?? ''; }
+      const txt = !w.owned ? '' : sel ? `${w.mag}<small>/${w.reserve}</small>` : String(w.mag + w.reserve);
       const ie = this.slots[i].querySelector('i') as HTMLElement;
       if (ie.innerHTML !== txt) ie.innerHTML = txt;
       this.slots[i].style.setProperty('--fill', w.owned ? String(sel ? w.mag / WEAPONS[w.id].mag : 1) : '0');

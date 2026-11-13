@@ -1,6 +1,6 @@
 import type { InputCmd, MoveState } from '../sim/movement';
 import type { SimPlayer } from '../sim/game';
-import { WEAPON_IDS } from '../config/weapons';
+import { WEAPON_IDS, type WeaponId } from '../config/weapons';
 
 /**
  * Network protocol. High-frequency data is binary (inputs, snapshots); rare data is JSON.
@@ -92,7 +92,7 @@ export interface RemoteState {
   yaw: number; pitch: number;
   vx: number; vz: number;
   alive: boolean; crouch: boolean; grounded: boolean; ball: boolean; prone: boolean; air: number;
-  /** 0-3 weapon in hand, 4 holstered, 5 unarmed */
+  /** weapon in hand as WEAPON_IDS index (0-4), 6 holstered, 7 unarmed */
   slot: number;
   hp: number; armor: number;
 }
@@ -101,7 +101,8 @@ export interface SelfState {
   move: MoveState;
   alive: boolean;
   hp: number; armor: number; slot: number; holstered: boolean;
-  weapons: { owned: boolean; mag: number; reserve: number }[];
+  weapons: { id: WeaponId; owned: boolean; mag: number; reserve: number }[];
+  ammo: Record<WeaponId, number>; scopes: number;
   meds: number; frost: number; scope: number; healEndTick: number;
   nextFireTick: number; reloadEndTick: number;
   prevButtons: number; triggerArmed: boolean;
@@ -119,7 +120,7 @@ export interface Snapshot {
 }
 
 const PHASES = ['lobby', 'live', 'ended'] as const;
-const SELF_BYTES = 4 * 3 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 6 * 4 + 2 * 4; // pos/vel/vault as float64
+const SELF_BYTES = 3 * 4 + 5 * 2 + 1 + 4 * 3 + 1 + 1 + 4 + 4 + 4 + 4 + 1 + 1 + 1 + 4 * 3 + 4 + 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 4 + 6 * 4 + 2 * 4; // pos/vel/vault as float64
 const OTHER_BYTES = 1 + 12 + 2 + 2 + 2 + 2 + 1 + 1 + 2;
 
 export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick: number, alive: number, me: SimPlayer | null, players: Iterable<SimPlayer>): Uint8Array {
@@ -147,7 +148,9 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
     v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(me.hp)))); o += 1;
     v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(me.armor)))); o += 1;
     v.setUint8(o, me.slot); o += 1;
-    for (let k = 0; k < 4; k++) { const w = me.weapons[k]; v.setUint8(o, w.mag); v.setUint16(o + 1, w.reserve); o += 3; }
+    for (let k = 0; k < 3; k++) { const w = me.weapons[k]; v.setUint8(o, WEAPON_IDS.indexOf(w.id)); v.setUint8(o + 1, w.mag); v.setUint16(o + 2, w.reserve); o += 4; }
+    for (const id of WEAPON_IDS) { v.setUint16(o, me.ammo[id] ?? 0); o += 2; }
+    v.setUint8(o, me.scopes); o += 1;
     v.setUint32(o, me.nextFireTick); o += 4;
     v.setUint32(o, me.reloadEndTick); o += 4;
     v.setUint16(o, me.prevButtons); o += 2;
@@ -169,7 +172,7 @@ export function encodeSnapshot(tick: number, phase: Snapshot['phase'], startTick
     v.setInt16(o, Math.round(Math.max(-327, Math.min(327, m.vx)) * 100)); o += 2;
     v.setInt16(o, Math.round(Math.max(-327, Math.min(327, m.vz)) * 100)); o += 2;
     v.setUint8(o, (p.alive ? 1 : 0) | (m.crouch ? 2 : 0) | (m.grounded ? 4 : 0) | (m.ball ? 8 : 0) | (m.prone ? 16 : 0) | ((m.air & 3) << 5)); o += 1;
-    v.setUint8(o, p.holstered ? 4 : p.weapons[p.slot]?.owned ? p.slot : 5); o += 1;
+    v.setUint8(o, p.holstered ? 6 : p.weapons[p.slot]?.owned ? WEAPON_IDS.indexOf(p.weapons[p.slot].id) : 7); o += 1;
     v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(p.hp)))); o += 1;
     v.setUint8(o, Math.max(0, Math.min(255, Math.ceil(p.armor)))); o += 1;
   }
@@ -195,8 +198,11 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
     const vault = v.getUint8(o); o += 1;
     const vaultLift = d(), vaultSide = d(), yaw = f(), pitch = f();
     const hp = v.getUint8(o), armor = v.getUint8(o + 1), slot = v.getUint8(o + 2); o += 3;
-    const weapons = [];
-    for (let k = 0; k < 4; k++) { weapons.push({ owned: false, mag: v.getUint8(o), reserve: v.getUint16(o + 1) }); o += 3; }
+    const weapons: SelfState['weapons'] = [];
+    for (let k = 0; k < 3; k++) { weapons.push({ id: WEAPON_IDS[v.getUint8(o)] ?? 'pistol', owned: false, mag: v.getUint8(o + 1), reserve: v.getUint16(o + 2) }); o += 4; }
+    const ammo = {} as Record<WeaponId, number>;
+    for (const id of WEAPON_IDS) { ammo[id] = v.getUint16(o); o += 2; }
+    const scopes = v.getUint8(o); o += 1;
     const nextFireTick = v.getUint32(o); o += 4;
     const reloadEndTick = v.getUint32(o); o += 4;
     const prevButtons = v.getUint16(o); o += 2;
@@ -210,7 +216,7 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
     weapons.forEach((w, i) => { (w as { owned: boolean }).owned = !!(owned & (1 << i)); });
     self = {
       move: { x, y, z, vx, vz, vy, grounded: !!(flags & 1), crouch: !!(flags & 2), ball: !!(flags & 4), prone: !!(flags & 16), air: (flags >> 5) & 3, yaw, pitch, vault, vaultLift, vaultSide },
-      alive: !!(flags & 8), hp, armor, slot, holstered, weapons, meds, frost, scope, healEndTick, nextFireTick, reloadEndTick, prevButtons, triggerArmed, kills, place,
+      alive: !!(flags & 8), hp, armor, slot, holstered, weapons, ammo, scopes, meds, frost, scope, healEndTick, nextFireTick, reloadEndTick, prevButtons, triggerArmed, kills, place,
     };
   }
   const others: RemoteState[] = [];
@@ -233,7 +239,8 @@ export function decodeSnapshot(bytes: Uint8Array): Snapshot {
 export function applySelf(p: SimPlayer, s: SelfState) {
   Object.assign(p.move, s.move);
   p.alive = s.alive; p.hp = s.hp; p.armor = s.armor; p.slot = s.slot; p.holstered = s.holstered;
-  s.weapons.forEach((w, i) => { p.weapons[i].owned = w.owned; p.weapons[i].mag = w.mag; p.weapons[i].reserve = w.reserve; p.weapons[i].id = WEAPON_IDS[i]; });
+  s.weapons.forEach((w, i) => { p.weapons[i].owned = w.owned; p.weapons[i].mag = w.mag; p.weapons[i].reserve = w.reserve; p.weapons[i].id = w.id; });
+  Object.assign(p.ammo, s.ammo); p.scopes = s.scopes;
   p.meds = s.meds; p.frost = s.frost; p.scope = s.scope; p.healEndTick = s.healEndTick;
   p.nextFireTick = s.nextFireTick; p.reloadEndTick = s.reloadEndTick;
   p.prevButtons = s.prevButtons; p.triggerArmed = s.triggerArmed;

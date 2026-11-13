@@ -35,7 +35,7 @@ export class Controls {
   fireHeld = false;
   /** a quick tap (shorter than one 33 ms tick) still fires: the trigger stays down for at least 2 ticks */
   fireTap = 0;
-  weapon = 1;
+  weapon = 0;
   /** user setting (settings panel) */
   sensitivity = 1;
   scopeSensitivity = 1;
@@ -79,7 +79,7 @@ export class Controls {
       if (e.code === 'KeyC' || e.code === 'ControlLeft') this.toggleCrouch();
       if (e.code === 'KeyR') this.reload();
       if (e.code === 'KeyZ') this.toggleProne();
-      if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) this.weapon = n; }
+      if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 3) this.weapon = n; }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -204,7 +204,8 @@ export class Controls {
       if (up) { up(); this.buttonTouches.delete(t.identifier); }
       if (t.identifier === this.joyId) {
         this.joyId = null; this.mx = 0; this.mz = 0;
-        if (this.sprintLock) { this.sprintLock = false; this.onSprintLock(false); }
+        // letting go while sprint-locked keeps running (auto-run) until you pull back, crouch or aim
+        if (this.sprintLock) { this.sprintLock = false; this.onSprintLock(false); if (!this.sprintToggle) { this.sprintToggle = true; this.crouchToggle = false; this.proneToggle = false; this.onSprintChange(true); } }
         this.showJoystickIdle();
       } else if (t.identifier === this.lookId) this.lookId = null;
     }

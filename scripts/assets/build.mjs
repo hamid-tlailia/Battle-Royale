@@ -230,7 +230,7 @@ for (const [name, [node, len]] of Object.entries(GUNS)) {
   await finalize(doc, `${OUT}/gun_${name}.glb`, 256);
 }
 // real textured models: pump-action shotgun and bolt-action sniper
-for (const [name, src, len, grip] of [['shotgun', 'gunShotgun', 1.0, 0.3], ['sniper', 'gunSniper', 1.15, 0.3]]) {
+for (const [name, src, len, grip] of [['shotgun', 'gunShotgun', 1.0, 0.3], ['sniper', 'gunSniper', 1.15, 0.3], ['smg', 'mp40', 0.83, 0.38]]) {
   const { doc } = await bakePrefab(`${SRC}/${src}.glb`, null, { fit: 'max', size: len, simplify: 0.6 });
   orientGun(doc, grip);
   await finalize(doc, `${OUT}/gun_${name}.glb`, 512);

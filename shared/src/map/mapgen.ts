@@ -164,8 +164,10 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
     // Level the ground around the house so doors are reachable from every side.
     const avg = corners.reduce((a, b) => a + b, 0) / corners.length;
     flattenTerrain(data, p.x, p.z, w / 2 + 2.5, d / 2 + 2.5, avg, 7);
-    const floorY = avg + 0.12;
-    data.boxes.push({ x: p.x, y: avg - 0.9, z: p.z, hx: w / 2 + 0.2, hy: 1.02, hz: d / 2 + 0.2, rot: 0, color: 0x8a857a });
+    // houses on stilts (raised floor) are set into the ground so there is no open gap under them
+    const sink = HOUSE_SINK[type] ?? 0;
+    const floorY = avg + 0.12 - sink;
+    data.boxes.push({ x: p.x, y: avg - 0.9, z: p.z, hx: w / 2 + 0.2, hy: 1.02, hz: d / 2 + 0.2, rot: 0, color: id === 'desert' ? 0x9a6b4c : 0x8a857a });
     data.props.push({ p: type, x: p.x, y: floorY, z: p.z, rot, s: 1 });
     houses++;
   }
@@ -316,6 +318,9 @@ export function generateMap(seed: number = MAP.seed, id: MapId = 'classic'): Map
 }
 
 /** Flatten a rectangle (half extents hx,hz, axis aligned) to height y, blending out over `blend` metres. */
+/** how far the model's floor sits above its base (stilts / porch), metres */
+const HOUSE_SINK: Partial<Record<PrefabName, number>> = { house_f: 0.85, house_e: 0.2 };
+
 function flattenTerrain(map: MapData, cx: number, cz: number, hx: number, hz: number, y: number, blend: number) {
   const { size, cells, heights } = map;
   const n = cells + 1, cell = size / cells;
