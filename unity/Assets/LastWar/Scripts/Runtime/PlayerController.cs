@@ -125,7 +125,7 @@ namespace LastWar
         {
             float dt = Time.deltaTime;
             yaw += input.LookDelta.x * lookSensitivity;
-            pitch = Mathf.Clamp(pitch - input.LookDelta.y * lookSensitivity * Mathf.Deg2Rad, -1.2f, 1.2f);
+            pitch = Mathf.Clamp(pitch + input.LookDelta.y * lookSensitivity * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down (like the web game)
 
             // movement relative to the camera's heading
             Vector2 mv = input.Move;
