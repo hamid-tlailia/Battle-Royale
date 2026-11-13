@@ -55,6 +55,8 @@ namespace LastWar
             Play("idle");
         }
 
+        void Awake() { cc = GetComponent<CharacterController>(); }
+
         void Play(string clip)
         {
             if (anim == null || clip == currentClip || anim.GetClip(clip) == null) return;
