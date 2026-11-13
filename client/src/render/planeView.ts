@@ -44,11 +44,7 @@ export class PlaneView {
     // real transport plane (C130 by manilov.ap, CC BY): replaces the placeholder once loaded
     new GLTFLoader().load('/assets/plane.glb', (g) => {
       const m = g.scene;
-      // the file is turned 126.9° off its axis: nose toward -Z, centred on the plane origin, ~26 m long
-      const k = 0.85;
-      m.scale.setScalar(k);
-      m.rotation.y = -2.2143;
-      m.position.set(1.462 * k, -4.065 * k, 4.963 * k);
+      // (scripts/unity/bake-plane.mjs already turned it nose-to--Z, centred and sized it)
       m.traverse((o) => { const mesh = o as THREE.Mesh; if (mesh.isMesh) { mesh.frustumCulled = false; const mat = mesh.material as THREE.MeshStandardMaterial; if (mat) mat.fog = false; } });
       mesh.visible = false; for (const p of this.props) p.visible = false;
       this.root.add(m);
