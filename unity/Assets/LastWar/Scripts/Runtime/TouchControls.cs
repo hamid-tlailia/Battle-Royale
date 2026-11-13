@@ -43,7 +43,8 @@ namespace LastWar
 
             joyBase = Circle("Joystick", new Vector2(260, 230), 220, new Color(0, 0, 0, 0.25f), new Color(1, 1, 1, 0.45f));
             joyKnob = Circle("Knob", Vector2.zero, 100, new Color(1, 1, 1, 0.55f), Color.clear);
-            joyKnob.SetParent(joyBase, false); joyKnob.anchoredPosition = Vector2.zero;
+            joyKnob.SetParent(joyBase, false);
+            joyKnob.anchorMin = joyKnob.anchorMax = new Vector2(0.5f, 0.5f); joyKnob.anchoredPosition = Vector2.zero;
 
             AddButton("JUMP", new Vector2(-150, 260), 150, () => JumpPressed = true);
             AddButton("RUN", new Vector2(-150, 480), 120, () => Sprint = !Sprint);

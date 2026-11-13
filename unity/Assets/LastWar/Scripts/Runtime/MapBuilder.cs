@@ -162,15 +162,27 @@ namespace LastWar
             return m;
         }
 
+        static Mesh cube;
+        static Mesh CubeMesh()
+        {
+            if (cube != null) return cube;
+            cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            return cube;
+        }
+        static readonly Dictionary<int, Material> boxMats = new Dictionary<int, Material>();
+
         static void PlaceBox(BoxData b, Transform parent)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = "box";
+            var go = new GameObject("box");
+            go.AddComponent<MeshFilter>().sharedMesh = CubeMesh();
+            go.AddComponent<MeshRenderer>();
+            go.AddComponent<BoxCollider>(); // unit cube, scaled below
             go.transform.SetParent(parent, false);
             go.transform.SetPositionAndRotation(Coords.ToUnity(b.x, b.y, b.z), Coords.Yaw(b.rot));
             go.transform.localScale = new Vector3(b.hx * 2, b.hy * 2, b.hz * 2);
             Color c = new Color(((b.color >> 16) & 255) / 255f, ((b.color >> 8) & 255) / 255f, (b.color & 255) / 255f);
-            go.GetComponent<MeshRenderer>().sharedMaterial = NewLit(c);
+            if (!boxMats.TryGetValue(b.color, out Material mat)) { mat = NewLit(c); boxMats[b.color] = mat; }
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
     }
 }

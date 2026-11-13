@@ -1,0 +1,6 @@
+<!-- Keep engine modules the map builder adds at runtime (code stripping can't see AddComponent by type at runtime). -->
+<linker>
+  <assembly fullname="UnityEngine.PhysicsModule" preserve="all"/>
+  <assembly fullname="UnityEngine.AnimationModule" preserve="all"/>
+  <assembly fullname="LastWar.Runtime" preserve="all"/>
+</linker>

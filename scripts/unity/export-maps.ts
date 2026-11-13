@@ -27,7 +27,32 @@ for (const m of MAP_LIST) {
     areas: map.areas,
   };
   fs.writeFileSync(`${OUT}/Maps/${m.id}.json`, JSON.stringify(json));
-  if (map.albedo) await sharp(`client/public/assets/maps/${map.albedo}`).jpeg({ quality: 88 }).toFile(`${OUT}/Maps/${m.id}_albedo.jpg`);
+  if (map.albedo) {
+    // aerial photo where the scan has data, generated ground colours (grass / sand / rock by slope) elsewhere
+    const W = 2048;
+    const { data: photo } = await sharp(`client/public/assets/maps/${map.albedo}`).resize(W, W).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const n = map.cells + 1, cell = map.size / map.cells, half = map.size / 2;
+    const desert = map.id === 'desert';
+    const base = desert ? [196, 132, 92] : [92, 122, 58], rock = desert ? [138, 74, 50] : [125, 123, 116];
+    const out = Buffer.alloc(W * W * 3);
+    for (let r = 0; r < W; r++) for (let c = 0; c < W; c++) {
+      const x = -half + ((c + 0.5) / W) * map.size, z = -half + ((r + 0.5) / W) * map.size; // image top row = -z edge
+      const fx = Math.min(map.cells - 1e-6, Math.max(0, (x + half) / cell)), fz = Math.min(map.cells - 1e-6, Math.max(0, (z + half) / cell));
+      const ix = Math.floor(fx), iz = Math.floor(fz), u = fx - ix, v = fz - iz;
+      const g = (a: Float32Array | undefined, i: number) => (a ? a[i] : 0);
+      const mk = map.mask ? g(map.mask, iz * n + ix) * (1 - u) * (1 - v) + g(map.mask, iz * n + ix + 1) * u * (1 - v) + g(map.mask, (iz + 1) * n + ix) * (1 - u) * v + g(map.mask, (iz + 1) * n + ix + 1) * u * v : 1;
+      const h = (i: number) => map.heights[Math.min(n * n - 1, i)];
+      const slope = Math.hypot(h(iz * n + ix + 1) - h(iz * n + ix), h((iz + 1) * n + ix) - h(iz * n + ix)) / cell;
+      const k = Math.min(1, Math.max(0, (slope - 0.35) / 0.4)), noise = 0.92 + 0.16 * ((Math.sin(x * 0.11 + Math.cos(z * 0.07) * 2) * Math.cos(z * 0.09 + Math.sin(x * 0.05)) + 1) / 2);
+      const o = (r * W + c) * 3;
+      for (let ch = 0; ch < 3; ch++) {
+        const gen = (base[ch] * (1 - k) + rock[ch] * k) * noise;
+        const t = Math.min(1, Math.max(0, (mk - 0.15) / 0.7));
+        out[o + ch] = Math.round(photo[o + ch] * t + gen * (1 - t));
+      }
+    }
+    await sharp(out, { raw: { width: W, height: W, channels: 3 } }).jpeg({ quality: 86 }).toFile(`${OUT}/Maps/${m.id}_albedo.jpg`);
+  }
   console.log(m.id, 'props', json.props.length, 'boxes', json.boxes.length, (fs.statSync(`${OUT}/Maps/${m.id}.json`).size / 1024).toFixed(0), 'KB');
 }
 
