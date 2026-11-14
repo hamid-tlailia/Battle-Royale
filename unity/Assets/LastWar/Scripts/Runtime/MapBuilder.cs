@@ -50,35 +50,58 @@ namespace LastWar
         /// </summary>
         static void BuildSkirt(MapData map, Transform parent)
         {
-            const int seg = 96; float half = map.size / 2f;
+            // land beyond the valley: the rim's hills keep rolling outward (noise), grass-coloured, then fade into the haze;
+            // seen from the plane the map sits in a landscape instead of a crater over an empty plain
+            const int seg = 160, rings = 26; float half = map.size / 2f, r0 = half * 0.975f, rMax = 1700f;
             float low = float.MaxValue; foreach (float h in map.heights) low = Mathf.Min(low, h);
-            float[] radius = { half * 0.975f, half * 1.6f, half * 3.2f, 2400f };
-            var verts = new Vector3[seg * radius.Length]; var tris = new List<int>();
-            for (int i = 0; i < seg; i++)
+            bool desert = map.id == "desert";
+            Color grassA = desert ? new Color(.74f, .5f, .35f) : new Color(.33f, .5f, .22f), grassB = desert ? new Color(.62f, .38f, .26f) : new Color(.26f, .41f, .18f);
+            Color rock = desert ? new Color(.55f, .32f, .22f) : new Color(.45f, .45f, .4f), snow = new Color(.9f, .92f, .95f);
+            var verts = new Vector3[seg * rings]; var cols = new Color[seg * rings]; var uvs = new Vector2[seg * rings];
+            float seed = map.id.GetHashCode() % 1000;
+            for (int r = 0; r < rings; r++)
             {
-                float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a);
-                float edge = map.HeightAt(cx * radius[0], sz * radius[0]);
-                for (int r = 0; r < radius.Length; r++)
+                float t = r / (float)(rings - 1), rad = Mathf.Lerp(r0, rMax, t * t);
+                for (int i = 0; i < seg; i++)
                 {
-                    float y = r == 0 ? edge - 1.2f : r == 1 ? Mathf.Lerp(edge, low, 0.55f) - 4f : r == 2 ? low - 14f : low - 40f;
-                    verts[r * seg + i] = Coords.ToUnity(cx * radius[r], y, sz * radius[r]);
+                    float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a);
+                    float edge = map.HeightAt(cx * r0, sz * r0);
+                    float x = cx * rad, z = sz * rad;
+                    float n1 = Mathf.PerlinNoise(seed + x * 0.006f, z * 0.006f), n2 = Mathf.PerlinNoise(seed + 50 + x * 0.02f, z * 0.02f);
+                    float hills = low + 6f + n1 * 55f + n2 * 10f;                     // rolling country
+                    float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((rad - r0) / 140f)); // from the rim's own height into the hills
+                    float y = Mathf.Lerp(edge - 0.8f, hills, k) - Mathf.Clamp01((rad - 900f) / 800f) * 40f; // far away it sinks under the haze
+                    verts[r * seg + i] = Coords.ToUnity(x, y, z);
+                    uvs[r * seg + i] = new Vector2(x, z) / 6f;
+                    Color c = Color.Lerp(grassA, grassB, n2);
+                    if (!desert && y > map.snowHeight - 2f) c = Color.Lerp(c, snow, Mathf.Clamp01((y - map.snowHeight + 2f) / 8f));
+                    else if (y > low + 50f) c = Color.Lerp(c, rock, 0.4f);
+                    cols[r * seg + i] = c;
                 }
             }
-            for (int r = 0; r < radius.Length - 1; r++)
+            var tris = new List<int>();
+            for (int r = 0; r < rings - 1; r++)
                 for (int i = 0; i < seg; i++)
                 {
                     int a0 = r * seg + i, a1 = r * seg + (i + 1) % seg, b0 = a0 + seg, b1 = a1 + seg;
-                    // both windings: seen from above whatever the mirror did
                     tris.AddRange(new[] { a0, a1, b0, a1, b1, b0, a0, b0, a1, a1, b0, b1 });
                 }
-            var mesh = new Mesh { name = "skirt" }; mesh.vertices = verts; mesh.triangles = tris.ToArray();
-            mesh.RecalculateBounds();
-            var nrm = new Vector3[verts.Length]; for (int i = 0; i < nrm.Length; i++) nrm[i] = Vector3.up; mesh.normals = nrm;
-            Color col = map.id == "desert" ? new Color(0.62f, 0.36f, 0.24f) : map.snowHeight < 100f ? new Color(0.5f, 0.54f, 0.5f) : new Color(0.36f, 0.43f, 0.3f);
+            var mesh = new Mesh { name = "skirt", indexFormat = IndexFormat.UInt32 };
+            mesh.vertices = verts; mesh.colors = cols; mesh.uv = uvs; mesh.triangles = tris.ToArray();
+            mesh.RecalculateNormals(); mesh.RecalculateBounds();
             var go = new GameObject("Skirt", typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(parent, false);
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
-            var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = NewLit(col);
+            var vbase = Resources.Load<Material>("Materials/VertexLit");
+            Material mat;
+            if (vbase != null)
+            {
+                mat = new Material(vbase);
+                var grain = Resources.Load<Texture2D>("Maps/" + (desert ? "detail_sand" : "detail_grass"));
+                if (grain != null) { grain.wrapMode = TextureWrapMode.Repeat; mat.SetTexture("_BaseMap", grain); mat.SetColor("_BaseColor", new Color(1.6f, 1.6f, 1.6f)); }
+            }
+            else mat = NewLit(grassB);
+            var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
         }
 

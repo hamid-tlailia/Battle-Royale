@@ -28,9 +28,13 @@ namespace LastWar
         RectTransform shade, sheet; int dragFinger = -1; Vector2 dragLast; bool mouseDrag;
         static readonly string[] Tips = { "Welcome to Last War!", "Land, loot a gun, stay in the zone.", "Tap a weapon to equip it, tap it again to reload.", "Headshots hit twice as hard.", "The shotgun fires two blasts per press." };
 
+        public static Lobby Current;
+        /// <summary>back button: closes the open page; false when there was none</summary>
+        public bool Back() { if (sheet == null) return false; Close(); return true; }
+
         public static Lobby Create(MapData map, Camera cam)
         {
-            var l = new GameObject("Lobby").AddComponent<Lobby>();
+            var l = new GameObject("Lobby").AddComponent<Lobby>(); Current = l;
             l.cam = cam; l.Build3D(map); l.BuildUi();
             // test switches: ?open=settings|outfit|map|edit opens that panel; ?lpose=kneel|crawl|runfree shows that pose
             string url = Application.absoluteURL ?? "";

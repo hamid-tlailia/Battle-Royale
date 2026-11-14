@@ -56,7 +56,7 @@ namespace LastWar
             target = new Vector3(p.x, 0, p.y);
         }
 
-        float turn, stepAcc, groundTime, lootScan; string longGun, closeGun; float armAfter;
+        float turn, stepAcc, groundTime, lootScan, lootSeek, strafeT; int strafeDir = 1; string longGun, closeGun; float armAfter;
         void Update()
         {
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
@@ -67,6 +67,21 @@ namespace LastWar
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
             groundTime += dt;
             if (!fighter.HasGun && groundTime > armAfter) fighter.GiveStartingGuns(longGun, closeGun);
+            // hands on a gun that can shoot: the slot in hand must hold one with rounds (else the bot "fired" with nothing)
+            if (fighter.Gun == null || (fighter.Gun.mag == 0 && fighter.Gun.reserve == 0 && fighter.reloadEnd == 0))
+                for (int k = 0; k < 3; k++) { var g = fighter.guns[k]; if (g != null && (g.mag > 0 || g.reserve > 0)) { fighter.SelectSlot(k); break; } }
+            bool canShoot = fighter.Gun != null && (fighter.Gun.mag > 0 || fighter.Gun.reserve > 0);
+            // no usable gun: walk to the nearest gun lying around
+            if (!canShoot && (lootSeek -= dt) <= 0f)
+            {
+                lootSeek = 1.5f; float bestD = 45f;
+                foreach (Loot l in Loot.All)
+                {
+                    if (l.kind != Loot.Kind.Weapon && !(l.kind == Loot.Kind.Ammo && fighter.HasGun)) continue;
+                    float d = Vector3.Distance(l.transform.position, transform.position);
+                    if (d < bestD) { bestD = d; target = l.transform.position; }
+                }
+            }
             if ((lootScan -= dt) <= 0f)
             {
                 lootScan = 0.3f;
@@ -102,7 +117,7 @@ namespace LastWar
             // the next circle is already known: walk into it before the shrink starts
             bool outsideNext = zone != null && zone.Active && Vector2.Distance(new Vector2(transform.position.x, transform.position.z), zone.NextCentre) > zone.NextRadius - 2f;
             Vector3 move = Vector3.zero; bool sprint = false;
-            if (enemy != null && enemy.Alive && !outside)
+            if (enemy != null && enemy.Alive && !outside && canShoot)
             {
                 Vector3 to = enemy.transform.position + Vector3.up * 1.2f - (transform.position + Vector3.up * 1.55f);
                 float dist = to.magnitude;
@@ -115,8 +130,15 @@ namespace LastWar
                 if ((burstTimer -= dt) < 0f) burstTimer = Random.Range(1.2f, 2.8f);
                 // no shooting in the first seconds of the match, nor before the bot has reacted
                 bool mayShoot = Time.time >= reactUntil && GameBoot.Instance.MatchTime > 12f;
-                if (mayShoot && burstTimer > 1.5f) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
-                if (dist > 30f) move = new Vector3(to.x, 0, to.z).normalized * 0.5f;
+                if (!(mayShoot && burstTimer > 1.5f)) mayShoot = false;
+                // close in from far; up close keep moving sideways (never a standing target)
+                Vector3 flatTo = new Vector3(to.x, 0, to.z).normalized;
+                if ((strafeT -= dt) <= 0f) { strafeT = Random.Range(0.8f, 2f); strafeDir = Random.value < 0.5f ? -1 : 1; }
+                Vector3 side = Vector3.Cross(Vector3.up, flatTo) * strafeDir;
+                move = dist > 30f ? flatTo * 0.6f + side * 0.3f : dist < 8f ? -flatTo * 0.3f + side * 0.6f : side * 0.6f;
+                if (mayShoot) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
+                // no shot landed for a while (wall in between, out of reach): go closer
+                if (fighter.lastShotAt < Time.time - 4f && Time.time >= reactUntil) move = flatTo * 0.75f + side * 0.25f;
             }
             else
             {

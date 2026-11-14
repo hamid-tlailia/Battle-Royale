@@ -47,6 +47,8 @@ namespace LastWar
         public bool Editing;
         /// <summary>watching someone after you are out: no play controls (web #hud.spectating)</summary>
         public bool Spectating;
+        /// <summary>the plane is over the map: you may jump</summary>
+        public bool JumpReady;
         /// <summary>settings / backpack: nothing outside them moves. (The big map only stops the camera turning: you keep running.)</summary>
         public static bool ModalOpen => SettingsPanel.IsOpen || BagPanel.IsOpen;
         readonly List<Btn> btns = new List<Btn>();
@@ -154,6 +156,7 @@ namespace LastWar
         {
             if (Editing || Preview) return true;
             if (Spectating) return false;
+            if (airMode == 1) return b == jumpBtn && JumpReady; // in the plane JUMP appears only once you can drop
             if (airMode > 0) return b == jumpBtn;
             if (b == frostBtn && frostCount <= 0 && !FrostAim) return false;
             if (b == scopeBtn && !scopeAllowed) return false;

@@ -11,6 +11,7 @@ namespace LastWar
     {
         static GameObject open;
         public static bool IsOpen => open != null;
+        public static void CloseAll() => Close();
         static readonly Color Gold = new Color(1f, .83f, .3f), Ink = new Color(27 / 255f, 20 / 255f, 4 / 255f);
 
         public static void Open(Canvas canvas, bool inMatch)

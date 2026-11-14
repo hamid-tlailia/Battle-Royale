@@ -132,7 +132,8 @@ namespace LastWar
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(content, screen, null, out Vector2 lp)) return;
             Vector2 dr = lp / U; // drawing units, y down = negative
             Vector2 web = new Vector2(dr.x / Units * map.size - map.size / 2f, -dr.y / Units * map.size - map.size / 2f);
-            if (markWeb.HasValue && Vector2.Distance(markWeb.Value, web) < map.size * 0.03f) markWeb = null;
+            // tapping the marker again (or close to it - the pin is drawn above its point) removes it
+            if (markWeb.HasValue && (Vector2.Distance(markWeb.Value, web) < map.size * 0.06f || Vector2.Distance(markWeb.Value - new Vector2(0, map.size * 0.03f), web) < map.size * 0.06f)) markWeb = null;
             else markWeb = web;
         }
         RectTransform cone, arrow;
@@ -163,6 +164,9 @@ namespace LastWar
         }
 
         public static bool BigOpen;
+        static Minimap current;
+        public static void CloseBig() { if (current != null) current.SetBig(false); }
+        void Awake() { current = this; }
         void OnDestroy() { BigOpen = false; }
         void SetBig(bool on)
         {
@@ -229,9 +233,11 @@ namespace LastWar
             }
 
             // me: arrow + view cone, turned with the camera
-            Vector2 mw = Web(player.transform.position);
+            // (watching someone after you are out: the arrow is them)
+            Transform who = !player.fighter.Alive && player.SpectateTarget != null ? player.SpectateTarget.transform : player.transform;
+            Vector2 mw = Web(who.position);
             me.anchoredPosition = ToMap(mw) * u; me.sizeDelta = Vector2.one;
-            float heading = player.yaw;
+            float heading = who == player.transform ? player.yaw : who.eulerAngles.y;
             if (player.fighter != null && player.fighter.air == 1 && SkyDrop.Instance != null) { Vector3 pd = SkyDrop.Instance.Dir; heading = Mathf.Atan2(pd.x, pd.z) * Mathf.Rad2Deg; }
             me.localRotation = Quaternion.Euler(0, 0, 180f - heading);
             cone.sizeDelta = Vector2.one * 200 * u;
@@ -260,7 +266,7 @@ namespace LastWar
             if (markWeb.HasValue) { pin.anchoredPosition = ToMap(markWeb.Value) * u; pin.sizeDelta = Vector2.one * (big ? 34 : 44) * u; Draw(route, ToMap(mw), ToMap(markWeb.Value), 4f, u); }
             else route.gameObject.SetActive(false);
             Vector2? safe = null;
-            Vector3 pp = player.transform.position;
+            Vector3 pp = who.position;
             if (zoneOn && player.fighter.Alive && player.fighter.air == 0 && z.Outside(pp))
             {
                 Vector2 cz = new Vector2(pp.x, pp.z) - z.Centre; // unity x / z

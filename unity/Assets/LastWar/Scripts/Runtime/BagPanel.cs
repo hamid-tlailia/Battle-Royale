@@ -13,6 +13,7 @@ namespace LastWar
     {
         static BagPanel open;
         public static bool IsOpen => open != null;
+        public static void CloseAll() { if (open != null) Destroy(open.gameObject); open = null; }
         TouchControls input; Fighter f; RectTransform panel, left, right; float slide; string key = "";
         static readonly Color Gold = new Color(1f, .83f, .3f), Ink = new Color(.1f, .08f, .02f), Row = new Color(1, 1, 1, .06f);
 

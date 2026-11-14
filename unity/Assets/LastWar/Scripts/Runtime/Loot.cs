@@ -87,10 +87,10 @@ namespace LastWar
             GameObject src = MapBuilder.Model("item_ammo");
             if (src != null)
             {
-                Transform look = Instantiate(src, go.transform, false).transform; look.localScale = new Vector3(2.3f, 2.6f, 2.6f);
+                Transform look = Instantiate(src, go.transform, false).transform; look.localScale = new Vector3(1.3f, 1.35f, 1.35f);
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
             }
-            Ring(go.transform, new Color(1f, .83f, .3f, .7f), 1.6f);
+            Ring(go.transform, new Color(1f, .83f, .3f, .7f), 1.0f);
             return id;
         }
         public static Vector3 CratePos(int box) { foreach (Crate c in Object.FindObjectsByType<Crate>(FindObjectsSortMode.None)) if (c.box == box) return c.transform.position; return Vector3.zero; }
@@ -130,7 +130,7 @@ namespace LastWar
             {
                 look = Instantiate(src, transform, false).transform;
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
-                if (kind == Kind.Weapon) { look.localRotation = Quaternion.Euler(0, 0, 90f); look.localPosition = Vector3.up * 0.07f; look.localScale = Vector3.one * 1.3f; } // the gun lies on its side, a bit bigger (web)
+                if (kind == Kind.Weapon) { look.localRotation = Quaternion.Euler(0, 0, 90f); look.localPosition = Vector3.up * 0.07f; look.localScale = Vector3.one * 0.85f; } // the gun lies on its side
             }
             else if (kind == Kind.Scope)
             {

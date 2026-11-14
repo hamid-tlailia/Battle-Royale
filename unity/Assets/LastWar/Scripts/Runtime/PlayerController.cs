@@ -62,7 +62,7 @@ namespace LastWar
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
-            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (OnEnemy != null && AimAssistOn ? 0.8f : 1f);
+            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (lockTarget != null && AimAssistOn ? 0.6f : 1f);
             yaw += input.LookDelta.x * sens;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
             if (fighter.air != 0) { sniperHold = false; AirUpdate(dt); return; }
@@ -300,19 +300,20 @@ namespace LastWar
                 Angles(lockTarget, out float qy, out float qp, out float dist, out Vector3 t);
                 // still on them? anywhere on / just around the body, head included (moving from chest to head keeps the lock)
                 float off = Vector3.Angle(cam.transform.forward, t - cam.transform.position) * Mathf.Deg2Rad;
-                bool near = off < Mathf.Atan(0.9f / Mathf.Max(1f, dist));
+                bool near = off < Mathf.Atan(1.3f / Mathf.Max(1f, dist));
                 lockOff = OnEnemy != null || near ? 0 : lockOff + dt;
                 // (scoped: long range too - the sniper reaches 320 m)
-                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > 0.6f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
+                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > 0.9f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
                 else
                 {
                     yaw += Mathf.DeltaAngle(lockYaw, qy);
                     pitch = Mathf.Clamp(pitch + (qp - lockPitch), -1.2f, 1.2f);
                     lockYaw = qy; lockPitch = qp;
-                    // through the scope the lock also pulls the aim back onto the body when it drifts off
-                    if (Scoped && OnEnemy == null)
+                    // while shooting or through the scope the aim is drawn onto the body and stays there
+                    // (a drift to the head / edge comes back; letting go of FIRE leaves it free)
+                    if (Scoped || input.FireHeld)
                     {
-                        float kk = Mathf.Min(1f, dt * 5f);
+                        float kk = Mathf.Min(1f, dt * (OnEnemy == null ? 7f : 2.5f));
                         yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch += (qp - pitch) * kk * 0.7f;
                     }
                     return;
@@ -351,7 +352,8 @@ namespace LastWar
                 // first frame: look the way the plane flies, a little down
                 if (!planeViewSet) { planeViewSet = true; Vector3 d = sky.Dir; yaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; pitch = -0.22f; }
                 AirMove.Ride(fighter, cc); body.SetVisible(false);
-                if ((input.JumpPressed && sky.OverMap && sky.T > 0.5f) || sky.MustJump) { AirMove.Jump(fighter); body.SetVisible(true); dropStraight = false; }
+                input.JumpReady = sky.OverMap && sky.T > 0.5f;
+                if ((input.JumpPressed && input.JumpReady) || sky.MustJump) { AirMove.Jump(fighter); body.SetVisible(true); dropStraight = false; }
                 return;
             }
             // JUMP while falling: drop straight down (tap again to glide)
@@ -373,7 +375,7 @@ namespace LastWar
         /// <summary>things within reach that walking over did not take (shown in the HUD list with TAKE)</summary>
         public readonly System.Collections.Generic.List<Loot> Nearby = new System.Collections.Generic.List<Loot>();
         public void Take(Loot it) { if (it != null && fighter.TryPickup(it, true)) Destroy(it.gameObject); }
-        Transform frostGhost; bool blockFire;
+        Transform frostGhost; bool blockFire; float camY = float.NaN;
 
         // ------------------------------------------------------------ vault (through a window / over a low wall)
         float vaultT = -1f; Vector3 vaultFrom, vaultApex, vaultTo;
@@ -462,6 +464,10 @@ namespace LastWar
                 return;
             }
             Vector3 pivot = transform.position + Vector3.up * Mathf.Max(1.0f, cc.height - 0.3f); // (prone: the camera stays above the body, not in the ground)
+            // smooth the camera over bumps and steps (web camY); big jumps / falls snap
+            if (float.IsNaN(camY) || Mathf.Abs(pivot.y - camY) > 1.5f || fighter.air != 0) camY = pivot.y;
+            else camY = Mathf.Lerp(camY, pivot.y, Mathf.Min(1f, Time.deltaTime * 14f));
+            pivot.y = camY;
             Quaternion look = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
             body.SetVisible(!Scoped && fighter.air != 1);
             if (Scoped)

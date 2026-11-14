@@ -189,6 +189,19 @@ namespace LastWar
 
         void Update()
         {
+            // the phone's back button (Escape): close what is open, else ask before leaving the match / the game
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (Confirm.IsOpen) Confirm.Close();
+                else if (Player != null)
+                {
+                    if (BagPanel.IsOpen || SettingsPanel.IsOpen) { BagPanel.CloseAll(); SettingsPanel.CloseAll(); }
+                    else if (Minimap.BigOpen) Minimap.CloseBig();
+                    else Confirm.Show("LEAVE MATCH?", "You will be taken back to the lobby.", "LEAVE", Restart);
+                }
+                else if (Lobby.Current != null && !Lobby.Current.Back())
+                    Confirm.Show("QUIT LAST WAR?", "Close the game?", "QUIT", Application.Quit);
+            }
             fpsAcc += Time.unscaledDeltaTime; fpsFrames++;
             // ?rig=1: list what is drawn close to the camera / unusually big (hunting stray giant bodies in the plane)
             if (SoldierBody.LogRig && Camera.main != null && (Time.frameCount % 300) == 0)

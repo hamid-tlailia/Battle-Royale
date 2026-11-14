@@ -194,7 +194,13 @@ namespace LastWar
                     mask.SetTransformActive(i, last.Contains("Shoulder") || last.Contains("Arm") || last.Contains("Hand"));
                 }
                 layers.SetLayerMaskFromAvatarMask(1, mask);
-                walkLen = clips[wi].length;
+                walkLen = clips[wi].length; walkClip = clips[wi]; animRoot = animator.gameObject;
+                foreach (Transform t in animator.GetComponentsInChildren<Transform>(true))
+                {
+                    if (!t.name.Contains("mixamorig")) continue;
+                    string last = BoneKey(t.name);
+                    if (last.Contains("Shoulder") || last.Contains("Arm") || last.Contains("Hand")) armBones.Add(t); else bodyBones.Add(t);
+                }
             }
             AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(layers);
             graph.Play();
@@ -225,16 +231,50 @@ namespace LastWar
         }
 
         AnimationLayerMixerPlayable layers; AnimationClipPlayable walkArms; float walkLen, freeW;
+        AnimationClip walkClip; GameObject animRoot;
+        readonly List<Transform> armBones = new List<Transform>(), bodyBones = new List<Transform>();
+        Vector3[] keepPos; Quaternion[] keepRot, runArm;
+
+        /// <summary>
+        /// The web game's run_free: the run's legs and body with the walk's arms (swinging at the sides). The walk pose is
+        /// sampled at the run's phase, then everything but the arms is put back.
+        /// </summary>
+        void FreeArms()
+        {
+            if (freeW <= 0f || walkClip == null || animRoot == null) return;
+            int nb = bodyBones.Count, na = armBones.Count;
+            if (keepPos == null) { keepPos = new Vector3[nb]; keepRot = new Quaternion[nb]; runArm = new Quaternion[na]; }
+            for (int i = 0; i < nb; i++) { keepPos[i] = bodyBones[i].localPosition; keepRot[i] = bodyBones[i].localRotation; }
+            for (int i = 0; i < na; i++) runArm[i] = armBones[i].localRotation;
+            walkClip.SampleAnimation(animRoot, ClipPhase() * walkLen);
+            for (int i = 0; i < nb; i++) { bodyBones[i].localPosition = keepPos[i]; bodyBones[i].localRotation = keepRot[i]; }
+            for (int i = 0; i < na; i++) armBones[i].localRotation = Quaternion.Slerp(runArm[i], armBones[i].localRotation, freeW);
+        }
+
+        /// <summary>no feet inside the ground: lift the body when a toe is below the ground under it (web fixFeet)</summary>
+        void FixFeet()
+        {
+            if (!visible || Tilt != 0 || Pose == "sky" || Pose == "chute" || Pose == "crawl" || current == null || current == "prone" || current.StartsWith("death") || current == "jump") return;
+            Transform hips = outfitRoot != null ? dstHips : null;
+            if (hips == null) { Transform h = PoseBone("Hips"); hips = h; }
+            if (hips == null) return;
+            int mask = ~(1 << MapBuilder.PlayerLayer);
+            float lift = 0f;
+            foreach (string toe in new[] { "LeftToeBase", "RightToeBase" })
+            {
+                Transform t = PoseBone(toe); if (t == null) continue;
+                Vector3 p = t.position;
+                if (Physics.Raycast(p + Vector3.up * 0.6f, Vector3.down, out RaycastHit hit, 1.2f, mask, QueryTriggerInteraction.Ignore))
+                    lift = Mathf.Max(lift, hit.point.y + 0.03f - p.y);
+            }
+            if (lift > 0.005f) hips.position += Vector3.up * Mathf.Min(lift, 0.45f);
+        }
         void Update()
         {
             if (weights == null || current == null) return;
             // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
             freeW = Mathf.MoveTowards(freeW, Pose == "runfree" && current == "run" ? 1f : 0f, Time.deltaTime * 6f);
-            if (walkArms.IsValid())
-            {
-                layers.SetInputWeight(1, freeW);
-                if (freeW > 0) walkArms.SetTime(ClipPhase() * walkLen);
-            }
+            if (walkArms.IsValid()) layers.SetInputWeight(1, 0f); // (the arms are copied from the walk clip in LateUpdate instead)
             int target = clipIndex[current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
             if (OneShot(current))
@@ -523,7 +563,9 @@ namespace LastWar
         void LateUpdate()
         {
             if (model != null) ApplyRoot();
+            FreeArms();
             Retarget();
+            FixFeet();
             ApplyPose();
             PlaceBack();
             // gun: grip in the right hand, barrel (model -Z) along the aim

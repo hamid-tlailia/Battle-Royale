@@ -196,7 +196,7 @@ namespace LastWar
             endPanel.gameObject.SetActive(false);
 
             // spectating: who you watch + back to the lobby, a card at the bottom over the health bar (web .spec-banner)
-            specBar = UiKit.Img(c, "SpecBar", UiKit.Panel, BC, new Vector2(0, 40), new Vector2(240, 58), Color.white, true).rectTransform;
+            specBar = UiKit.Img(c, "SpecBar", UiKit.Panel, BC, new Vector2(0, 58), new Vector2(220, 54), Color.white, true).rectTransform;
             specBar.pivot = new Vector2(.5f, 0);
             specText = UiKit.Txt(specBar, new Vector2(.5f, 1), new Vector2(0, -6), new Vector2(230, 22), 16, TextAnchor.UpperCenter, new Color(1f, .83f, .3f));
             specText.rectTransform.pivot = new Vector2(.5f, 1);
@@ -213,8 +213,8 @@ namespace LastWar
             status.anchoredPosition = new Vector2(-BarW / 2f, 27) * UiKit.K; status.sizeDelta = new Vector2(160, 18) * UiKit.K;
             vestIcon = UiKit.Img(status, "vest", UiKit.Get("icon_vest"), new Vector2(0, .5f), Vector2.zero, new Vector2(17, 17), Color.white); vestIcon.rectTransform.pivot = new Vector2(0, .5f);
             vestText = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(20, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, Color.white);
-            var bagIc = UiKit.Img(status, "bag", UiKit.Get("icon_bag"), new Vector2(0, .5f), new Vector2(58, 0), new Vector2(17, 17), new Color(1f, .83f, .3f)); bagIc.rectTransform.pivot = new Vector2(0, .5f);
-            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(78, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1";
+            var bagIc = UiKit.Img(status, "bag", UiKit.Get("icon_bag"), new Vector2(0, .5f), new Vector2(34, 0), new Vector2(17, 17), new Color(1f, .83f, .3f)); bagIc.rectTransform.pivot = new Vector2(0, .5f);
+            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(53, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1";
 
             // things within reach (web .loot-list): a see-through panel to the left of the fire button, picture, name, TAKE
             lootPanel = UiKit.Img(c, "LootList", UiKit.Round, new Vector2(1, .56f), new Vector2(-232, 0), new Vector2(172, 40), new Color(10 / 255f, 18 / 255f, 10 / 255f, .42f), true).rectTransform;
@@ -421,7 +421,7 @@ namespace LastWar
             box.gameObject.SetActive((f.air == 0 && !scoped && !spectating) || input.Editing);
             hpBgRt.gameObject.SetActive(!scoped); arBgRt.gameObject.SetActive(!scoped);
             // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
-            string hint = f.air == 1 ? "Tap <b>JUMP</b> to drop" : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
+ string hint = f.air == 1 ? (input.JumpReady ? "Tap <b>JUMP</b> to drop" : "") : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
             if (hint != hintText) { hintText = hint; hintAt = Time.time; }
 
             // using a medkit: green loading ring in the middle of the screen (web .heal-ring, smaller)
@@ -445,7 +445,7 @@ namespace LastWar
             {
                 int s = Mathf.CeilToInt(z.SecondsLeft); string tm = $"{s / 60}:{s % 60:00}";
                 zoneText.text = !z.Active ? $"SAFE ZONE APPEARS IN {tm}" : z.PhaseEnds > 1e30f ? "FINAL ZONE" : z.Shrinking ? $"ZONE SHRINKING {tm}" : $"ZONE SHRINKS IN {tm}";
-                outside = z.Active && z.Outside(player.transform.position) && f.Alive;
+                outside = z.Active && z.Outside(f.transform.position) && f.Alive;
             }
             zoneBox.color = outside ? new Color(200 / 255f, 30 / 255f, 30 / 255f, .5f + .25f * Mathf.PingPong(Time.time * 2f, 1f)) : new Color(20 / 255f, 60 / 255f, 140 / 255f, .5f);
             zoneBox.rectTransform.sizeDelta = new Vector2(zoneText.preferredWidth + 20 * K, 18 * K);
@@ -529,6 +529,9 @@ namespace LastWar
             if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#cfd6da>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
             status.gameObject.SetActive(!scoped && f.air == 0);
 
+            // watching and the match ends (or nobody is left to watch): back to the result card with LOBBY
+            if (spectating && (player.SpectateTarget == null || !player.SpectateTarget.Alive)) player.StartSpectate(null);
+            if (spectating && (gb.AliveCount <= 1 || player.SpectateTarget == null)) spectating = false;
             if (gb.Result != 0 && !endPanel.gameObject.activeSelf && !spectating)
             {
                 spectateBtn.gameObject.SetActive(gb.Result < 0 && gb.AliveCount > 1);
