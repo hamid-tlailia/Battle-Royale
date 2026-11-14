@@ -341,7 +341,11 @@ namespace LastWar
             glass.texture = zoom >= 8 ? lensCross : lensPlain;
             glass.rectTransform.sizeDelta = new Vector2(L, L);
             // one big dark sheet with a round hole the size of the lens (no seams, no gaps), the rim drawn over its edge
-            hole.rectTransform.sizeDelta = Vector2.one * L * 0.94f * 20f; hole.color = new Color(0.02f, 0.03f, 0.02f, OutsideA);
+            float oa = OutsideA;
+            string url = Application.absoluteURL ?? "";
+            int qi = url.IndexOf("lensA="); if (qi >= 0) float.TryParse(url.Substring(qi + 6, 4).TrimEnd('&'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out oa);
+            if (url.Contains("nogamma=1")) { var ga = hole.GetComponent<GammaAlpha>(); if (ga != null) Destroy(ga); }
+            hole.rectTransform.sizeDelta = Vector2.one * L * 0.94f * 20f; hole.color = new Color(0.02f, 0.03f, 0.02f, oa);
             foreach (var sd in sides) sd.gameObject.SetActive(false);
             if (SoldierBody.LogRig) Debug.Log($"[LastWar] lens zoom {zoom} L {L} H {H} hole {hole.rectTransform.rect} active {hole.gameObject.activeInHierarchy} col {hole.color} canvasScale {((RectTransform)full).localScale}");
             Color outside = new Color(0.02f, 0.03f, 0.02f, OutsideA);
