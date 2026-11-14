@@ -34,6 +34,9 @@ namespace LastWar
             SoldierBody.LogRig = (Application.absoluteURL ?? "").Contains("rig=1");
             if ((Application.absoluteURL ?? "").Contains("skin=")) { string u = Application.absoluteURL; int si = u.IndexOf("skin=") + 5; int sv = 0; while (si < u.Length && char.IsDigit(u[si])) sv = sv * 10 + (u[si++] - '0'); Profile.Skin = sv; }
 
+            // test switch: ?map=<id> (green / desert / classic)
+            { string u = Application.absoluteURL ?? ""; int mi = u.IndexOf("map="); if (mi >= 0) { string id = new string(u.Substring(mi + 4).TakeWhile(char.IsLetter).ToArray()); if (id.Length > 0) Profile.Map = id; } }
+
             // sun + ambient + fog
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional; sun.intensity = 1.3f; sun.color = new Color(1f, 0.95f, 0.85f);
