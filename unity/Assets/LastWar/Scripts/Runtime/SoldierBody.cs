@@ -222,7 +222,7 @@ namespace LastWar
         // ---- sky-dive pose, visibility, parachute
         /// <summary>lean forward in degrees around the hips (free fall: ~83 = belly down)</summary>
         public float Tilt;
-        float tiltNow; Vector3 outfitBase; bool outfitBaseSet;
+        float tiltNow; Vector3 outfitBase, modelBase; Quaternion outfitBaseRot, modelBaseRot; bool baseSet;
         Transform chute; float chuteK;
         bool visible = true;
 
@@ -289,12 +289,15 @@ namespace LastWar
             tiltNow = Mathf.MoveTowards(tiltNow, Tilt, Time.deltaTime * 240f);
             Vector3 pivot = Vector3.up * 0.95f;
             Quaternion q = Quaternion.Euler(tiltNow, 0, 0);
-            model.localRotation = q; model.localPosition = pivot - q * pivot;
-            if (outfitRoot != null)
+            // the models' own root turn (glTF up axis, Sketchfab Z-up roots) is kept: the lean goes on top of it
+            if (!baseSet)
             {
-                if (!outfitBaseSet) { outfitBase = outfitRoot.localPosition; outfitBaseSet = true; }
-                outfitRoot.localRotation = q; outfitRoot.localPosition = pivot - q * (pivot - outfitBase);
+                modelBase = model.localPosition; modelBaseRot = model.localRotation;
+                if (outfitRoot != null) { outfitBase = outfitRoot.localPosition; outfitBaseRot = outfitRoot.localRotation; }
+                baseSet = true;
             }
+            model.localRotation = q * modelBaseRot; model.localPosition = pivot - q * (pivot - modelBase);
+            if (outfitRoot != null) { outfitRoot.localRotation = q * outfitBaseRot; outfitRoot.localPosition = pivot - q * (pivot - outfitBase); }
         }
 
         void LateUpdate()
