@@ -85,7 +85,7 @@ namespace LastWar
         void SaveAll()
         {
             var s = new Saved();
-            foreach (var (n, rt) in tc.Editable) s.items.Add(new Item { n = n, x = rt.anchoredPosition.x, y = rt.anchoredPosition.y, s = rt.localScale.x, h = rt.localScale.y, a = Alpha.TryGetValue(rt, out float a) ? a : 1f, hide = HiddenSet.Contains(rt) });
+            foreach (var (n, rt) in tc.Editable) s.items.Add(new Item { n = n, x = rt.anchoredPosition.x, y = rt.anchoredPosition.y, s = rt.localScale.x, h = rt.localScale.y, a = Alpha.TryGetValue(rt, out float av) ? av : 1f, hide = HiddenSet.Contains(rt) });
             PlayerPrefs.SetString(Key, JsonUtility.ToJson(s)); PlayerPrefs.Save();
         }
 
