@@ -11,15 +11,18 @@ namespace LastWar
         static Music current;
         AudioSource src; float fade = -1, fadeAt;
 
+        public static void PlayLobbyIfIdle() { if (!GameBoot.InMatch) PlayLobby(); }
+
         public static void PlayLobby()
         {
+            if (!Profile.MusicOn) return;
             if (current != null) { current.fade = -1; current.src.volume = 0.26f; if (!current.src.isPlaying) current.src.Play(); return; }
             var clip = Resources.Load<AudioClip>("Audio/lobby_music");
             if (clip == null) return;
             var go = new GameObject("Music"); DontDestroyOnLoad(go);
             current = go.AddComponent<Music>();
             current.src = go.AddComponent<AudioSource>();
-            current.src.clip = clip; current.src.loop = true; current.src.spatialBlend = 0f; current.src.volume = 0.26f;
+            current.src.clip = clip; current.src.ignoreListenerVolume = true; current.src.loop = true; current.src.spatialBlend = 0f; current.src.volume = 0.26f;
             current.src.Play();
         }
 

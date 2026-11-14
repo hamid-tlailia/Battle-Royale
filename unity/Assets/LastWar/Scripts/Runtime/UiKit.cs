@@ -48,7 +48,69 @@ namespace LastWar
             return rt;
         }
 
-        static Sprite round, ring, disc, panel;
+        static Sprite round, ring, disc, panel, goldPlate, darkPlate, diamond, frame;
+        static readonly Color GoldTop = new Color(1f, .95f, .69f), GoldMid = new Color(1f, .83f, .3f), GoldBot = new Color(.91f, .66f, .16f);
+        static Color GoldAt(float t) => t < .4f ? Color.Lerp(GoldTop, GoldMid, t / .4f) : Color.Lerp(GoldMid, GoldBot, (t - .4f) / .6f); // t: 0 top .. 1 bottom
+
+        /// <summary>slanted plate (web clip-path parallelogram), gold gradient baked in; 9-sliced so the slants keep their angle</summary>
+        public static Sprite GoldPlate => goldPlate != null ? goldPlate : (goldPlate = Slant(true));
+        /// <summary>same slanted shape, plain white (tint it)</summary>
+        public static Sprite SlantPlate => darkPlate != null ? darkPlate : (darkPlate = Slant(false));
+        static Sprite Slant(bool gold)
+        {
+            const int W = 96, H = 48, sl = 12;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[W * H];
+            for (int y = 0; y < H; y++) for (int x = 0; x < W; x++)
+                {
+                    float fy = (y + .5f) / H;                       // 0 bottom .. 1 top
+                    float left = sl * (1f - fy), right = W - sl * fy; // top edge shifted right: "/" slants
+                    float a = Mathf.Clamp01(x + .5f - left) * Mathf.Clamp01(right - (x + .5f));
+                    Color c = gold ? GoldAt(1f - fy) : Color.white; c.a = a;
+                    px[y * W + x] = c;
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, W, H), new Vector2(.5f, .5f), 100, 0, SpriteMeshType.FullRect, new Vector4(sl + 2, 0, sl + 2, 0));
+        }
+
+        /// <summary>slider thumb: gold diamond with a dark edge and a soft glow (web range thumb)</summary>
+        public static Sprite Diamond => diamond != null ? diamond : (diamond = MakeDiamond());
+        static Sprite MakeDiamond()
+        {
+            const int S = 96; float c = S / 2f, R = S * 0.34f;
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[S * S];
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float d = Mathf.Abs(x + .5f - c) + Mathf.Abs(y + .5f - c); // diamond distance
+                    Color col;
+                    if (d <= R - 3) col = GoldAt(1f - (y + .5f - (c - R)) / (2 * R));
+                    else if (d <= R) col = new Color(.16f, .11f, .02f, 1f);
+                    else col = new Color(1f, .83f, .3f, Mathf.Clamp01(1f - (d - R) / (S * 0.14f)) * .45f); // glow
+                    px[y * S + x] = col;
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
+        }
+
+        /// <summary>dark rounded box with a thin light border (web slider housing / inputs)</summary>
+        public static Sprite Frame => frame != null ? frame : (frame = MakeFrame());
+        static Sprite MakeFrame()
+        {
+            const int S = 64; const float r = 20f;
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[S * S];
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float cx = Mathf.Clamp(x + .5f, r, S - r), cy = Mathf.Clamp(y + .5f, r, S - r);
+                    float d = r - Vector2.Distance(new Vector2(x + .5f, y + .5f), new Vector2(cx, cy));
+                    Color col = d < 2.2f ? new Color(.55f, .58f, .6f, .55f) : new Color(.04f, .05f, .06f, .92f);
+                    col.a *= Mathf.Clamp01(d * 1.5f);
+                    px[y * S + x] = col;
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f), 100, 0, SpriteMeshType.FullRect, new Vector4(22, 22, 22, 22));
+        }
         /// <summary>modal background (web .lb-sheet): dark blue-grey gradient, 14 px corners, thin gold edge; 9-sliced</summary>
         public static Sprite Panel => panel != null ? panel : (panel = MakePanel());
 

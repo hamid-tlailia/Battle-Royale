@@ -41,6 +41,8 @@ namespace LastWar
             var boxes = new GameObject("Boxes").transform; boxes.SetParent(root.transform);
             foreach (BoxData b in map.boxes) PlaceBox(b, boxes);
             Physics.IgnoreLayerCollision(PlayerLayer, CoverLayer, true);
+            // soldiers don't stand on / shove each other's capsules (that shook the camera); a soft push keeps them apart
+            Physics.IgnoreLayerCollision(PlayerLayer, PlayerLayer, true);
             return root;
         }
 

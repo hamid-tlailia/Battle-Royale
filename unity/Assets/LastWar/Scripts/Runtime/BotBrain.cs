@@ -56,7 +56,7 @@ namespace LastWar
             target = new Vector3(p.x, 0, p.y);
         }
 
-        float turn, stepAcc, groundTime, lootScan, lootSeek, strafeT; int strafeDir = 1; string longGun, closeGun; float armAfter;
+        float noiseSeed = Random.value * 100f; float turn, stepAcc, groundTime, lootScan, lootSeek, strafeT; int strafeDir = 1; string longGun, closeGun; float armAfter;
         void Update()
         {
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
@@ -124,16 +124,18 @@ namespace LastWar
                 // weapon by distance: close range < 15 m, long range beyond
                 fighter.SelectSlot(dist < 15f ? 1 : 0);
                 aimErr = Mathf.MoveTowards(aimErr, 0.09f * (1.3f - skill), dt * 0.03f); // never laser-accurate
-                Vector3 aim = (Quaternion.Euler(Random.Range(-1f, 1f) * aimErr * 57f, Random.Range(-1f, 1f) * aimErr * 57f, 0) * to).normalized;
+                // aim error that drifts smoothly (a random kick every frame shook the arms and the gun)
+                float nt = Time.time * 1.7f + noiseSeed;
+                Vector3 aim = (Quaternion.Euler((Mathf.PerlinNoise(nt, 0f) * 2f - 1f) * aimErr * 57f, (Mathf.PerlinNoise(0f, nt) * 2f - 1f) * aimErr * 57f, 0) * to).normalized;
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(new Vector3(to.x, 0, to.z)), dt * 8f);
-                body.AimDir = aim;
+                body.AimDir = Vector3.Slerp(body.AimDir, aim, Mathf.Min(1f, dt * 12f));
                 if ((burstTimer -= dt) < 0f) burstTimer = Random.Range(1.2f, 2.8f);
                 // no shooting in the first seconds of the match, nor before the bot has reacted
                 bool mayShoot = Time.time >= reactUntil && GameBoot.Instance.MatchTime > 12f;
                 if (!(mayShoot && burstTimer > 1.5f)) mayShoot = false;
                 // close in from far; up close keep moving sideways (never a standing target)
                 Vector3 flatTo = new Vector3(to.x, 0, to.z).normalized;
-                if ((strafeT -= dt) <= 0f) { strafeT = Random.Range(0.8f, 2f); strafeDir = Random.value < 0.5f ? -1 : 1; }
+                if ((strafeT -= dt) <= 0f) { strafeT = Random.Range(1.4f, 3f); strafeDir = Random.value < 0.5f ? -1 : 1; }
                 Vector3 side = Vector3.Cross(Vector3.up, flatTo) * strafeDir;
                 move = dist > 30f ? flatTo * 0.6f + side * 0.3f : dist < 8f ? -flatTo * 0.3f + side * 0.6f : side * 0.6f;
                 if (mayShoot) fighter.Fire(transform.position + Vector3.up * 1.55f, aim, dist > 40f, false);
@@ -176,7 +178,8 @@ namespace LastWar
             if (!fighter.HasGun) clip = clip == "run" ? "run" : hs > 0.4f ? "walk" : "idle";
             body.Play(clip);
             body.Pose = !fighter.HasGun && clip == "run" ? "runfree" : null;
-            PlayerController.Locomotion(body, cc.velocity, transform.eulerAngles.y, hs, clip, fighter.HasGun, false, ref turn, dt);
+            PlayerController.Separate(transform, cc, dt);
+            PlayerController.Locomotion(body, velocity, transform.eulerAngles.y, hs, clip, fighter.HasGun, false, ref turn, dt);
             // footsteps you can hear when they are close (26 m)
             if (cc.isGrounded && hs > 1.2f && Camera.main != null && (Camera.main.transform.position - transform.position).sqrMagnitude < 26f * 26f)
             {

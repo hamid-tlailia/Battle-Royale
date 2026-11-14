@@ -141,7 +141,7 @@ namespace LastWar
             }
         }
 
-        Slider wS, hS, aS; Text hideText; Image hideBg;
+        Slider wS, hS, aS, zS; RectTransform tabRt; Text tabText; Text hideText; Image hideBg;
         /// <summary>the web's layout bar: one dark strip across the top - Width, Height, See-through, HIDE, RESET, CANCEL, SAVE</summary>
         void BuildTopBar()
         {
@@ -149,13 +149,15 @@ namespace LastWar
             Canvas.ForceUpdateCanvases();
             float cw = ((RectTransform)tc.Canvas.transform).rect.width;
             if (cw < 100f) cw = 1080f * Screen.width / Mathf.Max(1f, Screen.height);
-            float avail = cw * 0.94f / UiKit.K, need = 930, f = Mathf.Clamp(avail / need, 0.5f, 1f);
+            float avail = cw * 0.94f / UiKit.K, need = 1100, f = Mathf.Clamp(avail / need, 0.5f, 1f);
             var panel = UiKit.Img(c, "EditBar", UiKit.Round, new Vector2(.5f, 1), new Vector2(0, -8), new Vector2(need * f, 44 * f), new Color(10 / 255f, 14 / 255f, 12 / 255f, .94f), true);
             bar = panel.rectTransform; bar.pivot = new Vector2(.5f, 1);
             panel.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .6f);
             float x = 14;
             Text Lbl(string t) { var l = UiKit.Txt(bar, new Vector2(0, .5f), new Vector2(x * f, 0), new Vector2(90, 30) * f, 14 * f, TextAnchor.MiddleLeft, new Color(.87f, .9f, .91f)); l.fontStyle = FontStyle.Normal; l.text = t; l.horizontalOverflow = HorizontalWrapMode.Overflow; x += l.preferredWidth / UiKit.K / f + 10; return l; }
             Slider Sl(float min, float max, Action<float> on) { var s = MakeSlider(bar, new Vector2(x, 0) * f, 96 * f, min, max, on); x += 106; return s; }
+            // Size: width and height together (round buttons stay round)
+            Lbl("Size"); zS = Sl(0.5f, 1.8f, v => { if (selected) { float m = Mathf.Max(selected.localScale.x, selected.localScale.y); Vector2 r = m > 0 ? new Vector2(selected.localScale.x, selected.localScale.y) / m : Vector2.one; selected.localScale = new Vector3(r.x * v, r.y * v, 1); wS.SetValueWithoutNotify(selected.localScale.x); hS.SetValueWithoutNotify(selected.localScale.y); } });
             Lbl("Width"); wS = Sl(0.5f, 1.8f, v => { if (selected) selected.localScale = new Vector3(v, selected.localScale.y, 1); });
             Lbl("Height"); hS = Sl(0.5f, 1.8f, v => { if (selected) selected.localScale = new Vector3(selected.localScale.x, v, 1); });
             Lbl("See-through"); aS = Sl(0.25f, 1f, v => { if (selected) { Alpha[selected] = v; Refresh(selected); } });
@@ -164,6 +166,18 @@ namespace LastWar
             Btn(ref x, f, "RESET", new Color(.27f, .29f, .31f), Color.white, ResetAll);
             Btn(ref x, f, "CANCEL", new Color(.27f, .29f, .31f), Color.white, Cancel);
             Btn(ref x, f, "SAVE", new Color(.42f, .76f, .24f), new Color(.06f, .13f, .03f), Done);
+            // a tab under the bar folds it away (to reach the buttons behind it) and back
+            var tab = UiKit.Img(c, "BarTab", UiKit.Round, new Vector2(.5f, 1), new Vector2(0, -8 - 44 * f - 2), new Vector2(110, 22), new Color(10 / 255f, 14 / 255f, 12 / 255f, .94f), true);
+            tab.rectTransform.pivot = new Vector2(.5f, 1); tabRt = tab.rectTransform;
+            tabText = UiKit.Txt(tab.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(110, 22), 11, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
+            tabText.rectTransform.pivot = new Vector2(.5f, .5f); tabText.text = "HIDE TOOLS";
+            float barH = 44 * f;
+            SettingsPanel.Tap(tab.gameObject, () =>
+            {
+                bool show = !bar.gameObject.activeSelf; bar.gameObject.SetActive(show);
+                tabText.text = show ? "HIDE TOOLS" : "SHOW TOOLS";
+                tabRt.anchoredPosition = new Vector2(0, show ? (-8 - barH - 2) * UiKit.K : -4 * UiKit.K);
+            });
             Sync();
         }
 
@@ -204,10 +218,10 @@ namespace LastWar
         void Sync()
         {
             bool has = selected != null;
-            foreach (var s in new[] { wS, hS, aS }) s.interactable = has;
+            foreach (var s in new[] { wS, hS, aS, zS }) s.interactable = has;
             if (has)
             {
-                wS.SetValueWithoutNotify(selected.localScale.x); hS.SetValueWithoutNotify(selected.localScale.y);
+                wS.SetValueWithoutNotify(selected.localScale.x); hS.SetValueWithoutNotify(selected.localScale.y); zS.SetValueWithoutNotify(Mathf.Max(selected.localScale.x, selected.localScale.y));
                 aS.SetValueWithoutNotify(Alpha.TryGetValue(selected, out float a) ? a : 1f);
             }
             bool hidden = has && HiddenSet.Contains(selected);
@@ -244,7 +258,7 @@ namespace LastWar
             editingNow = false; foreach (var (_, rt) in tc.Editable) Refresh(rt);
             foreach (var kv in frames) if (kv.Value != null) Destroy(kv.Value.gameObject);
             frames.Clear();
-            Destroy(shadeGo); Destroy(bar.gameObject); Destroy(gameObject);
+            Destroy(shadeGo); Destroy(bar.gameObject); if (tabRt != null) Destroy(tabRt.gameObject); Destroy(gameObject);
             onDone?.Invoke();
         }
 
@@ -262,7 +276,8 @@ namespace LastWar
             if (down)
             {
                 dragging = false;
-                if (bar != null && RectTransformUtility.RectangleContainsScreenPoint(bar, p)) return;
+                if (bar != null && bar.gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(bar, p)) return;
+                if (tabRt != null && RectTransformUtility.RectangleContainsScreenPoint(tabRt, p)) return;
                 for (int i = tc.Editable.Count - 1; i >= 0; i--)
                 {
                     var (n, rt) = tc.Editable[i];

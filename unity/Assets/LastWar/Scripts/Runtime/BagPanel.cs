@@ -50,7 +50,7 @@ namespace LastWar
         }
 
         /// <summary>one line: picture, name + small line, buttons on the right</summary>
-        void AddRow(RectTransform col, ref float y, Sprite pic, string name, string sub, params (string label, bool gold, System.Action act)[] buttons)
+        Image AddRow(RectTransform col, ref float y, Sprite pic, string name, string sub, params (string label, bool gold, System.Action act)[] buttons)
         {
             const float K = UiKit.K, H = 34;
             var bg = UiKit.Img(col, "row", UiKit.Round, new Vector2(0, 1), new Vector2(0, -y), new Vector2(208, H), Row);
@@ -70,6 +70,30 @@ namespace LastWar
                 bx -= w + 4;
             }
             y += H + 4;
+            return bg;
+        }
+
+        bool dragging;
+        /// <summary>drag a row: up / down among the weapons to change their order, out of the panel to throw it on the ground</summary>
+        void Draggable(Image bg, int pos, System.Action dropOutside)
+        {
+            bg.raycastTarget = true;
+            RectTransform rt = bg.rectTransform; float startY = 0;
+            var tr = bg.gameObject.AddComponent<EventTrigger>();
+            void On(EventTriggerType t, System.Action<PointerEventData> a) { var en = new EventTrigger.Entry { eventID = t }; en.callback.AddListener(d => a((PointerEventData)d)); tr.triggers.Add(en); }
+            On(EventTriggerType.BeginDrag, e => { dragging = true; startY = rt.anchoredPosition.y; rt.SetAsLastSibling(); bg.color = new Color(1f, .83f, .3f, .25f); });
+            On(EventTriggerType.Drag, e => rt.anchoredPosition += e.delta / input.Canvas.scaleFactor);
+            On(EventTriggerType.EndDrag, e =>
+            {
+                dragging = false;
+                if (!RectTransformUtility.RectangleContainsScreenPoint(panel, e.position)) dropOutside?.Invoke();
+                else if (pos >= 0)
+                {
+                    int to = Mathf.Clamp(Mathf.RoundToInt(-rt.anchoredPosition.y / (38 * UiKit.K)), 0, 2);
+                    if (to != pos) { var l = new List<int>(f.order); int v = l[pos]; l.RemoveAt(pos); l.Insert(to, v); for (int i = 0; i < 3; i++) f.order[i] = l[i]; }
+                }
+                key = "";
+            });
         }
 
         string State()
@@ -94,8 +118,9 @@ namespace LastWar
                 var buttons = new List<(string, bool, System.Action)>();
                 if (pos > 0) buttons.Add(("UP", true, () => { int a = f.order[pos - 1]; f.order[pos - 1] = f.order[pos]; f.order[pos] = a; }));
                 if (g != null) buttons.Add(("DROP", false, () => f.DropWeapon(s)));
-                if (g == null) AddRow(left, ref y, null, $"<color=#ffffff80>{Tuning.SlotNames[s]}</color>", "empty", buttons.ToArray());
-                else AddRow(left, ref y, UiKit.Get("gun_" + g.def.id), g.def.name, $"{g.mag} in magazine", buttons.ToArray());
+                Image row = g == null ? AddRow(left, ref y, null, $"<color=#ffffff80>{Tuning.SlotNames[s]}</color>", "empty", buttons.ToArray())
+                    : AddRow(left, ref y, UiKit.Get("gun_" + g.def.id), g.def.name, $"{g.mag} in magazine", buttons.ToArray());
+                Draggable(row, pos, g != null ? () => f.DropWeapon(s) : (System.Action)null);
             }
             AddRow(left, ref y, UiKit.Get("icon_vest"), "Armor", $"{Mathf.RoundToInt(f.armor)} / 100");
 
@@ -104,10 +129,10 @@ namespace LastWar
             {
                 int n = f.AmmoOf(id); if (n <= 0) continue;
                 string wid = id;
-                AddRow(right, ref y, UiKit.Get("gun_" + id), Tuning.Weapon(id).name + " ammo", n + " rounds", ("DROP", false, () => f.DropAmmo(wid)));
+                Draggable(AddRow(right, ref y, UiKit.Get("gun_" + id), Tuning.Weapon(id).name + " ammo", n + " rounds", ("DROP", false, () => f.DropAmmo(wid))), -1, () => f.DropAmmo(wid));
             }
-            if (f.meds > 0) AddRow(right, ref y, UiKit.Get("icon_heal"), $"Medkit  × {f.meds}", "+100 HP · 3 s", ("DROP", false, () => f.DropMed()));
-            if (f.frost > 0) AddRow(right, ref y, UiKit.Get("icon_frost"), $"Ice wall  × {f.frost}", "stops bullets · 25 s", ("DROP", false, () => f.DropFrost()));
+            if (f.meds > 0) Draggable(AddRow(right, ref y, UiKit.Get("icon_heal"), $"Medkit  × {f.meds}", "+100 HP · 3 s", ("DROP", false, () => f.DropMed())), -1, () => f.DropMed());
+            if (f.frost > 0) Draggable(AddRow(right, ref y, UiKit.Get("icon_frost"), $"Ice wall  × {f.frost}", "stops bullets · 25 s", ("DROP", false, () => f.DropFrost())), -1, () => f.DropFrost());
             foreach (int z in new[] { 2, 4, 8 })
             {
                 if ((f.scopes & Fighter.ScopeBit(z)) == 0) continue;
@@ -125,7 +150,7 @@ namespace LastWar
             panel.anchoredPosition = new Vector2(Mathf.Lerp(-480, 6, 1 - (1 - slide) * (1 - slide)) * UiKit.K, 0);
             if (!f.Alive || f.air != 0) { Destroy(gameObject); open = null; return; }
             string k = State();
-            if (k != key) { key = k; Rebuild(); }
+            if (k != key && !dragging) { key = k; Rebuild(); }
         }
 
         void OnDestroy() { if (open == this) open = null; }

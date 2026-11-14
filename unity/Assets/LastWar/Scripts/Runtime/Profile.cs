@@ -9,6 +9,11 @@ namespace LastWar
         public static string Name { get => PlayerPrefs.GetString("lw.name", "Soldier"); set { PlayerPrefs.SetString("lw.name", string.IsNullOrWhiteSpace(value) ? "Soldier" : value.Trim()); PlayerPrefs.Save(); } }
         public static int Skin { get => PlayerPrefs.GetInt("lw.skin", 0); set { PlayerPrefs.SetInt("lw.skin", value); PlayerPrefs.Save(); } }
         public static string Map { get => PlayerPrefs.GetString("lw.map", "green"); set { PlayerPrefs.SetString("lw.map", value); PlayerPrefs.Save(); } }
+        /// <summary>a new map after every match (rotation); false = the chosen one stays</summary>
+        public static bool MapAuto { get => PlayerPrefs.GetInt("lw.mapAuto", 1) == 1; set { PlayerPrefs.SetInt("lw.mapAuto", value ? 1 : 0); PlayerPrefs.Save(); } }
+        public static bool AutoPickup { get => PlayerPrefs.GetInt("lw.autoPick", 1) == 1; set { PlayerPrefs.SetInt("lw.autoPick", value ? 1 : 0); PlayerPrefs.Save(); } }
+        public static bool MusicOn { get => PlayerPrefs.GetInt("lw.music", 1) == 1; set { PlayerPrefs.SetInt("lw.music", value ? 1 : 0); PlayerPrefs.Save(); } }
+        public static bool SoundOn { get => PlayerPrefs.GetInt("lw.sound", 1) == 1; set { PlayerPrefs.SetInt("lw.sound", value ? 1 : 0); PlayerPrefs.Save(); AudioListener.volume = value ? 1f : 0f; } }
         public static int Wins => PlayerPrefs.GetInt("lw.wins", 0);
         public static int Kills => PlayerPrefs.GetInt("lw.kills", 0);
         public static int Matches => PlayerPrefs.GetInt("lw.matches", 0);
@@ -43,6 +48,7 @@ namespace LastWar
                 urp.shadowDistance = q == 0 ? 40f : q == 1 ? 70f : 90f;
             }
             PlayerController.AimAssistOn = AimAssist;
+            AudioListener.volume = SoundOn ? 1f : 0f;
         }
     }
 }

@@ -120,7 +120,7 @@ namespace LastWar
             var dynamic = new Dictionary<string, string> {
                 { "name", Profile.Name }, { "level", "LV " + Profile.Level }, { "server", "offline - play vs bots" },
                 { "chip0_text", Profile.Wins.ToString() }, { "chip1_text", Profile.Kills.ToString() },
-                { "mapcard_name", MapName(Profile.Map) },
+                { "mapcard_name", MapName(Profile.Map) + (Profile.MapAuto ? " · auto" : "") },
                 { "season_lv", $"Level {Profile.Level} · {Profile.Matches} matches" }, { "season_xp", $"{have} / {need}" },
                 { "tip_text", Tips[UnityEngine.Random.Range(0, Tips.Length)] },
             };
@@ -167,6 +167,15 @@ namespace LastWar
                 foreach (var key in new[] { "tip", "tip_icon", "tip_text" }) if (nodes.TryGetValue(key, out RectTransform r)) r.anchoredPosition += new Vector2(dx, 0);
                 var tipImg = tipRt.GetComponent<Image>();
                 if (tipImg != null) { tipImg.sprite = UiKit.Panel; tipImg.type = Image.Type.Sliced; tipImg.pixelsPerUnitMultiplier = 3f; }
+            }
+            // season card: the xp numbers end inside the card, the bar stops before them
+            if (texts.TryGetValue("season_xp", out Text xp) && nodes.TryGetValue("season_bar", out RectTransform sbar))
+            {
+                xp.alignment = TextAnchor.MiddleRight; xp.horizontalOverflow = HorizontalWrapMode.Overflow;
+                float right = (10 + 220 - 12) * s, wTxt = xp.preferredWidth + 2;
+                RectTransform xr = xp.rectTransform; xr.sizeDelta = new Vector2(wTxt, xr.sizeDelta.y);
+                xr.anchoredPosition = new Vector2(right - wTxt, xr.anchoredPosition.y);
+                sbar.sizeDelta = new Vector2(Mathf.Max(30 * s, right - wTxt - 8 * s - sbar.anchoredPosition.x), sbar.sizeDelta.y);
             }
             // keep icons / labels above their panels
             foreach (var kv in texts) kv.Value.transform.SetAsLastSibling();
@@ -313,17 +322,25 @@ namespace LastWar
             string[] ids = { "green", "desert", "classic" }; string[] names = { "Highlands", "Red Canyon", "Valley" };
             string[] desc = { "Real moorland scan · farm village", "Real desert scan · rock butte", "Pine valley · 25 houses" };
             float w = ColW, h = 96 * s;
+            // first: the next map is picked by itself after every match, or the one you choose stays
+            var lbl = UiKit.Txt(content, new Vector2(.5f, 1), Vector2.zero, Vector2.one, 12 * k, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
+            lbl.rectTransform.pivot = new Vector2(.5f, 1); lbl.rectTransform.sizeDelta = new Vector2(w, 16 * s); lbl.text = "MAP EACH MATCH";
+            var segRoot = new GameObject("seg", typeof(RectTransform)).GetComponent<RectTransform>();
+            segRoot.SetParent(content, false); segRoot.anchorMin = segRoot.anchorMax = segRoot.pivot = new Vector2(.5f, 1);
+            segRoot.anchoredPosition = new Vector2(0, -20 * s); segRoot.sizeDelta = new Vector2(w, 32 * s);
+            SettingsPanel.Segments(segRoot, new Vector2(0, 0), new Vector2(w, 32 * s), 11 * k, new[] { "ROTATE (NEW MAP EVERY MATCH)", "KEEP MY CHOICE" }, Profile.MapAuto ? 0 : 1, i => Profile.MapAuto = i == 0);
+            float top = 64 * s;
             for (int i = 0; i < ids.Length; i++)
             {
                 string id = ids[i]; bool on = Profile.Map == id;
                 var card = UiKit.Img(content, "map", UiKit.Get("Lobby/mapcard_" + id), new Vector2(.5f, 1), Vector2.zero, Vector2.one, on ? Color.white : new Color(.75f, .75f, .75f), true);
-                card.rectTransform.pivot = new Vector2(.5f, 1); card.rectTransform.anchoredPosition = new Vector2(0, -i * (h + 10 * s)); card.rectTransform.sizeDelta = new Vector2(w, h);
+                card.rectTransform.pivot = new Vector2(.5f, 1); card.rectTransform.anchoredPosition = new Vector2(0, -top - i * (h + 10 * s)); card.rectTransform.sizeDelta = new Vector2(w, h);
                 if (on) card.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f);
                 var t = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 30) * k, new Vector2(300, 28) * k, 17 * k, TextAnchor.LowerRight, Color.white); t.rectTransform.pivot = new Vector2(1, 0); t.text = names[i];
                 var d = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerRight, new Color(1, 1, 1, .85f)); d.rectTransform.pivot = new Vector2(1, 0); d.fontStyle = FontStyle.Normal; d.text = desc[i];
-                Clickable.Add(card.gameObject, () => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Go("Loading " + MapName(id) + "…"); });
+                Clickable.Add(card.gameObject, () => { Profile.MapAuto = false; if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Go("Loading " + MapName(id) + "…"); });
             }
-            content.sizeDelta = new Vector2(0, ids.Length * (h + 10 * s));
+            content.sizeDelta = new Vector2(0, top + ids.Length * (h + 10 * s));
         }
 
         void Note(string text)
@@ -342,21 +359,12 @@ namespace LastWar
             var field = new GameObject("name", typeof(RectTransform), typeof(Image), typeof(InputField)).GetComponent<InputField>();
             var fr = (RectTransform)field.transform; fr.SetParent(content, false); fr.anchorMin = fr.anchorMax = fr.pivot = new Vector2(0, 1);
             fr.anchoredPosition = new Vector2(0, -y); fr.sizeDelta = new Vector2(w * .7f, 30 * s);
-            field.GetComponent<Image>().color = new Color(.04f, .05f, .06f);
+            { var fi = field.GetComponent<Image>(); fi.sprite = UiKit.Frame; fi.type = Image.Type.Sliced; fi.color = Color.white; }
             var ft = UiKit.Txt(fr, new Vector2(0, .5f), new Vector2(8, 0) * k, new Vector2(w * .7f / s - 16, 24) * k, 13 * k, TextAnchor.MiddleLeft, Color.white); ft.supportRichText = false;
             field.textComponent = ft; field.characterLimit = 14; field.text = Profile.Name;
             field.onEndEdit.AddListener(v => { Profile.Name = v; if (texts.TryGetValue("name", out Text nt)) nt.text = Profile.Name; });
             y += 40 * s;
-            // sensitivity
-            var sens = Label($"LOOK SENSITIVITY  {Profile.Sensitivity:0.0}");
-            Slider(content, ref y, w, 0.3f, 2.5f, Profile.Sensitivity, v => { Profile.Sensitivity = v; sens.text = $"LOOK SENSITIVITY  {v:0.0}"; });
-            var ssens = Label($"SCOPE SENSITIVITY  {Profile.ScopeSensitivity:0.0}");
-            Slider(content, ref y, w, 0.3f, 2.5f, Profile.ScopeSensitivity, v => { Profile.ScopeSensitivity = v; ssens.text = $"SCOPE SENSITIVITY  {v:0.0}"; });
-            // aim assist
-            Label("AIM");
-            Choice(content, ref y, w, new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => Profile.AimAssist = i == 0);
-            Label("GRAPHICS");
-            Choice(content, ref y, w, new[] { "LOW", "MEDIUM", "HIGH" }, Profile.Quality, i => Profile.Quality = i);
+            y += SettingsPanel.Fill(content, 0, y, w, s);
             // move / resize / fade every in-match control (the same editor as in the match)
             Label("CONTROLS");
             var cb = UiKit.Img(content, "custom", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(.23f, .26f, .28f), true);
@@ -375,16 +383,23 @@ namespace LastWar
             canvas.enabled = false;
             TouchControls tc = TouchControls.Create();
             tc.Preview = true;
-            RectTransform Stand(string label, Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size)
+            // stand-ins for the HUD pieces, drawn with their pictures (no words)
+            RectTransform Stand(string name, string icon, Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size, Vector2 iconSize)
             {
-                var img = UiKit.Img(tc.Root, label, UiKit.Round, anchor, pos, size, new Color(24 / 255f, 32 / 255f, 40 / 255f, .7f), true);
+                var img = UiKit.Img(tc.Root, name, UiKit.Round, anchor, pos, size, new Color(24 / 255f, 32 / 255f, 40 / 255f, .7f), true);
                 img.rectTransform.pivot = pivot;
-                var t = UiKit.Txt(img.rectTransform, new Vector2(.5f, .5f), Vector2.zero, size, 12, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = label;
+                var ic = UiKit.Img(img.rectTransform, "icon", UiKit.Get(icon), new Vector2(.5f, .5f), Vector2.zero, iconSize, Color.white);
+                ic.rectTransform.pivot = new Vector2(.5f, .5f); ic.preserveAspect = true;
                 return img.rectTransform;
             }
-            tc.AddEditable("weapons", Stand("WEAPONS", new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(209, 85)));
-            tc.AddEditable("minimap", Stand("MAP", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132)));
-            tc.AddEditable("fps", Stand("60 fps · ping 0 ms", new Vector2(0, 1), new Vector2(0, 1), new Vector2(16, -10) / UiKit.K, new Vector2(330, 30) / UiKit.K));
+            tc.AddEditable("weapons", Stand("WEAPONS", "gun_rifle", new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(209, 85), new Vector2(110, 40)));
+            tc.AddEditable("minimap", Stand("MAP", "icon_map", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132), new Vector2(46, 46)));
+            tc.AddEditable("loot", Stand("LOOT", "gun_pistol", new Vector2(1, .56f), new Vector2(1, .5f), new Vector2(-232, 0), new Vector2(172, 62), new Vector2(60, 26)));
+            tc.AddEditable("killfeed", Stand("FEED", "icon_skull", new Vector2(0, 1), new Vector2(0, 1), new Vector2(8, -54), new Vector2(200, 40), new Vector2(26, 26)));
+            tc.AddEditable("status", Stand("STATUS", "icon_bag", new Vector2(.5f, 0), new Vector2(0, 0), new Vector2(-65, 27), new Vector2(160, 18), new Vector2(16, 16)));
+            var fpsT = UiKit.Txt(tc.Root, new Vector2(0, 1), new Vector2(16, -10) / UiKit.K, new Vector2(330, 30) / UiKit.K, 20f / UiKit.K, TextAnchor.UpperLeft, new Color(1, 1, 1, .6f));
+            fpsT.text = "60 fps"; fpsT.raycastTarget = true;
+            tc.AddEditable("fps", fpsT.rectTransform);
             LayoutEditor.Open(tc, () => { Destroy(tc.Canvas.gameObject); Destroy(tc.gameObject); canvas.enabled = true; });
         }
 

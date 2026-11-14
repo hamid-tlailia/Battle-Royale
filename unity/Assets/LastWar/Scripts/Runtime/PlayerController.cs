@@ -108,6 +108,7 @@ namespace LastWar
             velocity.y += Gravity * dt;
             cc.Move(velocity * dt);
 
+            Separate(transform, cc, dt);
             AimAssist(dt);
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
@@ -147,7 +148,7 @@ namespace LastWar
                 Vector3 d = it.transform.position - transform.position;
                 if (d.y < -0.6f || d.y > 1.8f) continue;
                 float h2 = d.x * d.x + d.z * d.z;
-                if (h2 < 1.4f * 1.4f && fighter.TryPickup(it, false)) { Destroy(it.gameObject); continue; }
+                if (h2 < 1.4f * 1.4f && Profile.AutoPickup && fighter.TryPickup(it, false)) { Destroy(it.gameObject); continue; }
                 if (h2 < 2.6f * 2.6f) Nearby.Add(it);
             }
             Nearby.Sort((a, b) => (a.kind == Loot.Kind.Weapon ? 0 : 1) - (b.kind == Loot.Kind.Weapon ? 0 : 1));
@@ -226,6 +227,22 @@ namespace LastWar
             float reference = clip == "walk" ? 2.0f : clip == "walk_fire" ? 2.6f : clip == "run" ? 6.0f : clip == "crouch_walk" ? 1.6f : 0f;
             float rate = reference > 0 ? Mathf.Clamp((running && clip == "run" ? Mathf.Max(hs, reference) : hs) / reference, 0.6f, clip == "walk" ? 2.6f : 1.6f) : 1f;
             body.Rate = rate * (reverse ? -1f : 1f);
+        }
+
+        /// <summary>two soldiers never overlap: each eases away from the other (instead of capsules pushing and jittering)</summary>
+        public static void Separate(Transform t, CharacterController cc, float dt)
+        {
+            if (GameBoot.Instance == null || !cc.enabled) return;
+            Vector3 push = Vector3.zero;
+            foreach (Fighter f in GameBoot.Instance.Fighters)
+            {
+                if (f == null || f.transform == t || !f.Alive || f.air != 0) continue;
+                Vector3 d = t.position - f.transform.position; d.y = 0;
+                if (Mathf.Abs(t.position.y - f.transform.position.y) > 1.6f) continue;
+                float m = d.magnitude;
+                if (m < 0.8f) push += (m > 0.01f ? d / m : t.right) * (0.8f - m);
+            }
+            if (push.sqrMagnitude > 1e-6f) cc.Move(Vector3.ClampMagnitude(push, 0.5f) * Mathf.Min(1f, dt * 8f));
         }
 
         /// <summary>standing on a house floor / roof rather than the ground (stone footsteps)</summary>

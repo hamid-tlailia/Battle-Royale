@@ -134,6 +134,7 @@ namespace LastWar
         {
             Fighter.ClearEvents();
             InMatch = false;
+            if (Profile.MapAuto) { string[] rot = { "green", "desert", "classic" }; int i = System.Array.IndexOf(rot, Profile.Map); Profile.Map = rot[(i + 1) % rot.Length]; }
             Loader.Go("Back to the lobby…");
         }
 
@@ -218,7 +219,7 @@ namespace LastWar
                     }
                 }
             }
-            if (fpsAcc >= 1f && fps != null && Map != null) { fps.text = $"{fpsFrames / fpsAcc:0} fps · ping {PingMs} ms"; fpsAcc = 0; fpsFrames = 0; }
+            if (fpsAcc >= 1f && fps != null && Map != null) { fps.text = $"{fpsFrames / fpsAcc:0} fps · offline (vs bots)"; fpsAcc = 0; fpsFrames = 0; }
         }
     }
 }

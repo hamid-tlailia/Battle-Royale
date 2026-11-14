@@ -22,21 +22,21 @@ namespace LastWar
             shade.rectTransform.pivot = new Vector2(.5f, .5f);
             open = shade.gameObject;
             Tap(shade.gameObject, Close);
-            var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Panel, new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, inMatch ? 348 : 300), Color.white, true);
+            var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Panel, new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, 330), Color.white, true);
             panel.rectTransform.pivot = new Vector2(.5f, .5f);
             Tap(panel.gameObject, () => { }); // a tap on the panel is not a tap on the shade behind it
             Transform p = panel.transform;
             var title = UiKit.Txt(p, new Vector2(0, 1), new Vector2(18, -12), new Vector2(300, 22), 15, TextAnchor.UpperLeft, Gold); title.text = "SETTINGS";
             UiKit.CloseButton(p, new Vector2(1, 1), new Vector2(-10, -8), 28, Close);
-            float y = 40;
-            var sens = Label(p, ref y, $"LOOK SENSITIVITY  {Profile.Sensitivity:0.0}");
-            Slider(p, ref y, 0.3f, 2.5f, Profile.Sensitivity, v => { Profile.Sensitivity = v; sens.text = $"LOOK SENSITIVITY  {v:0.0}"; });
-            var ssens = Label(p, ref y, $"SCOPE SENSITIVITY  {Profile.ScopeSensitivity:0.0}");
-            Slider(p, ref y, 0.3f, 2.5f, Profile.ScopeSensitivity, v => { Profile.ScopeSensitivity = v; ssens.text = $"SCOPE SENSITIVITY  {v:0.0}"; });
-            Label(p, ref y, "AIM");
-            Choice(p, ref y, new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });
-            Label(p, ref y, "GRAPHICS");
-            Choice(p, ref y, new[] { "LOW", "MEDIUM", "HIGH" }, Profile.Quality, i => Profile.Quality = i);
+            // the settings scroll inside the panel (they are taller than a phone screen)
+            var view = new GameObject("view", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect)).GetComponent<RectTransform>();
+            view.SetParent(p, false); view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one;
+            view.offsetMin = new Vector2(14, inMatch ? 92 : 52) * UiKit.K; view.offsetMax = new Vector2(-14, -40) * UiKit.K;
+            view.GetComponent<Image>().color = new Color(1, 1, 1, 0);
+            var content = new GameObject("content", typeof(RectTransform)).GetComponent<RectTransform>();
+            content.SetParent(view, false); content.anchorMin = new Vector2(0, 1); content.anchorMax = new Vector2(1, 1); content.pivot = new Vector2(.5f, 1);
+            var sr = view.GetComponent<ScrollRect>(); sr.content = content; sr.horizontal = false; sr.movementType = ScrollRect.MovementType.Clamped;
+            content.sizeDelta = new Vector2(0, Fill(content, 0, 0, 312 * UiKit.K, UiKit.K) + 6 * UiKit.K);
             if (inMatch)
             {
                 var leave = UiKit.Img(p, "leave", UiKit.Round, new Vector2(0, 0), new Vector2(18, 14), new Vector2(140, 30), new Color(.82f, .27f, .2f), true);
@@ -70,25 +70,64 @@ namespace LastWar
             y += 18; return t;
         }
 
-        internal static void Slider(Transform p, ref float y, float min, float max, float val, Action<float> on)
+        /// <summary>web range: label left, value right in gold; framed dark track, gold fill, glowing gold diamond.
+        /// x / y / w in canvas units (top-left of the parent), fk = canvas units per CSS px. Returns the height used.</summary>
+        internal static float Range(Transform p, float x, float y, float w, float fk, string label, float min, float max, float val, string fmt, Action<float> on)
         {
             const float K = UiKit.K;
+            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / K, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
+            l.rectTransform.anchoredPosition = new Vector2(x, -y); l.rectTransform.sizeDelta = new Vector2(w, 18 * fk); l.text = label;
+            var v = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 13 * fk / K, TextAnchor.UpperRight, Gold);
+            v.rectTransform.anchoredPosition = new Vector2(x, -y); v.rectTransform.sizeDelta = new Vector2(w, 18 * fk); v.text = val.ToString(fmt);
+            y += 22 * fk;
+            var box = UiKit.Img(p, "range", UiKit.Frame, new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
+            box.rectTransform.anchoredPosition = new Vector2(x, -y); box.rectTransform.sizeDelta = new Vector2(w, 30 * fk);
             var go = new GameObject("slider", typeof(RectTransform), typeof(Slider));
-            var rt = (RectTransform)go.transform; rt.SetParent(p, false); rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition = new Vector2(18, -y) * K; rt.sizeDelta = new Vector2(300, 20) * K;
-            var track = UiKit.Img(rt, "track", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.04f, .05f, .06f));
-            track.rectTransform.anchorMin = new Vector2(0, .3f); track.rectTransform.anchorMax = new Vector2(1, .7f); track.rectTransform.offsetMin = track.rectTransform.offsetMax = Vector2.zero;
-            var fa = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fa.SetParent(rt, false); fa.anchorMin = new Vector2(0, .3f); fa.anchorMax = new Vector2(1, .7f); fa.offsetMin = fa.offsetMax = Vector2.zero;
-            var fill = UiKit.Img(fa, "f", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(1f, .83f, .3f, .7f));
+            var rt = (RectTransform)go.transform; rt.SetParent(box.rectTransform, false);
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = new Vector2(14 * fk, 0); rt.offsetMax = new Vector2(-14 * fk, 0);
+            var track = UiKit.Img(rt, "track", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.13f, .11f, .05f));
+            track.rectTransform.anchorMin = new Vector2(0, .38f); track.rectTransform.anchorMax = new Vector2(1, .62f); track.rectTransform.offsetMin = track.rectTransform.offsetMax = Vector2.zero;
+            var fa = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fa.SetParent(rt, false); fa.anchorMin = new Vector2(0, .38f); fa.anchorMax = new Vector2(1, .62f); fa.offsetMin = fa.offsetMax = Vector2.zero;
+            var fill = UiKit.Img(fa, "f", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.62f, .5f, .17f));
             var ha = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); ha.SetParent(rt, false); ha.anchorMin = Vector2.zero; ha.anchorMax = Vector2.one; ha.offsetMin = ha.offsetMax = Vector2.zero;
-            var handle = UiKit.Img(ha, "h", null, new Vector2(0, .5f), Vector2.zero, new Vector2(20, 20), new Color(0, 0, 0, 0), true);
-            handle.rectTransform.pivot = new Vector2(.5f, .5f);
-            var diamond = UiKit.Img(handle.rectTransform, "d", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(13, 13), Gold);
-            diamond.rectTransform.pivot = new Vector2(.5f, .5f); diamond.rectTransform.localRotation = Quaternion.Euler(0, 0, 45);
-            diamond.gameObject.AddComponent<Outline>().effectColor = new Color(.16f, .11f, .02f);
+            var handle = UiKit.Img(ha, "h", UiKit.Diamond, new Vector2(0, .5f), Vector2.zero, Vector2.one, Color.white, true);
+            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(44, 44) * fk;
             var sl = go.GetComponent<Slider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
-            sl.minValue = min; sl.maxValue = max; sl.value = val; sl.onValueChanged.AddListener(v => on(v));
-            y += 26;
+            sl.minValue = min; sl.maxValue = max; sl.value = val;
+            sl.onValueChanged.AddListener(nv => { v.text = nv.ToString(fmt); on(nv); });
+            return 22 * fk + 30 * fk + 12 * fk;
+        }
+
+        /// <summary>the web's ON / OFF choice (a two-plate segmented strip); returns the height used (canvas units)</summary>
+        internal static float Toggle(Transform p, float x, float y, float w, float fk, string label, bool val, Action<bool> on)
+        {
+            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / UiKit.K, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
+            l.rectTransform.anchoredPosition = new Vector2(x, -y); l.rectTransform.sizeDelta = new Vector2(w, 18 * fk); l.text = label;
+            Segments(p, new Vector2(x, -(y + 22 * fk)), new Vector2(w, 30 * fk), 11 * fk / UiKit.K, new[] { "ON", "OFF" }, val ? 0 : 1, i => on(i == 0));
+            return 22 * fk + 30 * fk + 12 * fk;
+        }
+
+        /// <summary>a section title followed by a segmented choice (web .qual)</summary>
+        internal static float ChoiceRow(Transform p, float x, float y, float w, float fk, string label, string[] opts, int sel, Action<int> on)
+        {
+            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / UiKit.K, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
+            l.rectTransform.anchoredPosition = new Vector2(x, -y); l.rectTransform.sizeDelta = new Vector2(w, 18 * fk); l.text = label;
+            Segments(p, new Vector2(x, -(y + 22 * fk)), new Vector2(w, 30 * fk), 11 * fk / UiKit.K, opts, sel, on);
+            return 22 * fk + 30 * fk + 12 * fk;
+        }
+
+        /// <summary>every setting, in the web's order (lobby page and the in-match panel share it); returns the height</summary>
+        internal static float Fill(Transform p, float x, float y0, float w, float fk)
+        {
+            float y = y0;
+            y += ChoiceRow(p, x, y, w, fk, "GRAPHICS", new[] { "HIGH", "MEDIUM", "LOW" }, 2 - Profile.Quality, i => Profile.Quality = 2 - i);
+            y += Range(p, x, y, w, fk, "LOOK SENSITIVITY", 0.3f, 2.5f, Profile.Sensitivity, "0.00", v => Profile.Sensitivity = v);
+            y += Range(p, x, y, w, fk, "SCOPE SENSITIVITY", 0.3f, 2.5f, Profile.ScopeSensitivity, "0.00", v => Profile.ScopeSensitivity = v);
+            y += ChoiceRow(p, x, y, w, fk, "AIM", new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });
+            y += Toggle(p, x, y, w, fk, "AUTO PICK-UP (walk over loot)", Profile.AutoPickup, v => Profile.AutoPickup = v);
+            y += Toggle(p, x, y, w, fk, "MUSIC", Profile.MusicOn, v => { Profile.MusicOn = v; if (v) Music.PlayLobbyIfIdle(); else Music.Stop(0f); });
+            y += Toggle(p, x, y, w, fk, "SOUND", Profile.SoundOn, v => Profile.SoundOn = v);
+            return y - y0;
         }
 
         static void Choice(Transform p, ref float y, string[] opts, int sel, Action<int> on)
@@ -103,15 +142,15 @@ namespace LastWar
         /// </summary>
         internal static void Segments(Transform p, Vector2 pos, Vector2 size, float font, string[] opts, int sel, Action<int> on)
         {
-            var strip = UiKit.Img(p, "segments", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(11 / 255f, 13 / 255f, 15 / 255f), true);
+            var strip = UiKit.Img(p, "segments", null, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(11 / 255f, 13 / 255f, 15 / 255f), true);
             strip.rectTransform.anchoredPosition = pos; strip.rectTransform.sizeDelta = size;
-            strip.pixelsPerUnitMultiplier = 4f;
+            strip.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .9f);
             float pad = 2f * UiKit.K * size.y / (28 * UiKit.K), bw = (size.x - pad * 2) / opts.Length;
             var imgs = new List<Image>(); var txts = new List<Text>();
             for (int i = 0; i < opts.Length; i++)
             {
                 int idx = i;
-                var b = UiKit.Img(strip.rectTransform, "opt", UiKit.Get("Lobby/mode_on"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
+                var b = UiKit.Img(strip.rectTransform, "opt", UiKit.GoldPlate, new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
                 b.rectTransform.anchoredPosition = new Vector2(pad + i * bw, -pad); b.rectTransform.sizeDelta = new Vector2(bw, size.y - pad * 2);
                 var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, font, TextAnchor.MiddleCenter, Color.white);
                 t.rectTransform.pivot = new Vector2(.5f, .5f); t.rectTransform.sizeDelta = b.rectTransform.sizeDelta; t.text = opts[i];
@@ -124,7 +163,7 @@ namespace LastWar
                 {
                     bool chosen = i == s;
                     imgs[i].color = chosen ? Color.white : new Color(1, 1, 1, 0); // unchosen: just the text on the dark strip
-                    txts[i].color = chosen ? Ink : new Color(154 / 255f, 164 / 255f, 170 / 255f);
+                    txts[i].color = chosen ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : new Color(154 / 255f, 164 / 255f, 170 / 255f);
                     var sh = txts[i].GetComponent<Shadow>(); if (sh != null) sh.enabled = !chosen;
                 }
             }
