@@ -72,12 +72,14 @@ namespace LastWar
             }
             foreach (Animator a in o.GetComponentsInChildren<Animator>(true)) a.enabled = false;
             // preferred: humanoid avatars on both rigs, pose copied through muscle space every frame
-            Avatar srcAv = HumanRig.Build(model), dstAv = HumanRig.Build(outfitRoot);
+            // (humanoid transfer turned the outfits into a hunch: off until the rigs' rest poses are sorted out)
+            Avatar srcAv = null, dstAv = null;
+            if (UseHumanoid) { srcAv = HumanRig.Build(model); dstAv = HumanRig.Build(outfitRoot); }
             if (srcAv != null && dstAv != null)
             {
                 srcPose = new HumanPoseHandler(srcAv, model); dstPose = new HumanPoseHandler(dstAv, outfitRoot);
             }
-            else Debug.Log("[LastWar] humanoid rig failed for outfit " + OutfitFiles[skin] + ", using bone copy");
+
             // fallback: pair bones by name (the web game's retargetClips): local rotations copy straight across mixamo rigs,
             // the hips get the rest-frame difference of their parents, hips movement is scaled between the bodies
             foreach (Transform t in model.GetComponentsInChildren<Transform>(true))
@@ -87,6 +89,7 @@ namespace LastWar
                 {
                     srcHips = t; dstHips = d;
                     hipsCorr = Quaternion.Inverse(d.parent.rotation) * t.parent.rotation;
+                    if (LogRig) Debug.Log($"[LastWar] rig {OutfitFiles[skin]}: srcHipsW {(Quaternion.Inverse(transform.rotation) * t.rotation).eulerAngles} dstHipsW {(Quaternion.Inverse(transform.rotation) * d.rotation).eulerAngles} srcParentW {(Quaternion.Inverse(transform.rotation) * t.parent.rotation).eulerAngles} dstParentW {(Quaternion.Inverse(transform.rotation) * d.parent.rotation).eulerAngles} srcHipsL {t.localRotation.eulerAngles} dstHipsL {d.localRotation.eulerAngles} corr {hipsCorr.eulerAngles}");
                     srcHipsBind = transform.InverseTransformPoint(t.position); dstHipsBind = transform.InverseTransformPoint(d.position);
                     continue;
                 }
@@ -98,6 +101,7 @@ namespace LastWar
         }
 
         Quaternion hipsCorr = Quaternion.identity;
+        public static bool UseHumanoid = false, LogRig = false;
         HumanPoseHandler srcPose, dstPose; HumanPose pose;
         void Retarget()
         {

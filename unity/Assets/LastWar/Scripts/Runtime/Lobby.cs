@@ -70,6 +70,9 @@ namespace LastWar
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin);
             lobbyBody.SetGun("rifle");
             lobbyBody.Play("idle_rifle");
+            // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
+            string url = Application.absoluteURL ?? ""; int pq = url.IndexOf("pose=");
+            if (pq >= 0) { string clip = url.Substring(pq + 5); int amp = clip.IndexOf('&'); if (amp >= 0) clip = clip.Substring(0, amp); lobbyBody.Play(clip); }
         }
 
         // ------------------------------------------------------------------ UI from the captured web layout
