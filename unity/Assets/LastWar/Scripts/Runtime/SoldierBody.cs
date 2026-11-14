@@ -300,10 +300,72 @@ namespace LastWar
             if (outfitRoot != null) { outfitRoot.localRotation = q * outfitBaseRot; outfitRoot.localPosition = pivot - q * (pivot - outfitBase); }
         }
 
+        // ---- procedural poses on top of the animation (the web game's applyPose)
+        /// <summary>"sky" = free fall, belly down with the arms in a W and the legs spread; "chute" = hanging upright, hands up on the lines; null = none</summary>
+        public string Pose;
+        string poseKind; float poseW;
+        Dictionary<string, Transform> poseBones;
+
+        Transform PoseBone(string name)
+        {
+            if (poseBones == null)
+            {
+                poseBones = new Dictionary<string, Transform>();
+                Transform root = outfitRoot != null ? outfitRoot : model;
+                if (root != null) foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig") && !poseBones.ContainsKey(BoneKey(t.name))) poseBones[BoneKey(t.name)] = t;
+            }
+            return poseBones.TryGetValue(name, out Transform b) ? b : null;
+        }
+
+        /// <summary>turn `bone` so the segment to `child` points along `dir` (body space as in the web game: +Z forward, +Y up, +X the body's left)</summary>
+        void Aim(string bone, string child, float x, float y, float z, float w)
+        {
+            Transform b = PoseBone(bone), c = PoseBone(child);
+            if (b == null || c == null) return;
+            Vector3 cur = c.position - b.position;
+            if (cur.sqrMagnitude < 1e-8f) return;
+            Vector3 want = transform.rotation * Quaternion.Euler(tiltNow, 0, 0) * new Vector3(-x, y, z);
+            Quaternion q = Quaternion.FromToRotation(cur.normalized, want.normalized) * b.rotation;
+            b.rotation = Quaternion.Slerp(b.rotation, q, w);
+        }
+
+        void ApplyPose()
+        {
+            if (Pose != null) poseKind = Pose;
+            poseW = Mathf.Clamp01(poseW + (Pose != null ? 1 : -1) * Time.deltaTime * 7f);
+            float w = poseW;
+            if (w <= 0 || poseKind == null) return;
+            if (poseKind == "sky")
+            {
+                Aim("LeftArm", "LeftForeArm", 1, 0.15f, 0.1f, w);
+                Aim("LeftForeArm", "LeftHand", 0.35f, 1, 0.15f, w);
+                Aim("RightArm", "RightForeArm", -1, 0.15f, 0.1f, w);
+                Aim("RightForeArm", "RightHand", -0.35f, 1, 0.15f, w);
+                Aim("LeftUpLeg", "LeftLeg", 0.4f, -1, 0, w);
+                Aim("LeftLeg", "LeftFoot", 0.25f, -0.55f, -0.8f, w);
+                Aim("RightUpLeg", "RightLeg", -0.4f, -1, 0, w);
+                Aim("RightLeg", "RightFoot", -0.25f, -0.55f, -0.8f, w);
+                Aim("Head", "HeadTop_End", 0, 0.6f, 0.8f, w); // look ahead (down at the ground below)
+            }
+            else if (poseKind == "chute")
+            {
+                // upright under the canopy, both hands up on the risers, legs hanging a little forward
+                Aim("LeftArm", "LeftForeArm", 0.55f, 1, 0.1f, w);
+                Aim("LeftForeArm", "LeftHand", -0.12f, 1, 0.12f, w);
+                Aim("RightArm", "RightForeArm", -0.55f, 1, 0.1f, w);
+                Aim("RightForeArm", "RightHand", 0.12f, 1, 0.12f, w);
+                Aim("LeftUpLeg", "LeftLeg", 0.1f, -1, 0.22f, w);
+                Aim("LeftLeg", "LeftFoot", 0.05f, -1, -0.12f, w);
+                Aim("RightUpLeg", "RightLeg", -0.1f, -1, 0.22f, w);
+                Aim("RightLeg", "RightFoot", -0.05f, -1, -0.12f, w);
+            }
+        }
+
         void LateUpdate()
         {
             if (model != null && (Tilt != 0 || tiltNow != 0)) ApplyTilt();
             Retarget();
+            ApplyPose();
             // gun: grip in the right hand, barrel (model -Z) along the aim
             if (gun == null || handR == null) return;
             gun.position = handR.position;

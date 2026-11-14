@@ -48,13 +48,13 @@ namespace LastWar
         void Update()
         {
             float dt = Time.deltaTime;
-            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); if (cc.enabled) cc.enabled = false; return; }
+            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f : 1f) * (OnEnemy != null && AimAssistOn ? 0.55f : 1f);
             yaw += input.LookDelta.x * sens;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
             if (fighter.air != 0) { AirUpdate(dt); return; }
-            body.Tilt = 0; body.SetChute(false);
+            body.Tilt = 0; body.Pose = null; body.SetChute(false);
 
             // weapons
             if (input.SlotPressed >= 0) { if (input.SlotPressed == fighter.slot) fighter.Reload(); else fighter.SelectSlot(input.SlotPressed); } // tap the equipped gun = reload
@@ -213,7 +213,7 @@ namespace LastWar
             // stick untouched: glide toward where you look
             Vector3 wish = mv.sqrMagnitude > 0.01f ? heading * new Vector3(mv.x, 0, mv.y) : heading * Vector3.forward;
             AirMove.Fall(fighter, cc, Vector3.ClampMagnitude(wish, 1f), dropStraight, Mathf.Max(0, -pitch), GameBoot.Instance.Map.playRadius, dt);
-            body.Tilt = fighter.air == 2 ? 83f : 0f;
+            body.Tilt = fighter.air == 2 ? 83f : 0f; body.Pose = fighter.air == 2 ? "sky" : fighter.air == 3 ? "chute" : null;
             body.SetChute(fighter.air == 3);
             body.Play("idle");
             body.AimDir = transform.forward;

@@ -309,7 +309,7 @@ export class CharacterView {
   // ---------------------------------------------------------------- procedural poses
   private bones = new Map<string, THREE.Object3D>();
   private poseW = 0;
-  private poseKind: 'kneel' | 'sky' | null = null;
+  private poseKind: 'kneel' | 'sky' | 'chute' | null = null;
   private static readonly V = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   private static readonly Q = [new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion()];
   /** turn `bone` so the segment to `child` points along `dir` (model space: +Z forward, +Y up, +X the body's left), blended by w */
@@ -330,7 +330,7 @@ export class CharacterView {
     b.updateMatrixWorld(true);
   }
   /** after the animation: kneel (one knee on the ground, feet still) or the free-fall spread */
-  private applyPose(kind: 'kneel' | 'sky' | null, dt: number) {
+  private applyPose(kind: 'kneel' | 'sky' | 'chute' | null, dt: number) {
     if (kind) this.poseKind = kind;
     this.poseW = THREE.MathUtils.clamp(this.poseW + (kind ? dt : -dt) * 7, 0, 1);
     const w = this.poseW;
@@ -363,6 +363,15 @@ export class CharacterView {
       this.aim('RightUpLeg', 'RightLeg', [-0.4, -1, 0], w);
       this.aim('RightLeg', 'RightFoot', [-0.25, -0.55, -0.8], w);
       this.aim('Head', 'HeadTop_End', [0, 0.6, 0.8], w); // look ahead (down at the ground below)
+    } else if (this.poseKind === 'chute') { // upright under the canopy, both hands up on the risers, legs hanging a little forward
+      this.aim('LeftArm', 'LeftForeArm', [0.55, 1, 0.1], w);
+      this.aim('LeftForeArm', 'LeftHand', [-0.12, 1, 0.12], w);
+      this.aim('RightArm', 'RightForeArm', [-0.55, 1, 0.1], w);
+      this.aim('RightForeArm', 'RightHand', [0.12, 1, 0.12], w);
+      this.aim('LeftUpLeg', 'LeftLeg', [0.1, -1, 0.22], w);
+      this.aim('LeftLeg', 'LeftFoot', [0.05, -1, -0.12], w);
+      this.aim('RightUpLeg', 'RightLeg', [-0.1, -1, 0.22], w);
+      this.aim('RightLeg', 'RightFoot', [-0.05, -1, -0.12], w);
     }
   }
 
@@ -428,7 +437,7 @@ export class CharacterView {
     if (this.skipFrames === 0 || Math.random() < 1 / (this.skipFrames + 1)) {
       this.mixer.update(this.skipAcc);
       // kneel when crouched and still; spread-eagle in free fall (close / visible characters only)
-      const pose = st.dead || !visible || dist > 70 ? null : air === 2 ? 'sky' : st.crouch && !st.prone && st.speed <= 0.4 && st.grounded ? 'kneel' : null;
+      const pose = st.dead || !visible || dist > 70 ? null : air === 2 ? 'sky' : air === 3 ? 'chute' : st.crouch && !st.prone && st.speed <= 0.4 && st.grounded ? 'kneel' : null;
       this.applyPose(pose, this.skipAcc);
       if (dist < 80 && visible) { this.root.updateMatrixWorld(true); this.fixFeet(st, this.skipAcc); }
       this.skipAcc = 0;

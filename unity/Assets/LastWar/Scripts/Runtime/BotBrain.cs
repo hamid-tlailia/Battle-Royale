@@ -54,11 +54,11 @@ namespace LastWar
 
         void Update()
         {
-            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); cc.enabled = false; enabled = false; return; }
+            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
             float dt = Time.deltaTime;
             if (GameBoot.Instance == null || GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             if (fighter.air != 0) { AirUpdate(dt); return; }
-            body.Tilt = 0; body.SetChute(false);
+            body.Tilt = 0; body.Pose = null; body.SetChute(false);
 
             // perception every ~0.3 s
             if ((scanTimer -= dt) <= 0f)
@@ -160,7 +160,7 @@ namespace LastWar
             Vector3 wish = to.magnitude > 6f ? to.normalized * 0.85f : Vector3.zero;
             if (wish.sqrMagnitude > 0) transform.rotation = Quaternion.LookRotation(wish);
             AirMove.Fall(fighter, cc, wish, false, 0f, GameBoot.Instance.Map.playRadius, dt);
-            body.Tilt = fighter.air == 2 ? 83f : 0f;
+            body.Tilt = fighter.air == 2 ? 83f : 0f; body.Pose = fighter.air == 2 ? "sky" : fighter.air == 3 ? "chute" : null;
             body.SetChute(fighter.air == 3);
             body.Play("idle");
             if (fighter.air == 0) { velocity = Vector3.zero; PickTarget(); }

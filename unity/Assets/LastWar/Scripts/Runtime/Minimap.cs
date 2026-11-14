@@ -176,7 +176,9 @@ namespace LastWar
             // me: arrow + view cone, turned with the camera
             Vector2 mw = Web(player.transform.position);
             me.anchoredPosition = ToMap(mw) * u; me.sizeDelta = Vector2.one;
-            me.localRotation = Quaternion.Euler(0, 0, 180f - player.yaw);
+            float heading = player.yaw;
+            if (player.fighter != null && player.fighter.air == 1 && SkyDrop.Instance != null) { Vector3 pd = SkyDrop.Instance.Dir; heading = Mathf.Atan2(pd.x, pd.z) * Mathf.Rad2Deg; }
+            me.localRotation = Quaternion.Euler(0, 0, 180f - heading);
             cone.sizeDelta = Vector2.one * 200 * u;
             arrow.sizeDelta = Vector2.one * 52 * u; arrow.anchoredPosition = new Vector2(0, 4f * u); // the svg point (0,0) is 4 units under the picture centre
 
