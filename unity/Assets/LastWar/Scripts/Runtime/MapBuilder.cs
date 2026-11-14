@@ -74,7 +74,9 @@ namespace LastWar
                     verts[r * seg + i] = Coords.ToUnity(x, y, z);
                     uvs[r * seg + i] = new Vector2(x, z) / 6f;
                     Color c = Color.Lerp(grassA, grassB, n2);
-                    if (!desert && y > map.snowHeight - 2f) c = Color.Lerp(c, snow, Mathf.Clamp01((y - map.snowHeight + 2f) / 8f));
+                    // snow only on the highest tops (and on the rim itself where the map is snowy), the rest green
+                    float snowLine = Mathf.Max(map.snowHeight, low + 45f);
+                    if (!desert && y > snowLine) c = Color.Lerp(c, snow, Mathf.Clamp01((y - snowLine) / 10f) * (1f - k * 0.3f));
                     else if (y > low + 50f) c = Color.Lerp(c, rock, 0.4f);
                     cols[r * seg + i] = c;
                 }
@@ -84,7 +86,7 @@ namespace LastWar
                 for (int i = 0; i < seg; i++)
                 {
                     int a0 = r * seg + i, a1 = r * seg + (i + 1) % seg, b0 = a0 + seg, b1 = a1 + seg;
-                    tris.AddRange(new[] { a0, a1, b0, a1, b1, b0, a0, b0, a1, a1, b0, b1 });
+                    tris.AddRange(new[] { a0, b0, a1, a1, b0, b1 }); // facing up after the X mirror (one side: no dark doubles)
                 }
             var mesh = new Mesh { name = "skirt", indexFormat = IndexFormat.UInt32 };
             mesh.vertices = verts; mesh.colors = cols; mesh.uv = uvs; mesh.triangles = tris.ToArray();
