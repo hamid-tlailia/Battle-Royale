@@ -23,6 +23,7 @@ namespace LastWar
             Tap(shade.gameObject, Close);
             var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Panel, new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, inMatch ? 348 : 300), Color.white, true);
             panel.rectTransform.pivot = new Vector2(.5f, .5f);
+            Tap(panel.gameObject, () => { }); // a tap on the panel is not a tap on the shade behind it
             Transform p = panel.transform;
             var title = UiKit.Txt(p, new Vector2(0, 1), new Vector2(18, -12), new Vector2(300, 22), 15, TextAnchor.UpperLeft, Gold); title.text = "SETTINGS";
             UiKit.CloseButton(p, new Vector2(1, 1), new Vector2(-10, -8), 28, Close);

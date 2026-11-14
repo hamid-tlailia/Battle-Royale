@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  BTN, DT, MAP, TICK_RATE, WEAPONS, GameSim, damageAt, fireInterval, hitboxOf, initPhysics, newMoveState, rayHitbox,
+  BTN, DT, MAP, MAX_HP, TICK_RATE, WEAPONS, GameSim, damageAt, fireInterval, hitboxOf, initPhysics, newMoveState, rayHitbox,
   sanitizeInput, zoneAt, outsideZone, ZONE_PHASES, ZONE_DELAY, halfTotalOf, type InputCmd, type SimPlayer,
 } from '../shared/src';
 
@@ -68,7 +68,7 @@ describe('hit detection', () => {
     for (let i = 0; i < 12 && !sim.events.some((e) => e.t === 'hit'); i++) sim.step();
     const hit = sim.events.find((e) => e.t === 'hit');
     expect(hit).toBeTruthy();
-    expect((100 - b.hp) + (50 - b.armor)).toBe((hit as { dmg: number }).dmg * Math.max(1, sim.events.filter((e) => e.t === "hit").length));
+    expect((MAX_HP - b.hp) + (50 - b.armor)).toBe((hit as { dmg: number }).dmg * Math.max(1, sim.events.filter((e) => e.t === "hit").length));
   });
 
   it('headshots deal the head multiplier', () => {
@@ -80,8 +80,8 @@ describe('hit detection', () => {
     let hit;
     for (let i = 0; i < 20 && !hit; i++) { sim.step(); hit = sim.events.find((e) => e.t === 'hit'); }
     expect(hit && hit.t === 'hit' && hit.head).toBe(true);
-    // sniper headshot kills through 50 armor
-    expect(b.alive).toBe(false);
+    // a sniper headshot takes most of a full health bar, even through 50 armor
+    expect(MAX_HP - b.hp).toBeGreaterThan(150);
   });
 
   it('walls stop bullets: a target fully hidden behind a house wall takes no damage', () => {
@@ -102,7 +102,7 @@ describe('hit detection', () => {
         if (!hidden) continue;
         const aim = aimAt(sim, a, hb.ax, (hb.ay + hb.by) / 2, hb.az);
         for (let i = 0; i < 90; i++) { sim.setInput(1, cmd({ ...aim, aimYaw: aim.yaw, aimPitch: aim.pitch, buttons: (i % 2 ? BTN.FIRE : 0) | BTN.SCOPE, weapon: 0, seq: i })); sim.step(); }
-        expect(b.hp).toBe(100);
+        expect(b.hp).toBe(MAX_HP);
         expect(b.armor).toBe(50);
         tested++;
       }
@@ -130,7 +130,7 @@ describe('damage, armor, falloff', () => {
     expect(hit).toBeTruthy();
     const dmg = (hit as { dmg: number }).dmg;
     expect(b.armor).toBe(Math.max(0, 10 - Math.round(dmg * 0.5)));
-    expect(b.hp).toBe(100 - (dmg - (10 - b.armor)));
+    expect(b.hp).toBe(MAX_HP - (dmg - (10 - b.armor)));
   });
 });
 
@@ -223,8 +223,8 @@ describe('safe zone', () => {
     place(sim, b, ox, oz);
     expect(outsideZone(z, b.move.x, b.move.z)).toBe(true);
     for (let i = 0; i < TICK_RATE * 3 + 1; i++) sim.step();
-    expect(a.hp).toBe(100);
-    expect(b.hp).toBeLessThan(100);
+    expect(a.hp).toBe(MAX_HP);
+    expect(b.hp).toBeLessThan(MAX_HP);
     expect(b.armor).toBe(50); // zone ignores armor
   });
 });

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ICONS } from './icons';
-import { DROP, MAP, MAX_ARMOR, MAX_HP, SLOT_NAMES, WEAPONS, WEAPON_IDS, ammoOf, scopeBit, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
+import { DROP, LOOT, MAP, MAX_ARMOR, MAX_HP, SLOT_NAMES, WEAPONS, WEAPON_IDS, ammoOf, scopeBit, type LootItem, type MapData, type SimPlayer, type ZoneState } from '@lw/shared';
 
 /** player's preferred order of the three weapon slots in the bar / backpack (saved on the device) */
 const ORDER_KEY = 'lw.slotOrder.v1';
@@ -230,7 +230,7 @@ export class Hud {
     });
     left += row('<i class="armor-ic">🛡</i>', 'Armor', `${Math.round(p.armor)} / 100`, 0);
     WEAPON_IDS.forEach((id, k) => { const n = ammoOf(p, id); if (n > 0) right += row('<i class="ammo-ic"></i>', `${WEAPONS[id].name} ammo`, `${n} rounds`, 11 + k); });
-    if (p.meds) right += row('<i class="med-ic">✚</i>', 'Medkit', `× ${p.meds} (+50 HP each)`, 20);
+    if (p.meds) right += row('<i class="med-ic">✚</i>', 'Medkit', `× ${p.meds} (+${LOOT.medHeal} HP each)`, 20);
     if (p.frost) right += row('<i class="frost-ic">❄</i>', 'Ice wall', `× ${p.frost}`, 21);
     for (const z of [2, 4, 8]) if (p.scopes & scopeBit(z)) {
       const on = p.scope === z;

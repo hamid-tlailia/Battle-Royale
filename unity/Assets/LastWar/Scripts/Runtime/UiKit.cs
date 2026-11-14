@@ -25,6 +25,29 @@ namespace LastWar
             return s;
         }
 
+        /// <summary>
+        /// One rule for every canvas: 1920 x 1080 reference, height-matched on phones, width-matched on squarer
+        /// screens (tablets), so nothing overlaps whatever the device.
+        /// </summary>
+        public static void Scale(CanvasScaler sc)
+        {
+            sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; sc.referenceResolution = new Vector2(1920, 1080);
+            float aspect = Screen.width / (float)Mathf.Max(1, Screen.height);
+            sc.matchWidthOrHeight = Mathf.Clamp01((aspect - 1.34f) / (1.75f - 1.34f));
+        }
+
+        /// <summary>
+        /// The part of the screen clear of the front camera / rounded corners: a full-canvas child inset by the
+        /// device's safe area, and at least 2.5 % on the left and right.
+        /// </summary>
+        public static RectTransform SafeRoot(Canvas canvas)
+        {
+            var rt = new GameObject("Safe", typeof(RectTransform)).GetComponent<RectTransform>();
+            rt.SetParent(canvas.transform, false);
+            rt.gameObject.AddComponent<SafeArea>();
+            return rt;
+        }
+
         static Sprite round, ring, disc, panel;
         /// <summary>modal background (web .lb-sheet): dark blue-grey gradient, 14 px corners, thin gold edge; 9-sliced</summary>
         public static Sprite Panel => panel != null ? panel : (panel = MakePanel());
@@ -141,6 +164,23 @@ namespace LastWar
                 Color c = v.color; c.a = Fix(c); v.color = c;
                 vh.SetUIVertex(v, i);
             }
+        }
+    }
+
+    /// <summary>keeps its RectTransform on the safe area of the screen (updates on rotation / resize)</summary>
+    public class SafeArea : MonoBehaviour
+    {
+        Rect last; Vector2Int lastSize;
+        void Awake() { Apply(); }
+        void Update() { if (Screen.safeArea != last || lastSize.x != Screen.width || lastSize.y != Screen.height) Apply(); }
+        void Apply()
+        {
+            last = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height);
+            float w = Mathf.Max(1, Screen.width), h = Mathf.Max(1, Screen.height), margin = 0.025f;
+            float l = Mathf.Max(last.xMin / w, margin), r = Mathf.Min(last.xMax / w, 1f - margin);
+            var rt = (RectTransform)transform;
+            rt.anchorMin = new Vector2(l, last.yMin / h); rt.anchorMax = new Vector2(r, last.yMax / h);
+            rt.offsetMin = rt.offsetMax = Vector2.zero; rt.pivot = new Vector2(.5f, .5f);
         }
     }
 }

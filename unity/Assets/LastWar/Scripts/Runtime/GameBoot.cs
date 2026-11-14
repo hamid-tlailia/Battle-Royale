@@ -70,6 +70,7 @@ namespace LastWar
             if (!InMatch && (Application.absoluteURL ?? "").Contains("play=1")) InMatch = true;
             if (!InMatch) { Lobby.Create(Map, cam); Loader.Progress(1f); Loader.HideSoon(); Music.PlayLobby(); yield break; }
             Loader.Progress(0.85f); yield return null;
+            Loot.SpawnMap(Map, Map.id.GetHashCode());
 
             var controls = TouchControls.Create();
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
@@ -120,7 +121,7 @@ namespace LastWar
             Minimap.Create(controls, Player, Map);
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            fps.transform.SetParent(controls.Canvas.transform, false);
+            fps.transform.SetParent(controls.Root, false);
             var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(16, -10); rt.sizeDelta = new Vector2(330, 30);
             fps.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); fps.fontSize = 20; fps.color = new Color(1, 1, 1, .6f);
             fps.raycastTarget = false; fps.horizontalOverflow = HorizontalWrapMode.Overflow;

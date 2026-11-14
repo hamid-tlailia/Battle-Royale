@@ -28,7 +28,7 @@ export const LOOT = {
   /** loot menu reach (m) */
   menuRadius: 2.6,
   maxFrost: 4,
-  medHeal: 50,
+  medHeal: 100,
   /** seconds to use a medkit (cancelled by shooting) */
   medTime: 3,
   armorVest: 50,

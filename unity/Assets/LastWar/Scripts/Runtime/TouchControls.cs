@@ -24,11 +24,17 @@ namespace LastWar
         public bool ScopedUi;
         /// <summary>lobby preview for the layout editor: every control shown, nothing reacts</summary>
         public bool Preview;
+        int frostCount;
+        /// <summary>ice wall: first tap shows where it would stand, FIRE places it, tapping again cancels</summary>
+        public bool FrostAim;
         bool scopeAllowed = true; RectTransform gearRt; Vector2? jumpGround;
         public bool Scoped;         // scope toggle
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
         public bool ReloadPressed;  // true for one frame
         public Canvas Canvas => canvas;
+        /// <summary>the safe-area part of the HUD canvas: put controls and HUD pieces here</summary>
+        public RectTransform Root => root;
+        RectTransform root;
         public bool Crouch, Prone;      // posture toggles
         public bool HealPressed, FrostPressed, BagPressed, GearPressed; // one frame each
         Btn crouchBtn, proneBtn, healBtn, frostBtn, jumpBtn;
@@ -39,7 +45,8 @@ namespace LastWar
         /// <summary>everything the layout editor can move / resize / fade (web HUD editor)</summary>
         public readonly List<(string name, RectTransform rt)> Editable = new List<(string, RectTransform)>();
         public bool Editing;
-        public static bool ModalOpen => SettingsPanel.IsOpen || BagPanel.IsOpen || Minimap.BigOpen;
+        /// <summary>settings / backpack: nothing outside them moves. (The big map only stops the camera turning: you keep running.)</summary>
+        public static bool ModalOpen => SettingsPanel.IsOpen || BagPanel.IsOpen;
         readonly List<Btn> btns = new List<Btn>();
         readonly List<RectTransform> blockers = new List<RectTransform>();
         Btn fireBtn, fireLeft, scopeBtn, runBtn;
@@ -60,14 +67,13 @@ namespace LastWar
         {
             canvas = new GameObject("HUD").AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = canvas.gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080); scaler.matchWidthOrHeight = 1f;
+            UiKit.Scale(canvas.gameObject.AddComponent<CanvasScaler>());
+            root = UiKit.SafeRoot(canvas); // everything clear of the front camera
             canvas.gameObject.AddComponent<GraphicRaycaster>();
             if (FindFirstObjectByType<EventSystem>() == null) { var es = new GameObject("EventSystem"); es.AddComponent<EventSystem>(); es.AddComponent<StandaloneInputModule>(); }
 
             // joystick: thin white ring on a faint dark disc, white knob (web .joy-base / .joy-knob)
-            joyBase = UiKit.Img(canvas.transform, "Joystick", UiKit.Disc, Vector2.zero, new Vector2(40, 50), new Vector2(120, 120), new Color(0, 0, 0, 0.18f)).rectTransform;
+            joyBase = UiKit.Img(root, "Joystick", UiKit.Disc, Vector2.zero, new Vector2(40, 50), new Vector2(120, 120), new Color(0, 0, 0, 0.18f)).rectTransform;
             var ring = UiKit.Img(joyBase, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(120, 120), new Color(1, 1, 1, 0.5f));
             joyKnob = UiKit.Img(joyBase, "Knob", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(50, 50), new Color(1, 1, 1, 0.75f)).rectTransform;
             Editable.Add(("joy", joyBase));
@@ -87,7 +93,7 @@ namespace LastWar
             healBadge = Badge(healBtn); frostBadge = Badge(frostBtn);
             Button("bag", "btn", 42, TL, new Vector2(125, -27), () => BagPressed = true);
             // settings: small dark square, top-left (web .gear-btn)
-            var gear = UiKit.Img(canvas.transform, "gear", UiKit.Round, TL, new Vector2(56, -8), new Vector2(30, 26), new Color(0, 0, 0, .25f), true);
+            var gear = UiKit.Img(root, "gear", UiKit.Round, TL, new Vector2(56, -8), new Vector2(30, 26), new Color(0, 0, 0, .25f), true);
             gear.gameObject.AddComponent<Outline>().effectColor = new Color(1, 1, 1, .3f);
             var gi = UiKit.Img(gear.rectTransform, "icon", UiKit.Get("icon_settings"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(18, 18), Color.white); gi.rectTransform.pivot = new Vector2(.5f, .5f);
             var gt = gear.gameObject.AddComponent<EventTrigger>(); var ge = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ge.callback.AddListener(_ => { if (!Editing) GearPressed = true; }); gt.triggers.Add(ge);
@@ -100,7 +106,7 @@ namespace LastWar
         Btn Button(string icon, string bg, float size, Vector2 corner, Vector2 centre, System.Action onDown)
         {
             // the exported button picture has 14% padding for its shadow: 100 px button = 128 px picture
-            var img = UiKit.Img(canvas.transform, icon, UiKit.Get(bg), corner, Vector2.zero, Vector2.one * size * 1.28f, Color.white, true);
+            var img = UiKit.Img(root, icon, UiKit.Get(bg), corner, Vector2.zero, Vector2.one * size * 1.28f, Color.white, true);
             var rt = img.rectTransform; rt.pivot = new Vector2(.5f, .5f); rt.anchoredPosition = centre * UiKit.K;
             var ic = UiKit.Img(rt, "icon", UiKit.Get("icon_" + icon), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * size * 0.58f, Color.white);
             ic.rectTransform.pivot = new Vector2(.5f, .5f);
@@ -146,6 +152,7 @@ namespace LastWar
         {
             if (Editing || Preview) return true;
             if (airMode > 0) return b == jumpBtn;
+            if (b == frostBtn && frostCount <= 0 && !FrostAim) return false;
             if (b == scopeBtn && !scopeAllowed) return false;
             return !ScopedUi || b == fireBtn || b == fireLeft || b == scopeBtn;
         }
@@ -153,8 +160,11 @@ namespace LastWar
         /// <summary>counts on the heal / ice-wall buttons (0 = faded, like the web)</summary>
         public void SetCounts(int meds, int frost)
         {
+            // no "0" bubbles: an empty medkit button is just its icon, the ice-wall button disappears until you carry one
             healBadge.text = meds.ToString(); frostBadge.text = frost.ToString();
-            healBtn.bg.color = new Color(1, 1, 1, meds > 0 ? 1f : .45f); frostBtn.bg.color = new Color(1, 1, 1, frost > 0 ? 1f : .45f);
+            healBadge.transform.parent.gameObject.SetActive(meds > 0); frostBadge.transform.parent.gameObject.SetActive(frost > 0);
+            healBtn.bg.color = new Color(1, 1, 1, meds > 0 ? 1f : .6f);
+            frostCount = frost;
         }
 
         /// <summary>a HUD element that takes taps (weapon slots): touches on it don't turn the camera</summary>
@@ -201,7 +211,7 @@ namespace LastWar
             {
                 bool fire = b == fireBtn || b == fireLeft;
                 bool down = fire ? FireHeld : b.pressed;
-                bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped) || (b == crouchBtn && Crouch) || (b == proneBtn && Prone);
+                bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped) || (b == frostBtn && FrostAim) || (b == crouchBtn && Crouch) || (b == proneBtn && Prone);
                 b.bg.sprite = on ? active : down && !fire ? pressed : b.normal;
                 // (pressed: the icon dips; the button's own scale belongs to the layout editor)
                 if (b.icon != null) b.icon.localScale = Vector3.one * (down ? 0.86f : 1f);
@@ -242,7 +252,8 @@ namespace LastWar
                 }
                 else if (t.fingerId == lookFinger)
                 {
-                    LookDelta += t.position - lookLast; lookLast = t.position;
+                    if (!Minimap.BigOpen) LookDelta += t.position - lookLast;
+                    lookLast = t.position;
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) lookFinger = -1;
                 }
             }
@@ -269,6 +280,7 @@ namespace LastWar
             if (Input.GetKeyDown(KeyCode.R)) ReloadPressed = true;
             if (Input.GetKeyDown(KeyCode.Q) && scopeAllowed) Scoped = !Scoped;
             if (Input.GetKeyDown(KeyCode.X)) HolsterPressed = true;
+            if (Input.GetKeyDown(KeyCode.F)) FrostPressed = true;
             for (int k = 0; k < 3; k++) if (Input.GetKeyDown(KeyCode.Alpha1 + k)) SlotPressed = k;
         }
     }

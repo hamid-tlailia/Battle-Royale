@@ -19,7 +19,7 @@ namespace LastWar
             DontDestroyOnLoad(go);
             current = go.AddComponent<Loader>();
             var canvas = go.AddComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 1000;
-            var sc = go.AddComponent<CanvasScaler>(); sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; sc.referenceResolution = new Vector2(1920, 1080); sc.matchWidthOrHeight = 1f;
+            UiKit.Scale(go.AddComponent<CanvasScaler>());
             go.AddComponent<GraphicRaycaster>();
             current.group = go.AddComponent<CanvasGroup>();
             // web .menu: radial green glow on dark green

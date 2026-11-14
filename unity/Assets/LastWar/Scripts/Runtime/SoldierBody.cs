@@ -409,18 +409,23 @@ namespace LastWar
             else if (poseKind == "runfree")
             {
                 // running empty-handed: arms down by the sides, swinging against the legs
+                // a sprinter's arms: elbows bent ~90 deg, close to the body, pumping forward and back opposite the legs
                 float ph = ClipPhase() * Mathf.PI * 2f, sw = Mathf.Sin(ph);
-                Aim("LeftArm", "LeftForeArm", 0.16f, -1, 0.55f * sw, w);
-                Aim("LeftForeArm", "LeftHand", 0.08f, -0.35f, 0.75f + 0.35f * sw, w);
-                Aim("RightArm", "RightForeArm", -0.16f, -1, -0.55f * sw, w);
-                Aim("RightForeArm", "RightHand", -0.08f, -0.35f, 0.75f - 0.35f * sw, w);
+                float fl = Mathf.Max(0, sw), bl = Mathf.Max(0, -sw), fr = bl, br = fl; // forward / back share per arm
+                Aim("LeftArm", "LeftForeArm", 0.14f, -1, 0.85f * fl - 0.7f * bl, w);
+                Aim("LeftForeArm", "LeftHand", -0.1f, 0.15f + 0.55f * fl - 0.25f * bl, 1, w);
+                Aim("RightArm", "RightForeArm", -0.14f, -1, 0.85f * fr - 0.7f * br, w);
+                Aim("RightForeArm", "RightHand", 0.1f, 0.15f + 0.55f * fr - 0.25f * br, 1, w);
             }
             else if (poseKind == "crawl")
             {
                 // crawling on the belly: one elbow reaches forward while the other pulls back, the opposite knee draws
                 // up to the side and pushes; the body moves only as far as the limbs pull it
-                crawlPhase += Time.deltaTime * Mathf.Clamp(Speed, 0.6f, 2f) * 1.25f;
-                float a = Mathf.Sin(crawlPhase * Mathf.PI * 2f), l = Mathf.Max(0, a), r = Mathf.Max(0, -a);
+                // about one full cycle per 1.3 m (two pulls), eased so each reach lingers like a real crawl
+                crawlPhase += Time.deltaTime * Mathf.Clamp(Speed, 0.3f, 1.2f) * 0.75f;
+                float raw = Mathf.Sin(crawlPhase * Mathf.PI * 2f);
+                float a = Mathf.Sign(raw) * Mathf.SmoothStep(0, 1, Mathf.Abs(raw)), l = Mathf.Max(0, a), r = Mathf.Max(0, -a);
+                CrawlPull = 0.3f + 0.7f * Mathf.Abs(Mathf.Cos(crawlPhase * Mathf.PI * 2f)); // the body moves while the limbs pull, rests while they reach
                 Aim("LeftArm", "LeftForeArm", Mathf.Lerp(0.55f, 0.3f, l), -0.25f, Mathf.Lerp(0.15f, 1f, l), w);
                 Aim("LeftForeArm", "LeftHand", Mathf.Lerp(-0.25f, 0.05f, l), -0.35f, 1, w);
                 Aim("RightArm", "RightForeArm", -Mathf.Lerp(0.55f, 0.3f, r), -0.25f, Mathf.Lerp(0.15f, 1f, r), w);
@@ -442,6 +447,8 @@ namespace LastWar
             return (float)(t / len);
         }
         float crawlPhase;
+        /// <summary>crawling: how much of the crawl speed this moment of the stroke gives (0.3 .. 1)</summary>
+        public float CrawlPull = 1f;
         /// <summary>ground speed (m/s), for the crawl cycle</summary>
         public float Speed;
 

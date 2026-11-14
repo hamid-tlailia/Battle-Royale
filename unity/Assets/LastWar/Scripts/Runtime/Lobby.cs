@@ -19,7 +19,7 @@ namespace LastWar
     /// </summary>
     public class Lobby : MonoBehaviour
     {
-        LobbyLayout L; float s; Canvas canvas;
+        LobbyLayout L; float s; Canvas canvas; RectTransform root;
         readonly Dictionary<string, RectTransform> nodes = new Dictionary<string, RectTransform>();
         readonly Dictionary<string, Text> texts = new Dictionary<string, Text>();
         GameObject soldier; float soldierYaw; SoldierBody lobbyBody;
@@ -92,13 +92,17 @@ namespace LastWar
         {
             canvas = new GameObject("LobbyUI").AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var sc = canvas.gameObject.AddComponent<CanvasScaler>();
-            sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; sc.referenceResolution = new Vector2(1920, 1080); sc.matchWidthOrHeight = 1f;
+            UiKit.Scale(canvas.gameObject.AddComponent<CanvasScaler>());
+            root = UiKit.SafeRoot(canvas);
             canvas.gameObject.AddComponent<GraphicRaycaster>();
             if (FindFirstObjectByType<EventSystem>() == null) { var es = new GameObject("EventSystem"); es.AddComponent<EventSystem>(); es.AddComponent<StandaloneInputModule>(); }
 
             L = JsonUtility.FromJson<LobbyLayout>(Resources.Load<TextAsset>("UI/Lobby/lobby_layout").text);
-            s = 1080f / L.H;
+            // the captured web layout, scaled to the screen's height - or to its width when the screen is narrower
+            Canvas.ForceUpdateCanvases();
+            Rect safe = root.rect;
+            if (safe.height < 10f) safe = new Rect(0, 0, 1080f * Screen.width / Mathf.Max(1f, Screen.height) * 0.95f, 1080f);
+            s = Mathf.Min(safe.height / L.H, safe.width / L.W);
             var sprites = new Dictionary<string, string> {
                 { "logo", "Lobby/logo" }, { "banner", "Lobby/banner" }, { "chip0", "Lobby/chip" }, { "chip1", "Lobby/chip" }, { "gear", "Lobby/gear" },
                 { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" },
@@ -118,9 +122,10 @@ namespace LastWar
             };
             foreach (LobbyNode n in L.nodes)
             {
+                if ((n.id ?? "").StartsWith("tip")) continue; // no tip strip under the soldier
                 if (n.kind == "text")
                 {
-                    var t = UiKit.Txt(canvas.transform, Vector2.zero, Vector2.zero, Vector2.one, 1, TextAnchor.MiddleLeft, ParseColor(n.color));
+                    var t = UiKit.Txt(root, Vector2.zero, Vector2.zero, Vector2.one, 1, TextAnchor.MiddleLeft, ParseColor(n.color));
                     Place(t.rectTransform, n);
                     t.fontSize = Mathf.RoundToInt(n.size * s);
                     t.fontStyle = int.TryParse(n.weight, out int wt) && wt >= 600 ? FontStyle.Bold : FontStyle.Normal;
@@ -138,7 +143,7 @@ namespace LastWar
                     if (sprites.TryGetValue(n.id, out string sn)) sp = UiKit.Get(sn);
                     if (n.id == "avatar") sp = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[Mathf.Clamp(Profile.Skin, 0, SoldierBody.OutfitFiles.Length - 1)]);
                     if (sp == null && n.kind != "img") continue;
-                    var img = UiKit.Img(canvas.transform, n.id, sp, Vector2.zero, Vector2.zero, Vector2.one, n.kind == "icon" ? ParseColor(n.color) : Color.white);
+                    var img = UiKit.Img(root, n.id, sp, Vector2.zero, Vector2.zero, Vector2.one, n.kind == "icon" ? ParseColor(n.color) : Color.white);
                     if (sp == null) img.color = Color.clear;
                     img.preserveAspect = n.id == "logo" || n.id == "avatar" || n.kind == "icon";
                     img.type = Image.Type.Simple;
@@ -235,7 +240,7 @@ namespace LastWar
             shade = UiKit.Img(canvas.transform, "shade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .25f), true).rectTransform;
             shade.pivot = new Vector2(.5f, .5f);
             Clickable.Add(shade.gameObject, () => Close());
-            var bg = UiKit.Img(canvas.transform, "sheet", UiKit.Panel, Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
+            var bg = UiKit.Img(root, "sheet", UiKit.Panel, Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
             sheet = bg.rectTransform;
             Place(sheet, new LobbyNode { x = L.sheet.x, y = L.sheet.y, w = L.sheet.w, h = L.sheet.h });
             // close button
@@ -359,7 +364,7 @@ namespace LastWar
             tc.Preview = true;
             RectTransform Stand(string label, Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size)
             {
-                var img = UiKit.Img(tc.Canvas.transform, label, UiKit.Round, anchor, pos, size, new Color(24 / 255f, 32 / 255f, 40 / 255f, .7f), true);
+                var img = UiKit.Img(tc.Root, label, UiKit.Round, anchor, pos, size, new Color(24 / 255f, 32 / 255f, 40 / 255f, .7f), true);
                 img.rectTransform.pivot = pivot;
                 var t = UiKit.Txt(img.rectTransform, new Vector2(.5f, .5f), Vector2.zero, size, 12, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = label;
                 return img.rectTransform;

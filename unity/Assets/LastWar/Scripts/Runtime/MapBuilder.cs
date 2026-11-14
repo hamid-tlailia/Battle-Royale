@@ -31,6 +31,7 @@ namespace LastWar
 
         public static GameObject Build(MapData map)
         {
+            currentMap = map; propBounds.Clear();
             var root = new GameObject("Map " + map.id);
             BuildTerrain(map, root.transform);
             BuildSkirt(map, root.transform);
@@ -147,6 +148,10 @@ namespace LastWar
         }
 
         // ------------------------------------------------------------------ props
+        static MapData currentMap;
+        static readonly Dictionary<PropData, Bounds> propBounds = new Dictionary<PropData, Bounds>();
+        /// <summary>world box of a placed house (for putting loot on its floors)</summary>
+        public static Bounds PropBounds(PropData p) => propBounds.TryGetValue(p, out Bounds b) ? b : new Bounds(Coords.ToUnity(p.x, p.y, p.z), new Vector3(8, 6, 8));
         static void LoadShapes()
         {
             if (shapes != null) return;
@@ -166,7 +171,15 @@ namespace LastWar
         {
             var root = new GameObject(p.p);
             root.transform.SetParent(parent, false);
-            root.transform.SetPositionAndRotation(Coords.ToUnity(p.x, p.y, p.z), Coords.Yaw(p.rot));
+            float py = p.y;
+            if (p.p.StartsWith("tpine") || p.p.StartsWith("toak") || p.p == "stump")
+            {
+                // trees: bedded below the lowest ground the roots reach (slopes left root flares hanging in the air)
+                float r = 2.2f * p.s, low = currentMap.HeightAt(p.x, p.z);
+                for (int k = 0; k < 12; k++) { float a = k / 12f * Mathf.PI * 2f; low = Mathf.Min(low, currentMap.HeightAt(p.x + Mathf.Cos(a) * r, p.z + Mathf.Sin(a) * r)); }
+                py = Mathf.Min(py, low - 0.45f * p.s);
+            }
+            root.transform.SetPositionAndRotation(Coords.ToUnity(p.x, py, p.z), Coords.Yaw(p.rot));
             root.transform.localScale = Vector3.one * p.s;
             bool cover = Cover.Contains(p.p);
             if (cover) root.layer = CoverLayer;
@@ -174,6 +187,12 @@ namespace LastWar
             if (model != null)
             {
                 GameObject inst = UnityEngine.Object.Instantiate(model, root.transform, false);
+                if (p.p.StartsWith("house") || p.p == "farmhouse")
+                {
+                    Bounds b = new Bounds(root.transform.position, Vector3.zero);
+                    foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true)) b.Encapsulate(r.bounds);
+                    propBounds[p] = b;
+                }
                 // glTFast's own shaders draw grey / nothing in player builds: use URP Lit with the same colour + texture
                 foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
                 {

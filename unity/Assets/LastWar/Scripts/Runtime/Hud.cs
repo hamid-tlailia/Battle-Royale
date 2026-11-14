@@ -16,7 +16,8 @@ namespace LastWar
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
-        RectTransform box, hpBgRt, arBgRt, lens; Image lensDot;
+        RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly Image[] sides = new Image[2]; int lensZoom; Transform full;
+        static Texture2D lensCross, lensPlain;
         Image hpFill, armorFill, dot, hitRing, flash, reloadFill; RectTransform reloadBar;
         Text hpText, aliveText, zoneText, centerText, bannerCount; Image centerBox;
         Image aliveBox, zoneBox; RectTransform banner;
@@ -41,8 +42,8 @@ namespace LastWar
 
         void Build()
         {
-            Transform c = input.Canvas.transform;
-            flash = UiKit.Img(c, "Flash", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0.8f, 0, 0, 0));
+            Transform c = input.Root; full = input.Canvas.transform; // controls on the safe area, full-screen effects on the canvas
+            flash = UiKit.Img(full, "Flash", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0.8f, 0, 0, 0));
             flash.rectTransform.pivot = C; flash.transform.SetAsFirstSibling();
 
             // ---- bottom centre: bars (bottom 6), reload bar, weapon box
@@ -111,52 +112,111 @@ namespace LastWar
             dot = UiKit.Img(edge.rectTransform, "Dot", UiKit.Disc, C, Vector2.zero, new Vector2(6, 6), Color.white); dot.rectTransform.pivot = C;
             hitRing = UiKit.Img(c, "HitRing", UiKit.Ring, C, Vector2.zero, new Vector2(20, 20), new Color(1, 1, 1, 0)); hitRing.rectTransform.pivot = C;
 
-            // ---- sniper scope: black surround with a round lens, thin cross and a centre dot (web .scope-overlay)
+            // ---- optics (web .scope-overlay): round lens, dark rim, the world outside dimmed (x2 / x4) or black (x8)
             lens = new GameObject("Scope", typeof(RectTransform)).GetComponent<RectTransform>();
-            lens.SetParent(c, false); lens.anchorMin = Vector2.zero; lens.anchorMax = Vector2.one; lens.offsetMin = lens.offsetMax = Vector2.zero;
+            lens.SetParent(full, false); lens.anchorMin = Vector2.zero; lens.anchorMax = Vector2.one; lens.offsetMin = lens.offsetMax = Vector2.zero;
             lens.SetAsFirstSibling();
-            var glass = new GameObject("lens", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
-            glass.transform.SetParent(lens, false); glass.texture = LensTexture(); glass.raycastTarget = false;
-            var gr = glass.rectTransform; gr.anchorMin = gr.anchorMax = gr.pivot = C; gr.sizeDelta = new Vector2(1080, 1080);
-            foreach (int side in new[] { -1, 1 })
+            glass = new GameObject("lens", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+            glass.transform.SetParent(lens, false); glass.raycastTarget = false;
+            glass.rectTransform.anchorMin = glass.rectTransform.anchorMax = glass.rectTransform.pivot = C;
+            for (int i = 0; i < 2; i++)
             {
                 var blk = UiKit.Img(lens, "side", null, C, Vector2.zero, Vector2.one, Color.black);
-                blk.rectTransform.pivot = new Vector2(side < 0 ? 1 : 0, .5f); blk.rectTransform.anchoredPosition = new Vector2(side * 539f, 0); blk.rectTransform.sizeDelta = new Vector2(2400, 1090);
+                blk.rectTransform.pivot = new Vector2(i == 0 ? 1 : 0, .5f);
+                sides[i] = blk;
             }
             lensDot = UiKit.Img(lens, "dot", UiKit.Disc, C, Vector2.zero, new Vector2(3.5f, 3.5f), new Color(.22f, 1f, .42f)); lensDot.rectTransform.pivot = C;
             lens.gameObject.SetActive(false);
 
             // ---- end screen
-            endPanel = UiKit.Img(c, "End", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .6f), true).rectTransform;
+            endPanel = UiKit.Img(full, "End", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .6f), true).rectTransform;
             endPanel.pivot = C;
             var card = UiKit.Img(endPanel, "card", UiKit.Round, C, Vector2.zero, new Vector2(300, 170), new Color(0.09f, 0.11f, 0.13f, .95f)); card.rectTransform.pivot = C;
             card.gameObject.AddComponent<Outline>().effectColor = new Color(1f, 0.83f, 0.3f, .45f);
             endTitle = UiKit.Txt(card.rectTransform, C, new Vector2(0, 45), new Vector2(300, 40), 30, TextAnchor.MiddleCenter, Color.white); endTitle.rectTransform.pivot = C;
             endSub = UiKit.Txt(card.rectTransform, C, new Vector2(0, 5), new Vector2(300, 20), 14, TextAnchor.MiddleCenter, Color.white); endSub.rectTransform.pivot = C;
+            // eliminated: watch the one who got you (web SPECTATE)
+            spectateBtn = UiKit.Img(card.rectTransform, "Spectate", UiKit.Round, C, new Vector2(70, -45), new Vector2(120, 34), new Color(.23f, .26f, .28f), true);
+            spectateBtn.rectTransform.pivot = C;
+            var sbt = UiKit.Txt(spectateBtn.rectTransform, C, Vector2.zero, new Vector2(120, 34), 14, TextAnchor.MiddleCenter, Color.white); sbt.rectTransform.pivot = C; sbt.text = "SPECTATE";
+            spectateBtn.gameObject.AddComponent<Button>().onClick.AddListener(() => { endPanel.gameObject.SetActive(false); spectating = true; player.StartSpectate(lastKiller); });
             var again = UiKit.Img(card.rectTransform, "Again", UiKit.Round, C, new Vector2(0, -45), new Vector2(150, 34), new Color(1f, 0.78f, 0.25f), true);
             again.rectTransform.pivot = C;
             var at = UiKit.Txt(again.rectTransform, C, Vector2.zero, new Vector2(150, 34), 14, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); at.rectTransform.pivot = C;
             at.text = "LOBBY"; Destroy(at.GetComponent<Shadow>());
             again.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             endPanel.gameObject.SetActive(false);
-        }
 
-        /// <summary>1024 px scope picture: clear glass in the middle, dark rim, black outside, hair-thin cross</summary>
-        static Texture2D LensTexture()
+            // spectating: who you watch + back to the lobby
+            specBar = UiKit.Img(c, "SpecBar", UiKit.Round, TC, new Vector2(0, -64), new Vector2(260, 30), new Color(0, 0, 0, .5f), true).rectTransform;
+            specBar.pivot = new Vector2(.5f, 1);
+            specText = UiKit.Txt(specBar, new Vector2(0, .5f), new Vector2(12, 0), new Vector2(170, 30), 13, TextAnchor.MiddleLeft, Color.white);
+            var sl = UiKit.Img(specBar, "lobby", UiKit.Round, new Vector2(1, .5f), new Vector2(-4, 0), new Vector2(76, 24), new Color(1f, 0.78f, 0.25f), true);
+            sl.rectTransform.pivot = new Vector2(1, .5f);
+            var slt = UiKit.Txt(sl.rectTransform, C, Vector2.zero, new Vector2(76, 24), 11, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); slt.rectTransform.pivot = C; slt.text = "LOBBY"; Destroy(slt.GetComponent<Shadow>());
+            sl.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
+            input.RegisterBlocker(specBar);
+            specBar.gameObject.SetActive(false);
+
+            // things within reach: icon, name, TAKE (web .loot-list)
+            for (int i = 0; i < 5; i++)
+            {
+                int row = i;
+                var bg = UiKit.Img(c, "loot" + i, UiKit.Round, C, new Vector2(150, 70 - i * 30), new Vector2(190, 27), new Color(24 / 255f, 32 / 255f, 40 / 255f, .72f), true);
+                bg.rectTransform.pivot = new Vector2(0, .5f);
+                var ic = UiKit.Img(bg.rectTransform, "icon", null, new Vector2(0, .5f), new Vector2(6, 0), new Vector2(34, 18), Color.white); ic.preserveAspect = true; ic.rectTransform.pivot = new Vector2(0, .5f);
+                var tx = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(44, 0), new Vector2(100, 26), 10, TextAnchor.MiddleLeft, Color.white);
+                var tk = UiKit.Img(bg.rectTransform, "take", UiKit.Round, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(44, 21), new Color(1f, 0.78f, 0.25f), true);
+                tk.rectTransform.pivot = new Vector2(1, .5f);
+                var tt = UiKit.Txt(tk.rectTransform, C, Vector2.zero, new Vector2(44, 21), 10, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); tt.rectTransform.pivot = C; tt.text = "TAKE"; Destroy(tt.GetComponent<Shadow>());
+                var trg = bg.gameObject.AddComponent<EventTrigger>(); var en = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+                en.callback.AddListener(_ => { if (row < lootRows.Count && lootRows[row].item != null) player.Take(lootRows[row].item); });
+                trg.triggers.Add(en);
+                input.RegisterBlocker(bg.rectTransform);
+                lootRows.Add((bg, ic, tx, null));
+                bg.gameObject.SetActive(false);
+            }
+        }
+        RectTransform specBar; Text specText; Image spectateBtn; bool spectating; Fighter lastKiller;
+        readonly System.Collections.Generic.List<(Image bg, Image icon, Text text, Loot item)> lootRows = new System.Collections.Generic.List<(Image, Image, Text, Loot)>();
+
+        /// <summary>scope picture: clear glass, dark rim with an inner shadow; x8 has a fine cross with heavy outer posts</summary>
+        static Texture2D LensTexture(bool cross, float outside)
         {
             const int n = 512; var tex = new Texture2D(n, n, TextureFormat.RGBA32, false); tex.wrapMode = TextureWrapMode.Clamp;
             var px = new Color32[n * n]; float c0 = (n - 1) / 2f, R = n * 0.47f;
             for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
                 {
                     float dx = x - c0, dy = y - c0, d = Mathf.Sqrt(dx * dx + dy * dy);
-                    float a = d >= R ? 1f : d > R - 10 ? Mathf.Lerp(0.85f, 1f, (d - (R - 10)) / 10f) : d > R - 46 ? Mathf.Pow((d - (R - 46)) / 36f, 2f) * 0.8f : 0f; // rim + inner shadow
-                    bool cross = d < R - 8 && d > 5 && (Mathf.Abs(dx) < 0.8f || Mathf.Abs(dy) < 0.8f);
-                    bool thick = d < R - 8 && d > R * 0.42f && (Mathf.Abs(dx) < 2.2f || Mathf.Abs(dy) < 2.2f); // heavy outer posts
-                    if (cross || thick) a = Mathf.Max(a, 0.9f);
+                    float a = d >= R + 3 ? outside : d > R - 10 ? Mathf.Lerp(0.85f, 1f, (d - (R - 10)) / 13f) : d > R - 46 ? Mathf.Pow((d - (R - 46)) / 36f, 2f) * 0.8f : 0f; // rim + inner shadow
+                    if (cross)
+                    {
+                        bool fine = d < R - 8 && d > 5 && (Mathf.Abs(dx) < 0.8f || Mathf.Abs(dy) < 0.8f);
+                        bool thick = d < R - 8 && d > R * 0.42f && (Mathf.Abs(dx) < 2.2f || Mathf.Abs(dy) < 2.2f);
+                        if (fine || thick) a = Mathf.Max(a, 0.9f);
+                    }
                     px[y * n + x] = new Color(0.02f, 0.03f, 0.02f, a);
                 }
             tex.SetPixels32(px); tex.Apply();
             return tex;
+        }
+
+        /// <summary>size and look of the optic for its zoom (web: x2 72 %, x4 84 %, x8 94 % of the screen height)</summary>
+        void SetLens(int zoom)
+        {
+            if (lensCross == null) { lensCross = LensTexture(true, 1f); lensPlain = LensTexture(false, 0.45f); }
+            lensZoom = zoom;
+            float H = ((RectTransform)full).rect.height, L = H * (zoom >= 8 ? 0.94f : zoom >= 4 ? 0.84f : 0.72f);
+            glass.texture = zoom >= 8 ? lensCross : lensPlain;
+            glass.rectTransform.sizeDelta = new Vector2(L, L);
+            Color outside = zoom >= 8 ? Color.black : new Color(0.02f, 0.03f, 0.02f, zoom >= 4 ? 0.5f : 0.42f);
+            for (int i = 0; i < 2; i++)
+            {
+                sides[i].color = outside;
+                sides[i].rectTransform.anchoredPosition = new Vector2((i == 0 ? -1 : 1) * (L / 2f - 1f), 0);
+                sides[i].rectTransform.sizeDelta = new Vector2(4000, H + 20);
+            }
+            lensDot.rectTransform.sizeDelta = Vector2.one * (zoom >= 8 ? 3.5f : 6f) * UiKit.K;
         }
 
         void Hit(Fighter victim, Fighter attacker, float dmg, bool head, Vector3 point)
@@ -184,6 +244,7 @@ namespace LastWar
 
         void Kill(Fighter victim, Fighter killer, string weapon, bool head)
         {
+            if (victim == player.fighter) lastKiller = killer;
             WeaponDef w = Tuning.Weapon(weapon);
             string how = weapon == "zone" ? "zone" : w != null ? w.name : weapon;
             bool mine = killer == player.fighter || victim == player.fighter;
@@ -203,16 +264,18 @@ namespace LastWar
         {
             Fighter f = player.fighter; float dt = Time.deltaTime; const float K = UiKit.K; Camera cam = player.cam;
             hpFill.rectTransform.sizeDelta = new Vector2(BarW * f.hp / Fighter.MaxHp, 10) * K;
-            hpFill.color = f.hp > 30 ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
+            hpFill.color = f.hp > Fighter.MaxHp * 0.3f ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
             armorFill.rectTransform.sizeDelta = new Vector2(BarW * f.armor / 100f, 7) * K;
             hpText.text = Mathf.CeilToInt(f.hp).ToString();
 
             // weapon box (web .slots grid): what is in your hands 209 x 46 on top, the other three 67 x 36 below
             int small = 0;
-            for (int k = 0; k < 4; k++)
+            bool emptyHands = f.holstered || f.Gun == null;
+            int[] seq = { f.order[0], f.order[1], f.order[2], 3 }; // the backpack's order, the fist last
+            foreach (int k in seq)
             {
                 Slot s = slots[k]; GunState g = k < 3 ? f.guns[k] : null; bool fist = k == 3;
-                bool sel = fist ? f.holstered : k == f.slot && !f.holstered;
+                bool sel = fist ? emptyHands : k == f.slot && !emptyHands;
                 float w = sel ? 209 : 67.67f, h = sel ? 46 : 36;
                 s.rt.sizeDelta = new Vector2(w, h) * K;
                 s.rt.anchoredPosition = sel ? new Vector2(0, 39) * K : new Vector2((small++ - 1) * 70.67f, 0) * K;
@@ -231,7 +294,7 @@ namespace LastWar
                 s.gun.rectTransform.anchoredPosition = (sel ? new Vector2(-10, -5) : new Vector2(-3, -3)) * K;
                 bool low = g != null && g.mag <= g.def.mag / 4;
                 string col = low && sel ? "#ff6b5b" : "#ffffff";
-                s.ammo.text = g == null ? "" : sel
+                s.ammo.text = g == null ? $"<color=#ffffff59><size={Mathf.RoundToInt(7.5f * K)}>{(k == 0 ? "LONG" : k == 1 ? "CLOSE" : "PISTOL")}</size></color>" : sel
                     ? $"<color={col}>{g.mag}</color><size={Mathf.RoundToInt(13 * K)}>/{g.reserve}</size>"
                     : $"{g.mag}<size={Mathf.RoundToInt(6.5f * K)}>/{g.reserve}</size>";
                 s.ammo.fontSize = Mathf.RoundToInt((sel ? 21 : 10) * K);
@@ -250,8 +313,11 @@ namespace LastWar
             // through the optic only FIRE, SCOPE, the joystick and the minimap stay (web #hud.scoped-ui)
             bool scoped = player.Scoped && f.air == 0;
             input.ScopedUi = scoped;
-            bool sniperLens = scoped && f.Gun != null && f.Gun.def.id == "sniper";
+            // every long gun looks through an optic: the rifle's own x2 (or the scope you attached), the sniper's x8
+            bool sniperLens = scoped;
             if (lens.gameObject.activeSelf != sniperLens) lens.gameObject.SetActive(sniperLens);
+            if (scoped && player.ScopeZoom != lensZoom) SetLens(player.ScopeZoom);
+            if (!scoped) lensZoom = 0;
             box.gameObject.SetActive((f.air == 0 && !scoped) || input.Editing);
             hpBgRt.gameObject.SetActive(!scoped); arBgRt.gameObject.SetActive(!scoped);
             // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
@@ -287,7 +353,7 @@ namespace LastWar
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
             dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens);
-            lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : new Color(.22f, 1f, .42f);
+            lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : lensZoom >= 8 ? new Color(.22f, 1f, .42f) : new Color(1f, .23f, .19f);
             hitT -= dt;
             float ha = Mathf.Clamp01(hitT * 5f);
             hitRing.color = hitKill ? new Color(1f, 0.23f, 0.19f, ha) : new Color(1, 1, 1, ha);
@@ -334,8 +400,29 @@ namespace LastWar
                 feedBg[k].rectTransform.sizeDelta = new Vector2(feedTxt[k].preferredWidth + 16 * K, 17 * K);
             }
 
-            if (gb.Result != 0 && !endPanel.gameObject.activeSelf)
+            // the loot list (hidden while scoped / in the air / dead)
+            bool showLoot = f.Alive && f.air == 0 && !scoped;
+            for (int i = 0; i < lootRows.Count; i++)
             {
+                var r = lootRows[i];
+                Loot it = showLoot && i < player.Nearby.Count ? player.Nearby[i] : null;
+                r.bg.gameObject.SetActive(it != null);
+                if (it != null && it != r.item)
+                {
+                    r.icon.sprite = it.Icon; r.icon.enabled = r.icon.sprite != null;
+                    r.text.text = $"{it.Label}\n<size={Mathf.RoundToInt(8 * K)}><color=#ffffffa0>{it.Sub}</color></size>";
+                }
+                lootRows[i] = (r.bg, r.icon, r.text, it);
+            }
+
+            // spectating bar
+            specBar.gameObject.SetActive(spectating && player.SpectateTarget != null);
+            if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#ffffffa0>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
+
+            if (gb.Result != 0 && !endPanel.gameObject.activeSelf && !spectating)
+            {
+                spectateBtn.gameObject.SetActive(gb.Result < 0 && gb.AliveCount > 1);
+                endPanel.Find("card/Again").GetComponent<RectTransform>().anchoredPosition = new Vector2(gb.Result < 0 && gb.AliveCount > 1 ? -70 : 0, -45) * K;
                 endPanel.gameObject.SetActive(true); endPanel.SetAsLastSibling();
                 endTitle.text = gb.Result > 0 ? "VICTORY" : "ELIMINATED";
                 endTitle.color = gb.Result > 0 ? new Color(1f, 0.83f, 0.3f) : new Color(1f, 0.36f, 0.3f);

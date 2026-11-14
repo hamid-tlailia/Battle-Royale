@@ -34,7 +34,7 @@ namespace LastWar
 
         void Build()
         {
-            Transform c = input.Canvas.transform;
+            Transform c = input.Root;
             bigShade = UiKit.Img(c, "MapShade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .45f), true).rectTransform;
             bigShade.pivot = new Vector2(.5f, .5f);
             AddTap(bigShade.gameObject, () => SetBig(false));
@@ -99,7 +99,7 @@ namespace LastWar
             bigClose.gameObject.SetActive(false);
 
             // top of the screen: which way to go and how far (to your marker, or back into the zone)
-            Transform hud = input.Canvas.transform;
+            Transform hud = input.Root;
             guide = UiKit.Img(hud, "guide", UiKit.Round, new Vector2(.5f, 1), new Vector2(0, -60), new Vector2(96, 22), new Color(0, 0, 0, .45f)).rectTransform;
             guide.pivot = new Vector2(.5f, 1);
             guideArrow = UiKit.Img(guide, "arrow", UiKit.Get("map_arrow"), new Vector2(0, .5f), new Vector2(14, 0), new Vector2(20, 20), Color.white);

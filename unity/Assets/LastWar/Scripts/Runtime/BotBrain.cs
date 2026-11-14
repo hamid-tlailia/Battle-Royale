@@ -30,7 +30,11 @@ namespace LastWar
             b.fighter = go.AddComponent<Fighter>();
             b.fighter.displayName = name;
             var rnd = new System.Random(seed);
-            b.fighter.GiveStartingGuns(rnd.Next(4) == 0 ? "sniper" : "rifle", rnd.Next(2) == 0 ? "shotgun" : "smg");
+            // bots land empty-handed too; they pick up what they walk over and, a few seconds after landing,
+            // "find" a loadout in the nearest house (they don't walk to every crate like a player would)
+            b.longGun = rnd.Next(4) == 0 ? "sniper" : "rifle"; b.closeGun = rnd.Next(2) == 0 ? "shotgun" : "smg";
+            b.armAfter = 5f + (float)rnd.NextDouble() * 10f;
+            if ((Application.absoluteURL ?? "").Contains("nodrop=1")) b.fighter.GiveStartingGuns(b.longGun, b.closeGun);
             b.skill = 0.35f + (float)rnd.NextDouble() * 0.5f;
             b.body = SoldierBody.Attach(go, rnd.Next(SoldierBody.OutfitFiles.Length));
             return b;
@@ -52,7 +56,7 @@ namespace LastWar
             target = new Vector3(p.x, 0, p.y);
         }
 
-        float turn, stepAcc;
+        float turn, stepAcc, groundTime, lootScan; string longGun, closeGun; float armAfter;
         void Update()
         {
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
@@ -60,6 +64,19 @@ namespace LastWar
             if (GameBoot.Instance == null || GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             if (fighter.air != 0) { AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
+            groundTime += dt;
+            if (!fighter.HasGun && groundTime > armAfter) fighter.GiveStartingGuns(longGun, closeGun);
+            if ((lootScan -= dt) <= 0f)
+            {
+                lootScan = 0.3f;
+                for (int i = Loot.All.Count - 1; i >= 0; i--)
+                {
+                    Loot it = Loot.All[i];
+                    Vector3 d = it.transform.position - transform.position;
+                    if (d.y < -0.6f || d.y > 1.8f || d.x * d.x + d.z * d.z > 1.4f * 1.4f) continue;
+                    if (fighter.TryPickup(it, false)) Destroy(it.gameObject);
+                }
+            }
 
             // perception every ~0.3 s
             if ((scanTimer -= dt) <= 0f)

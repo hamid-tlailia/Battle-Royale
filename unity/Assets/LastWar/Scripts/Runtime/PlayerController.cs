@@ -23,7 +23,9 @@ namespace LastWar
         /// <summary>looking through the optic (first person): long-range gun in the hands, on the ground</summary>
         public bool Scoped => input.Scoped && fighter.Alive && fighter.air == 0 && !fighter.holstered && fighter.Gun != null && (fighter.Gun.def.id == "rifle" || fighter.Gun.def.id == "sniper");
         /// <summary>the web game's optics: red dot on the rifle (52 deg), x8 on the sniper (10 deg)</summary>
-        float ScopeFov => fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 10f : 52f;
+        /// <summary>zoom of the optic on the gun in your hands: the scope you attached, else the rifle's x2 / the sniper's x8</summary>
+        public int ScopeZoom => fighter.scope > 0 ? fighter.scope : fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 8 : 2;
+        float ScopeFov => ScopeZoom >= 8 ? 10f : ScopeZoom >= 4 ? 18f : 34f; // web SCOPE_FOV
         bool sniperHold, sniperAuto, wasScoped, wasGrounded = true; float unscopeAt, stepAcc, airTime, turn;
         /// <summary>the crosshair is on a living enemy (no wall in between)</summary>
         public Fighter OnEnemy { get; private set; }
@@ -42,7 +44,10 @@ namespace LastWar
             pc.input = input; pc.cam = cam;
             pc.fighter = go.AddComponent<Fighter>();
             pc.fighter.isPlayer = true; pc.fighter.displayName = "You";
-            pc.fighter.GiveStartingGuns("rifle", "shotgun");
+            // the web game: you land empty-handed and loot (?armed=1 in the WebGL URL: start with guns, for tests)
+            string url = Application.absoluteURL ?? "";
+            if (url.Contains("armed=1") || url.Contains("sniper=1") || url.Contains("nodrop=1")) pc.fighter.GiveStartingGuns("rifle", "shotgun");
+            else pc.fighter.holstered = true;
             pc.body = SoldierBody.Attach(go, Profile.Skin);
             return pc;
         }
@@ -52,7 +57,8 @@ namespace LastWar
         void Update()
         {
             float dt = Time.deltaTime;
-            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
+            if (vaultT >= 0f) { VaultStep(dt); return; }
+            if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (OnEnemy != null && AimAssistOn ? 0.8f : 1f);
@@ -86,7 +92,8 @@ namespace LastWar
             Vector2 mv = input.Move;
             if (input.Sprint && mv.y > -0.3f && !Scoped) mv = new Vector2(mv.x * 0.5f, 1f);
             bool sprinting = input.Sprint && mv.y > 0.5f && !input.FireHeld && !Scoped;
-            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.25f : input.Crouch ? 0.55f : 1f);
+            // crawling is slow and goes in pulls (the body moves with the arms, not as a slide)
+            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * body.CrawlPull : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
             Vector3 want = heading * new Vector3(mv.x, 0, mv.y) * speed;
             bool grounded = cc.isGrounded;
@@ -94,6 +101,8 @@ namespace LastWar
             flat = Vector3.MoveTowards(flat, want, (grounded ? GroundAccel : AirAccel) * dt);
             velocity.x = flat.x; velocity.z = flat.z;
             if (grounded && velocity.y < 0) velocity.y = -2f;
+            // JUMP in front of a window, low wall or fence: climb through / over it (web vault)
+            if (input.JumpPressed && (grounded || NearGround()) && TryVault()) { input.JumpPressed = false; return; }
             if (input.JumpPressed && (grounded || NearGround())) velocity.y = JumpVelocity;
             velocity.y += Gravity * dt;
             cc.Move(velocity * dt);
@@ -112,6 +121,36 @@ namespace LastWar
             bool moving = flat.sqrMagnitude > 1f;
             bool fired = false;
             GunState gun = armed ? fighter.Gun : null;
+            // FIRE with the guns put away takes the last one back out (web)
+            if (fighter.holstered && fighter.HasGun && input.FirePressed && !input.FrostAim) { fighter.ToggleHolster(); input.FirePressed = false; }
+
+            // ice wall: the button shows where it would stand, FIRE builds it, the button again cancels
+            if (input.FrostPressed) input.FrostAim = !input.FrostAim && fighter.frost > 0;
+            if (input.FrostAim && fighter.frost <= 0) input.FrostAim = false;
+            if (frostGhost == null) frostGhost = IceWall.Ghost();
+            bool spotOk = IceWall.Spot(transform, out Vector3 wallPos, out Quaternion wallRot);
+            frostGhost.gameObject.SetActive(input.FrostAim && spotOk);
+            if (input.FrostAim) frostGhost.SetPositionAndRotation(wallPos, wallRot);
+            if (input.FrostAim && input.FirePressed)
+            {
+                if (spotOk) { IceWall.Place(wallPos, wallRot); fighter.frost--; }
+                input.FrostAim = false; input.FirePressed = false; blockFire = true; // this press built the wall, no shot
+            }
+            if (blockFire) { if (!input.FireHeld) blockFire = false; else gun = null; }
+
+            // loot: walking over takes it (a gun only into an empty slot); the rest within reach is listed with TAKE
+            Nearby.Clear();
+            for (int i = Loot.All.Count - 1; i >= 0; i--)
+            {
+                Loot it = Loot.All[i];
+                Vector3 d = it.transform.position - transform.position;
+                if (d.y < -0.6f || d.y > 1.8f) continue;
+                float h2 = d.x * d.x + d.z * d.z;
+                if (h2 < 1.4f * 1.4f && fighter.TryPickup(it, false)) { Destroy(it.gameObject); continue; }
+                if (h2 < 2.6f * 2.6f) Nearby.Add(it);
+            }
+            Nearby.Sort((a, b) => (a.kind == Loot.Kind.Weapon ? 0 : 1) - (b.kind == Loot.Kind.Weapon ? 0 : 1));
+
             if (gun != null && gun.def.id == "sniper")
             {
                 // sniper: FIRE down opens the scope, letting go takes the shot (the scope closes again if FIRE opened it)
@@ -330,9 +369,87 @@ namespace LastWar
 
         bool NearGround() => Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 0.5f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore);
 
+        /// <summary>things within reach that walking over did not take (shown in the HUD list with TAKE)</summary>
+        public readonly System.Collections.Generic.List<Loot> Nearby = new System.Collections.Generic.List<Loot>();
+        public void Take(Loot it) { if (it != null && fighter.TryPickup(it, true)) Destroy(it.gameObject); }
+        Transform frostGhost; bool blockFire;
+
+        // ------------------------------------------------------------ vault (through a window / over a low wall)
+        float vaultT = -1f; Vector3 vaultFrom, vaultApex, vaultTo;
+        bool TryVault()
+        {
+            int mask = ~(1 << MapBuilder.PlayerLayer);
+            Vector3 f = Quaternion.Euler(0, yaw, 0) * Vector3.forward, p = transform.position;
+            // something right in front at waist height?
+            if (!Physics.Raycast(p + Vector3.up * 0.55f, f, out RaycastHit wall, 1.1f, mask, QueryTriggerInteraction.Ignore)
+                && !Physics.Raycast(p + Vector3.up * 1.0f, f, out wall, 1.1f, mask, QueryTriggerInteraction.Ignore)) return false;
+            if (wall.collider.GetComponentInParent<Fighter>() != null) return false;
+            // the lowest gap at least 0.55 m tall between 0.5 and 1.6 m: a window sill / the top of a fence
+            for (float h = 0.5f; h <= 1.6f; h += 0.1f)
+            {
+                Vector3 o = p + Vector3.up * h;
+                if (Physics.Raycast(o, f, wall.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (Physics.Raycast(o + Vector3.up * 0.5f, f, wall.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
+                // somewhere to land on the far side
+                Vector3 beyond = p + f * (wall.distance + 1.0f) + Vector3.up * (h + 0.3f);
+                if (!Physics.Raycast(beyond, Vector3.down, out RaycastHit floor, h + 3.5f, mask, QueryTriggerInteraction.Ignore)) continue;
+                Vector3 land = floor.point + Vector3.up * 0.05f;
+                if (Physics.CheckCapsule(land + Vector3.up * 0.45f, land + Vector3.up * 1.4f, 0.3f, mask, QueryTriggerInteraction.Ignore)) continue;
+                vaultFrom = p; vaultTo = land;
+                vaultApex = p + f * wall.distance + Vector3.up * (h + 0.2f);
+                vaultT = 0f; cc.enabled = false; velocity = Vector3.zero;
+                body.Play("jump");
+                Sfx.Play2D("land", 0.35f, 1.3f);
+                return true;
+            }
+            return false;
+        }
+
+        void VaultStep(float dt)
+        {
+            vaultT = Mathf.Min(1f, vaultT + dt / 0.5f);
+            float t = vaultT, u = 1f - t;
+            transform.position = u * u * vaultFrom + 2f * u * t * vaultApex + t * t * vaultTo; // a curve over the sill
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            if (vaultT >= 1f) { vaultT = -1f; cc.enabled = true; }
+        }
+
+        // ------------------------------------------------------------ spectating after you are out
+        public Fighter SpectateTarget;
+        public void StartSpectate(Fighter first)
+        {
+            SpectateTarget = first != null && first.Alive ? first : NextAlive();
+        }
+        Fighter NextAlive()
+        {
+            if (GameBoot.Instance == null) return null;
+            Fighter best = null; float bd = float.MaxValue;
+            foreach (Fighter f in GameBoot.Instance.Fighters)
+            {
+                if (f == fighter || !f.Alive) continue;
+                float d = (f.transform.position - transform.position).sqrMagnitude;
+                if (d < bd) { bd = d; best = f; }
+            }
+            return best;
+        }
+
         void LateUpdate()
         {
             if (cam == null) return;
+            if (!fighter.Alive && SpectateTarget != null)
+            {
+                if (!SpectateTarget.Alive) SpectateTarget = NextAlive();
+                if (SpectateTarget == null) return;
+                // over the shoulder of the one you watch, turning with them
+                Transform t = SpectateTarget.transform;
+                Quaternion sl = Quaternion.Euler(12f, t.eulerAngles.y, 0);
+                Vector3 piv = t.position + Vector3.up * 1.5f;
+                Vector3 want = piv + sl * new Vector3(0.8f, 0.4f, -3.8f);
+                cam.transform.position = Vector3.Lerp(cam.transform.position, want, Time.deltaTime * 6f);
+                cam.transform.rotation = Quaternion.Slerp(cam.transform.rotation, sl, Time.deltaTime * 6f);
+                cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 70f, Time.deltaTime * 8f);
+                return;
+            }
             if (fighter.air == 1 && SkyDrop.Instance != null)
             {
                 // chase camera around the plane
