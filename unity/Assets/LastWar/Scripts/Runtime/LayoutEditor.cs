@@ -199,7 +199,7 @@ namespace LastWar
             var go = new GameObject("slider", typeof(RectTransform), typeof(Slider));
             var rt = (RectTransform)go.transform; rt.SetParent(p, false); rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0, .5f);
             rt.anchoredPosition = pos * K; rt.sizeDelta = new Vector2(width, 22) * K;
-            var track = UiKit.Img(rt, "track", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.04f, .05f, .06f));
+            var track = UiKit.Img(rt, "track", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.3f, .32f, .34f));
             track.rectTransform.anchorMin = new Vector2(0, .35f); track.rectTransform.anchorMax = new Vector2(1, .65f); track.rectTransform.offsetMin = track.rectTransform.offsetMax = Vector2.zero;
             var fa = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fa.SetParent(rt, false); fa.anchorMin = new Vector2(0, .35f); fa.anchorMax = new Vector2(1, .65f); fa.offsetMin = fa.offsetMax = Vector2.zero;
             var fill = UiKit.Img(fa, "f", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(1f, .83f, .3f, .7f));

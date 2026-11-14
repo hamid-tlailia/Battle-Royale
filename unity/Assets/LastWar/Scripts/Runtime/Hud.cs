@@ -16,7 +16,7 @@ namespace LastWar
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
-        RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly RawImage[] sides = new RawImage[4]; int lensZoom; Transform full;
+        RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly Image[] sides = new Image[4]; Image hole; int lensZoom; Transform full;
         static Texture2D lensCross, lensPlain;
         const float OutsideA = 0.55f; // the world around every optic: dimmed, never black
         RectTransform holo; RawImage holoFrame; Image holoRing;
@@ -164,6 +164,8 @@ namespace LastWar
             lens = new GameObject("Scope", typeof(RectTransform)).GetComponent<RectTransform>();
             lens.SetParent(full, false); lens.anchorMin = Vector2.zero; lens.anchorMax = Vector2.one; lens.offsetMin = lens.offsetMax = Vector2.zero;
             lens.SetAsFirstSibling();
+            // the dark square round the lens with a round hole (an Image like the four sides: they blend exactly alike)
+            hole = UiKit.Img(lens, "hole", HoleSprite(), C, Vector2.zero, Vector2.one, Color.black); hole.rectTransform.pivot = C;
             glass = new GameObject("lens", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
             glass.transform.SetParent(lens, false); glass.raycastTarget = false;
             glass.rectTransform.anchorMin = glass.rectTransform.anchorMax = glass.rectTransform.pivot = C;
@@ -171,9 +173,7 @@ namespace LastWar
             // so they blend alike - no lighter / darker bands, no gaps above and below the circle)
             for (int i = 0; i < 4; i++)
             {
-                var blk = new GameObject("side", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
-                blk.transform.SetParent(lens, false); blk.raycastTarget = false;
-                blk.rectTransform.anchorMin = blk.rectTransform.anchorMax = C;
+                var blk = UiKit.Img(lens, "side", null, C, Vector2.zero, Vector2.one, Color.black);
                 blk.rectTransform.pivot = i == 0 ? new Vector2(1, .5f) : i == 1 ? new Vector2(0, .5f) : i == 2 ? new Vector2(.5f, 0) : new Vector2(.5f, 1);
                 sides[i] = blk;
             }
@@ -309,13 +309,29 @@ namespace LastWar
         }
 
         /// <summary>size and look of the optic for its zoom (web: x2 72 %, x4 84 %, x8 94 % of the screen height)</summary>
+        static Sprite holeSprite;
+        /// <summary>white square, clear round hole (radius 47 % of the side, the lens picture's rim)</summary>
+        static Sprite HoleSprite()
+        {
+            if (holeSprite != null) return holeSprite;
+            const int n = 256; var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[n * n]; float c0 = (n - 1) / 2f, R = n * 0.47f;
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
+                {
+                    float d = Mathf.Sqrt((x - c0) * (x - c0) + (y - c0) * (y - c0));
+                    px[y * n + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(d - R) * 255));
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return holeSprite = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(.5f, .5f));
+        }
+
         void SetLens(int zoom)
         {
-            if (lensCross == null) { lensCross = LensTexture(true, OutsideA); lensPlain = LensTexture(false, OutsideA); }
+            if (lensCross == null) { lensCross = LensTexture(true, 0f); lensPlain = LensTexture(false, 0f); }
             lensZoom = zoom;
             float H = ((RectTransform)full).rect.height, L = H * (zoom >= 8 ? 0.94f : zoom >= 4 ? 0.84f : 0.72f);
             bool red = zoom <= 1;
-            holo.gameObject.SetActive(red); glass.gameObject.SetActive(!red); foreach (var sd in sides) sd.gameObject.SetActive(!red);
+            holo.gameObject.SetActive(red); glass.gameObject.SetActive(!red); hole.gameObject.SetActive(!red); foreach (var sd in sides) sd.gameObject.SetActive(!red);
             if (red)
             {
                 holoFrame.rectTransform.sizeDelta = new Vector2(H * 0.46f, H * 0.34f);
@@ -324,6 +340,7 @@ namespace LastWar
             }
             glass.texture = zoom >= 8 ? lensCross : lensPlain;
             glass.rectTransform.sizeDelta = new Vector2(L, L);
+            hole.rectTransform.sizeDelta = new Vector2(L, L); hole.color = new Color(0.02f, 0.03f, 0.02f, OutsideA);
             Color outside = new Color(0.02f, 0.03f, 0.02f, OutsideA);
             for (int i = 0; i < 4; i++)
             {
