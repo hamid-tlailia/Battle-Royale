@@ -125,6 +125,21 @@ namespace LastWar
         void Update()
         {
             fpsAcc += Time.unscaledDeltaTime; fpsFrames++;
+            // ?rig=1: list what is drawn close to the camera / unusually big (hunting stray giant bodies in the plane)
+            if (SoldierBody.LogRig && Camera.main != null && (Time.frameCount % 300) == 0)
+            {
+                Vector3 c = Camera.main.transform.position;
+                foreach (Renderer r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+                {
+                    if (!r.enabled || !r.gameObject.activeInHierarchy || r is ParticleSystemRenderer) continue;
+                    Bounds b = r.bounds; float d = Vector3.Distance(b.ClosestPoint(c), c);
+                    if (d < 12f || (b.size.magnitude > 30f && b.center.y > 60f))
+                    {
+                        string path = r.name; Transform t = r.transform.parent; int n = 0; while (t != null && n++ < 6) { path = t.name + "/" + path; t = t.parent; }
+                        Debug.Log($"[LastWar] near {path} d={d:0.0} size={b.size} at={b.center} cam={c} scale={r.transform.lossyScale}");
+                    }
+                }
+            }
             if (fpsAcc >= 1f && fps != null && Map != null) { fps.text = $"LAST WAR · {Map.name} · {fpsFrames / fpsAcc:0} fps"; fpsAcc = 0; fpsFrames = 0; }
         }
     }
