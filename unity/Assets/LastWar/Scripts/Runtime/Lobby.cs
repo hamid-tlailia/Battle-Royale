@@ -24,6 +24,7 @@ namespace LastWar
         readonly Dictionary<string, Text> texts = new Dictionary<string, Text>();
         GameObject soldier; float soldierYaw; SoldierBody lobbyBody;
         Transform stage; Camera cam;
+        string forcedPose;
         RectTransform shade, sheet; int dragFinger = -1; Vector2 dragLast; bool mouseDrag;
         static readonly string[] Tips = { "Welcome to Last War!", "Land, loot a gun, stay in the zone.", "Tap a weapon to equip it, tap it again to reload.", "Headshots hit twice as hard.", "The shotgun fires two blasts per press." };
 
@@ -31,6 +32,17 @@ namespace LastWar
         {
             var l = new GameObject("Lobby").AddComponent<Lobby>();
             l.cam = cam; l.Build3D(map); l.BuildUi();
+            // test switches: ?open=settings|outfit|map|edit opens that panel; ?lpose=kneel|crawl|runfree shows that pose
+            string url = Application.absoluteURL ?? "";
+            string Arg(string key) { int i = url.IndexOf(key + "="); if (i < 0) return null; string v = url.Substring(i + key.Length + 1); int e = v.IndexOf('&'); return e >= 0 ? v.Substring(0, e) : v; }
+            string open = Arg("open"), lp = Arg("lpose");
+            if (float.TryParse(Arg("lyaw") ?? "x", out float ly)) l.soldierYaw = ly;
+            if (open == "edit") l.CustomizeButtons(); else if (open != null) l.Open(open);
+            if (lp != null && l.lobbyBody != null)
+            {
+                l.lobbyBody.Play(lp == "kneel" ? "crouch_idle" : lp == "crawl" ? "prone" : lp == "runfree" ? "run" : lp);
+                l.forcedPose = lp; if (lp == "runfree") l.lobbyBody.SetGun(null);
+            }
             return l;
         }
 
@@ -417,6 +429,7 @@ namespace LastWar
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             if (lobbyBody != null) lobbyBody.AimDir = soldier.transform.forward;
+            if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }
 
         static bool OverUi(int finger)
