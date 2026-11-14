@@ -18,7 +18,7 @@ namespace LastWar
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
         RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly Image[] sides = new Image[4]; Image hole; int lensZoom; Transform full;
         static Texture2D lensCross, lensPlain;
-        const float OutsideA = 0.55f; // the world around every optic: dimmed, never black
+        const float OutsideA = 0.86f; // (linear-space blending: this reads like the web's ~50 % dark) // the world around every optic: dimmed, never black
         RectTransform holo; RawImage holoFrame; Image holoRing;
 
         /// <summary>holo sight frame: thick dark rounded rectangle (18 % / 24 % corners), light inner edge, faint blue glass</summary>
@@ -344,7 +344,7 @@ namespace LastWar
             float oa = OutsideA;
             string url = Application.absoluteURL ?? "";
             int qi = url.IndexOf("lensA="); if (qi >= 0) float.TryParse(url.Substring(qi + 6, 4).TrimEnd('&'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out oa);
-            if (url.Contains("nogamma=1")) { var ga = hole.GetComponent<GammaAlpha>(); if (ga != null) Destroy(ga); }
+            { var ga = hole.GetComponent<GammaAlpha>(); if (ga != null) Destroy(ga); }
             hole.rectTransform.sizeDelta = Vector2.one * L * 0.94f * 20f; hole.color = new Color(0.02f, 0.03f, 0.02f, oa);
             foreach (var sd in sides) sd.gameObject.SetActive(false);
             if (SoldierBody.LogRig) Debug.Log($"[LastWar] lens zoom {zoom} L {L} H {H} hole {hole.rectTransform.rect} active {hole.gameObject.activeInHierarchy} col {hole.color} canvasScale {((RectTransform)full).localScale}");
