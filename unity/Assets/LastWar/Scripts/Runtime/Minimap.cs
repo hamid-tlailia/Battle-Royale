@@ -43,8 +43,9 @@ namespace LastWar
             // white border (2 px) around a rounded window
             var border = UiKit.Img(c, "Minimap", UiKit.Round, new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132), new Color(1, 1, 1, .55f), true);
             frame = border.rectTransform;
-            AddTap(border.gameObject, () => SetBig(!big));
+            AddTap(border.gameObject, () => { if (!input.Editing) SetBig(!big); });
             input.RegisterBlocker(frame);
+            input.AddEditable("minimap", frame);
             var win = UiKit.Img(frame, "window", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(128, 128), Color.white);
             win.rectTransform.pivot = new Vector2(.5f, .5f);
             win.gameObject.AddComponent<Mask>().showMaskGraphic = true;
@@ -118,6 +119,7 @@ namespace LastWar
             bigShade.gameObject.SetActive(on);
             if (on)
             {
+                smallPos = frame.anchoredPosition; smallScale = frame.localScale; frame.localScale = Vector3.one;
                 float s = Mathf.Min(1080f * .84f, 420 * UiKit.K);
                 frame.anchorMin = frame.anchorMax = frame.pivot = new Vector2(.5f, .5f);
                 frame.anchoredPosition = Vector2.zero; frame.sizeDelta = new Vector2(s, s);
@@ -126,9 +128,10 @@ namespace LastWar
             else
             {
                 frame.anchorMin = frame.anchorMax = frame.pivot = new Vector2(1, 1);
-                frame.anchoredPosition = new Vector2(-8, -6) * UiKit.K; frame.sizeDelta = new Vector2(132, 132) * UiKit.K;
+                frame.anchoredPosition = smallPos; frame.localScale = smallScale; frame.sizeDelta = new Vector2(132, 132) * UiKit.K;
             }
         }
+        Vector2 smallPos = new Vector2(-8, -6) * UiKit.K; Vector3 smallScale = Vector3.one;
 
         void Shot(Fighter s, Vector3 from, Vector3 to)
         {

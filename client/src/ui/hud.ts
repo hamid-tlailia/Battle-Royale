@@ -401,7 +401,7 @@ export class Hud {
     cone.addColorStop(0, 'rgba(255,255,255,.6)'); cone.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = cone; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 100, -Math.PI / 2 - 0.55, -Math.PI / 2 + 0.55); g.closePath(); g.fill();
     g.fillStyle = '#ffd34d'; g.strokeStyle = '#000'; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(0, -26); g.lineTo(17, 17); g.lineTo(0, 8); g.lineTo(-17, 17); g.closePath(); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(0, -28); g.lineTo(13, 16); g.lineTo(0, 7); g.lineTo(-13, 16); g.closePath(); g.fill(); g.stroke(); // slim dart: the tip is unmistakable
     g.restore();
   }
 

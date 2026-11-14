@@ -227,9 +227,23 @@ export class Game {
     this.hud.healBtn = B.heal; this.hud.frostBtn = B.frost;
     const fireDown = () => {
       if (this.controls.frostAim) { this.controls.confirmFrost(); sync(); return; } // place the previewed ice wall
+      // sniper: FIRE down opens the scope, letting go takes the shot (the scope closes again if FIRE opened it)
+      const me = this.sim.players.get(this.myId);
+      const slot = me?.weapons[me.slot];
+      if (me && me.alive && !me.holstered && this.controls.weapon !== 4 && slot?.owned && slot.id === 'sniper' && !me.move.air) {
+        sniperAuto = !this.controls.scoped; sniperHold = true;
+        this.controls.setScope(true); this.controls.stopRun(); sync(); return;
+      }
       this.controls.fireHeld = true; this.controls.fireTap = 2; this.controls.stopRun(); if (this.controls.weapon === 4) this.controls.toggleHolster(); sync(); };
-    this.controls.bindLookButton(B.fire, fireDown, () => { this.controls.fireHeld = false; });
-    this.controls.bindButton(B['fire-left'], fireDown, () => { this.controls.fireHeld = false; });
+    let sniperHold = false, sniperAuto = false;
+    const fireUp = () => {
+      this.controls.fireHeld = false;
+      if (!sniperHold) return;
+      sniperHold = false; this.controls.fireTap = 2;
+      if (sniperAuto) setTimeout(() => { if (this.running) { this.controls.setScope(false); sync(); } }, 350);
+    };
+    this.controls.bindLookButton(B.fire, fireDown, fireUp);
+    this.controls.bindButton(B['fire-left'], fireDown, fireUp);
     this.controls.bindButton(B.jump, () => this.controls.jump());
     this.controls.bindButton(B.reload, () => this.controls.reload());
     this.controls.bindButton(B.crouch, () => { this.controls.toggleCrouch(); sync(); });

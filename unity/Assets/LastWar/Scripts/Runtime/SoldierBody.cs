@@ -204,7 +204,7 @@ namespace LastWar
             GameObject src = MapBuilder.Model("gun_" + id);
             if (src == null) return;
             gun = Instantiate(src, transform, false).transform;
-            foreach (Renderer r in gun.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; }
+            foreach (Renderer r in gun.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
         }
 
         void Update()
@@ -218,6 +218,19 @@ namespace LastWar
                 float len = clips[target].length - 0.02f;
                 if (cp.GetTime() >= len) { cp.SetTime(len); cp.SetSpeed(0); }
             }
+            else
+            {
+                // locomotion follows the real speed; backwards (retreating) the clip is stepped by hand
+                var cp = (AnimationClipPlayable)mixer.GetInput(target);
+                if (Rate >= 0) cp.SetSpeed(Rate);
+                else
+                {
+                    cp.SetSpeed(0);
+                    double len = clips[target].length, t = cp.GetTime() + Rate * Time.deltaTime;
+                    if (len > 0.01) { t %= len; if (t < 0) t += len; }
+                    cp.SetTime(t);
+                }
+            }
             float sum = 0, dt = Time.deltaTime;
             for (int k = 0; k < weights.Length; k++) { weights[k] = Mathf.MoveTowards(weights[k], k == target ? 1f : 0f, dt * 6f); sum += weights[k]; }
             for (int k = 0; k < weights.Length; k++) mixer.SetInputWeight(k, sum > 0 ? weights[k] / sum : 0);
@@ -226,6 +239,12 @@ namespace LastWar
         // ---- sky-dive pose, visibility, parachute
         /// <summary>lean forward in degrees around the hips (free fall: ~83 = belly down)</summary>
         public float Tilt;
+        /// <summary>body turned toward the movement direction, degrees to the right of where the soldier looks</summary>
+        public float Turn;
+        /// <summary>speed of the looping clip (1 = as recorded, negative = backwards)</summary>
+        public float Rate = 1f;
+        /// <summary>false = empty hands (guns put away)</summary>
+        public bool Armed = true;
         float tiltNow; Vector3 outfitBase, modelBase; Quaternion outfitBaseRot, modelBaseRot; bool baseSet;
         Transform chute; float chuteK;
         bool visible = true;
@@ -234,8 +253,13 @@ namespace LastWar
         {
             if (v == visible) return;
             visible = v;
+            ApplyVisible();
+        }
+
+        void ApplyVisible()
+        {
             foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
-                r.enabled = v && (outfitRoot == null || !r.transform.IsChildOf(model));
+                r.enabled = visible && (outfitRoot == null || model == null || !r.transform.IsChildOf(model));
         }
 
         /// <summary>open (true) or fold (false) the parachute: striped red / white canopy with lines</summary>
@@ -288,20 +312,21 @@ namespace LastWar
             return g;
         }
 
-        void ApplyTilt()
+        /// <summary>lean (free fall) and turn (walking sideways) of the whole model around the hips, on top of its own root turn</summary>
+        void ApplyRoot()
         {
             tiltNow = Mathf.MoveTowards(tiltNow, Tilt, Time.deltaTime * 240f);
             Vector3 pivot = Vector3.up * 0.95f;
-            Quaternion q = Quaternion.Euler(tiltNow, 0, 0);
-            // the models' own root turn (glTF up axis, Sketchfab Z-up roots) is kept: the lean goes on top of it
+            // the models' own root turn (glTF up axis, Sketchfab Z-up roots) is kept: lean and turn go on top of it
             if (!baseSet)
             {
                 modelBase = model.localPosition; modelBaseRot = model.localRotation;
                 if (outfitRoot != null) { outfitBase = outfitRoot.localPosition; outfitBaseRot = outfitRoot.localRotation; }
                 baseSet = true;
             }
-            model.localRotation = q * modelBaseRot; model.localPosition = pivot - q * (pivot - modelBase);
-            if (outfitRoot != null) { outfitRoot.localRotation = q * outfitBaseRot; outfitRoot.localPosition = pivot - q * (pivot - outfitBase); }
+            Quaternion q = Quaternion.Euler(tiltNow, 0, 0), ry = Quaternion.Euler(0, Turn, 0);
+            model.localRotation = ry * q * modelBaseRot; model.localPosition = ry * (pivot - q * (pivot - modelBase));
+            if (outfitRoot != null) { outfitRoot.localRotation = ry * q * outfitBaseRot; outfitRoot.localPosition = ry * (pivot - q * (pivot - outfitBase)); }
         }
 
         // ---- procedural poses on top of the animation (the web game's applyPose)
@@ -328,7 +353,7 @@ namespace LastWar
             if (b == null || c == null) return;
             Vector3 cur = c.position - b.position;
             if (cur.sqrMagnitude < 1e-8f) return;
-            Vector3 want = transform.rotation * Quaternion.Euler(tiltNow, 0, 0) * new Vector3(-x, y, z);
+            Vector3 want = transform.rotation * Quaternion.Euler(0, Turn, 0) * Quaternion.Euler(tiltNow, 0, 0) * new Vector3(-x, y, z);
             Quaternion q = Quaternion.FromToRotation(cur.normalized, want.normalized) * b.rotation;
             b.rotation = Quaternion.Slerp(b.rotation, q, w);
         }
@@ -365,15 +390,85 @@ namespace LastWar
             }
         }
 
+        // ---- guns slung across the back (long guns that are not in the hands)
+        readonly List<Transform> backGuns = new List<Transform>(); string backKey = "";
+        public void SetBack(List<string> ids)
+        {
+            string key = ids == null ? "" : string.Join(",", ids);
+            if (key == backKey) return;
+            backKey = key;
+            foreach (Transform g in backGuns) if (g != null) Destroy(g.gameObject);
+            backGuns.Clear();
+            if (ids == null) return;
+            for (int i = 0; i < ids.Count && i < 2; i++)
+            {
+                GameObject src = MapBuilder.Model("gun_" + ids[i]);
+                if (src == null) continue;
+                Transform g = Instantiate(src, transform, false).transform;
+                foreach (Renderer r in g.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
+                backGuns.Add(g);
+            }
+        }
+
+        void PlaceBack()
+        {
+            if (backGuns.Count == 0) return;
+            Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
+            if (spine == null) return;
+            Quaternion bodyRot = transform.rotation * Quaternion.Euler(0, Turn, 0) * Quaternion.Euler(tiltNow, 0, 0);
+            for (int i = 0; i < backGuns.Count; i++)
+            {
+                float side = i == 0 ? 1f : -1f;
+                // diagonal across the back, the two crossed, flat against the body
+                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(0.17f + i * 0.05f));
+                Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
+                backGuns[i].rotation = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
+            }
+        }
+
+        // ---- support hand on the gun (two-bone IK on the left arm)
+        static float GripAhead(string id) => id == "pistol" ? 0.03f : id == "smg" ? 0.2f : id == "sniper" ? 0.34f : 0.3f;
+
+        void TwoBone(Transform up, Transform mid, Transform end, Vector3 target)
+        {
+            float a = (mid.position - up.position).magnitude, b = (end.position - mid.position).magnitude;
+            if (a < 1e-4f || b < 1e-4f) return;
+            float d = Mathf.Clamp((target - up.position).magnitude, Mathf.Abs(a - b) + 0.01f, a + b - 0.005f);
+            // elbow angle from the triangle (law of cosines), bent in the plane it is already in
+            Vector3 toUp = up.position - mid.position, toEnd = end.position - mid.position;
+            float cur = Vector3.Angle(toUp, toEnd);
+            float want = Mathf.Acos(Mathf.Clamp((a * a + b * b - d * d) / (2f * a * b), -1f, 1f)) * Mathf.Rad2Deg;
+            Vector3 axis = Vector3.Cross(toUp, toEnd);
+            if (axis.sqrMagnitude < 1e-8f) axis = Vector3.Cross(toUp, transform.up);
+            mid.rotation = Quaternion.AngleAxis(want - cur, axis.normalized) * mid.rotation;
+            up.rotation = Quaternion.FromToRotation(end.position - up.position, target - up.position) * up.rotation;
+        }
+
         void LateUpdate()
         {
-            if (model != null && (Tilt != 0 || tiltNow != 0)) ApplyTilt();
+            if (model != null) ApplyRoot();
             Retarget();
             ApplyPose();
+            PlaceBack();
             // gun: grip in the right hand, barrel (model -Z) along the aim
             if (gun == null || handR == null) return;
             gun.position = handR.position;
-            gun.rotation = Quaternion.LookRotation(-AimDir, Vector3.up);
+            Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
+            Transform handL = PoseBone("LeftHand");
+            bool carried = current == "run" || current == "prone";
+            if (carried && handL != null)
+            {
+                // carried (running / crawling): exactly along the two hands, as the clip holds it
+                Vector3 lh = handL.position - handR.position; float len = lh.magnitude;
+                if (len > 0.15f && len < 0.75f && Vector3.Dot(lh, transform.forward) > 0.04f) dir = lh / len; else carried = false;
+            }
+            gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
+            // standing / walking / firing: the barrel follows the view and the support hand comes to the handguard
+            if (!carried && handL != null && Pose == null && !current.StartsWith("death"))
+            {
+                Transform la = PoseBone("LeftArm"), lf = PoseBone("LeftForeArm");
+                if (la != null && lf != null) TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f);
+            }
         }
 
         void OnDestroy() { if (graph.IsValid()) graph.Destroy(); srcPose?.Dispose(); dstPose?.Dispose(); }

@@ -310,12 +310,41 @@ namespace LastWar
             // sensitivity
             var sens = Label($"LOOK SENSITIVITY  {Profile.Sensitivity:0.0}");
             Slider(content, ref y, w, 0.3f, 2.5f, Profile.Sensitivity, v => { Profile.Sensitivity = v; sens.text = $"LOOK SENSITIVITY  {v:0.0}"; });
+            var ssens = Label($"SCOPE SENSITIVITY  {Profile.ScopeSensitivity:0.0}");
+            Slider(content, ref y, w, 0.3f, 2.5f, Profile.ScopeSensitivity, v => { Profile.ScopeSensitivity = v; ssens.text = $"SCOPE SENSITIVITY  {v:0.0}"; });
             // aim assist
             Label("AIM");
             Choice(content, ref y, w, new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => Profile.AimAssist = i == 0);
             Label("GRAPHICS");
             Choice(content, ref y, w, new[] { "LOW", "MEDIUM", "HIGH" }, Profile.Quality, i => Profile.Quality = i);
+            // move / resize / fade every in-match control (the same editor as in the match)
+            Label("CONTROLS");
+            var cb = UiKit.Img(content, "custom", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(.23f, .26f, .28f), true);
+            cb.rectTransform.anchoredPosition = new Vector2(0, -y); cb.rectTransform.sizeDelta = new Vector2(w * .9f, 32 * s);
+            var cbt = UiKit.Txt(cb.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, 12 * k, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
+            cbt.rectTransform.pivot = new Vector2(.5f, .5f); cbt.rectTransform.sizeDelta = new Vector2(w * .9f, 32 * s); cbt.text = "CUSTOMIZE BUTTONS";
+            Clickable.Add(cb.gameObject, CustomizeButtons);
+            y += 42 * s;
             content.sizeDelta = new Vector2(0, y + 10 * s);
+        }
+
+        /// <summary>the match controls laid over the lobby, with stand-ins for the weapon box and the minimap, in the layout editor</summary>
+        void CustomizeButtons()
+        {
+            Close();
+            canvas.enabled = false;
+            TouchControls tc = TouchControls.Create();
+            tc.Preview = true;
+            RectTransform Stand(string label, Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size)
+            {
+                var img = UiKit.Img(tc.Canvas.transform, label, UiKit.Round, anchor, pos, size, new Color(24 / 255f, 32 / 255f, 40 / 255f, .7f), true);
+                img.rectTransform.pivot = pivot;
+                var t = UiKit.Txt(img.rectTransform, new Vector2(.5f, .5f), Vector2.zero, size, 12, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = label;
+                return img.rectTransform;
+            }
+            tc.AddEditable("weapons", Stand("WEAPONS", new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 35), new Vector2(209, 85)));
+            tc.AddEditable("minimap", Stand("MAP", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132)));
+            LayoutEditor.Open(tc, () => { Destroy(tc.Canvas.gameObject); Destroy(tc.gameObject); canvas.enabled = true; });
         }
 
         void Slider(RectTransform parent, ref float y, float w, float min, float max, float val, Action<float> on)

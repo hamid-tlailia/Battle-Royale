@@ -20,7 +20,11 @@ namespace LastWar
         CharacterController cc;
         Vector3 velocity;
         float camDist = 3.6f;
-        public bool Scoped => input.Scoped && fighter.Alive;
+        /// <summary>looking through the optic (first person): long-range gun in the hands, on the ground</summary>
+        public bool Scoped => input.Scoped && fighter.Alive && fighter.air == 0 && !fighter.holstered && fighter.Gun != null && (fighter.Gun.def.id == "rifle" || fighter.Gun.def.id == "sniper");
+        /// <summary>the web game's optics: red dot on the rifle (52 deg), x8 on the sniper (10 deg)</summary>
+        float ScopeFov => fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 10f : 52f;
+        bool sniperHold, sniperAuto, wasScoped, wasGrounded = true; float unscopeAt, stepAcc, airTime, turn;
         /// <summary>the crosshair is on a living enemy (no wall in between)</summary>
         public Fighter OnEnemy { get; private set; }
         public static bool AimAssistOn = true; // false = full control (settings, phase 3)
@@ -50,18 +54,21 @@ namespace LastWar
             float dt = Time.deltaTime;
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
-            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f : 1f) * (OnEnemy != null && AimAssistOn ? 0.55f : 1f);
+            // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
+            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (OnEnemy != null && AimAssistOn ? 0.8f : 1f);
             yaw += input.LookDelta.x * sens;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
-            if (fighter.air != 0) { AirUpdate(dt); return; }
+            if (fighter.air != 0) { sniperHold = false; AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
 
             // weapons
-            if (input.SlotPressed >= 0) { if (input.SlotPressed == fighter.slot) fighter.Reload(); else fighter.SelectSlot(input.SlotPressed); } // tap the equipped gun = reload
+            if (input.HolsterPressed) fighter.ToggleHolster();
+            if (input.SlotPressed >= 0) { if (input.SlotPressed == fighter.slot && !fighter.holstered) fighter.Reload(); else fighter.SelectSlot(input.SlotPressed); } // tap the equipped gun = reload
             if (input.ReloadPressed) fighter.Reload();
             if (input.HealPressed) fighter.Heal();
             if (input.BagPressed) BagPanel.Toggle(input, fighter);
             if (input.GearPressed) SettingsPanel.Open(input.Canvas, true);
+            bool armed = !fighter.holstered && fighter.Gun != null;
 
             // posture: stand 1.8 m, crouch 1.2 m, prone 0.7 m (jump = stand up)
             if (input.JumpPressed && (input.Crouch || input.Prone)) { input.Crouch = input.Prone = false; input.JumpPressed = false; }
@@ -95,30 +102,119 @@ namespace LastWar
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
             body.AimDir = aim;
-            body.SetGun(fighter.Gun != null ? fighter.Gun.def.id : null);
+            body.SetGun(armed ? fighter.Gun.def.id : null);
+            // long guns that are not in the hands hang across the back (the pistol goes in the pocket)
+            backList.Clear();
+            for (int k = 0; k < 3; k++) { GunState bg = fighter.guns[k]; if (bg != null && bg.def.id != "pistol" && (fighter.holstered || k != fighter.slot)) backList.Add(bg.def.id); }
+            body.SetBack(backList);
 
-            // fire through the crosshair: sniper one shot per press, the rest while held
-            bool wantFire = fighter.Gun != null && (fighter.Gun.def.auto ? input.FireHeld : input.FirePressed);
-            bool fired = wantFire && fighter.Fire(eye, aim, Scoped, flat.sqrMagnitude > 1f);
+            bool onGround = cc.isGrounded || NearGround();
+            bool moving = flat.sqrMagnitude > 1f;
+            bool fired = false;
+            GunState gun = armed ? fighter.Gun : null;
+            if (gun != null && gun.def.id == "sniper")
+            {
+                // sniper: FIRE down opens the scope, letting go takes the shot (the scope closes again if FIRE opened it)
+                if (input.FirePressed) { sniperAuto = !input.Scoped; input.Scoped = true; sniperHold = true; unscopeAt = 0; }
+                if (sniperHold && input.FireReleased)
+                {
+                    sniperHold = false;
+                    fired = fighter.Fire(eye, aim, true, moving, input.Crouch || input.Prone, onGround);
+                    if (sniperAuto) unscopeAt = Time.time + 0.35f;
+                }
+            }
+            else
+            {
+                sniperHold = false;
+                // fire through the crosshair while held; the shotgun's second blast comes by itself
+                bool wantFire = gun != null && (input.FireHeld || input.FirePressed || fighter.BurstPending);
+                fired = wantFire && fighter.Fire(eye, aim, Scoped, moving, input.Crouch || input.Prone, onGround);
+            }
+            if (unscopeAt > 0 && Time.time >= unscopeAt) { unscopeAt = 0; input.Scoped = false; }
+            bool firing = Time.time - fighter.lastShotAt < 0.35f || (input.FireHeld && gun != null && gun.def.id != "sniper");
 
+            // sounds: optic up / down, footsteps (softer crouched, stone on floors), landing
+            if (Scoped != wasScoped) { wasScoped = Scoped; Sfx.Play2D(Scoped ? "scope_on" : "scope_off", 1f); }
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
-            if (input.Prone) body.Play("prone");
-            else if (input.Crouch) body.Play(hs > 0.4f ? "crouch_walk" : fired || input.FireHeld ? "crouch_fire" : "crouch_idle");
-            else if (!cc.isGrounded && !NearGround()) body.Play("jump");
-            else if (hs > 5.2f || (input.Sprint && hs > 0.5f && !input.FireHeld)) body.Play("run");
-            else if (hs > 0.4f) body.Play("walk_fire");
-            else body.Play(fired || input.FireHeld ? "fire" : "idle_rifle");
+            if (cc.isGrounded && hs > 1.2f && !input.Prone)
+            {
+                stepAcc += hs * dt;
+                if (stepAcc > (input.Crouch ? 1.4f : 2.0f)) { stepAcc = 0; Sfx.Step(transform.position, true, input.Crouch, OnFloor(transform.position)); }
+            }
+            if (!onGround) airTime += dt;
+            else { if (!wasGrounded && airTime > 0.25f) Sfx.Play2D("land", 0.5f); airTime = 0; }
+            wasGrounded = onGround;
+
+            // animation: the web game's clip rules (empty hands swing free, armed walks in the firing stance)
+            string clip;
+            if (input.Prone) clip = "prone";
+            else if (airTime > 0.15f) clip = "jump";
+            else if (input.Crouch) clip = firing ? "crouch_fire" : hs > 0.4f ? "crouch_walk" : "crouch_idle";
+            else if (hs > 5.2f || (input.Sprint && hs > 0.5f && !input.FireHeld)) clip = "run";
+            else if (!armed) clip = hs > 0.4f ? "walk" : "idle";
+            else if (hs > 0.4f) clip = "walk_fire";
+            else clip = firing ? "fire" : "idle_rifle";
+            body.Play(clip);
+            body.Armed = armed;
+            Locomotion(body, cc.velocity, yaw, hs, clip, armed, input.Sprint, ref turn, dt);
+        }
+
+        readonly System.Collections.Generic.List<string> backList = new System.Collections.Generic.List<string>();
+
+        /// <summary>
+        /// Directional locomotion (web CharacterView): the legs / body turn toward where the soldier moves (no sideways
+        /// sliding), the walk plays backwards when retreating, and the clip speed follows the real speed.
+        /// </summary>
+        public static void Locomotion(SoldierBody body, Vector3 vel, float yawDeg, float hs, string clip, bool armed, bool running, ref float turn, float dt)
+        {
+            float target = 0; bool reverse = false;
+            if (hs > 0.4f && clip != "jump")
+            {
+                float rel = Mathf.DeltaAngle(yawDeg, Mathf.Atan2(vel.x, vel.z) * Mathf.Rad2Deg);
+                // armed: the body turns less, so the gun stays in the hands and in view while strafing
+                float lim = armed ? 31.5f : 66f;
+                if (Mathf.Abs(rel) <= 112f) target = Mathf.Clamp(rel, -lim, lim);
+                else { reverse = true; target = Mathf.Clamp(Mathf.DeltaAngle(0, rel - Mathf.Sign(rel) * 180f), -lim, lim); }
+            }
+            turn += Mathf.DeltaAngle(turn, target) * Mathf.Min(1f, dt * 10f);
+            body.Turn = turn;
+            float reference = clip == "walk" ? 2.0f : clip == "walk_fire" ? 2.6f : clip == "run" ? 6.0f : clip == "crouch_walk" ? 1.6f : 0f;
+            float rate = reference > 0 ? Mathf.Clamp((running && clip == "run" ? Mathf.Max(hs, reference) : hs) / reference, 0.6f, clip == "walk" ? 2.6f : 1.6f) : 1f;
+            body.Rate = rate * (reverse ? -1f : 1f);
+        }
+
+        /// <summary>standing on a house floor / roof rather than the ground (stone footsteps)</summary>
+        public static bool OnFloor(Vector3 p)
+        {
+            MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;
+            return m != null && p.y > m.HeightAt(-p.x, p.z) + 0.3f;
         }
 
         /// <summary>direction from the soldier's eye to whatever the crosshair (screen centre) is on</summary>
         public Vector3 AimDirection(out Vector3 eye)
         {
             eye = transform.position + Vector3.up * (cc.height - 0.25f);
-            Ray r = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
-            Vector3 target = r.origin + r.direction * 300f;
+            Ray r = ViewRay();
+            float best = 300f;
             foreach (RaycastHit h in Physics.RaycastAll(r, 300f, ~0, QueryTriggerInteraction.Ignore))
-                if (!h.collider.transform.IsChildOf(transform) && Vector3.Distance(r.origin, h.point) < Vector3.Distance(r.origin, target)) target = h.point;
-            return (target - eye).normalized;
+                if (!h.collider.transform.IsChildOf(transform) && h.distance < best) best = h.distance;
+            Vector3 target = r.origin + r.direction * best;
+            Vector3 d = target - eye;
+            // something right in front of the muzzle: shoot straight ahead rather than sideways into it
+            if (new Vector2(d.x, d.z).magnitude < 1.2f) return r.direction;
+            return d.normalized;
+        }
+
+        /// <summary>
+        /// The crosshair ray, started level with the soldier instead of at the camera: a trunk, rock or slope between
+        /// the camera and your own back must not become the target (it sent hip-fire bullets off to the side).
+        /// </summary>
+        Ray ViewRay()
+        {
+            Ray r = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+            Vector3 head = transform.position + Vector3.up * (cc.height - 0.25f);
+            float skip = Mathf.Max(0f, Vector3.Dot(head - r.origin, r.direction) - 0.3f);
+            return new Ray(r.origin + r.direction * skip, r.direction);
         }
 
         // ------------------------------------------------------------ aim assist (same rules as the web game)
@@ -142,9 +238,9 @@ namespace LastWar
             OnEnemy = null;
             if (cam == null) return;
             // 1) is the crosshair on an enemy right now?
-            Ray r = cam.ViewportPointToRay(new Vector3(.5f, .5f, 0));
+            Ray r = ViewRay();
             float best = float.MaxValue;
-            foreach (RaycastHit h in Physics.RaycastAll(r, 250f, ~0, QueryTriggerInteraction.Ignore))
+            foreach (RaycastHit h in Physics.RaycastAll(r, Scoped ? 320f : 250f, ~0, QueryTriggerInteraction.Ignore))
             {
                 if (h.collider.transform.IsChildOf(transform) || h.distance >= best) continue;
                 best = h.distance;
@@ -161,12 +257,19 @@ namespace LastWar
                 float off = Vector3.Angle(cam.transform.forward, t - cam.transform.position) * Mathf.Deg2Rad;
                 bool near = off < Mathf.Atan(0.9f / Mathf.Max(1f, dist));
                 lockOff = OnEnemy != null || near ? 0 : lockOff + dt;
-                if (!lockTarget.Alive || dist > 150f || lockOff > 0.6f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
+                // (scoped: long range too - the sniper reaches 320 m)
+                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > 0.6f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
                 else
                 {
                     yaw += Mathf.DeltaAngle(lockYaw, qy);
                     pitch = Mathf.Clamp(pitch + (qp - lockPitch), -1.2f, 1.2f);
                     lockYaw = qy; lockPitch = qp;
+                    // through the scope the lock also pulls the aim back onto the body when it drifts off
+                    if (Scoped && OnEnemy == null)
+                    {
+                        float kk = Mathf.Min(1f, dt * 5f);
+                        yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch += (qp - pitch) * kk * 0.7f;
+                    }
                     return;
                 }
             }
@@ -178,7 +281,7 @@ namespace LastWar
             {
                 if (q == fighter || !q.Alive) continue;
                 Angles(q, out float qy, out float qp, out float dist, out Vector3 t);
-                if (dist > 110f) continue;
+                if (dist > (Scoped ? 260f : 110f)) continue;
                 float dyaw = Mathf.DeltaAngle(yaw, qy) * Mathf.Deg2Rad, dp = qp - pitch;
                 float ang = Mathf.Sqrt(dyaw * dyaw + dp * dp);
                 float cone = Mathf.Max(0.05f, Mathf.Atan(1f / dist)) * (Scoped ? 1.2f : 1.8f);
@@ -237,17 +340,26 @@ namespace LastWar
             }
             Vector3 pivot = transform.position + Vector3.up * Mathf.Max(1.0f, cc.height - 0.3f); // (prone: the camera stays above the body, not in the ground)
             Quaternion look = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
-            float targetDist = Scoped ? 1.4f : fighter.air != 0 ? 6.5f : 3.6f;
+            body.SetVisible(!Scoped && fighter.air != 1);
+            if (Scoped)
+            {
+                // first person through the optic: the eye, a little forward; your own body is hidden
+                camDist = 0f;
+                cam.transform.position = transform.position + Vector3.up * (cc.height - 0.25f) + look * Vector3.forward * 0.25f;
+                cam.transform.rotation = look;
+                cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, ScopeFov, Time.deltaTime * 20f);
+                return;
+            }
+            float targetDist = fighter.air != 0 ? 6.5f : 3.6f;
             camDist = Mathf.Lerp(camDist, targetDist, Time.deltaTime * 12f);
-            Vector3 back = look * new Vector3(Scoped ? 0.55f : 1.05f, Scoped ? 0.15f : 0.45f, -camDist);
+            Vector3 back = look * new Vector3(fighter.air != 0 ? 0.65f : 1.05f, 0.45f, -camDist);
             float len = back.magnitude;
             if (Physics.SphereCast(pivot, 0.2f, back / len, out RaycastHit hit, len, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) len = Mathf.Max(0.4f, hit.distance - 0.1f);
             cam.transform.position = pivot + back.normalized * len;
             // under the canopy: keep the camera below it so turning never hides the soldier
             if (fighter.air == 3 && cam.transform.position.y > pivot.y + 1.6f) cam.transform.position = new Vector3(cam.transform.position.x, pivot.y + 1.6f, cam.transform.position.z);
             cam.transform.rotation = look;
-            float fov = Scoped && fighter.Gun != null ? fighter.Gun.def.scopeFov : 70f;
-            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fov, Time.deltaTime * 14f);
+            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 70f, Time.deltaTime * 14f);
         }
     }
 }

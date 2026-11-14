@@ -15,7 +15,8 @@ namespace LastWar
     {
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
-        readonly Slot[] slots = new Slot[3];
+        readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
+        RectTransform box, hpBgRt, arBgRt, lens; Image lensDot;
         Image hpFill, armorFill, dot, hitRing, flash, reloadFill; RectTransform reloadBar;
         Text hpText, aliveText, zoneText, centerText, bannerCount;
         Image aliveBox, zoneBox; RectTransform banner;
@@ -44,32 +45,37 @@ namespace LastWar
             flash.rectTransform.pivot = C; flash.transform.SetAsFirstSibling();
 
             // ---- bottom centre: bars (bottom 6), reload bar, weapon box
-            RectTransform hpBg = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 6), new Vector2(240, 10), new Color(0, 0, 0, .45f)).rectTransform;
+            RectTransform hpBg = hpBgRt = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 6), new Vector2(240, 10), new Color(0, 0, 0, .45f)).rectTransform;
             hpFill = UiKit.Img(hpBg, "Hp", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(240, 10), new Color(0.48f, 0.85f, 0.32f));
             hpText = UiKit.Txt(hpBg, new Vector2(1, .5f), Vector2.zero, new Vector2(30, 14), 12, TextAnchor.MiddleLeft, Color.white);
             hpText.rectTransform.pivot = new Vector2(0, .5f); hpText.rectTransform.anchoredPosition = new Vector2(5 * UiKit.K, 0);
-            RectTransform arBg = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(240, 7), new Color(0, 0, 0, .45f)).rectTransform;
+            RectTransform arBg = arBgRt = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(240, 7), new Color(0, 0, 0, .45f)).rectTransform;
             armorFill = UiKit.Img(arBg, "Ar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(240, 7), new Color(0.35f, 0.67f, 1f));
             reloadBar = UiKit.Img(c, "Reload", UiKit.Round, BC, new Vector2(0, 28), new Vector2(140, 4), new Color(0, 0, 0, .4f)).rectTransform;
             reloadFill = UiKit.Img(reloadBar, "fill", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(0, 4), new Color(1f, 0.83f, 0.3f));
 
-            for (int k = 0; k < 3; k++)
+            // weapon box: one piece the layout editor can move (current gun on top, the others + the fist below)
+            box = new GameObject("WeaponBox", typeof(RectTransform)).GetComponent<RectTransform>();
+            box.SetParent(c, false); box.anchorMin = box.anchorMax = BC; box.pivot = new Vector2(.5f, 0);
+            box.anchoredPosition = new Vector2(0, 35) * UiKit.K; box.sizeDelta = new Vector2(209, 85) * UiKit.K;
+            for (int k = 0; k < 4; k++)
             {
                 int slot = k;
                 var s = new Slot();
-                s.bg = UiKit.Img(c, "Slot" + k, UiKit.Round, BC, Vector2.zero, new Vector2(50, 36), new Color(24 / 255f, 32 / 255f, 40 / 255f, .6f), true);
+                s.bg = UiKit.Img(box, "Slot" + k, UiKit.Round, BC, Vector2.zero, new Vector2(50, 36), new Color(24 / 255f, 32 / 255f, 40 / 255f, .6f), true);
                 s.rt = s.bg.rectTransform; s.rt.pivot = new Vector2(.5f, 0);
-                s.gun = UiKit.Img(s.rt, "gun", null, new Vector2(1, 1), Vector2.zero, new Vector2(40, 19), Color.white);
+                s.gun = UiKit.Img(s.rt, k == 3 ? "fist" : "gun", k == 3 ? UiKit.Get("icon_fist") : null, new Vector2(1, 1), Vector2.zero, new Vector2(40, 19), Color.white);
                 s.gun.preserveAspect = true;
                 s.ammo = UiKit.Txt(s.rt, Vector2.zero, Vector2.zero, new Vector2(80, 20), 10, TextAnchor.LowerLeft, Color.white);
                 s.line = UiKit.Img(s.rt, "line", null, Vector2.zero, Vector2.zero, new Vector2(40, 2), new Color(1, 1, 1, .75f));
                 var trigger = s.bg.gameObject.AddComponent<EventTrigger>();
                 var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-                e.callback.AddListener(_ => input.SlotPressed = slot);
+                e.callback.AddListener(_ => { if (input.Editing) return; if (slot == 3) input.HolsterPressed = true; else input.SlotPressed = slot; });
                 trigger.triggers.Add(e);
                 input.RegisterBlocker(s.rt);
                 slots[k] = s;
             }
+            input.AddEditable("weapons", box);
 
             // ---- top centre: ALIVE / KILLS box and the zone banner under it
             aliveBox = UiKit.Img(c, "Alive", UiKit.Round, TC, new Vector2(0, -6), new Vector2(160, 26), new Color(0, 0, 0, .4f));
@@ -102,6 +108,21 @@ namespace LastWar
             dot = UiKit.Img(edge.rectTransform, "Dot", UiKit.Disc, C, Vector2.zero, new Vector2(6, 6), Color.white); dot.rectTransform.pivot = C;
             hitRing = UiKit.Img(c, "HitRing", UiKit.Ring, C, Vector2.zero, new Vector2(20, 20), new Color(1, 1, 1, 0)); hitRing.rectTransform.pivot = C;
 
+            // ---- sniper scope: black surround with a round lens, thin cross and a centre dot (web .scope-overlay)
+            lens = new GameObject("Scope", typeof(RectTransform)).GetComponent<RectTransform>();
+            lens.SetParent(c, false); lens.anchorMin = Vector2.zero; lens.anchorMax = Vector2.one; lens.offsetMin = lens.offsetMax = Vector2.zero;
+            lens.SetAsFirstSibling();
+            var glass = new GameObject("lens", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+            glass.transform.SetParent(lens, false); glass.texture = LensTexture(); glass.raycastTarget = false;
+            var gr = glass.rectTransform; gr.anchorMin = gr.anchorMax = gr.pivot = C; gr.sizeDelta = new Vector2(1080, 1080);
+            foreach (int side in new[] { -1, 1 })
+            {
+                var blk = UiKit.Img(lens, "side", null, C, Vector2.zero, Vector2.one, Color.black);
+                blk.rectTransform.pivot = new Vector2(side < 0 ? 1 : 0, .5f); blk.rectTransform.anchoredPosition = new Vector2(side * 539f, 0); blk.rectTransform.sizeDelta = new Vector2(2400, 1090);
+            }
+            lensDot = UiKit.Img(lens, "dot", UiKit.Disc, C, Vector2.zero, new Vector2(3.5f, 3.5f), new Color(.22f, 1f, .42f)); lensDot.rectTransform.pivot = C;
+            lens.gameObject.SetActive(false);
+
             // ---- end screen
             endPanel = UiKit.Img(c, "End", null, C, Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .6f), true).rectTransform;
             endPanel.pivot = C;
@@ -115,6 +136,24 @@ namespace LastWar
             at.text = "LOBBY"; Destroy(at.GetComponent<Shadow>());
             again.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             endPanel.gameObject.SetActive(false);
+        }
+
+        /// <summary>1024 px scope picture: clear glass in the middle, dark rim, black outside, hair-thin cross</summary>
+        static Texture2D LensTexture()
+        {
+            const int n = 512; var tex = new Texture2D(n, n, TextureFormat.RGBA32, false); tex.wrapMode = TextureWrapMode.Clamp;
+            var px = new Color32[n * n]; float c0 = (n - 1) / 2f, R = n * 0.47f;
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
+                {
+                    float dx = x - c0, dy = y - c0, d = Mathf.Sqrt(dx * dx + dy * dy);
+                    float a = d >= R ? 1f : d > R - 10 ? Mathf.Lerp(0.85f, 1f, (d - (R - 10)) / 10f) : d > R - 46 ? Mathf.Pow((d - (R - 46)) / 36f, 2f) * 0.8f : 0f; // rim + inner shadow
+                    bool cross = d < R - 8 && d > 5 && (Mathf.Abs(dx) < 0.8f || Mathf.Abs(dy) < 0.8f);
+                    bool thick = d < R - 8 && d > R * 0.42f && (Mathf.Abs(dx) < 2.2f || Mathf.Abs(dy) < 2.2f); // heavy outer posts
+                    if (cross || thick) a = Mathf.Max(a, 0.9f);
+                    px[y * n + x] = new Color(0.02f, 0.03f, 0.02f, a);
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return tex;
         }
 
         void Hit(Fighter victim, Fighter attacker, float dmg, bool head, Vector3 point)
@@ -165,15 +204,25 @@ namespace LastWar
             armorFill.rectTransform.sizeDelta = new Vector2(240 * f.armor / 100f, 7) * K;
             hpText.text = Mathf.CeilToInt(f.hp).ToString();
 
-            // weapon box: current gun 209 x 46 on top, the others 103 x 36 below
+            // weapon box (web .slots grid): what is in your hands 209 x 46 on top, the other three 67 x 36 below
             int small = 0;
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < 4; k++)
             {
-                Slot s = slots[k]; GunState g = f.guns[k]; bool sel = k == f.slot;
-                float w = sel ? 209 : 103, h = sel ? 46 : 36;
+                Slot s = slots[k]; GunState g = k < 3 ? f.guns[k] : null; bool fist = k == 3;
+                bool sel = fist ? f.holstered : k == f.slot && !f.holstered;
+                float w = sel ? 209 : 67.67f, h = sel ? 46 : 36;
                 s.rt.sizeDelta = new Vector2(w, h) * K;
-                s.rt.anchoredPosition = sel ? new Vector2(0, 74) * K : new Vector2(small++ == 0 ? -53 : 53, 35) * K;
+                s.rt.anchoredPosition = sel ? new Vector2(0, 39) * K : new Vector2((small++ - 1) * 70.67f, 0) * K;
                 s.bg.color = sel ? new Color(28 / 255f, 38 / 255f, 48 / 255f, .68f) : new Color(24 / 255f, 32 / 255f, 40 / 255f, .6f);
+                if (fist)
+                {
+                    s.gun.rectTransform.sizeDelta = (sel ? new Vector2(28, 28) : new Vector2(19, 19)) * K;
+                    s.gun.rectTransform.anchoredPosition = (sel ? new Vector2(-12, -8) : new Vector2(-7, -4)) * K;
+                    s.ammo.text = "∞"; s.ammo.fontSize = Mathf.RoundToInt((sel ? 24 : 16) * K);
+                    s.ammo.rectTransform.anchoredPosition = (sel ? new Vector2(9, 8) : new Vector2(6, 4)) * K;
+                    s.line.enabled = false;
+                    continue;
+                }
                 s.gun.sprite = g != null ? UiKit.Get("gun_" + g.def.id) : null; s.gun.enabled = s.gun.sprite != null;
                 s.gun.rectTransform.sizeDelta = (sel ? new Vector2(100, 28) : new Vector2(40, 19)) * K;
                 s.gun.rectTransform.anchoredPosition = (sel ? new Vector2(-10, -5) : new Vector2(-3, -3)) * K;
@@ -190,19 +239,26 @@ namespace LastWar
                 s.line.rectTransform.anchoredPosition = new Vector2(sel ? 9 : 5, 4) * K;
                 s.line.color = sel ? Color.white : new Color(1, 1, 1, .75f);
             }
-            bool reloading = f.reloadEnd > 0 && f.Gun != null;
+            bool reloading = f.reloadEnd > 0 && f.Gun != null && !f.holstered;
             reloadBar.gameObject.SetActive(reloading);
             if (reloading) reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.reloadEnd - Time.time) / f.Gun.def.reloadTime), 4) * K;
             input.SetCounts(f.meds, f.frost);
             input.SetAir(f.air);
-            foreach (Slot sl in slots) sl.rt.gameObject.SetActive(f.air == 0);
+            // through the optic only FIRE, SCOPE, the joystick and the minimap stay (web #hud.scoped-ui)
+            bool scoped = player.Scoped && f.air == 0;
+            input.ScopedUi = scoped;
+            bool sniperLens = scoped && f.Gun != null && f.Gun.def.id == "sniper";
+            if (lens.gameObject.activeSelf != sniperLens) lens.gameObject.SetActive(sniperLens);
+            box.gameObject.SetActive((f.air == 0 && !scoped) || input.Editing);
+            hpBgRt.gameObject.SetActive(!scoped); arBgRt.gameObject.SetActive(!scoped);
             // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
             string hint = f.air == 1 ? "Tap <b>JUMP</b> to drop" : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
             if (hint != hintText) { hintText = hint; hintAt = Time.time; }
 
             if (f.healEnd > 0) { reloadBar.gameObject.SetActive(true); reloadFill.color = new Color(1f, .42f, .42f); reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.healEnd - Time.time) / 3f), 4) * K; }
             else reloadFill.color = new Color(1f, .83f, .3f);
-            input.ShowScope(f.air == 0 && f.Gun != null && f.Gun.def.scopeFov > 0 && f.Gun.def.scopeFov < 40f);
+            // the scope button only exists while a LONG-RANGE gun is in your hands (rifle / sniper)
+            input.ShowScope(f.air == 0 && f.Alive && !f.holstered && f.Gun != null && (f.Gun.def.id == "rifle" || f.Gun.def.id == "sniper"));
 
             // top: ALIVE n   KILLS n
             GameBoot gb = GameBoot.Instance;
@@ -225,7 +281,8 @@ namespace LastWar
 
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
-            dot.transform.parent.gameObject.SetActive(f.Alive);
+            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens);
+            lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : new Color(.22f, 1f, .42f);
             hitT -= dt;
             float ha = Mathf.Clamp01(hitT * 5f);
             hitRing.color = hitKill ? new Color(1f, 0.23f, 0.19f, ha) : new Color(1, 1, 1, ha);
@@ -264,7 +321,7 @@ namespace LastWar
             // kill feed: 8 s per line
             for (int k = 0; k < feedBg.Count; k++)
             {
-                bool show = k < feed.Count && Time.time - feed[k].t < 8f;
+                bool show = k < feed.Count && Time.time - feed[k].t < 8f && !scoped;
                 feedBg[k].gameObject.SetActive(show);
                 if (!show) continue;
                 feedTxt[k].text = feed[k].text;

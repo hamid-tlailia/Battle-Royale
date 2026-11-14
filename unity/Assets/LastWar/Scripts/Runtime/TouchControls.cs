@@ -18,6 +18,13 @@ namespace LastWar
         public bool JumpPressed;    // true for one frame
         public bool FireHeld;       // finger / mouse on FIRE
         public bool FirePressed;    // true for the frame FIRE went down
+        public bool FireReleased;   // true for the frame FIRE went up
+        public bool HolsterPressed; // the fist slot was tapped
+        /// <summary>scoped: only FIRE, SCOPE, the joystick and the minimap stay on screen (web #hud.scoped-ui)</summary>
+        public bool ScopedUi;
+        /// <summary>lobby preview for the layout editor: every control shown, nothing reacts</summary>
+        public bool Preview;
+        bool scopeAllowed = true; RectTransform gearRt;
         public bool Scoped;         // scope toggle
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
         public bool ReloadPressed;  // true for one frame
@@ -28,7 +35,7 @@ namespace LastWar
         int airMode = -1;
         Text healBadge, frostBadge;
 
-        class Btn { public RectTransform rt; public Image bg; public Sprite normal; public bool pressed; }
+        class Btn { public RectTransform rt, icon; public Image bg; public Sprite normal; public bool pressed; }
         /// <summary>everything the layout editor can move / resize / fade (web HUD editor)</summary>
         public readonly List<(string name, RectTransform rt)> Editable = new List<(string, RectTransform)>();
         public bool Editing;
@@ -82,7 +89,8 @@ namespace LastWar
             var gear = UiKit.Img(canvas.transform, "gear", UiKit.Round, TL, new Vector2(56, -8), new Vector2(30, 26), new Color(0, 0, 0, .25f), true);
             gear.gameObject.AddComponent<Outline>().effectColor = new Color(1, 1, 1, .3f);
             var gi = UiKit.Img(gear.rectTransform, "icon", UiKit.Get("icon_settings"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(18, 18), Color.white); gi.rectTransform.pivot = new Vector2(.5f, .5f);
-            var gt = gear.gameObject.AddComponent<EventTrigger>(); var ge = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ge.callback.AddListener(_ => GearPressed = true); gt.triggers.Add(ge);
+            var gt = gear.gameObject.AddComponent<EventTrigger>(); var ge = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ge.callback.AddListener(_ => { if (!Editing) GearPressed = true; }); gt.triggers.Add(ge);
+            gearRt = gear.rectTransform;
             blockers.Add(gear.rectTransform);
             Editable.Add(("gear", gear.rectTransform));
             LayoutEditor.Apply(this);
@@ -95,7 +103,7 @@ namespace LastWar
             var rt = img.rectTransform; rt.pivot = new Vector2(.5f, .5f); rt.anchoredPosition = centre * UiKit.K;
             var ic = UiKit.Img(rt, "icon", UiKit.Get("icon_" + icon), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * size * 0.58f, Color.white);
             ic.rectTransform.pivot = new Vector2(.5f, .5f);
-            var b = new Btn { rt = rt, bg = img, normal = img.sprite };
+            var b = new Btn { rt = rt, bg = img, normal = img.sprite, icon = ic.rectTransform };
             string key = icon; int dup = 2; while (Editable.Exists(e => e.name == key)) key = icon + dup++;
             Editable.Add((key, rt));
             var trigger = rt.gameObject.AddComponent<EventTrigger>();
@@ -118,14 +126,24 @@ namespace LastWar
             return t;
         }
 
+        /// <summary>another HUD piece the layout editor can move (weapon box, minimap); the saved place is applied at once</summary>
+        public void AddEditable(string name, RectTransform rt) { Editable.Add((name, rt)); LayoutEditor.ApplyOne(name, rt); }
+
         /// <summary>in the plane / sky-diving only JUMP shows (gold in the plane), like the web #hud.in-plane</summary>
         public void SetAir(int air)
         {
             if (air == airMode) return;
             airMode = air;
-            foreach (Btn b in btns) b.rt.gameObject.SetActive(air == 0 || b == jumpBtn);
             jumpBtn.bg.color = air == 1 ? new Color(1f, .85f, .35f) : Color.white;
             if (air != 0) { Sprint = false; Crouch = Prone = false; Scoped = false; }
+        }
+
+        bool Shown(Btn b)
+        {
+            if (Editing || Preview) return true;
+            if (airMode > 0) return b == jumpBtn;
+            if (b == scopeBtn && !scopeAllowed) return false;
+            return !ScopedUi || b == fireBtn || b == fireLeft || b == scopeBtn;
         }
 
         /// <summary>counts on the heal / ice-wall buttons (0 = faded, like the web)</summary>
@@ -138,7 +156,7 @@ namespace LastWar
         /// <summary>a HUD element that takes taps (weapon slots): touches on it don't turn the camera</summary>
         public void RegisterBlocker(RectTransform rt) { blockers.Add(rt); }
 
-        public void ShowScope(bool show) { if (scopeBtn.rt.gameObject.activeSelf != show) scopeBtn.rt.gameObject.SetActive(show); if (!show) Scoped = false; }
+        public void ShowScope(bool show) { scopeAllowed = show; if (!show) Scoped = false; }
 
         public void SetVisible(bool v) { canvas.enabled = v; }
 
@@ -159,7 +177,10 @@ namespace LastWar
         void Update()
         {
             LookDelta = Vector2.zero;
-            if (Editing) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
+            foreach (Btn b in btns) { bool show = Shown(b); if (b.rt.gameObject.activeSelf != show) b.rt.gameObject.SetActive(show); }
+            bool gearOn = Editing || Preview || !ScopedUi; if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn);
+            if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
+            bool wasHeld = FireHeld;
             if (Input.touchCount > 0) Touches();
             else
             {
@@ -167,6 +188,7 @@ namespace LastWar
                 joyFinger = lookFinger = fireFinger = -1;
                 Desktop();
             }
+            if (wasHeld && !FireHeld) FireReleased = true;
             // button states like the web: pressed = gold ring, RUN / SCOPE on = green
             Sprite pressed = UiKit.Get("btn_pressed"), active = UiKit.Get("btn_active");
             foreach (Btn b in btns)
@@ -175,11 +197,12 @@ namespace LastWar
                 bool down = fire ? FireHeld : b.pressed;
                 bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped) || (b == crouchBtn && Crouch) || (b == proneBtn && Prone);
                 b.bg.sprite = on ? active : down && !fire ? pressed : b.normal;
-                b.rt.localScale = Vector3.one * (down ? 0.93f : 1f);
+                // (pressed: the icon dips; the button's own scale belongs to the layout editor)
+                if (b.icon != null) b.icon.localScale = Vector3.one * (down ? 0.86f : 1f);
             }
         }
 
-        void LateUpdate() { JumpPressed = false; FirePressed = false; ReloadPressed = false; SlotPressed = -1; HealPressed = FrostPressed = BagPressed = GearPressed = false; }
+        void LateUpdate() { JumpPressed = false; FirePressed = false; FireReleased = false; HolsterPressed = false; ReloadPressed = false; SlotPressed = -1; HealPressed = FrostPressed = BagPressed = GearPressed = false; }
 
         void Touches()
         {
@@ -238,7 +261,8 @@ namespace LastWar
             if (Input.GetKeyDown(KeyCode.Tab)) BagPressed = true;
             FireHeld = Input.GetMouseButton(0) && !onUi;
             if (Input.GetKeyDown(KeyCode.R)) ReloadPressed = true;
-            if (Input.GetKeyDown(KeyCode.Q) && scopeBtn.rt.gameObject.activeSelf) Scoped = !Scoped;
+            if (Input.GetKeyDown(KeyCode.Q) && scopeAllowed) Scoped = !Scoped;
+            if (Input.GetKeyDown(KeyCode.X)) HolsterPressed = true;
             for (int k = 0; k < 3; k++) if (Input.GetKeyDown(KeyCode.Alpha1 + k)) SlotPressed = k;
         }
     }

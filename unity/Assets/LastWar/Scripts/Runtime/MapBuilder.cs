@@ -33,6 +33,7 @@ namespace LastWar
         {
             var root = new GameObject("Map " + map.id);
             BuildTerrain(map, root.transform);
+            BuildSkirt(map, root.transform);
             LoadShapes();
             var props = new GameObject("Props").transform; props.SetParent(root.transform);
             foreach (PropData p in map.props) PlaceProp(p, props);
@@ -40,6 +41,44 @@ namespace LastWar
             foreach (BoxData b in map.boxes) PlaceBox(b, boxes);
             Physics.IgnoreLayerCollision(PlayerLayer, CoverLayer, true);
             return root;
+        }
+
+        /// <summary>
+        /// Land beyond the map: the outer slopes of the rim running down and away into the haze, so that from the
+        /// plane the valley does not end in a cut edge over empty sky. No collider - nobody gets there.
+        /// </summary>
+        static void BuildSkirt(MapData map, Transform parent)
+        {
+            const int seg = 96; float half = map.size / 2f;
+            float low = float.MaxValue; foreach (float h in map.heights) low = Mathf.Min(low, h);
+            float[] radius = { half * 0.975f, half * 1.6f, half * 3.2f, 2400f };
+            var verts = new Vector3[seg * radius.Length]; var tris = new List<int>();
+            for (int i = 0; i < seg; i++)
+            {
+                float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a);
+                float edge = map.HeightAt(cx * radius[0], sz * radius[0]);
+                for (int r = 0; r < radius.Length; r++)
+                {
+                    float y = r == 0 ? edge - 1.2f : r == 1 ? Mathf.Lerp(edge, low, 0.55f) - 4f : r == 2 ? low - 14f : low - 40f;
+                    verts[r * seg + i] = Coords.ToUnity(cx * radius[r], y, sz * radius[r]);
+                }
+            }
+            for (int r = 0; r < radius.Length - 1; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    int a0 = r * seg + i, a1 = r * seg + (i + 1) % seg, b0 = a0 + seg, b1 = a1 + seg;
+                    // both windings: seen from above whatever the mirror did
+                    tris.AddRange(new[] { a0, a1, b0, a1, b1, b0, a0, b0, a1, a1, b0, b1 });
+                }
+            var mesh = new Mesh { name = "skirt" }; mesh.vertices = verts; mesh.triangles = tris.ToArray();
+            mesh.RecalculateBounds();
+            var nrm = new Vector3[verts.Length]; for (int i = 0; i < nrm.Length; i++) nrm[i] = Vector3.up; mesh.normals = nrm;
+            Color col = map.id == "desert" ? new Color(0.62f, 0.36f, 0.24f) : map.snowHeight < 100f ? new Color(0.5f, 0.54f, 0.5f) : new Color(0.36f, 0.43f, 0.3f);
+            var go = new GameObject("Skirt", typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = NewLit(col);
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
         }
 
         // ------------------------------------------------------------------ terrain

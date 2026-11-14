@@ -20,13 +20,15 @@ namespace LastWar
             shade.rectTransform.pivot = new Vector2(.5f, .5f);
             open = shade.gameObject;
             Tap(shade.gameObject, Close);
-            var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Get("Lobby/sheet"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, inMatch ? 320 : 290), Color.white, true);
+            var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Get("Lobby/sheet"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, inMatch ? 348 : 300), Color.white, true);
             panel.rectTransform.pivot = new Vector2(.5f, .5f);
             Transform p = panel.transform;
-            var title = UiKit.Txt(p, new Vector2(0, 1), new Vector2(18, -14), new Vector2(300, 22), 15, TextAnchor.UpperLeft, Gold); title.text = "SETTINGS";
-            float y = 48;
+            var title = UiKit.Txt(p, new Vector2(0, 1), new Vector2(18, -12), new Vector2(300, 22), 15, TextAnchor.UpperLeft, Gold); title.text = "SETTINGS";
+            float y = 40;
             var sens = Label(p, ref y, $"LOOK SENSITIVITY  {Profile.Sensitivity:0.0}");
             Slider(p, ref y, 0.3f, 2.5f, Profile.Sensitivity, v => { Profile.Sensitivity = v; sens.text = $"LOOK SENSITIVITY  {v:0.0}"; });
+            var ssens = Label(p, ref y, $"SCOPE SENSITIVITY  {Profile.ScopeSensitivity:0.0}");
+            Slider(p, ref y, 0.3f, 2.5f, Profile.ScopeSensitivity, v => { Profile.ScopeSensitivity = v; ssens.text = $"SCOPE SENSITIVITY  {v:0.0}"; });
             Label(p, ref y, "AIM");
             Choice(p, ref y, new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });
             Label(p, ref y, "GRAPHICS");
@@ -82,7 +84,7 @@ namespace LastWar
             diamond.gameObject.AddComponent<Outline>().effectColor = new Color(.16f, .11f, .02f);
             var sl = go.GetComponent<Slider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.minValue = min; sl.maxValue = max; sl.value = val; sl.onValueChanged.AddListener(v => on(v));
-            y += 28;
+            y += 26;
         }
 
         static void Choice(Transform p, ref float y, string[] opts, int sel, Action<int> on)

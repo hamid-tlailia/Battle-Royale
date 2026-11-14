@@ -37,6 +37,17 @@ namespace LastWar
             }
         }
 
+        /// <summary>a piece added after the controls were built (weapon box, minimap)</summary>
+        public static void ApplyOne(string n, RectTransform rt)
+        {
+            defaults[n] = rt.anchoredPosition;
+            Item it = Load().items.Find(x => x.n == n);
+            if (it == null) return;
+            rt.anchoredPosition = new Vector2(it.x, it.y);
+            rt.localScale = Vector3.one * Mathf.Clamp(it.s, 0.5f, 1.8f);
+            Group(rt).alpha = Mathf.Clamp(it.a, 0.25f, 1f);
+        }
+
         static Saved Load()
         {
             try { string j = PlayerPrefs.GetString(Key, ""); if (!string.IsNullOrEmpty(j)) return JsonUtility.FromJson<Saved>(j) ?? new Saved(); } catch { }
@@ -50,11 +61,12 @@ namespace LastWar
             PlayerPrefs.SetString(Key, JsonUtility.ToJson(s)); PlayerPrefs.Save();
         }
 
-        public static void Open(TouchControls tc)
+        Action onDone;
+        public static void Open(TouchControls tc, Action onDone = null)
         {
             var go = new GameObject("LayoutEditor");
             var ed = go.AddComponent<LayoutEditor>();
-            ed.tc = tc; tc.Editing = true;
+            ed.tc = tc; tc.Editing = true; ed.onDone = onDone;
             ed.BuildBar();
         }
 
@@ -107,6 +119,7 @@ namespace LastWar
             Select(null, null);
             tc.Editing = false;
             Destroy(shadeGo); Destroy(bar.gameObject); Destroy(gameObject);
+            onDone?.Invoke();
         }
 
         void Select(string n, RectTransform rt)

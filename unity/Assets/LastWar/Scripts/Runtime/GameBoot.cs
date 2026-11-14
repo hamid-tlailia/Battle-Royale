@@ -51,8 +51,10 @@ namespace LastWar
 
             var cam = new GameObject("Camera").AddComponent<Camera>();
             cam.tag = "MainCamera";
-            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.62f, 0.78f, 0.93f);
-            cam.fieldOfView = 70f; cam.nearClipPlane = 0.1f; cam.farClipPlane = 500f;
+            // hazy horizon: the far land fades into the same colour the sky has down there (no white rim on blue)
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = RenderSettings.fogColor;
+            cam.fieldOfView = 70f; cam.nearClipPlane = 0.15f; cam.farClipPlane = 1700f;
+            BuildSky(cam);
             cam.gameObject.AddComponent<AudioListener>();
 
             Map = MapData.Load(Profile.Map);
@@ -120,6 +122,53 @@ namespace LastWar
             InMatch = false;
             Loader.Show("Back to the lobby…");
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        Transform sky;
+        /// <summary>sky dome that follows the camera: blue overhead, the fog colour at and below the horizon</summary>
+        void BuildSky(Camera cam)
+        {
+            Shader sh = Shader.Find("Sprites/Default");
+            if (sh == null) return;
+            const int seg = 24, rings = 12; const float R = 1500f;
+            var verts = new List<Vector3>(); var cols = new List<Color>(); var tris = new List<int>();
+            Color top = new Color(0.36f, 0.58f, 0.9f), mid = new Color(0.6f, 0.77f, 0.94f), haze = RenderSettings.fogColor;
+            for (int r = 0; r <= rings; r++)
+            {
+                float el = Mathf.Lerp(-0.5f, 1f, r / (float)rings) * Mathf.PI / 2f; // from 45 deg below the horizon to straight up
+                float t = Mathf.Clamp01(Mathf.Sin(el));
+                Color c = el <= 0.03f ? haze : t < 0.3f ? Color.Lerp(haze, mid, t / 0.3f) : Color.Lerp(mid, top, (t - 0.3f) / 0.7f);
+                for (int i = 0; i <= seg; i++)
+                {
+                    float a = i / (float)seg * Mathf.PI * 2f;
+                    verts.Add(new Vector3(Mathf.Cos(a) * Mathf.Cos(el), Mathf.Sin(el), Mathf.Sin(a) * Mathf.Cos(el)) * R); cols.Add(c);
+                }
+            }
+            for (int r = 0; r < rings; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    int a0 = r * (seg + 1) + i, a1 = a0 + 1, b0 = a0 + seg + 1, b1 = b0 + 1;
+                    tris.AddRange(new[] { a0, a1, b0, a1, b1, b0, a0, b0, a1, a1, b0, b1 });
+                }
+            var mesh = new Mesh { name = "sky" }; mesh.SetVertices(verts); mesh.SetColors(cols); mesh.SetTriangles(tris, 0);
+            mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
+            var go = new GameObject("Sky", typeof(MeshFilter), typeof(MeshRenderer));
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            var mat = new Material(sh); mat.renderQueue = 1000; // behind everything, drawn first
+            var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
+            sky = go.transform;
+        }
+
+        void LateUpdate()
+        {
+            Camera cam = Camera.main;
+            if (cam == null || Map == null) return;
+            if (sky != null) sky.position = cam.transform.position;
+            // the higher the camera, the further the haze starts (web: near 110 + 1.4 up, far 340 + 2.6 up)
+            Vector3 p = cam.transform.position;
+            float up = Mathf.Max(0f, p.y - Map.HeightAt(-p.x, p.z));
+            RenderSettings.fogStartDistance = 110f + up * 1.4f; RenderSettings.fogEndDistance = 340f + up * 2.6f;
         }
 
         void Update()

@@ -52,6 +52,7 @@ namespace LastWar
             target = new Vector3(p.x, 0, p.y);
         }
 
+        float turn, stepAcc;
         void Update()
         {
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
@@ -131,7 +132,15 @@ namespace LastWar
             }
 
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
-            body.Play(!cc.isGrounded ? "jump" : hs > 5.2f ? "run" : hs > 0.4f ? "walk_fire" : enemy != null ? "fire" : "idle_rifle");
+            string clip = !cc.isGrounded ? "jump" : hs > 5.2f ? "run" : hs > 0.4f ? "walk_fire" : enemy != null ? "fire" : "idle_rifle";
+            body.Play(clip);
+            PlayerController.Locomotion(body, cc.velocity, transform.eulerAngles.y, hs, clip, true, false, ref turn, dt);
+            // footsteps you can hear when they are close (26 m)
+            if (cc.isGrounded && hs > 1.2f && Camera.main != null && (Camera.main.transform.position - transform.position).sqrMagnitude < 26f * 26f)
+            {
+                stepAcc += hs * dt;
+                if (stepAcc > 2.0f) { stepAcc = 0; Sfx.Step(transform.position, false, false, PlayerController.OnFloor(transform.position)); }
+            }
         }
 
         /// <summary>ride the plane, jump at its own moment, glide toward its own landing spot (players spread out)</summary>

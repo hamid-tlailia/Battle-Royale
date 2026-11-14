@@ -28,6 +28,7 @@ namespace LastWar
 
         // ---- settings
         public static float Sensitivity { get => PlayerPrefs.GetFloat("lw.sens", 1f); set { PlayerPrefs.SetFloat("lw.sens", value); PlayerPrefs.Save(); } }
+        public static float ScopeSensitivity { get => PlayerPrefs.GetFloat("lw.scopeSens", 1f); set { PlayerPrefs.SetFloat("lw.scopeSens", value); PlayerPrefs.Save(); } }
         public static bool AimAssist { get => PlayerPrefs.GetInt("lw.assist", 1) == 1; set { PlayerPrefs.SetInt("lw.assist", value ? 1 : 0); PlayerPrefs.Save(); } }
         /// <summary>0 low, 1 medium, 2 high</summary>
         public static int Quality { get => PlayerPrefs.GetInt("lw.quality", 2); set { PlayerPrefs.SetInt("lw.quality", value); PlayerPrefs.Save(); ApplyQuality(); } }

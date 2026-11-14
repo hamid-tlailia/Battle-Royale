@@ -31,6 +31,11 @@ namespace LastWar
         public bool Alive => hp > 0f;
         public float reloadEnd;   // Time.time when the reload finishes (0 = none)
         float nextShot;
+        /// <summary>guns put away: long guns on the back, pistol in the pocket (the web game's fist slot)</summary>
+        public bool holstered;
+        /// <summary>shotgun: the second blast of the same press is due (0.15 s after the first)</summary>
+        public bool BurstPending { get; private set; }
+        public float lastShotAt = -10f;
 
         public static event Action<Fighter, Fighter, string, bool> OnKill;   // victim, killer, weapon, head
         public static event Action<Fighter, Fighter, float, bool, Vector3> OnHit; // victim, attacker, dmg, head, point
@@ -46,14 +51,24 @@ namespace LastWar
 
         public void SelectSlot(int s)
         {
-            if (s < 0 || s > 2 || guns[s] == null || s == slot) return;
-            slot = s; reloadEnd = 0; nextShot = Mathf.Max(nextShot, Time.time + 0.25f);
+            if (s < 0 || s > 2 || guns[s] == null || (s == slot && !holstered)) return;
+            slot = s; holstered = false; reloadEnd = 0; BurstPending = false; nextShot = Mathf.Max(nextShot, Time.time + 0.27f);
+            if (isPlayer) Sfx.Play2D("clip", 1f, 1.25f); // drawing / switching a weapon (web sfx.equip)
+        }
+
+        /// <summary>put the guns away / take the last one back out</summary>
+        public void ToggleHolster()
+        {
+            if (holstered) { SelectSlot(slot); return; }
+            holstered = true; reloadEnd = 0; BurstPending = false;
+            if (isPlayer) Sfx.Play2D("clip", 0.7f, 0.9f);
         }
 
         public void Reload()
         {
             GunState g = Gun;
-            if (g == null || reloadEnd > 0 || g.mag >= g.def.mag || g.reserve <= 0) return;
+            if (g == null || holstered || reloadEnd > 0 || g.mag >= g.def.mag || g.reserve <= 0) return;
+            BurstPending = false;
             reloadEnd = Time.time + g.def.reloadTime;
             if (isPlayer) Sfx.Play("reload", transform.position, 0.7f);
         }
@@ -75,17 +90,22 @@ namespace LastWar
             }
         }
 
-        public bool CanFire => Alive && air == 0 && Gun != null && reloadEnd == 0 && Time.time >= nextShot;
+        public bool CanFire => Alive && air == 0 && !holstered && Gun != null && reloadEnd == 0 && Time.time >= nextShot;
 
         /// <summary>Fire one shot from `eye` toward `aimDir` (pellets for the shotgun). Returns false if it couldn't.</summary>
-        public bool Fire(Vector3 eye, Vector3 aimDir, bool scoped, bool moving)
+        public bool Fire(Vector3 eye, Vector3 aimDir, bool scoped, bool moving, bool crouch = false, bool grounded = true)
         {
             if (!CanFire) return false;
             healEnd = 0; // shooting cancels a medkit
             GunState g = Gun;
-            if (g.mag <= 0) { Reload(); return false; }
-            g.mag--; nextShot = Time.time + g.def.Interval;
-            float spread = (scoped ? g.def.adsSpread : g.def.hipSpread) * (moving ? 1.4f : 1f);
+            if (g.mag <= 0) { BurstPending = false; Reload(); return false; }
+            g.mag--; lastShotAt = Time.time;
+            // shotgun: two blasts per press, 0.15 s apart (the second needs no holding)
+            bool second = BurstPending;
+            BurstPending = g.def.id == "shotgun" && !second && g.mag > 0;
+            nextShot = Time.time + (BurstPending ? 0.15f : g.def.Interval);
+            // the web game's cone: wider on the move and in the air, tighter crouched
+            float spread = (scoped ? g.def.adsSpread : g.def.hipSpread) * (moving ? 1.2f : 1f) * (crouch ? 0.7f : 1f) * (grounded ? 1f : 1.6f);
             for (int p = 0; p < Mathf.Max(1, g.def.pellets); p++)
             {
                 Vector3 dir = Spread(aimDir, spread);
@@ -103,8 +123,8 @@ namespace LastWar
                 }
                 OnShot?.Invoke(this, eye, end);
             }
-            Sfx.Play(g.def.id == "smg" ? "pistol" : g.def.id, eye, isPlayer ? 0.9f : 0.6f);
-            if (g.mag == 0) Reload();
+            Sfx.Play(g.def.id == "smg" ? "pistol" : g.def.id, eye, isPlayer ? 0.9f : 0.6f, g.def.id == "smg" ? 1.18f : 1f);
+            if (g.mag == 0) { BurstPending = false; Reload(); }
             return true;
         }
 

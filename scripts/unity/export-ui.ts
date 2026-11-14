@@ -40,7 +40,7 @@ const html = `<!doctype html><html><head><style>${BTN}</style>
 ${['', 'fire', 'active', 'pressed'].map((c) => `<div class="w" id="btn${c ? '_' + c : ''}"><div class="b ${c}"></div></div>`).join('')}
 ${iconIds.map((id) => `<div class="ic" id="icon_${id}">${(ICONS as Record<string, string>)[id]}</div>`).join('')}
 <div class="blood" id="blood"></div>
-<div class="ic" id="map_arrow"><svg viewBox="-22 -30 44 52"><path d="M0-26L17 17L0 8L-17 17Z" fill="#ffd34d" stroke="#000" stroke-width="3" stroke-linejoin="round"/></svg></div>
+<div class="ic" id="map_arrow"><svg viewBox="-22 -30 44 52"><path d="M0-28L13 16L0 7L-13 16Z" fill="#ffd34d" stroke="#000" stroke-width="3" stroke-linejoin="round"/></svg></div>
 <div class="ic" id="map_cone"><svg viewBox="-100 -100 200 200"><defs><radialGradient id="cg" cx="0" cy="0" r="100" gradientUnits="userSpaceOnUse"><stop offset=".06" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><path d="M0 0L${(100 * Math.sin(-0.55)).toFixed(2)} ${(-100 * Math.cos(0.55)).toFixed(2)}A100 100 0 0 1 ${(100 * Math.sin(0.55)).toFixed(2)} ${(-100 * Math.cos(0.55)).toFixed(2)}Z" fill="url(#cg)"/></svg></div>
 <div id="guns"></div>
 <script type="module">
