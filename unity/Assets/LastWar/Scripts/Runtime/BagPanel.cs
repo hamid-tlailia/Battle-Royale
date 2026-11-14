@@ -54,13 +54,13 @@ namespace LastWar
             const float K = UiKit.K, H = 34;
             var bg = UiKit.Img(col, "row", UiKit.Round, new Vector2(0, 1), new Vector2(0, -y), new Vector2(208, H), Row);
             if (pic != null) { var p = UiKit.Img(bg.rectTransform, "pic", pic, new Vector2(0, .5f), new Vector2(4, 0), new Vector2(44, 22), Color.white); p.preserveAspect = true; p.rectTransform.pivot = new Vector2(0, .5f); }
-            var t = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(pic != null ? 52 : 8, 0), new Vector2(110, H), 10.5f, TextAnchor.MiddleLeft, Color.white);
+            var t = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(pic != null ? 52 : 8, 0), new Vector2(96, H), 10.5f, TextAnchor.MiddleLeft, Color.white);
             t.text = $"{name}\n<size={Mathf.RoundToInt(8 * K)}><color=#ffffffa0>{sub}</color></size>";
             float bx = -3;
             for (int i = buttons.Length - 1; i >= 0; i--)
             {
                 var (label, gold, act) = buttons[i];
-                float w = label.Length <= 1 ? 22 : label.Length > 4 ? 52 : 40;
+                float w = label.Length <= 2 ? 28 : label.Length > 4 ? 52 : 40;
                 var b = UiKit.Img(bg.rectTransform, label, UiKit.Round, new Vector2(1, .5f), new Vector2(bx, 0), new Vector2(w, 22), gold ? Gold : new Color(.75f, .22f, .17f), true);
                 b.rectTransform.pivot = new Vector2(1, .5f);
                 var bt = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(w, 22), 9, TextAnchor.MiddleCenter, gold ? Ink : Color.white);
@@ -91,10 +91,10 @@ namespace LastWar
                 int s = f.order[k], pos = k;
                 GunState g = f.guns[s];
                 var buttons = new List<(string, bool, System.Action)>();
-                if (pos > 0) buttons.Add(("▲", true, () => { int a = f.order[pos - 1]; f.order[pos - 1] = f.order[pos]; f.order[pos] = a; }));
+                if (pos > 0) buttons.Add(("UP", true, () => { int a = f.order[pos - 1]; f.order[pos - 1] = f.order[pos]; f.order[pos] = a; }));
                 if (g != null) buttons.Add(("DROP", false, () => f.DropWeapon(s)));
                 if (g == null) AddRow(left, ref y, null, $"<color=#ffffff80>{Tuning.SlotNames[s]}</color>", "empty", buttons.ToArray());
-                else AddRow(left, ref y, UiKit.Get("gun_" + g.def.id), g.def.name, $"{Tuning.SlotNames[s]} · {g.mag} in magazine", buttons.ToArray());
+                else AddRow(left, ref y, UiKit.Get("gun_" + g.def.id), g.def.name, $"{g.mag} in magazine", buttons.ToArray());
             }
             AddRow(left, ref y, UiKit.Get("icon_vest"), "Armor", $"{Mathf.RoundToInt(f.armor)} / 100");
 
