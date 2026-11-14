@@ -235,7 +235,7 @@ namespace LastWar
                 cam.fieldOfView = 70f;
                 return;
             }
-            Vector3 pivot = transform.position + Vector3.up * (cc.height - 0.3f);
+            Vector3 pivot = transform.position + Vector3.up * Mathf.Max(1.0f, cc.height - 0.3f); // (prone: the camera stays above the body, not in the ground)
             Quaternion look = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
             float targetDist = Scoped ? 1.4f : fighter.air != 0 ? 6.5f : 3.6f;
             camDist = Mathf.Lerp(camDist, targetDist, Time.deltaTime * 12f);
