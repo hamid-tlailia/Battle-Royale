@@ -24,8 +24,9 @@ namespace LastWar
         public bool Scoped => input.Scoped && fighter.Alive && fighter.air == 0 && !fighter.holstered && fighter.Gun != null && (fighter.Gun.def.id == "rifle" || fighter.Gun.def.id == "sniper");
         /// <summary>the web game's optics: red dot on the rifle (52 deg), x8 on the sniper (10 deg)</summary>
         /// <summary>zoom of the optic on the gun in your hands: the scope you attached, else the rifle's x2 / the sniper's x8</summary>
-        public int ScopeZoom => fighter.scope > 0 ? fighter.scope : fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 8 : 2;
-        float ScopeFov => ScopeZoom >= 8 ? 10f : ScopeZoom >= 4 ? 18f : 34f; // web SCOPE_FOV
+        /// <summary>1 = the rifle's own red-dot sight (no scope attached); 2 / 4 / 8 = a scope; the sniper's own is x8</summary>
+        public int ScopeZoom => fighter.scope > 0 ? fighter.scope : fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 8 : 1;
+        float ScopeFov => ScopeZoom >= 8 ? 10f : ScopeZoom >= 4 ? 18f : ScopeZoom >= 2 ? 34f : 52f; // web SCOPE_FOV
         bool sniperHold, sniperAuto, wasScoped, wasGrounded = true; float unscopeAt, stepAcc, airTime, turn;
         /// <summary>the crosshair is on a living enemy (no wall in between)</summary>
         public Fighter OnEnemy { get; private set; }

@@ -61,7 +61,8 @@ namespace LastWar
         {
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
             float dt = Time.deltaTime;
-            if (GameBoot.Instance == null || GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
+            // the match goes on after you are out (you may be watching): bots stop only when one is left
+            if (GameBoot.Instance == null || GameBoot.Instance.AliveCount <= 1) { body.Play("idle_rifle"); return; }
             if (fighter.air != 0) { AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
             groundTime += dt;
@@ -150,8 +151,10 @@ namespace LastWar
 
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
             string clip = !cc.isGrounded ? "jump" : hs > 5.2f ? "run" : hs > 0.4f ? "walk_fire" : enemy != null ? "fire" : "idle_rifle";
+            if (!fighter.HasGun) clip = clip == "run" ? "run" : hs > 0.4f ? "walk" : "idle";
             body.Play(clip);
-            PlayerController.Locomotion(body, cc.velocity, transform.eulerAngles.y, hs, clip, true, false, ref turn, dt);
+            body.Pose = !fighter.HasGun && clip == "run" ? "runfree" : null;
+            PlayerController.Locomotion(body, cc.velocity, transform.eulerAngles.y, hs, clip, fighter.HasGun, false, ref turn, dt);
             // footsteps you can hear when they are close (26 m)
             if (cc.isGrounded && hs > 1.2f && Camera.main != null && (Camera.main.transform.position - transform.position).sqrMagnitude < 26f * 26f)
             {

@@ -18,6 +18,43 @@ namespace LastWar
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
         RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly Image[] sides = new Image[2]; int lensZoom; Transform full;
         static Texture2D lensCross, lensPlain;
+        RectTransform holo; RawImage holoFrame; Image holoRing;
+
+        /// <summary>holo sight frame: thick dark rounded rectangle (18 % / 24 % corners), light inner edge, faint blue glass</summary>
+        static Texture2D HoloFrame()
+        {
+            const int W = 460, H = 340; var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[W * H]; float rx = W * 0.18f, ry = H * 0.24f;
+            for (int y = 0; y < H; y++) for (int x = 0; x < W; x++)
+                {
+                    // distance inside the rounded rectangle (elliptical corners), in pixels
+                    float cx = Mathf.Clamp(x + .5f, rx, W - rx), cy = Mathf.Clamp(y + .5f, ry, H - ry);
+                    float ex = (x + .5f - cx) / rx, ey = (y + .5f - cy) / ry, e = Mathf.Sqrt(ex * ex + ey * ey);
+                    float d = e > 0 ? (1f - e) * Mathf.Min(rx, ry) : Mathf.Min(Mathf.Min(x, W - 1 - x), Mathf.Min(y, H - 1 - y));
+                    Color c;
+                    if (d < 0) c = new Color(0, 0, 0, 0);
+                    else if (d < 2) c = new Color(.05f, .05f, .06f, 1);            // outer dark line
+                    else if (d < 16) c = new Color(.14f, .15f, .16f, 1);           // body of the housing
+                    else if (d < 20) c = new Color(.29f, .31f, .33f, 1);           // light inner edge
+                    else c = new Color(.62f, .8f, 1f, Mathf.Lerp(.12f, .04f, Mathf.Clamp01((d - 20) / 60f))); // tinted glass
+                    px[y * W + x] = c;
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return tex;
+        }
+
+        /// <summary>edges of the screen darkened toward the corners (the holo sight's surround)</summary>
+        static Texture2D Vignette()
+        {
+            const int S = 128; var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float dx = (x - S / 2f) / (S / 2f), dy = (y - S / 2f) / (S / 2f), d = Mathf.Sqrt(dx * dx + dy * dy);
+                    tex.SetPixel(x, y, new Color(0, 0, 0, Mathf.Clamp01((d - 0.4f) / 0.35f) * 0.28f));
+                }
+            tex.Apply();
+            return tex;
+        }
         Image hpFill, armorFill, dot, hitRing, flash, reloadFill; RectTransform reloadBar;
         Text hpText, aliveText, zoneText, centerText, bannerCount; Image centerBox;
         Image aliveBox, zoneBox; RectTransform banner;
@@ -59,7 +96,7 @@ namespace LastWar
             // weapon box: one piece the layout editor can move (current gun on top, the others + the fist below)
             box = new GameObject("WeaponBox", typeof(RectTransform)).GetComponent<RectTransform>();
             box.SetParent(c, false); box.anchorMin = box.anchorMax = BC; box.pivot = new Vector2(.5f, 0);
-            box.anchoredPosition = new Vector2(0, 35) * UiKit.K; box.sizeDelta = new Vector2(209, 85) * UiKit.K;
+            box.anchoredPosition = new Vector2(0, 50) * UiKit.K; // clear of the status row box.sizeDelta = new Vector2(209, 85) * UiKit.K;
             for (int k = 0; k < 4; k++)
             {
                 int slot = k;
@@ -125,6 +162,15 @@ namespace LastWar
                 blk.rectTransform.pivot = new Vector2(i == 0 ? 1 : 0, .5f);
                 sides[i] = blk;
             }
+            // the rifle's own red-dot sight (web .reddot-overlay): a rounded-rect holo frame, a dot and a ring, the edges darkened
+            holo = new GameObject("holo", typeof(RectTransform)).GetComponent<RectTransform>();
+            holo.SetParent(lens, false); holo.anchorMin = Vector2.zero; holo.anchorMax = Vector2.one; holo.offsetMin = holo.offsetMax = Vector2.zero;
+            var vig = new GameObject("vignette", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+            vig.transform.SetParent(holo, false); vig.texture = Vignette(); vig.raycastTarget = false; UiKit.Fill(vig.rectTransform);
+            holoFrame = new GameObject("frame", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+            holoFrame.transform.SetParent(holo, false); holoFrame.texture = HoloFrame(); holoFrame.raycastTarget = false;
+            holoFrame.rectTransform.anchorMin = holoFrame.rectTransform.anchorMax = holoFrame.rectTransform.pivot = C;
+            holoRing = UiKit.Img(holo, "ring", UiKit.Ring, C, Vector2.zero, new Vector2(26, 26), new Color(1, 1, 1, .55f)); holoRing.rectTransform.pivot = C;
             lensDot = UiKit.Img(lens, "dot", UiKit.Disc, C, Vector2.zero, new Vector2(3.5f, 3.5f), new Color(.22f, 1f, .42f)); lensDot.rectTransform.pivot = C;
             lens.gameObject.SetActive(false);
 
@@ -147,36 +193,53 @@ namespace LastWar
             again.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             endPanel.gameObject.SetActive(false);
 
-            // spectating: who you watch + back to the lobby
-            specBar = UiKit.Img(c, "SpecBar", UiKit.Round, TC, new Vector2(0, -64), new Vector2(260, 30), new Color(0, 0, 0, .5f), true).rectTransform;
-            specBar.pivot = new Vector2(.5f, 1);
-            specText = UiKit.Txt(specBar, new Vector2(0, .5f), new Vector2(12, 0), new Vector2(170, 30), 13, TextAnchor.MiddleLeft, Color.white);
-            var sl = UiKit.Img(specBar, "lobby", UiKit.Round, new Vector2(1, .5f), new Vector2(-4, 0), new Vector2(76, 24), new Color(1f, 0.78f, 0.25f), true);
-            sl.rectTransform.pivot = new Vector2(1, .5f);
-            var slt = UiKit.Txt(sl.rectTransform, C, Vector2.zero, new Vector2(76, 24), 11, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); slt.rectTransform.pivot = C; slt.text = "LOBBY"; Destroy(slt.GetComponent<Shadow>());
+            // spectating: who you watch + back to the lobby, a card at the bottom over the health bar (web .spec-banner)
+            specBar = UiKit.Img(c, "SpecBar", UiKit.Panel, BC, new Vector2(0, 40), new Vector2(240, 58), Color.white, true).rectTransform;
+            specBar.pivot = new Vector2(.5f, 0);
+            specText = UiKit.Txt(specBar, new Vector2(.5f, 1), new Vector2(0, -6), new Vector2(230, 22), 16, TextAnchor.UpperCenter, new Color(1f, .83f, .3f));
+            specText.rectTransform.pivot = new Vector2(.5f, 1);
+            var sl = UiKit.Img(specBar, "lobby", UiKit.Get("Lobby/mode_on"), new Vector2(.5f, 0), new Vector2(0, 6), new Vector2(110, 22), Color.white, true);
+            sl.rectTransform.pivot = new Vector2(.5f, 0);
+            var slt = UiKit.Txt(sl.rectTransform, C, Vector2.zero, new Vector2(110, 22), 11, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); slt.rectTransform.pivot = C; slt.text = "LOBBY"; Destroy(slt.GetComponent<Shadow>());
             sl.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             input.RegisterBlocker(specBar);
             specBar.gameObject.SetActive(false);
 
-            // things within reach: icon, name, TAKE (web .loot-list)
-            for (int i = 0; i < 5; i++)
+            // armour + backpack level above the health bar (web .status-row)
+            status = new GameObject("Status", typeof(RectTransform)).GetComponent<RectTransform>();
+            status.SetParent(c, false); status.anchorMin = status.anchorMax = BC; status.pivot = new Vector2(0, 0);
+            status.anchoredPosition = new Vector2(-BarW / 2f, 27) * UiKit.K; status.sizeDelta = new Vector2(160, 18) * UiKit.K;
+            vestIcon = UiKit.Img(status, "vest", UiKit.Get("icon_vest"), new Vector2(0, .5f), Vector2.zero, new Vector2(17, 17), Color.white); vestIcon.rectTransform.pivot = new Vector2(0, .5f);
+            vestText = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(20, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, Color.white);
+            var bagIc = UiKit.Img(status, "bag", UiKit.Get("icon_bag"), new Vector2(0, .5f), new Vector2(58, 0), new Vector2(17, 17), new Color(1f, .83f, .3f)); bagIc.rectTransform.pivot = new Vector2(0, .5f);
+            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(78, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1";
+
+            // things within reach (web .loot-list): a see-through panel to the left of the fire button, picture, name, TAKE
+            lootPanel = UiKit.Img(c, "LootList", UiKit.Round, new Vector2(1, .56f), new Vector2(-232, 0), new Vector2(172, 40), new Color(10 / 255f, 18 / 255f, 10 / 255f, .42f), true).rectTransform;
+            lootPanel.pivot = new Vector2(1, .5f);
+            lootPanel.gameObject.AddComponent<Outline>().effectColor = new Color(1, 1, 1, .14f);
+            input.RegisterBlocker(lootPanel);
+            for (int i = 0; i < 6; i++)
             {
                 int row = i;
-                var bg = UiKit.Img(c, "loot" + i, UiKit.Round, C, new Vector2(150, 70 - i * 30), new Vector2(190, 27), new Color(24 / 255f, 32 / 255f, 40 / 255f, .72f), true);
-                bg.rectTransform.pivot = new Vector2(0, .5f);
-                var ic = UiKit.Img(bg.rectTransform, "icon", null, new Vector2(0, .5f), new Vector2(6, 0), new Vector2(34, 18), Color.white); ic.preserveAspect = true; ic.rectTransform.pivot = new Vector2(0, .5f);
-                var tx = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(44, 0), new Vector2(100, 26), 10, TextAnchor.MiddleLeft, Color.white);
-                var tk = UiKit.Img(bg.rectTransform, "take", UiKit.Round, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(44, 21), new Color(1f, 0.78f, 0.25f), true);
+                var bg = UiKit.Img(lootPanel, "row" + i, null, new Vector2(.5f, 1), new Vector2(0, -4 - i * 27), new Vector2(164, 26), new Color(1, 1, 1, 0), true);
+                bg.rectTransform.pivot = new Vector2(.5f, 1);
+                var line = UiKit.Img(bg.rectTransform, "line", null, new Vector2(.5f, 0), Vector2.zero, new Vector2(164, 1), new Color(1, 1, 1, .06f)); line.rectTransform.pivot = new Vector2(.5f, 0);
+                var ic = UiKit.Img(bg.rectTransform, "icon", null, new Vector2(0, .5f), new Vector2(4, 0), new Vector2(42, 16), Color.white); ic.preserveAspect = true; ic.rectTransform.pivot = new Vector2(0, .5f);
+                var tx = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(52, 0), new Vector2(76, 26), 11, TextAnchor.MiddleLeft, Color.white);
+                var tk = UiKit.Img(bg.rectTransform, "take", UiKit.Round, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(38, 18), new Color(.45f, .78f, .25f), true);
                 tk.rectTransform.pivot = new Vector2(1, .5f);
-                var tt = UiKit.Txt(tk.rectTransform, C, Vector2.zero, new Vector2(44, 21), 10, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); tt.rectTransform.pivot = C; tt.text = "TAKE"; Destroy(tt.GetComponent<Shadow>());
+                var tt = UiKit.Txt(tk.rectTransform, C, Vector2.zero, new Vector2(38, 18), 10, TextAnchor.MiddleCenter, new Color(.06f, .13f, .03f)); tt.rectTransform.pivot = C; tt.text = "TAKE"; Destroy(tt.GetComponent<Shadow>());
                 var trg = bg.gameObject.AddComponent<EventTrigger>(); var en = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
                 en.callback.AddListener(_ => { if (row < lootRows.Count && lootRows[row].item != null) player.Take(lootRows[row].item); });
                 trg.triggers.Add(en);
-                input.RegisterBlocker(bg.rectTransform);
                 lootRows.Add((bg, ic, tx, null));
                 bg.gameObject.SetActive(false);
             }
+            input.AddEditable("loot", lootPanel);
+            input.AddEditable("status", status);
         }
+        RectTransform status, lootPanel; Image vestIcon; Text vestText;
         RectTransform specBar; Text specText; Image spectateBtn; bool spectating; Fighter lastKiller;
         readonly System.Collections.Generic.List<(Image bg, Image icon, Text text, Loot item)> lootRows = new System.Collections.Generic.List<(Image, Image, Text, Loot)>();
 
@@ -207,6 +270,14 @@ namespace LastWar
             if (lensCross == null) { lensCross = LensTexture(true, 1f); lensPlain = LensTexture(false, 0.45f); }
             lensZoom = zoom;
             float H = ((RectTransform)full).rect.height, L = H * (zoom >= 8 ? 0.94f : zoom >= 4 ? 0.84f : 0.72f);
+            bool red = zoom <= 1;
+            holo.gameObject.SetActive(red); glass.gameObject.SetActive(!red); sides[0].gameObject.SetActive(!red); sides[1].gameObject.SetActive(!red);
+            if (red)
+            {
+                holoFrame.rectTransform.sizeDelta = new Vector2(H * 0.46f, H * 0.34f);
+                lensDot.rectTransform.sizeDelta = Vector2.one * 8f * UiKit.K;
+                return;
+            }
             glass.texture = zoom >= 8 ? lensCross : lensPlain;
             glass.rectTransform.sizeDelta = new Vector2(L, L);
             Color outside = zoom >= 8 ? Color.black : new Color(0.02f, 0.03f, 0.02f, zoom >= 4 ? 0.5f : 0.42f);
@@ -262,7 +333,11 @@ namespace LastWar
 
         void Update()
         {
-            Fighter f = player.fighter; float dt = Time.deltaTime; const float K = UiKit.K; Camera cam = player.cam;
+            // spectating: the bars, weapon box and status show the one you watch
+            Fighter f = spectating && player.SpectateTarget != null ? player.SpectateTarget : player.fighter; float dt = Time.deltaTime; const float K = UiKit.K; Camera cam = player.cam;
+            input.Spectating = spectating;
+            vestText.text = f.armor > 0 ? Mathf.RoundToInt(f.armor).ToString() : "-";
+            vestText.color = f.armor > 0 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .45f); vestIcon.color = f.armor > 0 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .45f);
             hpFill.rectTransform.sizeDelta = new Vector2(BarW * f.hp / Fighter.MaxHp, 10) * K;
             hpFill.color = f.hp > Fighter.MaxHp * 0.3f ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
             armorFill.rectTransform.sizeDelta = new Vector2(BarW * f.armor / 100f, 7) * K;
@@ -318,7 +393,7 @@ namespace LastWar
             if (lens.gameObject.activeSelf != sniperLens) lens.gameObject.SetActive(sniperLens);
             if (scoped && player.ScopeZoom != lensZoom) SetLens(player.ScopeZoom);
             if (!scoped) lensZoom = 0;
-            box.gameObject.SetActive((f.air == 0 && !scoped) || input.Editing);
+            box.gameObject.SetActive((f.air == 0 && !scoped && !spectating) || input.Editing);
             hpBgRt.gameObject.SetActive(!scoped); arBgRt.gameObject.SetActive(!scoped);
             // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
             string hint = f.air == 1 ? "Tap <b>JUMP</b> to drop" : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
@@ -352,8 +427,10 @@ namespace LastWar
 
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
-            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens);
-            lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : lensZoom >= 8 ? new Color(.22f, 1f, .42f) : new Color(1f, .23f, .19f);
+            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens && !spectating);
+            // the dot is green, red on an enemy's body (every optic)
+            lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : new Color(.22f, 1f, .42f);
+            holoRing.color = onEnemy ? new Color(1f, .24f, .24f, .8f) : new Color(1, 1, 1, .55f);
             hitT -= dt;
             float ha = Mathf.Clamp01(hitT * 5f);
             hitRing.color = hitKill ? new Color(1f, 0.23f, 0.19f, ha) : new Color(1, 1, 1, ha);
@@ -400,8 +477,11 @@ namespace LastWar
                 feedBg[k].rectTransform.sizeDelta = new Vector2(feedTxt[k].preferredWidth + 16 * K, 17 * K);
             }
 
-            // the loot list (hidden while scoped / in the air / dead)
-            bool showLoot = f.Alive && f.air == 0 && !scoped;
+            // the loot list (hidden while scoped / in the air / dead / watching)
+            bool showLoot = !spectating && f.Alive && f.air == 0 && !scoped;
+            int shown = showLoot ? Mathf.Min(player.Nearby.Count, lootRows.Count) : 0;
+            lootPanel.gameObject.SetActive(shown > 0 || input.Editing);
+            lootPanel.sizeDelta = new Vector2(172, 8 + Mathf.Max(1, shown) * 27) * K;
             for (int i = 0; i < lootRows.Count; i++)
             {
                 var r = lootRows[i];
@@ -410,14 +490,15 @@ namespace LastWar
                 if (it != null && it != r.item)
                 {
                     r.icon.sprite = it.Icon; r.icon.enabled = r.icon.sprite != null;
-                    r.text.text = $"{it.Label}\n<size={Mathf.RoundToInt(8 * K)}><color=#ffffffa0>{it.Sub}</color></size>";
+                    r.text.text = $"{it.Label}\n<size={Mathf.RoundToInt(9 * K)}><color=#ffffffb0>{it.Sub}</color></size>";
                 }
                 lootRows[i] = (r.bg, r.icon, r.text, it);
             }
 
             // spectating bar
             specBar.gameObject.SetActive(spectating && player.SpectateTarget != null);
-            if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#ffffffa0>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
+            if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#cfd6da>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
+            status.gameObject.SetActive(!scoped && f.air == 0);
 
             if (gb.Result != 0 && !endPanel.gameObject.activeSelf && !spectating)
             {

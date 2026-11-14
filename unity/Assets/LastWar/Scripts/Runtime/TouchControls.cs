@@ -45,6 +45,8 @@ namespace LastWar
         /// <summary>everything the layout editor can move / resize / fade (web HUD editor)</summary>
         public readonly List<(string name, RectTransform rt)> Editable = new List<(string, RectTransform)>();
         public bool Editing;
+        /// <summary>watching someone after you are out: no play controls (web #hud.spectating)</summary>
+        public bool Spectating;
         /// <summary>settings / backpack: nothing outside them moves. (The big map only stops the camera turning: you keep running.)</summary>
         public static bool ModalOpen => SettingsPanel.IsOpen || BagPanel.IsOpen;
         readonly List<Btn> btns = new List<Btn>();
@@ -151,6 +153,7 @@ namespace LastWar
         bool Shown(Btn b)
         {
             if (Editing || Preview) return true;
+            if (Spectating) return false;
             if (airMode > 0) return b == jumpBtn;
             if (b == frostBtn && frostCount <= 0 && !FrostAim) return false;
             if (b == scopeBtn && !scopeAllowed) return false;
@@ -192,7 +195,9 @@ namespace LastWar
         {
             LookDelta = Vector2.zero;
             foreach (Btn b in btns) { bool show = Shown(b); if (b.rt.gameObject.activeSelf != show) b.rt.gameObject.SetActive(show); }
-            bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0); // no settings in the plane / during the drop if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn);
+            bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0 && !Spectating);
+            if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn); // no settings in the plane / during the drop / watching
+            bool joyOn = Editing || Preview || !Spectating; if (joyBase.gameObject.activeSelf != joyOn) joyBase.gameObject.SetActive(joyOn);
             if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
             // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
             if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; joyKnob.anchoredPosition = Vector2.zero; return; }

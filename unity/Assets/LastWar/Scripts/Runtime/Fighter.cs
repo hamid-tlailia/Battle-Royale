@@ -17,7 +17,7 @@ namespace LastWar
     /// </summary>
     public class Fighter : MonoBehaviour
     {
-        public const float MaxHp = 300f, ArmorAbsorb = 0.5f, MaxArmor = 100f, MedHeal = 100f;
+        public const float MaxHp = 200f, ArmorAbsorb = 0.5f, MaxArmor = 100f, MedHeal = 100f;
         public string displayName = "Soldier";
         public bool isPlayer;
         public float hp = MaxHp, armor = 0f;
@@ -153,16 +153,20 @@ namespace LastWar
         /// <summary>everything you carried spills on the ground where you fell</summary>
         public void DropAll()
         {
-            Vector3 c = transform.position;
-            int n = 0;
-            Vector3 Spot() { float a = n++ * 2.4f; return c + new Vector3(Mathf.Cos(a), 0.05f, Mathf.Sin(a)) * (0.5f + 0.18f * n); }
-            for (int k = 0; k < 3; k++) if (guns[k] != null) { Loot.Drop(Loot.Kind.Weapon, guns[k].def.id, 1, Spot(), null); AddSpare(guns[k].def.id, guns[k].reserve + guns[k].mag); guns[k] = null; }
-            foreach (var kv in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, int>>(spare)) if (kv.Value > 0) Loot.Drop(Loot.Kind.Ammo, kv.Key, kv.Value, Spot(), null);
+            // one crate where the body lies, holding everything (web death box)
+            bool any = HasGun || meds > 0 || frost > 0 || armor > 0 || scopes != 0;
+            foreach (var kv in spare) if (kv.Value > 0) any = true;
+            if (!any) return;
+            int box = Loot.NewCrate(transform.position + transform.forward * 0.6f);
+            Vector3 c = Loot.CratePos(box);
+            void Put(Loot.Kind k, string id, int n) => Loot.Spawn(k, id, n, c, box);
+            for (int k = 0; k < 3; k++) if (guns[k] != null) { Put(Loot.Kind.Weapon, guns[k].def.id, 1); AddSpare(guns[k].def.id, guns[k].reserve + guns[k].mag); guns[k] = null; }
+            foreach (var kv in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, int>>(spare)) if (kv.Value > 0) Put(Loot.Kind.Ammo, kv.Key, kv.Value);
             spare.Clear();
-            if (meds > 0) Loot.Drop(Loot.Kind.Med, null, meds, Spot(), null);
-            if (frost > 0) Loot.Drop(Loot.Kind.Frost, null, frost, Spot(), null);
-            if (armor > 0) Loot.Drop(Loot.Kind.Armor, null, 1, Spot(), null);
-            foreach (int z in new[] { 2, 4, 8 }) if ((scopes & ScopeBit(z)) != 0) Loot.Drop(Loot.Kind.Scope, z.ToString(), 1, Spot(), null);
+            if (meds > 0) Put(Loot.Kind.Med, null, meds);
+            if (frost > 0) Put(Loot.Kind.Frost, null, frost);
+            if (armor > 0) Put(Loot.Kind.Armor, null, 1);
+            foreach (int z in new[] { 2, 4, 8 }) if ((scopes & ScopeBit(z)) != 0) Put(Loot.Kind.Scope, z.ToString(), 1);
             meds = frost = scopes = scope = 0; armor = 0;
         }
         void AddSpare(string id, int n) { spare[id] = (spare.TryGetValue(id, out int s) ? s : 0) + n; }

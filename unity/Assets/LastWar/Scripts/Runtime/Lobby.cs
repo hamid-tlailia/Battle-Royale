@@ -237,16 +237,19 @@ namespace LastWar
         {
             Close();
             SetTab(what == "outfit" ? 1 : what == "map" ? 2 : what == "friends" ? 3 : 0);
-            shade = UiKit.Img(canvas.transform, "shade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .25f), true).rectTransform;
-            shade.pivot = new Vector2(.5f, .5f);
-            Clickable.Add(shade.gameObject, () => Close());
-            var bg = UiKit.Img(root, "sheet", UiKit.Panel, Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
+            // full-screen page over the lobby (nothing behind it takes the drags), BACK top-left
+            shade = UiKit.Img(canvas.transform, "shade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0.05f, 0.06f, 0.07f, 1f), true).rectTransform;
+            shade.pivot = new Vector2(.5f, .5f); UiKit.Fill(shade); shade.SetAsLastSibling();
+            var bg = UiKit.Img(shade, "sheet", UiKit.Panel, Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
             sheet = bg.rectTransform;
-            Place(sheet, new LobbyNode { x = L.sheet.x, y = L.sheet.y, w = L.sheet.w, h = L.sheet.h });
-            // close button
-            UiKit.CloseButton(sheet, new Vector2(1, 1), new Vector2(-10, -8) * (s / UiKit.K), 34 * (s / UiKit.K), () => Close());
+            sheet.anchorMin = root.anchorMin; sheet.anchorMax = root.anchorMax; sheet.pivot = new Vector2(.5f, .5f);
+            sheet.offsetMin = new Vector2(0, 8 * s); sheet.offsetMax = new Vector2(0, -8 * s);
+            var back = UiKit.Img(sheet, "back", UiKit.Round, new Vector2(0, 1), new Vector2(12, -10) * k, new Vector2(96, 30) * k, new Color(1f, .83f, .3f), true);
+            var bt = UiKit.Txt(back.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(96, 30) * k, 13 * k, TextAnchor.MiddleCenter, new Color(.1f, .08f, .02f));
+            bt.rectTransform.pivot = new Vector2(.5f, .5f); bt.text = "< BACK"; Destroy(bt.GetComponent<Shadow>());
+            Clickable.Add(back.gameObject, () => Close());
             string title = what == "friends" ? "PLAY WITH FRIENDS" : what.ToUpper();
-            var tt = UiKit.Txt(sheet, new Vector2(0, 1), new Vector2(16, -14) * (s / UiKit.K), new Vector2(300, 22) * (s / UiKit.K), 15 * s / UiKit.K, TextAnchor.UpperLeft, new Color(1f, .83f, .3f));
+            var tt = UiKit.Txt(sheet, new Vector2(0, 1), new Vector2(124, -15) * k, new Vector2(400, 22) * k, 17 * k, TextAnchor.UpperLeft, new Color(1f, .83f, .3f));
             tt.text = title;
             switch (what)
             {
@@ -259,12 +262,18 @@ namespace LastWar
 
         float k => s / UiKit.K; // CSS px -> UiKit units inside the sheet
 
-        RectTransform ScrollArea()
+        /// <summary>width of the page's scrolling column (canvas units)</summary>
+        float PageW => Mathf.Max(200f, (root.rect.width > 10 ? root.rect.width : 1700f) - 32 * s);
+        float ColW => Mathf.Min(PageW, 560 * s);
+
+        /// <summary>scrolling column, centred on the page (width w, default: the narrow settings column)</summary>
+        RectTransform ScrollArea(float w = -1)
         {
-            var view = new GameObject("view", typeof(RectTransform), typeof(Image), typeof(Mask), typeof(ScrollRect)).GetComponent<RectTransform>();
-            view.SetParent(sheet, false); view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one;
-            view.offsetMin = new Vector2(14, 12) * s; view.offsetMax = new Vector2(-14, -44) * s;
-            view.GetComponent<Image>().color = new Color(1, 1, 1, 0.003f); view.GetComponent<Mask>().showMaskGraphic = false;
+            if (w < 0) w = ColW;
+            var view = new GameObject("view", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect)).GetComponent<RectTransform>();
+            view.SetParent(sheet, false); view.anchorMin = new Vector2(.5f, 0); view.anchorMax = new Vector2(.5f, 1); view.pivot = new Vector2(.5f, .5f);
+            view.offsetMin = new Vector2(-w / 2f, 12 * s); view.offsetMax = new Vector2(w / 2f, -52 * s);
+            view.GetComponent<Image>().color = new Color(1, 1, 1, 0f); // catches the drags anywhere in the column
             var content = new GameObject("content", typeof(RectTransform)).GetComponent<RectTransform>();
             content.SetParent(view, false); content.anchorMin = new Vector2(0, 1); content.anchorMax = new Vector2(1, 1); content.pivot = new Vector2(.5f, 1);
             var sr = view.GetComponent<ScrollRect>(); sr.content = content; sr.horizontal = false; sr.movementType = ScrollRect.MovementType.Clamped;
@@ -273,9 +282,9 @@ namespace LastWar
 
         void OutfitSheet()
         {
-            var content = ScrollArea();
             float cw = L.card.w * s, ch = L.card.h * s, gap = 8 * s;
-            int cols = 3;
+            int cols = Mathf.Clamp(Mathf.FloorToInt((PageW + gap) / (cw + gap)), 3, 6);
+            var content = ScrollArea(cols * (cw + gap) - gap);
             for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++)
             {
                 int skin = i;
@@ -299,7 +308,7 @@ namespace LastWar
             var content = ScrollArea();
             string[] ids = { "green", "desert", "classic" }; string[] names = { "Highlands", "Red Canyon", "Valley" };
             string[] desc = { "Real moorland scan · farm village", "Real desert scan · rock butte", "Pine valley · 25 houses" };
-            float w = (L.sheet.w - 28) * s, h = 96 * s;
+            float w = ColW, h = 96 * s;
             for (int i = 0; i < ids.Length; i++)
             {
                 string id = ids[i]; bool on = Profile.Map == id;
@@ -315,14 +324,14 @@ namespace LastWar
 
         void Note(string text)
         {
-            var t = UiKit.Txt(sheet, new Vector2(.5f, .5f), Vector2.zero, new Vector2(L.sheet.w - 40, 120) * k, 13 * k, TextAnchor.MiddleCenter, Color.white);
+            var t = UiKit.Txt(sheet, new Vector2(.5f, .5f), Vector2.zero, new Vector2(520, 120) * k, 13 * k, TextAnchor.MiddleCenter, Color.white);
             t.rectTransform.pivot = new Vector2(.5f, .5f); t.fontStyle = FontStyle.Normal; t.horizontalOverflow = HorizontalWrapMode.Wrap; t.text = text;
         }
 
         void SettingsSheet()
         {
             var content = ScrollArea();
-            float y = 0, w = (L.sheet.w - 28) * s;
+            float y = 0, w = ColW;
             Text Label(string txt) { var t = UiKit.Txt(content, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * k, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f)); t.rectTransform.anchoredPosition = new Vector2(0, -y); t.rectTransform.sizeDelta = new Vector2(w, 16 * s); t.text = txt; y += 20 * s; return t; }
             // name
             Label("PLAYER NAME");
@@ -369,7 +378,7 @@ namespace LastWar
                 var t = UiKit.Txt(img.rectTransform, new Vector2(.5f, .5f), Vector2.zero, size, 12, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = label;
                 return img.rectTransform;
             }
-            tc.AddEditable("weapons", Stand("WEAPONS", new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 35), new Vector2(209, 85)));
+            tc.AddEditable("weapons", Stand("WEAPONS", new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 50), new Vector2(209, 85)));
             tc.AddEditable("minimap", Stand("MAP", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132)));
             tc.AddEditable("fps", Stand("60 fps · ping 0 ms", new Vector2(0, 1), new Vector2(0, 1), new Vector2(16, -10) / UiKit.K, new Vector2(330, 30) / UiKit.K));
             LayoutEditor.Open(tc, () => { Destroy(tc.Canvas.gameObject); Destroy(tc.gameObject); canvas.enabled = true; });

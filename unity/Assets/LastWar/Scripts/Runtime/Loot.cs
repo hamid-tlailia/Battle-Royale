@@ -17,6 +17,9 @@ namespace LastWar
         /// <summary>just dropped by this fighter: they cannot take it back for 2 s</summary>
         public Fighter lockFor; public float lockUntil;
         public int Zoom => int.TryParse(item, out int z) ? z : 0;
+        /// <summary>a dead fighter's things share a box id: one crate on the ground, listed together</summary>
+        public int box;
+        static int nextBox = 1;
 
         public static readonly List<Loot> All = new List<Loot>();
         void OnEnable() { All.Add(this); }
@@ -50,14 +53,14 @@ namespace LastWar
             _ => UiKit.Get("icon_frost"),
         };
 
-        public static Loot Spawn(Kind kind, string item, int amount, Vector3 at)
+        public static Loot Spawn(Kind kind, string item, int amount, Vector3 at, int box = 0)
         {
             var go = new GameObject("Loot " + kind);
             go.transform.position = at;
             go.transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
             var l = go.AddComponent<Loot>();
-            l.kind = kind; l.item = item; l.amount = Mathf.Max(1, amount);
-            l.BuildLook();
+            l.kind = kind; l.item = item; l.amount = Mathf.Max(1, amount); l.box = box;
+            if (box == 0) l.BuildLook();
             return l;
         }
 
@@ -71,6 +74,44 @@ namespace LastWar
             var l = Spawn(kind, item, amount, p);
             if (from != null) { l.lockFor = from; l.lockUntil = Time.time + 2f; }
             return l;
+        }
+
+        /// <summary>a dead fighter's crate: everything they carried goes in it (web death box)</summary>
+        public static int NewCrate(Vector3 at)
+        {
+            int id = nextBox++;
+            int mask = ~(1 << MapBuilder.PlayerLayer);
+            if (Physics.Raycast(at + Vector3.up * 1.2f, Vector3.down, out RaycastHit h, 6f, mask, QueryTriggerInteraction.Ignore)) at = h.point;
+            var go = new GameObject("DeathBox"); go.transform.position = at; go.transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+            go.AddComponent<Crate>().box = id;
+            GameObject src = MapBuilder.Model("item_ammo");
+            if (src != null)
+            {
+                Transform look = Instantiate(src, go.transform, false).transform; look.localScale = new Vector3(2.3f, 2.6f, 2.6f);
+                foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
+            }
+            Ring(go.transform, new Color(1f, .83f, .3f, .7f), 1.6f);
+            return id;
+        }
+        public static Vector3 CratePos(int box) { foreach (Crate c in Object.FindObjectsByType<Crate>(FindObjectsSortMode.None)) if (c.box == box) return c.transform.position; return Vector3.zero; }
+
+        /// <summary>removes itself once its last item has been taken</summary>
+        class Crate : MonoBehaviour
+        {
+            public int box; float check;
+            void Update()
+            {
+                if ((check -= Time.deltaTime) > 0) return; check = 0.5f;
+                foreach (Loot l in All) if (l.box == box) return;
+                Destroy(gameObject);
+            }
+        }
+
+        static void Ring(Transform parent, Color col, float size)
+        {
+            var marker = new GameObject("glow", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+            marker.transform.SetParent(parent, false); marker.transform.localPosition = Vector3.up * 0.02f; marker.transform.localRotation = Quaternion.Euler(90, 0, 0);
+            marker.transform.localScale = Vector3.one * size; marker.sprite = UiKit.Ring; marker.color = col;
         }
 
         static Material scopeMat, frostMat;
@@ -89,7 +130,7 @@ namespace LastWar
             {
                 look = Instantiate(src, transform, false).transform;
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
-                if (kind == Kind.Weapon) { look.localRotation = Quaternion.Euler(0, 0, 90f); look.localPosition = Vector3.up * 0.06f; } // the gun lies on its side
+                if (kind == Kind.Weapon) { look.localRotation = Quaternion.Euler(0, 0, 90f); look.localPosition = Vector3.up * 0.07f; look.localScale = Vector3.one * 1.3f; } // the gun lies on its side, a bit bigger (web)
             }
             else if (kind == Kind.Scope)
             {
@@ -105,11 +146,14 @@ namespace LastWar
                 look.SetParent(transform, false); look.localScale = new Vector3(0.32f, 0.22f, 0.12f); look.localPosition = Vector3.up * 0.11f;
                 look.GetComponent<Renderer>().sharedMaterial = frostMat;
             }
-            // a small glow ring under it so items are easy to spot in the grass
-            var ring = UiKit.Ring;
-            var marker = new GameObject("glow", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
-            marker.transform.SetParent(transform, false); marker.transform.localPosition = Vector3.up * 0.02f; marker.transform.localRotation = Quaternion.Euler(90, 0, 0);
-            marker.transform.localScale = Vector3.one * 0.6f; marker.sprite = ring; marker.color = new Color(1f, .85f, .35f, .55f);
+            // a ring under it in the item's colour (web RING_COL) so things are easy to spot in the grass
+            Color rc = kind switch
+            {
+                Kind.Weapon => new Color(1f, .83f, .3f), Kind.Ammo => new Color(.87f, .87f, .87f), Kind.Med => new Color(1f, .42f, .42f),
+                Kind.Armor => new Color(.35f, .67f, 1f), Kind.Scope => new Color(.77f, .55f, 1f), _ => new Color(.56f, .91f, 1f),
+            };
+            rc.a = .75f;
+            Ring(transform, rc, 0.62f);
         }
 
         // ---------------------------------------------------------------- the map's loot (web spawnLoot)

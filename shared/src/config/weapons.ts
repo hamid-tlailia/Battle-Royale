@@ -76,7 +76,7 @@ export function damageAt(w: WeaponDef, dist: number, head: boolean): number {
   return w.damage * f * (head ? w.headMult : 1);
 }
 
-export const MAX_HP = 300;
+export const MAX_HP = 200;
 export const MAX_ARMOR = 100;
 /** Fraction of incoming damage absorbed by armor while it lasts. */
 export const ARMOR_ABSORB = 0.5;

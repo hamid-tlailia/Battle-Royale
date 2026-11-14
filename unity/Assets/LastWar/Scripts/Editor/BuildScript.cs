@@ -160,6 +160,13 @@ namespace LastWar.EditorTools
                 m.SetFloat("_Smoothness", 0.05f);
                 AssetDatabase.CreateAsset(m, terr);
             }
+            // vertex-coloured models (guns): URP Lit ignores vertex colours, the particle Lit shader multiplies them in
+            string vc = dir + "/VertexLit.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(vc) == null)
+            {
+                var sh = Shader.Find("Universal Render Pipeline/Particles/Lit");
+                if (sh != null) { var m = new Material(sh) { enableInstancing = true }; m.SetFloat("_Smoothness", 0.25f); AssetDatabase.CreateAsset(m, vc); }
+            }
             // zone wall: see-through blue, both sides; tracer: bright additive streak
             Transparent(dir + "/ZoneWall.mat", new Color(0.25f, 0.55f, 1f, 0.28f), false);
             Transparent(dir + "/Tracer.mat", new Color(1f, 0.85f, 0.5f, 0.9f), true);

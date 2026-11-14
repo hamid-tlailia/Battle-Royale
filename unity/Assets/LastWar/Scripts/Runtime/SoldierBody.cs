@@ -179,7 +179,24 @@ namespace LastWar
                 clipIndex[n] = k;
             }
             weights = new float[clips.Length];
-            AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(mixer);
+            // the web game's run_free: the run clip's legs with the walk clip's arms (swinging at the sides),
+            // as a second layer that only moves the shoulders, arms and hands
+            layers = AnimationLayerMixerPlayable.Create(graph, 2);
+            graph.Connect(mixer, 0, layers, 0); layers.SetInputWeight(0, 1f);
+            if (clipIndex.TryGetValue("walk", out int wi))
+            {
+                walkArms = AnimationClipPlayable.Create(graph, clips[wi]); walkArms.SetSpeed(0);
+                graph.Connect(walkArms, 0, layers, 1); layers.SetInputWeight(1, 0f);
+                var mask = new AvatarMask(); mask.AddTransformPath(animator.transform, true);
+                for (int i = 0; i < mask.transformCount; i++)
+                {
+                    string p = mask.GetTransformPath(i); int sl = p.LastIndexOf('/'); string last = sl >= 0 ? p.Substring(sl + 1) : p;
+                    mask.SetTransformActive(i, last.Contains("Shoulder") || last.Contains("Arm") || last.Contains("Hand"));
+                }
+                layers.SetLayerMaskFromAvatarMask(1, mask);
+                walkLen = clips[wi].length;
+            }
+            AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(layers);
             graph.Play();
         }
 
@@ -207,9 +224,17 @@ namespace LastWar
             foreach (Renderer r in gun.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
         }
 
+        AnimationLayerMixerPlayable layers; AnimationClipPlayable walkArms; float walkLen, freeW;
         void Update()
         {
             if (weights == null || current == null) return;
+            // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
+            freeW = Mathf.MoveTowards(freeW, Pose == "runfree" && current == "run" ? 1f : 0f, Time.deltaTime * 6f);
+            if (walkArms.IsValid())
+            {
+                layers.SetInputWeight(1, freeW);
+                if (freeW > 0) walkArms.SetTime(ClipPhase() * walkLen);
+            }
             int target = clipIndex[current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
             if (OneShot(current))
@@ -405,17 +430,6 @@ namespace LastWar
                 Aim("LeftUpLeg", "LeftLeg", 0.12f, -0.1f, 1, w);
                 Aim("LeftLeg", "LeftFoot", 0.02f, -1, -0.06f, w);
                 Aim("LeftFoot", "LeftToeBase", 0.05f, -0.3f, 1, w);
-            }
-            else if (poseKind == "runfree")
-            {
-                // running empty-handed: arms down by the sides, swinging against the legs
-                // a sprinter's arms: elbows bent ~90 deg, close to the body, pumping forward and back opposite the legs
-                float ph = ClipPhase() * Mathf.PI * 2f, sw = Mathf.Sin(ph);
-                float fl = Mathf.Max(0, sw), bl = Mathf.Max(0, -sw), fr = bl, br = fl; // forward / back share per arm
-                Aim("LeftArm", "LeftForeArm", 0.14f, -1, 0.85f * fl - 0.7f * bl, w);
-                Aim("LeftForeArm", "LeftHand", -0.1f, 0.15f + 0.55f * fl - 0.25f * bl, 1, w);
-                Aim("RightArm", "RightForeArm", -0.14f, -1, 0.85f * fr - 0.7f * br, w);
-                Aim("RightForeArm", "RightHand", 0.1f, 0.15f + 0.55f * fr - 0.25f * br, 1, w);
             }
             else if (poseKind == "crawl")
             {

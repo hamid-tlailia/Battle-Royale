@@ -223,6 +223,12 @@ namespace LastWar
         {
             if (src == null) return NewLit(Color.white);
             if (litCache.TryGetValue(src, out Material m)) return m;
+            if (src.name.StartsWith("vc"))
+            {
+                // the guns' colours live in the vertices: a shader that reads them (else they come out white)
+                var vbase = Resources.Load<Material>("Materials/VertexLit");
+                if (vbase != null) { m = new Material(vbase); litCache[src] = m; return m; }
+            }
             if (src.shader != null && src.shader.name.ToLower().Contains("unlit")) { litCache[src] = src; return src; } // scanned rock: keep
             Texture tex = null; Color col = Color.white;
             foreach (string prop in new[] { "baseColorTexture", "_BaseMap", "_MainTex" }) if (src.HasProperty(prop) && src.GetTexture(prop) != null) { tex = src.GetTexture(prop); break; }
