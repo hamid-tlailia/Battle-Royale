@@ -24,7 +24,7 @@ namespace LastWar
         public bool ScopedUi;
         /// <summary>lobby preview for the layout editor: every control shown, nothing reacts</summary>
         public bool Preview;
-        bool scopeAllowed = true; RectTransform gearRt;
+        bool scopeAllowed = true; RectTransform gearRt; Vector2? jumpGround;
         public bool Scoped;         // scope toggle
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
         public bool ReloadPressed;  // true for one frame
@@ -39,6 +39,7 @@ namespace LastWar
         /// <summary>everything the layout editor can move / resize / fade (web HUD editor)</summary>
         public readonly List<(string name, RectTransform rt)> Editable = new List<(string, RectTransform)>();
         public bool Editing;
+        public static bool ModalOpen => SettingsPanel.IsOpen || BagPanel.IsOpen || Minimap.BigOpen;
         readonly List<Btn> btns = new List<Btn>();
         readonly List<RectTransform> blockers = new List<RectTransform>();
         Btn fireBtn, fireLeft, scopeBtn, runBtn;
@@ -133,6 +134,9 @@ namespace LastWar
         public void SetAir(int air)
         {
             if (air == airMode) return;
+            // in the plane / falling JUMP sits in the middle of the right side (easy to reach); back on the ground it returns
+            if (air > 0 && airMode <= 0) { jumpGround = jumpBtn.rt.anchoredPosition; jumpBtn.rt.anchoredPosition = new Vector2(-70, 540f / UiKit.K) * UiKit.K; }
+            if (air == 0 && airMode > 0 && jumpGround.HasValue) jumpBtn.rt.anchoredPosition = jumpGround.Value;
             airMode = air;
             jumpBtn.bg.color = air == 1 ? new Color(1f, .85f, .35f) : Color.white;
             if (air != 0) { Sprint = false; Crouch = Prone = false; Scoped = false; }
@@ -160,7 +164,7 @@ namespace LastWar
 
         public void SetVisible(bool v) { canvas.enabled = v; }
 
-        bool Over(Btn b, Vector2 screen) => b != null && b.rt.gameObject.activeInHierarchy && Hit(b.rt, screen);
+        bool Over(Btn b, Vector2 screen) => b != null && b.rt.gameObject.activeInHierarchy && !LayoutEditor.IsHidden(b.rt) && Hit(b.rt, screen);
         // the round part only (the picture is 1.28x the button)
         static bool Hit(RectTransform rt, Vector2 screen)
         {
@@ -170,7 +174,7 @@ namespace LastWar
         bool OverBlocker(Vector2 screen)
         {
             foreach (RectTransform r in blockers)
-                if (r.gameObject.activeInHierarchy && (btns.Exists(b => b.rt == r) ? Hit(r, screen) : RectTransformUtility.RectangleContainsScreenPoint(r, screen))) return true;
+                if (r.gameObject.activeInHierarchy && !LayoutEditor.IsHidden(r) && (btns.Exists(b => b.rt == r) ? Hit(r, screen) : RectTransformUtility.RectangleContainsScreenPoint(r, screen))) return true;
             return false;
         }
 
@@ -178,8 +182,10 @@ namespace LastWar
         {
             LookDelta = Vector2.zero;
             foreach (Btn b in btns) { bool show = Shown(b); if (b.rt.gameObject.activeSelf != show) b.rt.gameObject.SetActive(show); }
-            bool gearOn = Editing || Preview || !ScopedUi; if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn);
+            bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0); // no settings in the plane / during the drop if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn);
             if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
+            // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
+            if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; joyKnob.anchoredPosition = Vector2.zero; return; }
             bool wasHeld = FireHeld;
             if (Input.touchCount > 0) Touches();
             else

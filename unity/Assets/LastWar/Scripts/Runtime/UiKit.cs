@@ -25,7 +25,41 @@ namespace LastWar
             return s;
         }
 
-        static Sprite round, ring, disc;
+        static Sprite round, ring, disc, panel;
+        /// <summary>modal background (web .lb-sheet): dark blue-grey gradient, 14 px corners, thin gold edge; 9-sliced</summary>
+        public static Sprite Panel => panel != null ? panel : (panel = MakePanel());
+
+        static Sprite MakePanel()
+        {
+            const int S = 96; const float r = 30f;
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[S * S];
+            Color top = new Color(31 / 255f, 36 / 255f, 41 / 255f), bot = new Color(14 / 255f, 17 / 255f, 20 / 255f), gold = new Color(1f, .83f, .3f);
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float cx = Mathf.Clamp(x + .5f, r, S - r), cy = Mathf.Clamp(y + .5f, r, S - r);
+                    float d = r - Vector2.Distance(new Vector2(x + .5f, y + .5f), new Vector2(cx, cy)); // distance inside the edge
+                    float a = Mathf.Clamp01(d * 1.5f);
+                    Color c = Color.Lerp(bot, top, y / (float)(S - 1));
+                    c = Color.Lerp(c, gold * .7f + Color.black * .3f, Mathf.Clamp01(3.2f - d) * .75f); // gold rim ~2 px
+                    c.a = a * .97f;
+                    px[y * S + x] = c;
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f), 100, 0, SpriteMeshType.FullRect, new Vector4(34, 34, 34, 34));
+        }
+
+        /// <summary>round close button (web .lb-close): dark disc, grey ring, white X</summary>
+        public static Image CloseButton(Transform parent, Vector2 anchor, Vector2 pos, float size, System.Action onTap)
+        {
+            var b = Img(parent, "close", Disc, anchor, pos, new Vector2(size, size), new Color(.2f, .23f, .25f, .95f), true);
+            b.rectTransform.pivot = anchor;
+            var ring = Img(b.rectTransform, "ring", Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size), new Color(1, 1, 1, .45f)); ring.rectTransform.pivot = new Vector2(.5f, .5f);
+            var t = Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(size, size), size * .5f, TextAnchor.MiddleCenter, Color.white);
+            t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = "X";
+            if (onTap != null) Clickable.Add(b.gameObject, onTap);
+            return b;
+        }
         /// <summary>white rounded rectangle, 9-sliced (CSS border-radius ~ 8 px)</summary>
         public static Sprite Round => round != null ? round : (round = Make(64, (x, y) => RoundAlpha(x, y, 64, 22), new Vector4(24, 24, 24, 24)));
         /// <summary>white disc</summary>
@@ -55,6 +89,7 @@ namespace LastWar
             var rt = (RectTransform)go.transform; rt.SetParent(parent, false);
             rt.anchorMin = rt.anchorMax = rt.pivot = anchor; rt.anchoredPosition = pos * K; rt.sizeDelta = size * K;
             var img = go.GetComponent<Image>(); img.sprite = sprite; img.color = color; img.raycastTarget = raycast;
+            go.AddComponent<GammaAlpha>();
             if (sprite != null && sprite.border != Vector4.zero) { img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 1.4f; }
             img.preserveAspect = sprite != null && sprite.border == Vector4.zero && name.StartsWith("gun");
             return img;
@@ -76,6 +111,36 @@ namespace LastWar
         {
             rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.pivot = new Vector2(.5f, .5f);
             rt.offsetMin = Vector2.one * inset * K; rt.offsetMax = -Vector2.one * inset * K;
+        }
+    }
+
+    /// <summary>
+    /// The project renders in linear colour space, where see-through UI blends lighter than the web's sRGB blending
+    /// (a 45 % black panel looks like ~25 %). This re-weights each vertex alpha so translucent colours look as in the web.
+    /// </summary>
+    public class GammaAlpha : UnityEngine.UI.BaseMeshEffect
+    {
+        public static float Fix(Color c)
+        {
+            float a = c.a;
+            if (a <= 0.001f || a >= 0.999f) return a;
+            const float b = 0.45f, bl = 0.172f; // mid background (sRGB) and its linear value
+            float lum = c.r * .3f + c.g * .59f + c.b * .11f;
+            float cl = Mathf.Pow(lum, 2.2f), R = Mathf.Pow(a * lum + (1 - a) * b, 2.2f);
+            if (Mathf.Abs(cl - bl) < 0.03f) return a;
+            return Mathf.Clamp01((R - bl) / (cl - bl));
+        }
+
+        public override void ModifyMesh(VertexHelper vh)
+        {
+            if (!IsActive()) return;
+            var v = new UIVertex();
+            for (int i = 0; i < vh.currentVertCount; i++)
+            {
+                vh.PopulateUIVertex(ref v, i);
+                Color c = v.color; c.a = Fix(c); v.color = c;
+                vh.SetUIVertex(v, i);
+            }
         }
     }
 }

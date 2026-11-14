@@ -10,7 +10,7 @@ namespace LastWar
     public class Loader : MonoBehaviour
     {
         static Loader current;
-        CanvasGroup group; Image bar; float t, hideAt = -1;
+        CanvasGroup group; Image bar; float t, hideAt = -1, target = 0.05f, shown;
 
         public static void Show(string text)
         {
@@ -34,15 +34,36 @@ namespace LastWar
             current.bar = UiKit.Img(track.rectTransform, "bar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(0, 5), new Color(.72f, .95f, .49f));
         }
 
+        /// <summary>how far the loading has got (0..1); the bar glides toward it and creeps on while a step takes long</summary>
+        public static void Progress(float p) { if (current != null) current.target = Mathf.Max(current.target, Mathf.Clamp01(p)); }
+
+        /// <summary>show the card, let it draw, then reload the game scene in the background (the bar keeps moving)</summary>
+        public static void Go(string text)
+        {
+            Show(text);
+            current.StartCoroutine(current.Switch());
+        }
+
+        System.Collections.IEnumerator Switch()
+        {
+            yield return null; yield return null; // the card is on screen before the heavy work starts
+            var op = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+            while (op != null && !op.isDone) { Progress(op.progress * 0.3f); yield return null; }
+        }
+
         /// <summary>called by the new scene once it is built: fade out after a few frames</summary>
         public static void HideSoon(float delay = 0.6f) { if (current != null) current.hideAt = Time.unscaledTime + delay; }
 
         void Update()
         {
-            t += Time.unscaledDeltaTime;
-            float fill = hideAt > 0 ? 1f : Mathf.Min(0.92f, t / 2.5f);
+            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f); // a long blocking step must not make the bar jump
+            t += dt;
+            // glide toward the reported progress; between reports creep slowly so it never looks stuck
+            float goal = hideAt > 0 ? 1f : Mathf.Min(0.97f, Mathf.Max(target, shown + dt * 0.04f));
+            shown = Mathf.MoveTowards(shown, goal, dt * (hideAt > 0 ? 1.6f : 0.9f));
+            float fill = shown;
             bar.rectTransform.sizeDelta = new Vector2(260 * UiKit.K * fill, bar.rectTransform.sizeDelta.y);
-            if (hideAt > 0 && Time.unscaledTime > hideAt)
+            if (hideAt > 0 && Time.unscaledTime > hideAt && shown >= 0.999f)
             {
                 group.alpha -= Time.unscaledDeltaTime / 0.5f;
                 group.blocksRaycasts = false;

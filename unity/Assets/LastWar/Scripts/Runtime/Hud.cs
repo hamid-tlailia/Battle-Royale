@@ -18,7 +18,7 @@ namespace LastWar
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
         RectTransform box, hpBgRt, arBgRt, lens; Image lensDot;
         Image hpFill, armorFill, dot, hitRing, flash, reloadFill; RectTransform reloadBar;
-        Text hpText, aliveText, zoneText, centerText, bannerCount;
+        Text hpText, aliveText, zoneText, centerText, bannerCount; Image centerBox;
         Image aliveBox, zoneBox; RectTransform banner;
         readonly List<Image> feedBg = new List<Image>(); readonly List<Text> feedTxt = new List<Text>();
         readonly List<(string text, bool mine, float t)> feed = new List<(string, bool, float)>();
@@ -28,6 +28,7 @@ namespace LastWar
         class Floater { public Text t; public Vector3 pos; public float life; }
         readonly List<Floater> floaters = new List<Floater>();
         readonly List<(Text t, float life)> taken = new List<(Text, float)>();
+        const float BarW = 130f; // health / armour bar length (CSS px): about half the old one
         static readonly Vector2 BC = new Vector2(.5f, 0), TC = new Vector2(.5f, 1), C = new Vector2(.5f, .5f);
 
         public static Hud Create(TouchControls input, PlayerController player)
@@ -45,12 +46,12 @@ namespace LastWar
             flash.rectTransform.pivot = C; flash.transform.SetAsFirstSibling();
 
             // ---- bottom centre: bars (bottom 6), reload bar, weapon box
-            RectTransform hpBg = hpBgRt = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 6), new Vector2(240, 10), new Color(0, 0, 0, .45f)).rectTransform;
-            hpFill = UiKit.Img(hpBg, "Hp", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(240, 10), new Color(0.48f, 0.85f, 0.32f));
+            RectTransform hpBg = hpBgRt = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 6), new Vector2(BarW, 10), new Color(0, 0, 0, .45f)).rectTransform;
+            hpFill = UiKit.Img(hpBg, "Hp", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(BarW, 10), new Color(0.48f, 0.85f, 0.32f));
             hpText = UiKit.Txt(hpBg, new Vector2(1, .5f), Vector2.zero, new Vector2(30, 14), 12, TextAnchor.MiddleLeft, Color.white);
             hpText.rectTransform.pivot = new Vector2(0, .5f); hpText.rectTransform.anchoredPosition = new Vector2(5 * UiKit.K, 0);
-            RectTransform arBg = arBgRt = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(240, 7), new Color(0, 0, 0, .45f)).rectTransform;
-            armorFill = UiKit.Img(arBg, "Ar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(240, 7), new Color(0.35f, 0.67f, 1f));
+            RectTransform arBg = arBgRt = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(BarW, 7), new Color(0, 0, 0, .45f)).rectTransform;
+            armorFill = UiKit.Img(arBg, "Ar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(BarW, 7), new Color(0.35f, 0.67f, 1f));
             reloadBar = UiKit.Img(c, "Reload", UiKit.Round, BC, new Vector2(0, 28), new Vector2(140, 4), new Color(0, 0, 0, .4f)).rectTransform;
             reloadFill = UiKit.Img(reloadBar, "fill", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(0, 4), new Color(1f, 0.83f, 0.3f));
 
@@ -84,8 +85,10 @@ namespace LastWar
             zoneBox = UiKit.Img(c, "ZoneTxt", UiKit.Round, TC, new Vector2(0, -36), new Vector2(200, 18), new Color(20 / 255f, 60 / 255f, 140 / 255f, .5f));
             zoneText = UiKit.Txt(zoneBox.rectTransform, C, Vector2.zero, new Vector2(400, 18), 11, TextAnchor.MiddleCenter, Color.white);
             zoneText.rectTransform.pivot = C;
-            centerText = UiKit.Txt(c, C, new Vector2(0, 60), new Vector2(400, 20), 13, TextAnchor.MiddleCenter, new Color(1f, 0.42f, 0.36f));
-            centerText.rectTransform.pivot = C;
+            centerBox = UiKit.Img(c, "HintBox", UiKit.Round, C, new Vector2(0, -30), new Vector2(260, 40), new Color(0, 0, 0, .55f));
+            centerBox.rectTransform.pivot = C;
+            centerText = UiKit.Txt(centerBox.rectTransform, C, Vector2.zero, new Vector2(236, 20), 12, TextAnchor.MiddleCenter, new Color(1f, 0.42f, 0.36f));
+            centerText.rectTransform.pivot = C; centerText.horizontalOverflow = HorizontalWrapMode.Wrap;
 
             // ---- kill feed, top-left under the buttons row
             for (int k = 0; k < 5; k++)
@@ -199,9 +202,9 @@ namespace LastWar
         void Update()
         {
             Fighter f = player.fighter; float dt = Time.deltaTime; const float K = UiKit.K; Camera cam = player.cam;
-            hpFill.rectTransform.sizeDelta = new Vector2(240 * f.hp / Fighter.MaxHp, 10) * K;
+            hpFill.rectTransform.sizeDelta = new Vector2(BarW * f.hp / Fighter.MaxHp, 10) * K;
             hpFill.color = f.hp > 30 ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
-            armorFill.rectTransform.sizeDelta = new Vector2(240 * f.armor / 100f, 7) * K;
+            armorFill.rectTransform.sizeDelta = new Vector2(BarW * f.armor / 100f, 7) * K;
             hpText.text = Mathf.CeilToInt(f.hp).ToString();
 
             // weapon box (web .slots grid): what is in your hands 209 x 46 on top, the other three 67 x 36 below
@@ -278,6 +281,8 @@ namespace LastWar
             zoneBox.rectTransform.sizeDelta = new Vector2(zoneText.preferredWidth + 20 * K, 18 * K);
             centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : hintText != "" && Time.time - hintAt < 2.5f ? hintText : "";
             centerText.color = outside ? new Color(1f, 0.42f, 0.36f) : Color.white;
+            centerBox.gameObject.SetActive(centerText.text != "");
+            if (centerText.text != "") centerBox.rectTransform.sizeDelta = new Vector2(260 * K, centerText.preferredHeight + 16 * K);
 
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;

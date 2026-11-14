@@ -25,9 +25,14 @@ namespace LastWar
         Text fps;
         float fpsAcc; int fpsFrames;
 
-        void Start()
+        /// <summary>first launch of the app: the loading card covers the start until the lobby is drawn</summary>
+        static bool launched;
+
+        System.Collections.IEnumerator Start()
         {
             Instance = this; startTime = Time.time;
+            if (!launched) { launched = true; Loader.Show("Loading…"); yield return null; yield return null; }
+            Loader.Progress(0.35f);
             Application.targetFrameRate = 60;
             QualitySettings.vSyncCount = 0;
             Profile.ApplyQuality();
@@ -58,10 +63,13 @@ namespace LastWar
             cam.gameObject.AddComponent<AudioListener>();
 
             Map = MapData.Load(Profile.Map);
+            Loader.Progress(0.45f); yield return null;
             MapBuilder.Build(Map);
+            Loader.Progress(0.75f); yield return null;
             // test switch: ?play=1 in the WebGL URL goes straight into a match
             if (!InMatch && (Application.absoluteURL ?? "").Contains("play=1")) InMatch = true;
-            if (!InMatch) { Lobby.Create(Map, cam); Loader.HideSoon(); return; }
+            if (!InMatch) { Lobby.Create(Map, cam); Loader.Progress(1f); Loader.HideSoon(); Music.PlayLobby(); yield break; }
+            Loader.Progress(0.85f); yield return null;
 
             var controls = TouchControls.Create();
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
@@ -102,17 +110,21 @@ namespace LastWar
             if (!(Application.absoluteURL ?? "").Contains("nodrop=1"))
             {
                 SkyDrop.Create(Map);
+                Music.Stop(); // the lobby tune ends as the plane appears
                 foreach (Fighter f in Fighters) f.air = 1;
             }
+            if ((Application.absoluteURL ?? "").Contains("nodrop=1")) Music.Stop();
             Zone.Create(Map.playRadius);
             Tracers.Create();
             Hud.Create(controls, Player);
             Minimap.Create(controls, Player, Map);
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            fps.transform.SetParent(FindFirstObjectByType<Canvas>().transform, false);
-            var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(16, -10); rt.sizeDelta = new Vector2(500, 40);
+            fps.transform.SetParent(controls.Canvas.transform, false);
+            var rt = (RectTransform)fps.transform; rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(16, -10); rt.sizeDelta = new Vector2(330, 30);
             fps.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); fps.fontSize = 20; fps.color = new Color(1, 1, 1, .6f);
+            fps.raycastTarget = false; fps.horizontalOverflow = HorizontalWrapMode.Overflow;
+            controls.AddEditable("fps", rt); // frame rate + ping: movable like the buttons
             Loader.HideSoon();
         }
 
@@ -121,8 +133,7 @@ namespace LastWar
         {
             Fighter.ClearEvents();
             InMatch = false;
-            Loader.Show("Back to the lobby…");
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            Loader.Go("Back to the lobby…");
         }
 
         Transform sky;
@@ -172,6 +183,9 @@ namespace LastWar
             RenderSettings.fogStartDistance = 110f + up * 1.4f; RenderSettings.fogEndDistance = 340f + up * 2.6f;
         }
 
+        /// <summary>round trip to the game server; the offline match runs on this phone, so it is 0</summary>
+        public static int PingMs => 0;
+
         void Update()
         {
             fpsAcc += Time.unscaledDeltaTime; fpsFrames++;
@@ -190,7 +204,7 @@ namespace LastWar
                     }
                 }
             }
-            if (fpsAcc >= 1f && fps != null && Map != null) { fps.text = $"LAST WAR · {Map.name} · {fpsFrames / fpsAcc:0} fps"; fpsAcc = 0; fpsFrames = 0; }
+            if (fpsAcc >= 1f && fps != null && Map != null) { fps.text = $"{fpsFrames / fpsAcc:0} fps · ping {PingMs} ms"; fpsAcc = 0; fpsFrames = 0; }
         }
     }
 }

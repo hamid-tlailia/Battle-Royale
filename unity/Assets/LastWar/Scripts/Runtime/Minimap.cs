@@ -43,7 +43,10 @@ namespace LastWar
             // white border (2 px) around a rounded window
             var border = UiKit.Img(c, "Minimap", UiKit.Round, new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132), new Color(1, 1, 1, .55f), true);
             frame = border.rectTransform;
-            AddTap(border.gameObject, () => { if (!input.Editing) SetBig(!big); });
+            // small map: tap = open the big one; big map: tap = put your marker there (tap it again to remove it)
+            var bt = border.gameObject.AddComponent<EventTrigger>(); var be = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+            be.callback.AddListener(ev => { if (input.Editing) return; if (!big) { SetBig(true); return; } PlaceMarker(((PointerEventData)ev).position); });
+            bt.triggers.Add(be);
             input.RegisterBlocker(frame);
             input.AddEditable("minimap", frame);
             var win = UiKit.Img(frame, "window", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(128, 128), Color.white);
@@ -85,6 +88,52 @@ namespace LastWar
             me.SetParent(content, false); me.anchorMin = me.anchorMax = new Vector2(0, 1); me.pivot = new Vector2(.5f, .5f);
             cone = UiKit.Img(me, "cone", UiKit.Get("map_cone"), new Vector2(.5f, .5f), Vector2.zero, Vector2.one, Color.white).rectTransform; cone.pivot = new Vector2(.5f, .5f);
             arrow = UiKit.Img(me, "arrow", UiKit.Get("map_arrow"), new Vector2(.5f, .5f), Vector2.zero, Vector2.one, Color.white).rectTransform; arrow.pivot = new Vector2(.5f, .5f);
+
+            // your marker + the route to it, and the way back into the safe zone
+            route = Line("route", new Color(1f, .83f, .3f, .95f));
+            zoneLine = Line("zoneLine", new Color(1f, 1f, 1f, .9f));
+            pin = UiKit.Img(content, "pin", UiKit.Get("icon_pin"), new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(1f, .83f, .3f)).rectTransform;
+            pin.pivot = new Vector2(.5f, 0); pin.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .7f);
+            pin.gameObject.SetActive(false);
+            bigClose = UiKit.CloseButton(frame, new Vector2(1, 1), new Vector2(-6, -6), 30, () => SetBig(false)).rectTransform;
+            bigClose.gameObject.SetActive(false);
+
+            // top of the screen: which way to go and how far (to your marker, or back into the zone)
+            Transform c = input.Canvas.transform;
+            guide = UiKit.Img(c, "guide", UiKit.Round, new Vector2(.5f, 1), new Vector2(0, -60), new Vector2(96, 22), new Color(0, 0, 0, .45f)).rectTransform;
+            guide.pivot = new Vector2(.5f, 1);
+            guideArrow = UiKit.Img(guide, "arrow", UiKit.Get("map_arrow"), new Vector2(0, .5f), new Vector2(14, 0), new Vector2(20, 20), Color.white);
+            guideArrow.rectTransform.pivot = new Vector2(.5f, .5f);
+            guideText = UiKit.Txt(guide, new Vector2(0, .5f), new Vector2(28, 0), new Vector2(80, 20), 12, TextAnchor.MiddleLeft, Color.white);
+            guide.gameObject.SetActive(false);
+        }
+        RectTransform route, zoneLine, pin, bigClose, guide; Image guideArrow; Text guideText;
+        Vector2? markWeb;
+
+        RectTransform Line(string name, Color col)
+        {
+            var img = UiKit.Img(content, name, null, new Vector2(0, 1), Vector2.zero, Vector2.one, col);
+            img.rectTransform.pivot = new Vector2(0, .5f); img.gameObject.SetActive(false);
+            return img.rectTransform;
+        }
+
+        /// <summary>a straight line on the map between two map points (drawing units)</summary>
+        void Draw(RectTransform line, Vector2 from, Vector2 to, float width, float u)
+        {
+            Vector2 d = to - from; float L = d.magnitude;
+            line.gameObject.SetActive(L > 2f);
+            line.anchoredPosition = from * u; line.sizeDelta = new Vector2(L * u, width * u);
+            line.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+        }
+
+        /// <summary>tap on the big map: marker there (or off, when tapping next to the current one)</summary>
+        void PlaceMarker(Vector2 screen)
+        {
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(content, screen, null, out Vector2 lp)) return;
+            Vector2 dr = lp / U; // drawing units, y down = negative
+            Vector2 web = new Vector2(dr.x / Units * map.size - map.size / 2f, -dr.y / Units * map.size - map.size / 2f);
+            if (markWeb.HasValue && Vector2.Distance(markWeb.Value, web) < map.size * 0.03f) markWeb = null;
+            else markWeb = web;
         }
         RectTransform cone, arrow;
         readonly List<(Text t, Vector2 web)> names = new List<(Text, Vector2)>();
@@ -113,9 +162,12 @@ namespace LastWar
             tr.triggers.Add(e);
         }
 
+        public static bool BigOpen;
+        void OnDestroy() { BigOpen = false; }
         void SetBig(bool on)
         {
-            big = on;
+            big = on; BigOpen = on;
+            if (bigClose != null) bigClose.gameObject.SetActive(on);
             bigShade.gameObject.SetActive(on);
             if (on)
             {
@@ -203,7 +255,36 @@ namespace LastWar
                 m.line.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
                 m.line.GetComponent<Image>().color = new Color(1, .12f, .12f, a);
             }
+            // marker + route (gold) and, outside the moving zone, the shortest way back in (white)
+            pin.gameObject.SetActive(markWeb.HasValue);
+            if (markWeb.HasValue) { pin.anchoredPosition = ToMap(markWeb.Value) * u; pin.sizeDelta = Vector2.one * (big ? 34 : 44) * u; Draw(route, ToMap(mw), ToMap(markWeb.Value), 4f, u); }
+            else route.gameObject.SetActive(false);
+            Vector2? safe = null;
+            Vector3 pp = player.transform.position;
+            if (zoneOn && player.fighter.Alive && player.fighter.air == 0 && z.Outside(pp))
+            {
+                Vector2 cz = new Vector2(pp.x, pp.z) - z.Centre; // unity x / z
+                Vector2 inside = z.Centre + cz.normalized * Mathf.Max(0, z.Radius - 4f);
+                safe = new Vector2(-inside.x, inside.y);
+                Draw(zoneLine, ToMap(mw), ToMap(safe.Value), 5f, u);
+            }
+            else zoneLine.gameObject.SetActive(false);
+            route.SetAsLastSibling(); zoneLine.SetAsLastSibling(); pin.SetAsLastSibling();
             me.SetAsLastSibling();
+
+            // the guide at the top of the screen: back into the zone first, else toward the marker
+            Vector2? goal = safe ?? markWeb;
+            bool show = goal.HasValue && player.fighter.Alive && player.fighter.air == 0 && !player.Scoped && !big;
+            guide.gameObject.SetActive(show);
+            if (show)
+            {
+                Vector3 g = new Vector3(-goal.Value.x, pp.y, goal.Value.y) - pp; g.y = 0;
+                float rel = Mathf.DeltaAngle(player.yaw, Mathf.Atan2(g.x, g.z) * Mathf.Rad2Deg);
+                guideArrow.rectTransform.localRotation = Quaternion.Euler(0, 0, -rel);
+                guideArrow.color = safe.HasValue ? new Color(.55f, .8f, 1f) : new Color(1f, .83f, .3f);
+                guideText.text = $"{Mathf.RoundToInt(g.magnitude)} m";
+                guide.sizeDelta = new Vector2((34 + guideText.preferredWidth / UiKit.K) * UiKit.K, 22 * UiKit.K);
+            }
         }
 
         // -------- procedural pictures

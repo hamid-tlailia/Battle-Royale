@@ -10,6 +10,7 @@ namespace LastWar
     public static class SettingsPanel
     {
         static GameObject open;
+        public static bool IsOpen => open != null;
         static readonly Color Gold = new Color(1f, .83f, .3f), Ink = new Color(27 / 255f, 20 / 255f, 4 / 255f);
 
         public static void Open(Canvas canvas, bool inMatch)
@@ -20,10 +21,11 @@ namespace LastWar
             shade.rectTransform.pivot = new Vector2(.5f, .5f);
             open = shade.gameObject;
             Tap(shade.gameObject, Close);
-            var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Get("Lobby/sheet"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, inMatch ? 348 : 300), Color.white, true);
+            var panel = UiKit.Img(shade.rectTransform, "panel", UiKit.Panel, new Vector2(.5f, .5f), Vector2.zero, new Vector2(340, inMatch ? 348 : 300), Color.white, true);
             panel.rectTransform.pivot = new Vector2(.5f, .5f);
             Transform p = panel.transform;
             var title = UiKit.Txt(p, new Vector2(0, 1), new Vector2(18, -12), new Vector2(300, 22), 15, TextAnchor.UpperLeft, Gold); title.text = "SETTINGS";
+            UiKit.CloseButton(p, new Vector2(1, 1), new Vector2(-10, -8), 28, Close);
             float y = 40;
             var sens = Label(p, ref y, $"LOOK SENSITIVITY  {Profile.Sensitivity:0.0}");
             Slider(p, ref y, 0.3f, 2.5f, Profile.Sensitivity, v => { Profile.Sensitivity = v; sens.text = $"LOOK SENSITIVITY  {v:0.0}"; });
@@ -89,19 +91,42 @@ namespace LastWar
 
         static void Choice(Transform p, ref float y, string[] opts, int sel, Action<int> on)
         {
-            float bw = 300f / opts.Length - 4;
+            Segments(p, new Vector2(18, -y) * UiKit.K, new Vector2(300, 28) * UiKit.K, 11, opts, sel, on);
+            y += 36;
+        }
+
+        /// <summary>
+        /// The web's segmented choice (.settings-panel .qual): one near-black inset strip, the options plain grey text on it,
+        /// the chosen one a gold slanted plate. pos / size in canvas units, font in CSS px.
+        /// </summary>
+        internal static void Segments(Transform p, Vector2 pos, Vector2 size, float font, string[] opts, int sel, Action<int> on)
+        {
+            var strip = UiKit.Img(p, "segments", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(11 / 255f, 13 / 255f, 15 / 255f), true);
+            strip.rectTransform.anchoredPosition = pos; strip.rectTransform.sizeDelta = size;
+            strip.pixelsPerUnitMultiplier = 4f;
+            float pad = 2f * UiKit.K * size.y / (28 * UiKit.K), bw = (size.x - pad * 2) / opts.Length;
             var imgs = new List<Image>(); var txts = new List<Text>();
-            void Paint(int s) { for (int i = 0; i < imgs.Count; i++) { imgs[i].color = i == s ? Color.white : new Color(.13f, .15f, .17f); txts[i].color = i == s ? Ink : new Color(.6f, .64f, .67f); } }
             for (int i = 0; i < opts.Length; i++)
             {
                 int idx = i;
-                var b = UiKit.Img(p, "opt", UiKit.Get("Lobby/mode_on"), new Vector2(0, 1), new Vector2(18 + i * (bw + 4), -y), new Vector2(bw, 26), Color.white, true);
-                var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(bw, 26), 11, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = opts[i];
+                var b = UiKit.Img(strip.rectTransform, "opt", UiKit.Get("Lobby/mode_on"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
+                b.rectTransform.anchoredPosition = new Vector2(pad + i * bw, -pad); b.rectTransform.sizeDelta = new Vector2(bw, size.y - pad * 2);
+                var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, font, TextAnchor.MiddleCenter, Color.white);
+                t.rectTransform.pivot = new Vector2(.5f, .5f); t.rectTransform.sizeDelta = b.rectTransform.sizeDelta; t.text = opts[i];
                 imgs.Add(b); txts.Add(t);
-                Tap(b.gameObject, () => { on(idx); Paint(idx); });
+                Clickable.Add(b.gameObject, () => { on(idx); Paint(idx); });
+            }
+            void Paint(int s)
+            {
+                for (int i = 0; i < imgs.Count; i++)
+                {
+                    bool chosen = i == s;
+                    imgs[i].color = chosen ? Color.white : new Color(1, 1, 1, 0); // unchosen: just the text on the dark strip
+                    txts[i].color = chosen ? Ink : new Color(154 / 255f, 164 / 255f, 170 / 255f);
+                    var sh = txts[i].GetComponent<Shadow>(); if (sh != null) sh.enabled = !chosen;
+                }
             }
             Paint(sel);
-            y += 34;
         }
     }
 }

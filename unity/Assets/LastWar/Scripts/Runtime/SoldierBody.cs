@@ -388,7 +388,62 @@ namespace LastWar
                 Aim("RightUpLeg", "RightLeg", -0.1f, -1, 0.22f, w);
                 Aim("RightLeg", "RightFoot", -0.05f, -1, -0.12f, w);
             }
+            else if (poseKind == "kneel")
+            {
+                // the web game's kneel: right knee on the ground, shin flat behind; left thigh forward, shin upright, feet still
+                Transform hips = PoseBone("Hips"), ul = PoseBone("RightUpLeg"), kn = PoseBone("RightLeg");
+                if (hips != null && ul != null && kn != null)
+                {
+                    float thigh = Vector3.Distance(ul.position, kn.position);
+                    Vector3 hp = transform.InverseTransformPoint(hips.position);
+                    hp.y += (thigh * 0.92f + 0.1f - hp.y) * w; // hips at kneeling height above the feet
+                    hips.position = transform.TransformPoint(hp);
+                }
+                Aim("RightUpLeg", "RightLeg", -0.04f, -1, 0.12f, w);
+                Aim("RightLeg", "RightFoot", 0, -0.06f, -1, w);
+                Aim("RightFoot", "RightToeBase", 0, -0.75f, -0.6f, w);
+                Aim("LeftUpLeg", "LeftLeg", 0.12f, -0.1f, 1, w);
+                Aim("LeftLeg", "LeftFoot", 0.02f, -1, -0.06f, w);
+                Aim("LeftFoot", "LeftToeBase", 0.05f, -0.3f, 1, w);
+            }
+            else if (poseKind == "runfree")
+            {
+                // running empty-handed: arms down by the sides, swinging against the legs
+                float ph = ClipPhase() * Mathf.PI * 2f, sw = Mathf.Sin(ph);
+                Aim("LeftArm", "LeftForeArm", 0.16f, -1, 0.55f * sw, w);
+                Aim("LeftForeArm", "LeftHand", 0.08f, -0.35f, 0.75f + 0.35f * sw, w);
+                Aim("RightArm", "RightForeArm", -0.16f, -1, -0.55f * sw, w);
+                Aim("RightForeArm", "RightHand", -0.08f, -0.35f, 0.75f - 0.35f * sw, w);
+            }
+            else if (poseKind == "crawl")
+            {
+                // crawling on the belly: one elbow reaches forward while the other pulls back, the opposite knee draws
+                // up to the side and pushes; the body moves only as far as the limbs pull it
+                crawlPhase += Time.deltaTime * Mathf.Clamp(Speed, 0.6f, 2f) * 1.25f;
+                float a = Mathf.Sin(crawlPhase * Mathf.PI * 2f), l = Mathf.Max(0, a), r = Mathf.Max(0, -a);
+                Aim("LeftArm", "LeftForeArm", Mathf.Lerp(0.55f, 0.3f, l), -0.25f, Mathf.Lerp(0.15f, 1f, l), w);
+                Aim("LeftForeArm", "LeftHand", Mathf.Lerp(-0.25f, 0.05f, l), -0.35f, 1, w);
+                Aim("RightArm", "RightForeArm", -Mathf.Lerp(0.55f, 0.3f, r), -0.25f, Mathf.Lerp(0.15f, 1f, r), w);
+                Aim("RightForeArm", "RightHand", -Mathf.Lerp(-0.25f, 0.05f, r), -0.35f, 1, w);
+                // knees: the leg opposite the reaching arm bends up to the side
+                Aim("RightUpLeg", "RightLeg", -Mathf.Lerp(0.12f, 0.75f, l), -0.15f, Mathf.Lerp(-1f, -0.45f, l), w);
+                Aim("RightLeg", "RightFoot", -Mathf.Lerp(0.05f, -0.25f, l), Mathf.Lerp(-0.1f, 0.25f, l), -1, w);
+                Aim("LeftUpLeg", "LeftLeg", Mathf.Lerp(0.12f, 0.75f, r), -0.15f, Mathf.Lerp(-1f, -0.45f, r), w);
+                Aim("LeftLeg", "LeftFoot", Mathf.Lerp(0.05f, -0.25f, r), Mathf.Lerp(-0.1f, 0.25f, r), -1, w);
+            }
         }
+
+        /// <summary>how far through its loop the current clip is (0..1)</summary>
+        float ClipPhase()
+        {
+            if (current == null || !clipIndex.TryGetValue(current, out int i)) return 0;
+            double len = clips[i].length; if (len < 0.01) return 0;
+            double t = ((AnimationClipPlayable)mixer.GetInput(i)).GetTime() % len; if (t < 0) t += len;
+            return (float)(t / len);
+        }
+        float crawlPhase;
+        /// <summary>ground speed (m/s), for the crawl cycle</summary>
+        public float Speed;
 
         // ---- guns slung across the back (long guns that are not in the hands)
         readonly List<Transform> backGuns = new List<Transform>(); string backKey = "";
@@ -455,7 +510,7 @@ namespace LastWar
             gun.position = handR.position;
             Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
             Transform handL = PoseBone("LeftHand");
-            bool carried = current == "run" || current == "prone";
+            bool carried = current == "run" || current == "prone" || Pose == "crawl";
             if (carried && handL != null)
             {
                 // carried (running / crawling): exactly along the two hands, as the clip holds it
@@ -464,7 +519,7 @@ namespace LastWar
             }
             gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
             // standing / walking / firing: the barrel follows the view and the support hand comes to the handguard
-            if (!carried && handL != null && Pose == null && !current.StartsWith("death"))
+            if (!carried && handL != null && (Pose == null || Pose == "kneel") && !current.StartsWith("death"))
             {
                 Transform la = PoseBone("LeftArm"), lf = PoseBone("LeftForeArm");
                 if (la != null && lf != null) TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f);

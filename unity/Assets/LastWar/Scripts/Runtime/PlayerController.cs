@@ -156,6 +156,11 @@ namespace LastWar
             else clip = firing ? "fire" : "idle_rifle";
             body.Play(clip);
             body.Armed = armed;
+            body.Speed = hs;
+            // the web game's extra poses: kneeling when crouched and still, arms free when running empty-handed, crawling
+            body.Pose = input.Prone ? (hs > 0.25f ? "crawl" : null)
+                : input.Crouch && hs <= 0.4f && onGround ? "kneel"
+                : !armed && clip == "run" ? "runfree" : null;
             Locomotion(body, cc.velocity, yaw, hs, clip, armed, input.Sprint, ref turn, dt);
         }
 

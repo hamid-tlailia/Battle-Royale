@@ -135,6 +135,18 @@ namespace LastWar
                     if (n.id == "xpbar" || n.id == "season_bar") Fill(img.rectTransform, have / (float)need);
                 }
             }
+            // the tip strip grows with its text (long tips ran out of the box) and stays centred under the soldier
+            if (nodes.TryGetValue("tip", out RectTransform tipRt) && texts.TryGetValue("tip_text", out Text tipText))
+            {
+                RectTransform tr = tipText.rectTransform;
+                float textX = tr.anchoredPosition.x - tipRt.anchoredPosition.x, want = tipText.preferredWidth;
+                float width = textX + want + 13 * s, centre = tipRt.anchoredPosition.x + tipRt.sizeDelta.x / 2f, dx = centre - width / 2f - tipRt.anchoredPosition.x;
+                tipRt.sizeDelta = new Vector2(width, tipRt.sizeDelta.y);
+                tr.sizeDelta = new Vector2(want + 4, tr.sizeDelta.y);
+                foreach (var key in new[] { "tip", "tip_icon", "tip_text" }) if (nodes.TryGetValue(key, out RectTransform r)) r.anchoredPosition += new Vector2(dx, 0);
+                var tipImg = tipRt.GetComponent<Image>();
+                if (tipImg != null) { tipImg.sprite = UiKit.Panel; tipImg.type = Image.Type.Sliced; tipImg.pixelsPerUnitMultiplier = 3f; }
+            }
             // keep icons / labels above their panels
             foreach (var kv in texts) kv.Value.transform.SetAsLastSibling();
             foreach (var kv in nodes) if (kv.Key.EndsWith("_icon") || kv.Key == "rank" || kv.Key == "mapcard_pin") kv.Value.SetAsLastSibling();
@@ -211,13 +223,11 @@ namespace LastWar
             shade = UiKit.Img(canvas.transform, "shade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .25f), true).rectTransform;
             shade.pivot = new Vector2(.5f, .5f);
             Clickable.Add(shade.gameObject, () => Close());
-            var bg = UiKit.Img(canvas.transform, "sheet", UiKit.Get("Lobby/sheet"), Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
+            var bg = UiKit.Img(canvas.transform, "sheet", UiKit.Panel, Vector2.zero, Vector2.zero, Vector2.one, Color.white, true);
             sheet = bg.rectTransform;
             Place(sheet, new LobbyNode { x = L.sheet.x, y = L.sheet.y, w = L.sheet.w, h = L.sheet.h });
             // close button
-            var x = UiKit.Img(sheet, "x", UiKit.Get("Lobby/close"), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(34, 34) * (s / UiKit.K), Color.white, true);
-            var xt = UiKit.Txt(x.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(34, 34) * (s / UiKit.K), 16 * s / UiKit.K, TextAnchor.MiddleCenter, Color.white); xt.rectTransform.pivot = new Vector2(.5f, .5f); xt.text = "X";
-            Clickable.Add(x.gameObject, () => Close());
+            UiKit.CloseButton(sheet, new Vector2(1, 1), new Vector2(-10, -8) * (s / UiKit.K), 34 * (s / UiKit.K), () => Close());
             string title = what == "friends" ? "PLAY WITH FRIENDS" : what.ToUpper();
             var tt = UiKit.Txt(sheet, new Vector2(0, 1), new Vector2(16, -14) * (s / UiKit.K), new Vector2(300, 22) * (s / UiKit.K), 15 * s / UiKit.K, TextAnchor.UpperLeft, new Color(1f, .83f, .3f));
             tt.text = title;
@@ -281,7 +291,7 @@ namespace LastWar
                 if (on) card.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f);
                 var t = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 30) * k, new Vector2(300, 28) * k, 17 * k, TextAnchor.LowerRight, Color.white); t.rectTransform.pivot = new Vector2(1, 0); t.text = names[i];
                 var d = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerRight, new Color(1, 1, 1, .85f)); d.rectTransform.pivot = new Vector2(1, 0); d.fontStyle = FontStyle.Normal; d.text = desc[i];
-                Clickable.Add(card.gameObject, () => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Show("Loading " + MapName(id) + "…"); SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); });
+                Clickable.Add(card.gameObject, () => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Go("Loading " + MapName(id) + "…"); });
             }
             content.sizeDelta = new Vector2(0, ids.Length * (h + 10 * s));
         }
@@ -344,6 +354,7 @@ namespace LastWar
             }
             tc.AddEditable("weapons", Stand("WEAPONS", new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 35), new Vector2(209, 85)));
             tc.AddEditable("minimap", Stand("MAP", new Vector2(1, 1), new Vector2(1, 1), new Vector2(-8, -6), new Vector2(132, 132)));
+            tc.AddEditable("fps", Stand("60 fps · ping 0 ms", new Vector2(0, 1), new Vector2(0, 1), new Vector2(16, -10) / UiKit.K, new Vector2(330, 30) / UiKit.K));
             LayoutEditor.Open(tc, () => { Destroy(tc.Canvas.gameObject); Destroy(tc.gameObject); canvas.enabled = true; });
         }
 
@@ -368,20 +379,8 @@ namespace LastWar
 
         void Choice(RectTransform parent, ref float y, float w, string[] opts, int sel, Action<int> on)
         {
-            float bw = w / opts.Length - 4 * s;
-            var imgs = new List<Image>(); var txts = new List<Text>();
-            for (int i = 0; i < opts.Length; i++)
-            {
-                int idx = i;
-                var b = UiKit.Img(parent, "opt", UiKit.Get("Lobby/mode_on"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
-                b.rectTransform.anchoredPosition = new Vector2(i * (bw + 4 * s), -y); b.rectTransform.sizeDelta = new Vector2(bw, 28 * s);
-                var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(bw / s, 28) * k, 11 * k, TextAnchor.MiddleCenter, Color.white); t.rectTransform.pivot = new Vector2(.5f, .5f); t.text = opts[i];
-                imgs.Add(b); txts.Add(t);
-                Clickable.Add(b.gameObject, () => { on(idx); Paint(idx); });
-            }
-            void Paint(int on2) { for (int i = 0; i < imgs.Count; i++) { imgs[i].color = i == on2 ? Color.white : new Color(.13f, .15f, .17f); txts[i].color = i == on2 ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : new Color(.6f, .64f, .67f); } }
-            Paint(sel);
-            y += 38 * s;
+            SettingsPanel.Segments(parent, new Vector2(0, -y), new Vector2(w, 30 * s), 11 * k, opts, sel, on);
+            y += 40 * s;
         }
 
         // ------------------------------------------------------------------ PLAY + turning the soldier
@@ -389,20 +388,21 @@ namespace LastWar
 
         void Play()
         {
-            Loader.Show("Loading " + MapName(Profile.Map) + "…");
+
             GameBoot.InMatch = true;
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            Loader.Go("Loading " + MapName(Profile.Map) + "…");
         }
 
         void Update()
         {
-            if (sheet != null || soldier == null) return;
+            // (a sheet or the button editor is open: their drags belong to them, the soldier stays put)
+            if (sheet != null || soldier == null || !canvas.enabled) { dragFinger = -1; mouseDrag = false; return; }
             // drag anywhere in the middle of the screen to turn the soldier
             if (Input.touchCount > 0)
             {
                 foreach (Touch t in Input.touches)
                 {
-                    if (t.phase == TouchPhase.Began && dragFinger < 0 && t.position.x > Screen.width * .3f && t.position.x < Screen.width * .68f) { dragFinger = t.fingerId; dragLast = t.position; }
+                    if (t.phase == TouchPhase.Began && dragFinger < 0 && t.position.x > Screen.width * .3f && t.position.x < Screen.width * .68f && !OverUi(t.fingerId)) { dragFinger = t.fingerId; dragLast = t.position; }
                     if (t.fingerId != dragFinger) continue;
                     soldierYaw -= (t.position.x - dragLast.x) * 0.4f; dragLast = t.position;
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) dragFinger = -1;
@@ -411,12 +411,18 @@ namespace LastWar
             else
             {
                 dragFinger = -1;
-                if (Input.GetMouseButtonDown(0) && Input.mousePosition.x > Screen.width * .3f && Input.mousePosition.x < Screen.width * .68f) { mouseDrag = true; dragLast = Input.mousePosition; }
+                if (Input.GetMouseButtonDown(0) && Input.mousePosition.x > Screen.width * .3f && Input.mousePosition.x < Screen.width * .68f && !OverUi(-1)) { mouseDrag = true; dragLast = Input.mousePosition; }
                 if (Input.GetMouseButtonUp(0)) mouseDrag = false;
                 if (mouseDrag) { soldierYaw -= (Input.mousePosition.x - dragLast.x) * 0.4f; dragLast = Input.mousePosition; }
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             if (lobbyBody != null) lobbyBody.AimDir = soldier.transform.forward;
+        }
+
+        static bool OverUi(int finger)
+        {
+            var es = EventSystem.current;
+            return es != null && (finger >= 0 ? es.IsPointerOverGameObject(finger) : es.IsPointerOverGameObject());
         }
     }
 }

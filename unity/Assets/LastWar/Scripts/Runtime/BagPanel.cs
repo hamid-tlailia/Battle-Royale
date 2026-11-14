@@ -10,13 +10,14 @@ namespace LastWar
     public class BagPanel : MonoBehaviour
     {
         static BagPanel open;
+        public static bool IsOpen => open != null;
         TouchControls input; Fighter f; RectTransform panel; Text left, right; float slide;
 
         public static void Toggle(TouchControls input, Fighter f)
         {
             if (open != null) { Destroy(open.gameObject); open = null; return; }
             var shade = UiKit.Img(input.Canvas.transform, "BagShade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0, 0, 0, .25f), true);
-            shade.rectTransform.pivot = new Vector2(.5f, .5f);
+            UiKit.Fill(shade.rectTransform); // the whole screen: the panel's left edge is the screen's
             open = shade.gameObject.AddComponent<BagPanel>();
             open.input = input; open.f = f;
             var tr = shade.gameObject.AddComponent<EventTrigger>(); var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
@@ -26,7 +27,8 @@ namespace LastWar
 
         void Build()
         {
-            panel = UiKit.Img(transform, "bag", UiKit.Get("Lobby/sheet"), new Vector2(0, .5f), Vector2.zero, new Vector2(420, 300), new Color(1, 1, 1, .92f), true).rectTransform;
+            panel = UiKit.Img(transform, "bag", UiKit.Panel, new Vector2(0, .5f), Vector2.zero, new Vector2(420, 300), Color.white, true).rectTransform;
+            UiKit.CloseButton(panel, new Vector2(1, 1), new Vector2(-10, -8), 28, () => { Destroy(gameObject); open = null; });
             panel.pivot = new Vector2(0, .5f);
             var title = UiKit.Txt(panel, new Vector2(0, 1), new Vector2(16, -12), new Vector2(300, 22), 15, TextAnchor.UpperLeft, new Color(1f, .83f, .3f)); title.text = "BACKPACK";
             var h1 = UiKit.Txt(panel, new Vector2(0, 1), new Vector2(16, -42), new Vector2(190, 16), 10, TextAnchor.UpperLeft, new Color(1, 1, 1, .6f)); h1.text = "WEAPONS & ARMOR";
@@ -41,6 +43,7 @@ namespace LastWar
             // slide in from the left
             slide = Mathf.MoveTowards(slide, 1, Time.deltaTime * 6f);
             panel.anchoredPosition = new Vector2(Mathf.Lerp(-440, 12, 1 - (1 - slide) * (1 - slide)) * UiKit.K, 0);
+            if (!f.Alive || f.air != 0) { Destroy(gameObject); open = null; return; }
             var sbL = new System.Text.StringBuilder();
             for (int k = 0; k < 3; k++)
             {

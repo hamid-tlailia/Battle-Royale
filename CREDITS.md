@@ -64,3 +64,5 @@ Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (ori
 - Button and menu icons from [game-icons.net](https://game-icons.net) (Lorc, Delapouite and contributors, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)) and [Material Design Icons](https://pictogrammers.com/library/mdi/) (Pictogrammers, Apache 2.0).
 
 Game code, map generation, terrain and UI are original work.
+
+- Lobby music (`unity/Assets/LastWar/Resources/Audio/lobby_music.wav`): original loop synthesised for this project.

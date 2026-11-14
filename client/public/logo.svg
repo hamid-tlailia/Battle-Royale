@@ -5,6 +5,7 @@
   <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffd34d" stop-opacity=".35"/><stop offset="1" stop-color="#ffd34d" stop-opacity="0"/></radialGradient>
   <clipPath id="ring"><circle cx="600" cy="230" r="170"/></clipPath>
 </defs>
+<g transform="translate(600 24) scale(.84) translate(-600 -24)"><!-- emblem kept clear of the title -->
 <circle cx="600" cy="230" r="260" fill="url(#glow)"/>
 <g clip-path="url(#ring)">
   <rect x="400" y="40" width="400" height="400" fill="#16301a"/>
@@ -16,6 +17,7 @@
 <circle cx="600" cy="230" r="140" fill="none" stroke="#ffd34d" stroke-opacity=".5" stroke-width="3"/>
 <g stroke="url(#gold)" stroke-width="14" stroke-linecap="round">
   <path d="M600 30v70M600 360v28M400 230h70M730 230h70"/>
+</g>
 </g>
 <text x="600" y="530" text-anchor="middle" font-family="Inter, Inter Display, DejaVu Sans" font-weight="900" font-size="168" letter-spacing="14"
   fill="url(#gold)" stroke="#2a1a04" stroke-width="10" paint-order="stroke">LAST WAR</text>
