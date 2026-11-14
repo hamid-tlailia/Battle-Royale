@@ -52,13 +52,17 @@ namespace LastWar
             // 1.8 m from the head-top joint, feet on the ground
             var dst = new Dictionary<string, Transform>();
             foreach (Transform t in o.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) dst[BoneKey(t.name)] = t;
-            if (dst.TryGetValue("HeadTop_End", out Transform head))
+            // (a rig without the head-top joint is measured from the head joint, ~89 % of the body height:
+            //  left unscaled it stood 100x too big, a giant among the players)
+            bool hasTop = dst.TryGetValue("HeadTop_End", out Transform head);
+            if (!hasTop) dst.TryGetValue("Head", out head);
+            if (head != null)
             {
                 float foot = float.MaxValue;
                 foreach (string f in new[] { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" }) if (dst.TryGetValue(f, out Transform ft)) foot = Mathf.Min(foot, ft.position.y);
                 if (foot == float.MaxValue) foot = transform.position.y;
-                float h = head.position.y - foot;
-                if (h > 0.1f) { o.transform.localScale *= 1.8f / (h * 1.03f); }
+                float h = (head.position.y - foot) / (hasTop ? 1f : 0.89f);
+                if (h > 0.001f) { o.transform.localScale *= 1.8f / (h * 1.03f); }
                 foot = float.MaxValue;
                 foreach (string f in new[] { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" }) if (dst.TryGetValue(f, out Transform ft)) foot = Mathf.Min(foot, ft.position.y);
                 if (foot != float.MaxValue) o.transform.position += Vector3.up * (transform.position.y + 0.03f - foot);
