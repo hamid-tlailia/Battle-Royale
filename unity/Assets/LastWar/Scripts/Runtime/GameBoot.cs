@@ -76,6 +76,7 @@ namespace LastWar
                     if (pr.p.StartsWith("house") && ++seen == hn) { pos = Coords.ToUnity(pr.x + 14f, Map.HeightAt(pr.x + 14f, pr.z) + 0.5f, pr.z); break; }
             }
             Player = PlayerController.Spawn(pos, controls, cam);
+            if (url.Contains("sniper=1")) Player.fighter.guns[0] = new GunState("sniper"); // test switch: sniper in the long-range slot
             if (url.Contains("god=1")) Player.fighter.God = true;
             Fighters.Add(Player.fighter);
 
