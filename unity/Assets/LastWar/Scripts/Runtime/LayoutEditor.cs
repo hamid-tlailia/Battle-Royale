@@ -146,7 +146,10 @@ namespace LastWar
         void BuildTopBar()
         {
             Transform c = tc.Root;
-            float avail = ((RectTransform)c).rect.width / UiKit.K - 16, need = 930, f = Mathf.Min(1f, avail / need);
+            Canvas.ForceUpdateCanvases();
+            float cw = ((RectTransform)tc.Canvas.transform).rect.width;
+            if (cw < 100f) cw = 1080f * Screen.width / Mathf.Max(1f, Screen.height);
+            float avail = cw * 0.94f / UiKit.K, need = 930, f = Mathf.Clamp(avail / need, 0.5f, 1f);
             var panel = UiKit.Img(c, "EditBar", UiKit.Round, new Vector2(.5f, 1), new Vector2(0, -8), new Vector2(need * f, 44 * f), new Color(10 / 255f, 14 / 255f, 12 / 255f, .94f), true);
             bar = panel.rectTransform; bar.pivot = new Vector2(.5f, 1);
             panel.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .6f);
