@@ -145,9 +145,11 @@ namespace LastWar
             banner.gameObject.SetActive(false);
 
             // ---- crosshair: 6 px dot with a dark edge; ring on hits (red on a kill)
-            var edge = UiKit.Img(c, "DotEdge", UiKit.Disc, C, Vector2.zero, new Vector2(9, 9), new Color(0, 0, 0, .55f)); edge.rectTransform.pivot = C;
+            // the crosshair sits at the exact screen centre (where the bullets go), not the centre of the safe area:
+            // with a camera notch on one side the safe area is off-centre and the dot was beside the real aim
+            var edge = UiKit.Img(full, "DotEdge", UiKit.Disc, C, Vector2.zero, new Vector2(9, 9), new Color(0, 0, 0, .55f)); edge.rectTransform.pivot = C;
             dot = UiKit.Img(edge.rectTransform, "Dot", UiKit.Disc, C, Vector2.zero, new Vector2(6, 6), Color.white); dot.rectTransform.pivot = C;
-            hitRing = UiKit.Img(c, "HitRing", UiKit.Ring, C, Vector2.zero, new Vector2(20, 20), new Color(1, 1, 1, 0)); hitRing.rectTransform.pivot = C;
+            hitRing = UiKit.Img(full, "HitRing", UiKit.Ring, C, Vector2.zero, new Vector2(20, 20), new Color(1, 1, 1, 0)); hitRing.rectTransform.pivot = C;
 
             // ---- optics (web .scope-overlay): round lens, dark rim, the world outside dimmed (x2 / x4) or black (x8)
             lens = new GameObject("Scope", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -237,9 +239,32 @@ namespace LastWar
                 bg.gameObject.SetActive(false);
             }
             input.AddEditable("loot", lootPanel);
+
+            healRing = UiKit.Img(full, "HealRing", ThickRing(), C, Vector2.zero, new Vector2(56, 56), new Color(0, 0, 0, .45f)).rectTransform;
+            healRing.pivot = C;
+            healFg = UiKit.Img(healRing, "fg", ThickRing(), C, Vector2.zero, new Vector2(56, 56), new Color(.42f, .9f, .35f));
+            healFg.rectTransform.pivot = C; healFg.type = Image.Type.Filled; healFg.fillMethod = Image.FillMethod.Radial360;
+            healFg.fillOrigin = (int)Image.Origin360.Top; healFg.fillClockwise = true; healFg.fillAmount = 0;
+            var plus = UiKit.Txt(healRing, C, Vector2.zero, new Vector2(56, 56), 22, TextAnchor.MiddleCenter, new Color(.42f, .9f, .35f)); plus.rectTransform.pivot = C; plus.text = "+";
+            healRing.gameObject.SetActive(false);
             input.AddEditable("status", status);
         }
-        RectTransform status, lootPanel; Image vestIcon; Text vestText;
+        RectTransform status, lootPanel, healRing; Image vestIcon, healFg; Text vestText;
+        static Sprite thickRing;
+        static Sprite ThickRing()
+        {
+            if (thickRing != null) return thickRing;
+            const int S = 128; var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[S * S];
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x + .5f, y + .5f), new Vector2(64, 64));
+                    float a = Mathf.Clamp01((63f - d) * 1.5f) * Mathf.Clamp01((d - 49f) * 1.5f);
+                    px[y * S + x] = new Color32(255, 255, 255, (byte)(a * 255));
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return thickRing = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
+        }
         RectTransform specBar; Text specText; Image spectateBtn; bool spectating; Fighter lastKiller;
         readonly System.Collections.Generic.List<(Image bg, Image icon, Text text, Loot item)> lootRows = new System.Collections.Generic.List<(Image, Image, Text, Loot)>();
 
@@ -399,6 +424,10 @@ namespace LastWar
             string hint = f.air == 1 ? "Tap <b>JUMP</b> to drop" : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
             if (hint != hintText) { hintText = hint; hintAt = Time.time; }
 
+            // using a medkit: green loading ring in the middle of the screen (web .heal-ring, smaller)
+            bool healing = f.healEnd > 0 && !spectating;
+            healRing.gameObject.SetActive(healing);
+            if (healing) healFg.fillAmount = Mathf.Clamp01(1f - (f.healEnd - Time.time) / 3f);
             if (f.healEnd > 0) { reloadBar.gameObject.SetActive(true); reloadFill.color = new Color(1f, .42f, .42f); reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.healEnd - Time.time) / 3f), 4) * K; }
             else reloadFill.color = new Color(1f, .83f, .3f);
             // the scope button only exists while a LONG-RANGE gun is in your hands (rifle / sniper)
