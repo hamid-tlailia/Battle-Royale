@@ -71,7 +71,14 @@ namespace LastWar
                 r.sharedMaterials = mats;
             }
             foreach (Animator a in o.GetComponentsInChildren<Animator>(true)) a.enabled = false;
-            // pair bones by name (the web game's retargetClips): local rotations copy straight across mixamo rigs,
+            // preferred: humanoid avatars on both rigs, pose copied through muscle space every frame
+            Avatar srcAv = HumanRig.Build(model), dstAv = HumanRig.Build(outfitRoot);
+            if (srcAv != null && dstAv != null)
+            {
+                srcPose = new HumanPoseHandler(srcAv, model); dstPose = new HumanPoseHandler(dstAv, outfitRoot);
+            }
+            else Debug.Log("[LastWar] humanoid rig failed for outfit " + OutfitFiles[skin] + ", using bone copy");
+            // fallback: pair bones by name (the web game's retargetClips): local rotations copy straight across mixamo rigs,
             // the hips get the rest-frame difference of their parents, hips movement is scaled between the bodies
             foreach (Transform t in model.GetComponentsInChildren<Transform>(true))
             {
@@ -91,9 +98,24 @@ namespace LastWar
         }
 
         Quaternion hipsCorr = Quaternion.identity;
+        HumanPoseHandler srcPose, dstPose; HumanPose pose;
         void Retarget()
         {
             if (outfitRoot == null) return;
+            if (srcPose != null)
+            {
+                srcPose.GetHumanPose(ref pose);
+                // body position is relative to each rig's root: keep the outfit where the soldier is
+                dstPose.SetHumanPose(ref pose);
+                // hips height / travel: the soldier's, scaled (the rigs' roots sit at different heights)
+                if (srcHips != null)
+                {
+                    Vector3 dd = transform.InverseTransformPoint(srcHips.position) - srcHipsBind;
+                    float kk = srcHipsBind.y > 0.01f ? dstHipsBind.y / srcHipsBind.y : 1f;
+                    dstHips.position = transform.TransformPoint(dstHipsBind + dd * kk);
+                }
+                return;
+            }
             for (int i = 0; i < srcBones.Count; i++) dstBones[i].localRotation = srcBones[i].localRotation;
             if (srcHips != null)
             {
@@ -220,7 +242,7 @@ namespace LastWar
 
         Transform BuildChute()
         {
-            var g = new GameObject("Chute").transform; g.SetParent(transform, false); g.localPosition = Vector3.up * 4.3f;
+            var g = new GameObject("Chute").transform; g.SetParent(transform, false); g.localPosition = Vector3.up * 3.6f;
             Material red = MapBuilder.NewLit(new Color(0.85f, 0.26f, 0.18f)), white = MapBuilder.NewLit(new Color(0.95f, 0.95f, 0.95f));
             red.SetFloat("_Cull", 0f); white.SetFloat("_Cull", 0f);
             for (int i = 0; i < 8; i++)
@@ -249,7 +271,7 @@ namespace LastWar
             for (int i = 0; i < 8; i++)
             {
                 float a = i / 8f * Mathf.PI * 2f;
-                Vector3 top = new Vector3(Mathf.Cos(a) * 2.9f, 0.4f, Mathf.Sin(a) * 2.9f), bottom = new Vector3((i % 2 == 0 ? 0.25f : -0.25f), -2.4f, 0.1f); // to the hands
+                Vector3 top = new Vector3(Mathf.Cos(a) * 2.9f, 0.4f, Mathf.Sin(a) * 2.9f), bottom = new Vector3((i % 2 == 0 ? 0.22f : -0.22f), -1.55f, 0.1f); // down to the raised hands (~2 m)
                 var l = new GameObject("line", typeof(MeshFilter), typeof(MeshRenderer)).transform;
                 l.SetParent(g, false); l.localPosition = (top + bottom) / 2f; l.localRotation = Quaternion.FromToRotation(Vector3.up, top - bottom);
                 l.localScale = new Vector3(0.025f, (top - bottom).magnitude / 2f, 0.025f);
@@ -281,6 +303,6 @@ namespace LastWar
             gun.rotation = Quaternion.LookRotation(-AimDir, Vector3.up);
         }
 
-        void OnDestroy() { if (graph.IsValid()) graph.Destroy(); }
+        void OnDestroy() { if (graph.IsValid()) graph.Destroy(); srcPose?.Dispose(); dstPose?.Dispose(); }
     }
 }

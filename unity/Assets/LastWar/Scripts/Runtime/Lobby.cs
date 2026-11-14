@@ -22,7 +22,7 @@ namespace LastWar
         LobbyLayout L; float s; Canvas canvas;
         readonly Dictionary<string, RectTransform> nodes = new Dictionary<string, RectTransform>();
         readonly Dictionary<string, Text> texts = new Dictionary<string, Text>();
-        GameObject soldier; float soldierYaw;
+        GameObject soldier; float soldierYaw; SoldierBody lobbyBody;
         Transform stage; Camera cam;
         RectTransform shade, sheet; int dragFinger = -1; Vector2 dragLast; bool mouseDrag;
         static readonly string[] Tips = { "Welcome to Last War!", "Land, loot a gun, stay in the zone.", "Tap a weapon to equip it, tap it again to reload.", "Headshots hit twice as hard.", "The shotgun fires two blasts per press." };
@@ -67,8 +67,9 @@ namespace LastWar
             soldier = new GameObject("LobbySoldier");
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
-            var body = SoldierBody.Attach(soldier, Profile.Skin);
-            body.Play("idle");
+            lobbyBody = SoldierBody.Attach(soldier, Profile.Skin);
+            lobbyBody.SetGun("rifle");
+            lobbyBody.Play("idle_rifle");
         }
 
         // ------------------------------------------------------------------ UI from the captured web layout
@@ -86,7 +87,7 @@ namespace LastWar
             var sprites = new Dictionary<string, string> {
                 { "logo", "Lobby/logo" }, { "banner", "Lobby/banner" }, { "chip0", "Lobby/chip" }, { "chip1", "Lobby/chip" }, { "gear", "Lobby/gear" },
                 { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" },
-                { "mapcard", "Lobby/mapcard_" + (Profile.Map == "desert" ? "desert" : "green") }, { "season", "Lobby/season" }, { "tip", "Lobby/tip" },
+                { "mapcard", "Lobby/mapcard_" + (Profile.Map == "desert" || Profile.Map == "classic" ? Profile.Map : "green") }, { "season", "Lobby/season" }, { "tip", "Lobby/tip" },
                 { "modes", "Lobby/modes" }, { "play", "Lobby/play" },
                 { "rank", "icon_rank" }, { "chip0_icon", "icon_trophy" }, { "chip1_icon", "icon_fire" }, { "gear_icon", "icon_settings" },
                 { "tab0_icon", "icon_home" }, { "tab1_icon", "icon_outfit" }, { "tab2_icon", "icon_map" }, { "tab3_icon", "icon_friends" },
@@ -96,7 +97,7 @@ namespace LastWar
             var dynamic = new Dictionary<string, string> {
                 { "name", Profile.Name }, { "level", "LV " + Profile.Level }, { "server", "offline - play vs bots" },
                 { "chip0_text", Profile.Wins.ToString() }, { "chip1_text", Profile.Kills.ToString() },
-                { "mapcard_name", Profile.Map == "desert" ? "Red Canyon" : "Highlands" },
+                { "mapcard_name", MapName(Profile.Map) },
                 { "season_lv", $"Level {Profile.Level} · {Profile.Matches} matches" }, { "season_xp", $"{have} / {need}" },
                 { "tip_text", Tips[UnityEngine.Random.Range(0, Tips.Length)] },
             };
@@ -266,8 +267,8 @@ namespace LastWar
         void MapSheet()
         {
             var content = ScrollArea();
-            string[] ids = { "green", "desert" }; string[] names = { "Highlands", "Red Canyon" };
-            string[] desc = { "Green hills, granite tors and farms", "Red rock canyon, mesas and dust" };
+            string[] ids = { "green", "desert", "classic" }; string[] names = { "Highlands", "Red Canyon", "Valley" };
+            string[] desc = { "Real moorland scan · farm village", "Real desert scan · rock butte", "Pine valley · 25 houses" };
             float w = (L.sheet.w - 28) * s, h = 96 * s;
             for (int i = 0; i < ids.Length; i++)
             {
@@ -277,7 +278,7 @@ namespace LastWar
                 if (on) card.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f);
                 var t = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 30) * k, new Vector2(300, 28) * k, 17 * k, TextAnchor.LowerRight, Color.white); t.rectTransform.pivot = new Vector2(1, 0); t.text = names[i];
                 var d = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerRight, new Color(1, 1, 1, .85f)); d.rectTransform.pivot = new Vector2(1, 0); d.fontStyle = FontStyle.Normal; d.text = desc[i];
-                Clickable.Add(card.gameObject, () => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Show("Loading " + (id == "desert" ? "Red Canyon" : "Highlands") + "…"); SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); });
+                Clickable.Add(card.gameObject, () => { if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Show("Loading " + MapName(id) + "…"); SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); });
             }
             content.sizeDelta = new Vector2(0, ids.Length * (h + 10 * s));
         }
@@ -323,8 +324,11 @@ namespace LastWar
             var fillArea = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fillArea.SetParent(rt, false); fillArea.anchorMin = new Vector2(0, .3f); fillArea.anchorMax = new Vector2(1, .7f); fillArea.offsetMin = fillArea.offsetMax = Vector2.zero;
             var fill = UiKit.Img(fillArea, "f", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(1f, .83f, .3f, .7f));
             var handleArea = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); handleArea.SetParent(rt, false); handleArea.anchorMin = Vector2.zero; handleArea.anchorMax = Vector2.one; handleArea.offsetMin = handleArea.offsetMax = Vector2.zero;
-            var handle = UiKit.Img(handleArea, "h", null, new Vector2(0, .5f), Vector2.zero, new Vector2(11, 11) * k, new Color(1f, .83f, .3f), true);
-            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.localRotation = Quaternion.Euler(0, 0, 45);
+            var handle = UiKit.Img(handleArea, "h", null, new Vector2(0, .5f), Vector2.zero, new Vector2(20, 20) * k, new Color(0, 0, 0, 0), true);
+            handle.rectTransform.pivot = new Vector2(.5f, .5f);
+            var diamond = UiKit.Img(handle.rectTransform, "d", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(13, 13) * k, new Color(1f, .83f, .3f));
+            diamond.rectTransform.pivot = new Vector2(.5f, .5f); diamond.rectTransform.localRotation = Quaternion.Euler(0, 0, 45);
+            diamond.gameObject.AddComponent<Outline>().effectColor = new Color(.16f, .11f, .02f);
             var sl = go.GetComponent<Slider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.minValue = min; sl.maxValue = max; sl.value = val; sl.onValueChanged.AddListener(v => on(v));
             y += 32 * s;
@@ -349,9 +353,11 @@ namespace LastWar
         }
 
         // ------------------------------------------------------------------ PLAY + turning the soldier
+        public static string MapName(string id) => id == "desert" ? "Red Canyon" : id == "classic" ? "Valley" : "Highlands";
+
         void Play()
         {
-            Loader.Show("Loading " + (Profile.Map == "desert" ? "Red Canyon" : "Highlands") + "…");
+            Loader.Show("Loading " + MapName(Profile.Map) + "…");
             GameBoot.InMatch = true;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
@@ -378,6 +384,7 @@ namespace LastWar
                 if (mouseDrag) { soldierYaw -= (Input.mousePosition.x - dragLast.x) * 0.4f; dragLast = Input.mousePosition; }
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
+            if (lobbyBody != null) lobbyBody.AimDir = soldier.transform.forward;
         }
     }
 }

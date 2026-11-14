@@ -29,6 +29,9 @@ namespace LastWar
         Text healBadge, frostBadge;
 
         class Btn { public RectTransform rt; public Image bg; public Sprite normal; public bool pressed; }
+        /// <summary>everything the layout editor can move / resize / fade (web HUD editor)</summary>
+        public readonly List<(string name, RectTransform rt)> Editable = new List<(string, RectTransform)>();
+        public bool Editing;
         readonly List<Btn> btns = new List<Btn>();
         readonly List<RectTransform> blockers = new List<RectTransform>();
         Btn fireBtn, fireLeft, scopeBtn, runBtn;
@@ -59,6 +62,7 @@ namespace LastWar
             joyBase = UiKit.Img(canvas.transform, "Joystick", UiKit.Disc, Vector2.zero, new Vector2(40, 50), new Vector2(120, 120), new Color(0, 0, 0, 0.18f)).rectTransform;
             var ring = UiKit.Img(joyBase, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(120, 120), new Color(1, 1, 1, 0.5f));
             joyKnob = UiKit.Img(joyBase, "Knob", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(50, 50), new Color(1, 1, 1, 0.75f)).rectTransform;
+            Editable.Add(("joy", joyBase));
 
             Vector2 BR = new Vector2(1, 0), BL = Vector2.zero, TL = new Vector2(0, 1);
             // positions = the web defaults (style.css .btn-*): centre from the corner, in CSS px
@@ -80,6 +84,8 @@ namespace LastWar
             var gi = UiKit.Img(gear.rectTransform, "icon", UiKit.Get("icon_settings"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(18, 18), Color.white); gi.rectTransform.pivot = new Vector2(.5f, .5f);
             var gt = gear.gameObject.AddComponent<EventTrigger>(); var ge = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ge.callback.AddListener(_ => GearPressed = true); gt.triggers.Add(ge);
             blockers.Add(gear.rectTransform);
+            Editable.Add(("gear", gear.rectTransform));
+            LayoutEditor.Apply(this);
         }
 
         Btn Button(string icon, string bg, float size, Vector2 corner, Vector2 centre, System.Action onDown)
@@ -90,9 +96,11 @@ namespace LastWar
             var ic = UiKit.Img(rt, "icon", UiKit.Get("icon_" + icon), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * size * 0.58f, Color.white);
             ic.rectTransform.pivot = new Vector2(.5f, .5f);
             var b = new Btn { rt = rt, bg = img, normal = img.sprite };
+            string key = icon; int dup = 2; while (Editable.Exists(e => e.name == key)) key = icon + dup++;
+            Editable.Add((key, rt));
             var trigger = rt.gameObject.AddComponent<EventTrigger>();
             var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-            down.callback.AddListener(_ => { b.pressed = true; onDown?.Invoke(); });
+            down.callback.AddListener(_ => { if (Editing) return; b.pressed = true; onDown?.Invoke(); });
             var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
             up.callback.AddListener(_ => b.pressed = false);
             trigger.triggers.Add(down); trigger.triggers.Add(up);
@@ -151,6 +159,7 @@ namespace LastWar
         void Update()
         {
             LookDelta = Vector2.zero;
+            if (Editing) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
             if (Input.touchCount > 0) Touches();
             else
             {

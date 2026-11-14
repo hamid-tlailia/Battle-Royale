@@ -58,11 +58,11 @@ fs.mkdirSync(OUT, { recursive: true });
   await shot('.lb-tab.on', 'tab_on'); await shot('.lb-tab[data-tab="outfit"]', 'tab');
   await shot('.lb-season', 'season'); await shot('.lb-season-bar i', 'bar'); await shot('.lb-tip', 'tip');
   await shot('.lb-modes', 'modes'); await shot('.lb-mode.on', 'mode_on'); await shot('.lobby button.big.bots', 'play');
-  await shot('.lb-mapcard', 'mapcard_green');
-  // the desert card: pick the map, shoot again
-  await page.evaluate(() => { const p = JSON.parse(localStorage.getItem('lw.profile.v1')); p.map = 'desert'; localStorage.setItem('lw.profile.v1', JSON.stringify(p)); });
-  await page.evaluate(() => { document.querySelector('.lb-mapimg').src = '/assets/maps/desert.webp'; }); await page.waitForTimeout(800);
-  await shot('.lb-mapcard', 'mapcard_desert');
+  // one map card per map (same frame, that map's picture)
+  for (const m of ['green', 'desert', 'classic']) {
+    await page.evaluate((id) => { document.querySelector('.lb-mapimg').src = '/assets/maps/' + id + '.webp'; }, m); await page.waitForTimeout(800);
+    await shot('.lb-mapcard', 'mapcard_' + m);
+  }
   // sheet (outfit list) + cards
   await page.tap('.lb-tab[data-tab="outfit"]'); await page.waitForTimeout(600);
   await page.addStyleTag({ content: '.lobby .ocard img{visibility:hidden!important} .lb-sheet section{visibility:hidden} .lb-sheet .lb-x{visibility:visible}' });
