@@ -314,8 +314,8 @@ namespace LastWar
         static Sprite HoleSprite()
         {
             if (holeSprite != null) return holeSprite;
-            const int n = 256; var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-            var px = new Color32[n * n]; float c0 = (n - 1) / 2f, R = n * 0.47f;
+            const int n = 2048; var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[n * n]; float c0 = (n - 1) / 2f, R = n / 40f; // hole diameter = 1/20 of the side
             for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
                 {
                     float d = Mathf.Sqrt((x - c0) * (x - c0) + (y - c0) * (y - c0));
@@ -340,7 +340,10 @@ namespace LastWar
             }
             glass.texture = zoom >= 8 ? lensCross : lensPlain;
             glass.rectTransform.sizeDelta = new Vector2(L, L);
-            hole.rectTransform.sizeDelta = new Vector2(L, L); hole.color = new Color(0.02f, 0.03f, 0.02f, OutsideA);
+            // one big dark sheet with a round hole the size of the lens (no seams, no gaps), the rim drawn over its edge
+            hole.rectTransform.sizeDelta = Vector2.one * L * 0.94f * 20f; hole.color = new Color(0.02f, 0.03f, 0.02f, OutsideA);
+            foreach (var sd in sides) sd.gameObject.SetActive(false);
+            if (SoldierBody.LogRig) Debug.Log($"[LastWar] lens zoom {zoom} L {L} H {H} hole {hole.rectTransform.rect} active {hole.gameObject.activeInHierarchy} col {hole.color} canvasScale {((RectTransform)full).localScale}");
             Color outside = new Color(0.02f, 0.03f, 0.02f, OutsideA);
             for (int i = 0; i < 4; i++)
             {
