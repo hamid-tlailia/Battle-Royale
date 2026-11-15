@@ -59,7 +59,7 @@ namespace LastWar
         {
             float dt = Time.deltaTime;
             if (vaultT >= 0f) { VaultStep(dt); return; }
-            if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
+            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (lockTarget != null && AimAssistOn ? 0.6f : 1f);
@@ -69,6 +69,8 @@ namespace LastWar
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
 
             // weapons
+            // a tap on the weapon box (switch / reload / fists) closes the scope first
+            if (input.HolsterPressed || input.SlotPressed >= 0 || input.ReloadPressed) { input.Scoped = false; sniperHold = false; unscopeAt = 0; }
             if (input.HolsterPressed) fighter.ToggleHolster();
             if (input.SlotPressed >= 0) { if (input.SlotPressed == fighter.slot && !fighter.holstered) fighter.Reload(); else fighter.SelectSlot(input.SlotPressed); } // tap the equipped gun = reload
             if (input.ReloadPressed) fighter.Reload();
@@ -91,7 +93,7 @@ namespace LastWar
 
             // movement relative to the camera's heading
             Vector2 mv = input.Move;
-            if (input.Sprint && mv.y > -0.3f && !Scoped) mv = new Vector2(mv.x * 0.5f, 1f);
+            if (input.Sprint && mv.y > -0.3f) mv = new Vector2(mv.x * 0.5f, 1f); // locked run keeps going through a quick scope / reload / jump
             bool sprinting = input.Sprint && mv.y > 0.5f && !input.FireHeld && !Scoped;
             // crawling is slow and goes in pulls (the body moves with the arms, not as a slide)
             float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * body.CrawlPull : input.Crouch ? 0.55f : 1f);
@@ -124,20 +126,11 @@ namespace LastWar
             bool fired = false;
             GunState gun = armed ? fighter.Gun : null;
             // FIRE with the guns put away takes the last one back out (web)
-            if (fighter.holstered && fighter.HasGun && input.FirePressed && !input.FrostAim) { fighter.ToggleHolster(); input.FirePressed = false; }
+            if (fighter.holstered && fighter.HasGun && input.FirePressed) { fighter.ToggleHolster(); input.FirePressed = false; }
 
-            // ice wall: the button shows where it would stand, FIRE builds it, the button again cancels
-            if (input.FrostPressed) input.FrostAim = !input.FrostAim && fighter.frost > 0;
-            if (input.FrostAim && fighter.frost <= 0) input.FrostAim = false;
-            if (frostGhost == null) frostGhost = IceWall.Ghost();
-            bool spotOk = IceWall.Spot(transform, out Vector3 wallPos, out Quaternion wallRot);
-            frostGhost.gameObject.SetActive(input.FrostAim && spotOk);
-            if (input.FrostAim) frostGhost.SetPositionAndRotation(wallPos, wallRot);
-            if (input.FrostAim && input.FirePressed)
-            {
-                if (spotOk) { IceWall.Place(wallPos, wallRot); fighter.frost--; }
-                input.FrostAim = false; input.FirePressed = false; blockFire = true; // this press built the wall, no shot
-            }
+            // ice wall: one tap raises it at once (no aiming step, no FIRE press: running carries on)
+            input.FrostAim = false;
+            if (input.FrostPressed && fighter.frost > 0 && onGround && IceWall.Place(transform)) fighter.frost--;
             if (blockFire) { if (!input.FireHeld) blockFire = false; else gun = null; }
 
             // loot: walking over takes it (a gun only into an empty slot); the rest within reach is listed with TAKE
@@ -309,6 +302,27 @@ namespace LastWar
                 Fighter q = h.collider.GetComponentInParent<Fighter>();
                 OnEnemy = q != null && q != fighter && q.Alive ? q : null;
             }
+            // 1b) scoped point-blank (an enemy within ~2 m in front): the aim sits on their body and does not leave it
+            if (Scoped && GameBoot.Instance != null)
+            {
+                Fighter close = null; float cd = 2.3f;
+                foreach (Fighter q in GameBoot.Instance.Fighters)
+                {
+                    if (q == fighter || !q.Alive) continue;
+                    Vector3 d = q.transform.position - transform.position; d.y = 0;
+                    float m = d.magnitude;
+                    if (m >= cd || Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg)) > 80f) continue;
+                    cd = m; close = q;
+                }
+                if (close != null)
+                {
+                    Angles(close, out float qy, out float qp, out _, out _);
+                    float kk = Mathf.Min(1f, dt * 22f);
+                    yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
+                    lockTarget = close; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = close;
+                    return;
+                }
+            }
             if (!AimAssistOn) { lockTarget = null; return; }
             // 2) sticky aim: lock on when the dot turns red and follow the target's movement
             if (OnEnemy != null && lockTarget != OnEnemy) { Angles(OnEnemy, out lockYaw, out lockPitch, out _, out _); lockTarget = OnEnemy; lockOff = 0; }
@@ -392,7 +406,7 @@ namespace LastWar
         /// <summary>things within reach that walking over did not take (shown in the HUD list with TAKE)</summary>
         public readonly System.Collections.Generic.List<Loot> Nearby = new System.Collections.Generic.List<Loot>();
         public void Take(Loot it) { if (it != null && fighter.TryPickup(it, true)) Destroy(it.gameObject); }
-        Transform frostGhost; bool blockFire; float camY = float.NaN;
+        bool blockFire; float camY = float.NaN;
 
         // ------------------------------------------------------------ vault (through a window / over a low wall)
         float vaultT = -1f; Vector3 vaultFrom, vaultApex, vaultTo;

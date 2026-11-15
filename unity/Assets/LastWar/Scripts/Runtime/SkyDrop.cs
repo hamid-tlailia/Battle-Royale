@@ -20,7 +20,7 @@ namespace LastWar
         public float Progress => Mathf.Clamp01(T / Duration);
         public bool Flying => T < Duration + 4f;
         Transform plane; readonly List<Transform> props = new List<Transform>();
-        float playRadius; AudioSource engine, wind;
+        float playRadius; AudioSource engine, wind; int lastAir = 1;
 
         public static SkyDrop Create(MapData map)
         {
@@ -104,12 +104,16 @@ namespace LastWar
                 plane.rotation = Quaternion.LookRotation(Dir) * Quaternion.Euler(0, 0, Mathf.Sin(Time.time / 1.4f) * 1.7f);
                 foreach (Transform p in props) p.Rotate(0, 0, Time.deltaTime * 2300f, Space.Self);
             }
-            // sound: the engine loud inside, fading once you are out; wind while falling
+            // sound: the engine only while you ride (it cuts the moment you press JUMP), then the wind while you fall
+            // and hang under the chute (gone the moment your feet touch), then the thump of the landing
             Fighter me = GameBoot.Instance != null && GameBoot.Instance.Player != null ? GameBoot.Instance.Player.fighter : null;
             int air = me != null ? me.air : 0;
-            float d = Camera.main != null ? Vector3.Distance(Camera.main.transform.position, PlanePos) : 999f;
-            engine.volume = !plane.gameObject.activeSelf ? Mathf.MoveTowards(engine.volume, 0, Time.deltaTime) : air == 1 ? 0.9f : Mathf.Max(0, 1 - d / 350f) * 0.6f;
-            wind.volume = Mathf.MoveTowards(wind.volume, air == 2 ? 0.8f : air == 3 ? 0.3f : 0f, Time.deltaTime * 2f);
+            engine.volume = air == 1 ? 0.9f : Mathf.MoveTowards(engine.volume, 0, Time.deltaTime * 8f);
+            if (engine.volume <= 0f && engine.isPlaying) engine.Stop();
+            if (air == 2 || air == 3) wind.volume = Mathf.MoveTowards(wind.volume, air == 2 ? 0.85f : 0.45f, Time.deltaTime * 3f);
+            else wind.volume = 0f;
+            if ((lastAir == 2 || lastAir == 3) && air == 0 && me != null && me.Alive) Sfx.Play2D("land", 1f);
+            lastAir = air;
         }
 
         /// <summary>may a passenger jump now? only above the valley</summary>

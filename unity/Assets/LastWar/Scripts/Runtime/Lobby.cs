@@ -120,7 +120,7 @@ namespace LastWar
             var dynamic = new Dictionary<string, string> {
                 { "name", Profile.Name }, { "level", "LV " + Profile.Level }, { "server", "offline - play vs bots" },
                 { "chip0_text", Profile.Wins.ToString() }, { "chip1_text", Profile.Kills.ToString() },
-                { "mapcard_name", MapName(Profile.Map) + (Profile.MapAuto ? " · auto" : "") },
+                { "mapcard_name", MapName(Profile.Map) }, { "mapcard_sub", Profile.MapAuto ? "AUTO ROTATE · Select map >" : "Select map >" },
                 { "season_lv", $"Level {Profile.Level} · {Profile.Matches} matches" }, { "season_xp", $"{have} / {need}" },
                 { "tip_text", Tips[UnityEngine.Random.Range(0, Tips.Length)] },
             };
@@ -196,8 +196,10 @@ namespace LastWar
             else if (id.StartsWith("tip")) ax = 0.5f;
             else if (id == "" ) { float cx = n.x + n.w / 2f; ax = cx < L.W * 0.42f ? 0 : cx > L.W * 0.58f ? 1 : 0.5f; }
             else ax = 0;
-            rt.anchorMin = rt.anchorMax = new Vector2(ax, 1); rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition = new Vector2((n.x - ax * L.W) * s, -n.y * s);
+            // the season card, the modes and PLAY sit on the bottom edge like the web, whatever the screen height
+            bool bottom = id.StartsWith("season") || id.StartsWith("mode") || id.StartsWith("play");
+            rt.anchorMin = rt.anchorMax = new Vector2(ax, bottom ? 0 : 1); rt.pivot = new Vector2(0, 1);
+            rt.anchoredPosition = new Vector2((n.x - ax * L.W) * s, bottom ? (L.H - n.y) * s : -n.y * s);
             rt.sizeDelta = new Vector2(n.w * s, n.h * s);
         }
 
@@ -442,12 +444,12 @@ namespace LastWar
         {
             // (a sheet or the button editor is open: their drags belong to them, the soldier stays put)
             if (sheet != null || soldier == null || !canvas.enabled) { dragFinger = -1; mouseDrag = false; return; }
-            // drag anywhere in the middle of the screen to turn the soldier
+            // drag anywhere off the buttons to turn the soldier
             if (Input.touchCount > 0)
             {
                 foreach (Touch t in Input.touches)
                 {
-                    if (t.phase == TouchPhase.Began && dragFinger < 0 && t.position.x > Screen.width * .3f && t.position.x < Screen.width * .68f && !OverUi(t.fingerId)) { dragFinger = t.fingerId; dragLast = t.position; }
+                    if (t.phase == TouchPhase.Began && dragFinger < 0 && !OverUi(t.fingerId)) { dragFinger = t.fingerId; dragLast = t.position; }
                     if (t.fingerId != dragFinger) continue;
                     soldierYaw -= (t.position.x - dragLast.x) * 0.4f; dragLast = t.position;
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) dragFinger = -1;
@@ -456,7 +458,7 @@ namespace LastWar
             else
             {
                 dragFinger = -1;
-                if (Input.GetMouseButtonDown(0) && Input.mousePosition.x > Screen.width * .3f && Input.mousePosition.x < Screen.width * .68f && !OverUi(-1)) { mouseDrag = true; dragLast = Input.mousePosition; }
+                if (Input.GetMouseButtonDown(0) && !OverUi(-1)) { mouseDrag = true; dragLast = Input.mousePosition; }
                 if (Input.GetMouseButtonUp(0)) mouseDrag = false;
                 if (mouseDrag) { soldierYaw -= (Input.mousePosition.x - dragLast.x) * 0.4f; dragLast = Input.mousePosition; }
             }

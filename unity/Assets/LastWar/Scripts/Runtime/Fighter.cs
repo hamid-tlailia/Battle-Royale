@@ -49,6 +49,7 @@ namespace LastWar
         public static readonly System.Collections.Generic.Dictionary<string, int> AmmoBox = new System.Collections.Generic.Dictionary<string, int> { { "pistol", 24 }, { "rifle", 60 }, { "shotgun", 10 }, { "sniper", 10 }, { "smg", 64 } };
         public const int MaxMeds = 5, MaxFrost = 4;
 
+        public bool Carries(string id) { for (int k = 0; k < 3; k++) if (guns[k] != null && guns[k].def.id == id) return true; return false; }
         /// <summary>spare rounds for a weapon type (on the gun if you carry it, else in the backpack)</summary>
         public int AmmoOf(string id)
         {

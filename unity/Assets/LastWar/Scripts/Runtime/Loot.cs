@@ -46,7 +46,8 @@ namespace LastWar
         /// <summary>HUD picture for the list / backpack</summary>
         public Sprite Icon => kind switch
         {
-            Kind.Weapon or Kind.Ammo => UiKit.Get("gun_" + item),
+            Kind.Weapon => UiKit.Get("gun_" + item),
+            Kind.Ammo => UiKit.Get("icon_ammo"),
             Kind.Med => UiKit.Get("icon_heal"),
             Kind.Armor => UiKit.Get("icon_vest"),
             Kind.Scope => UiKit.Get("icon_scope"),
@@ -87,10 +88,10 @@ namespace LastWar
             GameObject src = MapBuilder.Model("item_ammo");
             if (src != null)
             {
-                Transform look = Instantiate(src, go.transform, false).transform; look.localScale = new Vector3(0.6f, 0.62f, 0.62f);
+                Transform look = Instantiate(src, go.transform, false).transform; look.localScale = new Vector3(0.4f, 0.42f, 0.42f); // a small crate (was too big next to the soldier)
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
             }
-            Ring(go.transform, new Color(1f, .83f, .3f, .7f), 0.75f);
+            Ring(go.transform, new Color(1f, .83f, .3f, .7f), 0.55f);
             return id;
         }
         public static Vector3 CratePos(int box) { foreach (Crate c in Object.FindObjectsByType<Crate>(FindObjectsSortMode.None)) if (c.box == box) return c.transform.position; return Vector3.zero; }

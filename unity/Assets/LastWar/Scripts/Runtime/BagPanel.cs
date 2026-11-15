@@ -129,7 +129,7 @@ namespace LastWar
             {
                 int n = f.AmmoOf(id); if (n <= 0) continue;
                 string wid = id;
-                Draggable(AddRow(right, ref y, UiKit.Get("gun_" + id), Tuning.Weapon(id).name + " ammo", n + " rounds", ("DROP", false, () => f.DropAmmo(wid))), -1, () => f.DropAmmo(wid));
+                Draggable(AddRow(right, ref y, UiKit.Get("icon_ammo"), Tuning.Weapon(id).name + " ammo", n + " rounds" + (f.Carries(id) ? "" : " · no gun yet"), ("DROP", false, () => f.DropAmmo(wid))), -1, () => f.DropAmmo(wid));
             }
             if (f.meds > 0) Draggable(AddRow(right, ref y, UiKit.Get("icon_heal"), $"Medkit  × {f.meds}", "+100 HP · 3 s", ("DROP", false, () => f.DropMed())), -1, () => f.DropMed());
             if (f.frost > 0) Draggable(AddRow(right, ref y, UiKit.Get("icon_frost"), $"Ice wall  × {f.frost}", "stops bullets · 25 s", ("DROP", false, () => f.DropFrost())), -1, () => f.DropFrost());

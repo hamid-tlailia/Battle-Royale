@@ -200,7 +200,7 @@ namespace LastWar
             foreach (Btn b in btns) { bool show = Shown(b); if (b.rt.gameObject.activeSelf != show) b.rt.gameObject.SetActive(show); }
             bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0 && !Spectating);
             if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn); // no settings in the plane / during the drop / watching
-            bool joyOn = Editing || Preview || !Spectating; if (joyBase.gameObject.activeSelf != joyOn) joyBase.gameObject.SetActive(joyOn);
+            bool joyOn = Editing || Preview || (!Spectating && airMode != 1); if (joyBase.gameObject.activeSelf != joyOn) joyBase.gameObject.SetActive(joyOn);
             if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
             // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
             if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; joyKnob.anchoredPosition = Vector2.zero; return; }
@@ -242,7 +242,8 @@ namespace LastWar
                         if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                     }
                     else if (OverBlocker(t.position)) continue;
-                    else if (t.position.x < Screen.width * 0.42f && joyFinger < 0) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
+                    // in the plane the whole screen turns the view; falling, only the bottom-left corner steers
+                    else if (joyFinger < 0 && (airMode <= 0 ? t.position.x < Screen.width * 0.42f : airMode > 1 && t.position.x < Screen.width * 0.25f && t.position.y < Screen.height * 0.5f)) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
                     else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                 }
                 if (t.fingerId == fireFinger && (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)) fireFinger = -1;

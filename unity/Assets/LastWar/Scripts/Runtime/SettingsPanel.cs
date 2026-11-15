@@ -70,41 +70,67 @@ namespace LastWar
             y += 18; return t;
         }
 
-        /// <summary>web range: label left, value right in gold; framed dark track, gold fill, glowing gold diamond.
-        /// x / y / w in canvas units (top-left of the parent), fk = canvas units per CSS px. Returns the height used.</summary>
+        /// <summary>web range: bold label left, gold value right; an 8px inset groove with a fading gold fill and a
+        /// small gold diamond thumb (20px square turned 45deg, like the web). x / y / w in canvas units (top-left of the
+        /// parent), fk = canvas units per CSS px. Returns the height used.</summary>
         internal static float Range(Transform p, float x, float y, float w, float fk, string label, float min, float max, float val, string fmt, Action<float> on)
         {
             const float K = UiKit.K;
-            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / K, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
+            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / K, TextAnchor.MiddleLeft, new Color(.87f, .9f, .91f));
+            l.fontStyle = FontStyle.Bold;
             l.rectTransform.anchoredPosition = new Vector2(x, -y); l.rectTransform.sizeDelta = new Vector2(w, 18 * fk); l.text = label;
-            var v = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 13 * fk / K, TextAnchor.UpperRight, Gold);
+            var v = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / K, TextAnchor.MiddleRight, Gold);
+            v.fontStyle = FontStyle.Bold;
             v.rectTransform.anchoredPosition = new Vector2(x, -y); v.rectTransform.sizeDelta = new Vector2(w, 18 * fk); v.text = val.ToString(fmt);
-            y += 22 * fk;
-            var box = UiKit.Img(p, "range", UiKit.Frame, new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
-            box.rectTransform.anchoredPosition = new Vector2(x, -y); box.rectTransform.sizeDelta = new Vector2(w, 30 * fk);
-            var go = new GameObject("slider", typeof(RectTransform), typeof(Slider));
-            var rt = (RectTransform)go.transform; rt.SetParent(box.rectTransform, false);
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = new Vector2(14 * fk, 0); rt.offsetMax = new Vector2(-14 * fk, 0);
-            var track = UiKit.Img(rt, "track", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.13f, .11f, .05f));
-            track.rectTransform.anchorMin = new Vector2(0, .38f); track.rectTransform.anchorMax = new Vector2(1, .62f); track.rectTransform.offsetMin = track.rectTransform.offsetMax = Vector2.zero;
-            var fa = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fa.SetParent(rt, false); fa.anchorMin = new Vector2(0, .38f); fa.anchorMax = new Vector2(1, .62f); fa.offsetMin = fa.offsetMax = Vector2.zero;
-            var fill = UiKit.Img(fa, "f", UiKit.Round, Vector2.zero, Vector2.zero, Vector2.one, new Color(.62f, .5f, .17f));
-            var ha = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); ha.SetParent(rt, false); ha.anchorMin = Vector2.zero; ha.anchorMax = Vector2.one; ha.offsetMin = ha.offsetMax = Vector2.zero;
+            y += 20 * fk;
+            // the slider's own box: 22px tall, the full width (the thumb's half-width is kept inside)
+            var go = new GameObject("slider", typeof(RectTransform), typeof(Image), typeof(Slider));
+            var rt = (RectTransform)go.transform; rt.SetParent(p, false);
+            rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1);
+            rt.anchoredPosition = new Vector2(x, -y); rt.sizeDelta = new Vector2(w, 24 * fk);
+            go.GetComponent<Image>().color = new Color(0, 0, 0, 0); // catches taps on the whole row height
+            var groove = UiKit.Img(rt, "groove", null, Vector2.zero, Vector2.zero, Vector2.one, new Color(11 / 255f, 13 / 255f, 15 / 255f));
+            groove.rectTransform.anchorMin = new Vector2(0, .5f); groove.rectTransform.anchorMax = new Vector2(1, .5f);
+            groove.rectTransform.pivot = new Vector2(.5f, .5f); groove.rectTransform.anchoredPosition = Vector2.zero; groove.rectTransform.sizeDelta = new Vector2(0, 8 * fk);
+            groove.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, 1f);
+            var fa = new GameObject("fill", typeof(RectTransform)).GetComponent<RectTransform>(); fa.SetParent(groove.rectTransform, false);
+            fa.anchorMin = Vector2.zero; fa.anchorMax = Vector2.one; fa.offsetMin = fa.offsetMax = Vector2.zero;
+            var fill = UiKit.Img(fa, "f", null, Vector2.zero, Vector2.zero, Vector2.one, new Color(1f, .83f, .3f, .55f));
+            var ha = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); ha.SetParent(rt, false);
+            ha.anchorMin = Vector2.zero; ha.anchorMax = Vector2.one; ha.offsetMin = new Vector2(10 * fk, 0); ha.offsetMax = new Vector2(-10 * fk, 0);
             var handle = UiKit.Img(ha, "h", UiKit.Diamond, new Vector2(0, .5f), Vector2.zero, Vector2.one, Color.white, true);
-            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(44, 44) * fk;
+            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(24, 24) * fk;
             var sl = go.GetComponent<Slider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
+            sl.transition = Selectable.Transition.None;
             sl.minValue = min; sl.maxValue = max; sl.value = val;
             sl.onValueChanged.AddListener(nv => { v.text = nv.ToString(fmt); on(nv); });
-            return 22 * fk + 30 * fk + 12 * fk;
+            return 20 * fk + 24 * fk + 14 * fk;
         }
 
-        /// <summary>the web's ON / OFF choice (a two-plate segmented strip); returns the height used (canvas units)</summary>
+        /// <summary>the web's switch (checkbox): a dark 42x22 groove, the knob grey on the left when off, gold on the
+        /// right over a green groove when on, the label after it. Returns the height used (canvas units).</summary>
         internal static float Toggle(Transform p, float x, float y, float w, float fk, string label, bool val, Action<bool> on)
         {
-            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / UiKit.K, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
-            l.rectTransform.anchoredPosition = new Vector2(x, -y); l.rectTransform.sizeDelta = new Vector2(w, 18 * fk); l.text = label;
-            Segments(p, new Vector2(x, -(y + 22 * fk)), new Vector2(w, 30 * fk), 11 * fk / UiKit.K, new[] { "ON", "OFF" }, val ? 0 : 1, i => on(i == 0));
-            return 22 * fk + 30 * fk + 12 * fk;
+            var sw = UiKit.Img(p, "switch", null, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(11 / 255f, 13 / 255f, 15 / 255f), true);
+            sw.rectTransform.anchoredPosition = new Vector2(x, -y); sw.rectTransform.sizeDelta = new Vector2(42, 22) * fk;
+            sw.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, 1f);
+            var knob = UiKit.Img(sw.rectTransform, "knob", null, new Vector2(0, .5f), Vector2.zero, Vector2.one, Color.white);
+            knob.rectTransform.pivot = new Vector2(0, .5f); knob.rectTransform.sizeDelta = new Vector2(18, 16) * fk;
+            var l = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 13 * fk / UiKit.K, TextAnchor.MiddleLeft, new Color(.87f, .9f, .91f));
+            l.fontStyle = FontStyle.Bold;
+            l.rectTransform.anchoredPosition = new Vector2(x + 52 * fk, -y); l.rectTransform.sizeDelta = new Vector2(w - 52 * fk, 22 * fk); l.text = label;
+            l.raycastTarget = true;
+            bool cur = val;
+            void Paint()
+            {
+                sw.color = cur ? new Color(.33f, .6f, .19f) : new Color(11 / 255f, 13 / 255f, 15 / 255f);
+                knob.color = cur ? Gold : new Color(.42f, .46f, .49f);
+                knob.rectTransform.anchoredPosition = new Vector2((cur ? 21 : 3) * fk, 0);
+            }
+            void Flip() { cur = !cur; Paint(); on(cur); }
+            Clickable.Add(sw.gameObject, Flip); Clickable.Add(l.gameObject, Flip);
+            Paint();
+            return 22 * fk + 14 * fk;
         }
 
         /// <summary>a section title followed by a segmented choice (web .qual)</summary>
@@ -124,9 +150,9 @@ namespace LastWar
             y += Range(p, x, y, w, fk, "LOOK SENSITIVITY", 0.3f, 2.5f, Profile.Sensitivity, "0.00", v => Profile.Sensitivity = v);
             y += Range(p, x, y, w, fk, "SCOPE SENSITIVITY", 0.3f, 2.5f, Profile.ScopeSensitivity, "0.00", v => Profile.ScopeSensitivity = v);
             y += ChoiceRow(p, x, y, w, fk, "AIM", new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });
-            y += Toggle(p, x, y, w, fk, "AUTO PICK-UP (walk over loot)", Profile.AutoPickup, v => Profile.AutoPickup = v);
-            y += Toggle(p, x, y, w, fk, "MUSIC", Profile.MusicOn, v => { Profile.MusicOn = v; if (v) Music.PlayLobbyIfIdle(); else Music.Stop(0f); });
-            y += Toggle(p, x, y, w, fk, "SOUND", Profile.SoundOn, v => Profile.SoundOn = v);
+            y += Toggle(p, x, y, w, fk, "Auto pick-up (ammo, meds, guns...)", Profile.AutoPickup, v => Profile.AutoPickup = v);
+            y += Toggle(p, x, y, w, fk, "Music", Profile.MusicOn, v => { Profile.MusicOn = v; if (v) Music.PlayLobbyIfIdle(); else Music.Stop(0f); });
+            y += Toggle(p, x, y, w, fk, "Sound", Profile.SoundOn, v => Profile.SoundOn = v);
             return y - y0;
         }
 

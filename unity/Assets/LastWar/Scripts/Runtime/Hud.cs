@@ -61,7 +61,7 @@ namespace LastWar
         Image aliveBox, zoneBox, aliveChip, killChip; Text killText; RectTransform banner;
         readonly List<Image> feedBg = new List<Image>(); readonly List<Text> feedTxt = new List<Text>();
         readonly List<(string text, bool mine, float t)> feed = new List<(string, bool, float)>();
-        RectTransform endPanel; Text endTitle, endSub;
+        RectTransform endPanel; Text endTitle, endSub; bool celebrating;
         float hitT, flashT, bannerT; bool hitKill;
         string hintText = ""; float hintAt;
         class Floater { public Text t; public Vector3 pos; public float life; }
@@ -597,7 +597,9 @@ namespace LastWar
             // watching and the match ends (or nobody is left to watch): back to the result card with LOBBY
             if (spectating && (player.SpectateTarget == null || !player.SpectateTarget.Alive)) player.StartSpectate(null);
             if (spectating && (gb.AliveCount <= 1 || player.SpectateTarget == null)) spectating = false;
-            if (gb.Result != 0 && !endPanel.gameObject.activeSelf && !spectating)
+            // victory: the web's celebration (confetti, music, countdown back to the lobby) instead of the result card
+            if (gb.Result > 0 && !celebrating) { celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
+            if (gb.Result < 0 && !endPanel.gameObject.activeSelf && !spectating)
             {
                 spectateBtn.gameObject.SetActive(gb.Result < 0 && gb.AliveCount > 1);
                 endPanel.Find("card/Again").GetComponent<RectTransform>().anchoredPosition = new Vector2(gb.Result < 0 && gb.AliveCount > 1 ? -70 : 0, -45) * K;
