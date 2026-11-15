@@ -10,8 +10,8 @@ namespace LastWar
     /// </summary>
     public class IceWall : MonoBehaviour
     {
-        public const float Height = 1.7f, Thick = 0.45f, Radius = 2.3f, Arc = 170f, Hp = 260f, Life = 25f, Rise = 0.12f;
-        const int Blocks = 9;
+        public const float Height = 1.7f, Thick = 0.45f, Radius = 2.3f, Arc = 88f, Hp = 260f, Life = 25f, Rise = 0.12f;
+        const int Blocks = 5; // (about half the old length)
         public struct Block { public Vector3 pos; public Quaternion rot; public float w, ground; }
         static readonly List<Block> spot = new List<Block>();
         float hp = Hp, until, born;

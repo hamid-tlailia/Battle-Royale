@@ -67,4 +67,4 @@ Game code, map generation, terrain and UI are original work.
 
 - Lobby music (`unity/Assets/LastWar/Resources/Audio/lobby_music.wav`): original loop synthesised for this project.
 
-Unity `Resources/Audio/land.wav` (landing boot impact) is synthesized for this project (original, no third-party audio). The app icon and logo emblem (winged skull) are original artwork made for this project.
+Unity `Resources/Audio/land.wav` (landing boot impact) and `step1-6.wav` (running footsteps on dirt / grass) are synthesized for this project (original, no third-party audio). The app icon and logo emblem (winged skull) are original artwork made for this project.

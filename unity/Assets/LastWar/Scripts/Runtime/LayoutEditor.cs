@@ -149,13 +149,13 @@ namespace LastWar
             Canvas.ForceUpdateCanvases();
             float cw = ((RectTransform)tc.Canvas.transform).rect.width;
             if (cw < 100f) cw = 1080f * Screen.width / Mathf.Max(1f, Screen.height);
-            float avail = cw * 0.94f / UiKit.K, need = 1100, f = Mathf.Clamp(avail / need, 0.5f, 1f);
+            float avail = cw * 0.94f / UiKit.K, need = 1180, f = Mathf.Clamp(avail / need, 0.5f, 1f);
             var panel = UiKit.Img(c, "EditBar", UiKit.Round, new Vector2(.5f, 1), new Vector2(0, -8), new Vector2(need * f, 44 * f), new Color(10 / 255f, 14 / 255f, 12 / 255f, .94f), true);
             bar = panel.rectTransform; bar.pivot = new Vector2(.5f, 1);
             panel.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .6f);
             float x = 14;
-            Text Lbl(string t) { var l = UiKit.Txt(bar, new Vector2(0, .5f), new Vector2(x * f, 0), new Vector2(90, 30) * f, 14 * f, TextAnchor.MiddleLeft, new Color(.87f, .9f, .91f)); l.fontStyle = FontStyle.Normal; l.text = t; l.horizontalOverflow = HorizontalWrapMode.Overflow; x += l.preferredWidth / UiKit.K / f + 10; return l; }
-            Slider Sl(float min, float max, Action<float> on) { var s = MakeSlider(bar, new Vector2(x, 0) * f, 96 * f, min, max, on); x += 106; return s; }
+            Text Lbl(string t) { var l = UiKit.Txt(bar, new Vector2(0, .5f), new Vector2(x * f, 0), new Vector2(90, 30) * f, 14 * f, TextAnchor.MiddleLeft, new Color(.87f, .9f, .91f)); l.fontStyle = FontStyle.Normal; l.text = t; l.horizontalOverflow = HorizontalWrapMode.Overflow; x += l.preferredWidth / UiKit.K / f + 24; return l; } // (room for the thumb's half on the left of the track)
+            Slider Sl(float min, float max, Action<float> on) { var s = MakeSlider(bar, new Vector2(x, 0) * f, 96 * f, min, max, on); s.SetValueWithoutNotify(Mathf.Clamp(1f, min, max)); x += 110; return s; }
             // Size: width and height together (round buttons stay round)
             Lbl("Size"); zS = Sl(0.5f, 1.8f, v => { if (selected) { float m = Mathf.Max(selected.localScale.x, selected.localScale.y); Vector2 r = m > 0 ? new Vector2(selected.localScale.x, selected.localScale.y) / m : Vector2.one; selected.localScale = new Vector3(r.x * v, r.y * v, 1); wS.SetValueWithoutNotify(selected.localScale.x); hS.SetValueWithoutNotify(selected.localScale.y); } });
             Lbl("Width"); wS = Sl(0.5f, 1.8f, v => { if (selected) selected.localScale = new Vector3(v, selected.localScale.y, 1); });

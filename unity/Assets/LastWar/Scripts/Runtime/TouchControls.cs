@@ -89,8 +89,8 @@ namespace LastWar
             fireBtn = Button("fire", "btn_fire", 84, BR, new Vector2(-68, 150), null);
             fireLeft = Button("fire", "btn_fire", 60, TL, new Vector2(60, -139), null);
             // sniper: while FIRE is held (aiming the shot), an X beside it cancels the shot
-            cancelShot = UiKit.CloseButton(root, BR, new Vector2(-185, 105), 46, null).rectTransform;
-            cancelShot.pivot = new Vector2(.5f, .5f); cancelShot.anchoredPosition = new Vector2(-185, 105) * UiKit.K;
+            cancelShot = UiKit.CloseButton(root, BR, new Vector2(-190, 120), 50, null).rectTransform;
+            cancelShot.pivot = new Vector2(.5f, .5f); cancelShot.anchoredPosition = new Vector2(-190, 120) * UiKit.K;
             { var ct = cancelShot.gameObject.AddComponent<EventTrigger>(); var ce = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ce.callback.AddListener(_ => CancelShot = true); ct.triggers.Add(ce); }
             cancelShot.gameObject.SetActive(false);
             blockers.Add(cancelShot);
@@ -255,6 +255,8 @@ namespace LastWar
                     else if (joyFinger < 0 && (airMode <= 0 ? t.position.x < Screen.width * 0.42f : airMode > 1 && t.position.x < Screen.width * 0.25f && t.position.y < Screen.height * 0.5f)) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
                     else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                 }
+                // sniper: slide the FIRE finger onto the X to call the shot off (no second hand needed)
+                if (t.fingerId == fireFinger && SniperAiming && cancelShot.gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(cancelShot, t.position, null)) CancelShot = true;
                 if (t.fingerId == fireFinger && (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)) fireFinger = -1;
                 if (t.fingerId == joyFinger)
                 {

@@ -95,7 +95,7 @@ namespace LastWar
             // movement relative to the camera's heading
             Vector2 mv = input.Move;
             if (input.Sprint && mv.y > -0.3f) mv = new Vector2(mv.x * 0.5f, 1f); // locked run keeps going through a quick scope / reload / jump
-            bool sprinting = input.Sprint && mv.y > 0.5f && !input.FireHeld && !Scoped;
+            bool sprinting = input.Sprint && mv.y > 0.5f && !Scoped; // firing does not end or slow the run (only the scope does)
             // crawling is slow and goes in pulls (the body moves with the arms, not as a slide)
             float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * body.CrawlPull : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
@@ -197,7 +197,7 @@ namespace LastWar
             if (input.Prone) clip = "prone";
             else if (airTime > 0.15f) clip = "jump";
             else if (input.Crouch) clip = firing ? "crouch_fire" : hs > 0.4f ? "crouch_walk" : "crouch_idle";
-            else if (hs > 5.2f || (input.Sprint && hs > 0.5f && !input.FireHeld)) clip = "run";
+            else if (hs > 5.2f || (input.Sprint && hs > 0.5f && !Scoped)) clip = firing && armed ? "walk_fire" : "run"; // shooting on the run: the gun up, legs keep running
             else if (!armed) clip = hs > 0.4f ? "walk" : "idle";
             else if (hs > 0.4f) clip = "walk_fire";
             else clip = firing ? "fire" : "idle_rifle";
@@ -231,7 +231,7 @@ namespace LastWar
             turn += Mathf.DeltaAngle(turn, target) * Mathf.Min(1f, dt * 10f);
             body.Turn = turn;
             float reference = clip == "walk" ? 2.0f : clip == "walk_fire" ? 2.6f : clip == "run" ? 6.0f : clip == "crouch_walk" ? 1.6f : 0f;
-            float rate = reference > 0 ? Mathf.Clamp((running && clip == "run" ? Mathf.Max(hs, reference) : hs) / reference, 0.6f, clip == "walk" ? 2.6f : 1.6f) : 1f;
+            float rate = reference > 0 ? Mathf.Clamp((running && clip == "run" ? Mathf.Max(hs, reference) : hs) / reference, 0.6f, clip == "walk" || clip == "walk_fire" ? 2.6f : 1.6f) : 1f;
             body.Rate = rate * (reverse ? -1f : 1f);
         }
 
@@ -315,10 +315,10 @@ namespace LastWar
                 Fighter q = h.collider.GetComponentInParent<Fighter>();
                 OnEnemy = q != null && q != fighter && q.Alive ? q : null;
             }
-            // 1b) scoped close range (an enemy within ~4 m in front): the aim sits on their body and does not leave it
+            // 1b) scoped close range (an enemy within ~8 m in front): the aim sits on their body and does not leave it
             if (Scoped && GameBoot.Instance != null)
             {
-                Fighter close = null; float cd = 4.2f;
+                Fighter close = null; float cd = 8.2f;
                 foreach (Fighter q in GameBoot.Instance.Fighters)
                 {
                     if (q == fighter || !q.Alive) continue;

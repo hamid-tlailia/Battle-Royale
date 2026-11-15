@@ -33,7 +33,7 @@ namespace LastWar
             s.A = Coords.ToUnity(wa.x, Altitude, wa.y); s.B = Coords.ToUnity(wb.x, Altitude, wb.y);
             s.Duration = Vector3.Distance(s.A, s.B) / PlaneSpeed;
             s.BuildPlane();
-            s.engine = s.Loop("plane", 0.9f); s.wind = s.Loop("wind", 0f);
+            s.engine = s.Loop("plane", 0.9f); s.wind = s.Loop("wind", 0f); // (the wind recording is boosted +20 dB)
             return s;
         }
 
@@ -110,7 +110,7 @@ namespace LastWar
             int air = me != null ? me.air : 0;
             engine.volume = air == 1 ? 0.9f : Mathf.MoveTowards(engine.volume, 0, Time.deltaTime * 8f);
             if (engine.volume <= 0f && engine.isPlaying) engine.Stop();
-            if (air == 2 || air == 3) wind.volume = Mathf.MoveTowards(wind.volume, air == 2 ? 0.85f : 0.45f, Time.deltaTime * 3f);
+            if (air == 2 || air == 3) wind.volume = Mathf.MoveTowards(wind.volume, air == 2 ? 1f : 0.75f, Time.deltaTime * 4f);
             else wind.volume = 0f;
             if ((lastAir == 2 || lastAir == 3) && air == 0 && me != null && me.Alive) Sfx.Play2D("land", 1f);
             lastAir = air;

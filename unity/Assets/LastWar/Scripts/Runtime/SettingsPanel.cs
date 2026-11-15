@@ -99,7 +99,7 @@ namespace LastWar
             var ha = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); ha.SetParent(rt, false);
             ha.anchorMin = Vector2.zero; ha.anchorMax = Vector2.one; ha.offsetMin = new Vector2(10 * fk, 0); ha.offsetMax = new Vector2(-10 * fk, 0);
             var handle = UiKit.Img(ha, "h", UiKit.Diamond, new Vector2(0, .5f), Vector2.zero, Vector2.one, Color.white, true);
-            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(24, 24) * fk;
+            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(26, 19) * fk; // (lower than wide: a diamond, not a spike)
             var sl = go.GetComponent<ScrollSlider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.transition = Selectable.Transition.None;
             sl.minValue = min; sl.maxValue = max; sl.value = val;

@@ -258,17 +258,17 @@ namespace LastWar
             input.AddEditable("loot", lootPanel);
             input.AddEditable("killfeed", feedRoot);
 
-            healRing = UiKit.Img(full, "HealRing", ThickRing(), C, Vector2.zero, new Vector2(56, 56), new Color(0, 0, 0, .45f)).rectTransform;
+            healRing = UiKit.Img(full, "HealRing", ThickRing(), C, Vector2.zero, new Vector2(38, 38), new Color(0, 0, 0, .45f)).rectTransform;
             healRing.pivot = C;
-            healFg = UiKit.Img(healRing, "fg", ThickRing(), C, Vector2.zero, new Vector2(56, 56), new Color(.42f, .9f, .35f));
+            healFg = UiKit.Img(healRing, "fg", ThickRing(), C, Vector2.zero, new Vector2(38, 38), new Color(.42f, .9f, .35f));
             healFg.rectTransform.pivot = C; healFg.type = Image.Type.Filled; healFg.fillMethod = Image.FillMethod.Radial360;
             healFg.fillOrigin = (int)Image.Origin360.Top; healFg.fillClockwise = true; healFg.fillAmount = 0;
-            var plus = UiKit.Txt(healRing, C, Vector2.zero, new Vector2(56, 56), 22, TextAnchor.MiddleCenter, new Color(.42f, .9f, .35f)); plus.rectTransform.pivot = C; plus.text = "+";
+            healPlus = UiKit.Txt(healRing, C, Vector2.zero, new Vector2(38, 38), 15, TextAnchor.MiddleCenter, new Color(.42f, .9f, .35f)); healPlus.rectTransform.pivot = C; healPlus.text = "+";
             healRing.gameObject.SetActive(false);
             input.AddEditable("status", status);
         }
         RectTransform feedRoot;
-        RectTransform status, lootPanel, healRing; Image vestIcon, healFg, bagRing, bagRingBg; Text vestText;
+        RectTransform status, lootPanel, healRing; Image vestIcon, healFg, bagRing, bagRingBg; Text vestText, healPlus;
         static Sprite thickRing;
         static Sprite ThickRing()
         {
@@ -456,8 +456,7 @@ namespace LastWar
                 s.line.color = sel ? Color.white : new Color(1, 1, 1, .75f);
             }
             bool reloading = f.reloadEnd > 0 && f.Gun != null && !f.holstered;
-            reloadBar.gameObject.SetActive(reloading);
-            if (reloading) reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.reloadEnd - Time.time) / f.Gun.def.reloadTime), 4) * K;
+            reloadBar.gameObject.SetActive(false); // (no bar over the health: reload and medkit show as the small ring in the middle)
             input.SetCounts(f.meds, f.frost);
             input.SetAir(f.air);
             // through the optic only FIRE, SCOPE, the joystick and the minimap stay (web #hud.scoped-ui)
@@ -474,12 +473,12 @@ namespace LastWar
  string hint = f.air == 1 ? (input.JumpReady ? "Tap <b>JUMP</b> to drop" : "") : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
             if (hint != hintText) { hintText = hint; hintAt = Time.time; }
 
-            // using a medkit: green loading ring in the middle of the screen (web .heal-ring, smaller)
-            bool healing = f.healEnd > 0 && !spectating;
-            healRing.gameObject.SetActive(healing);
-            if (healing) healFg.fillAmount = Mathf.Clamp01(1f - (f.healEnd - Time.time) / 3f);
-            if (f.healEnd > 0) { reloadBar.gameObject.SetActive(true); reloadFill.color = new Color(1f, .42f, .42f); reloadFill.rectTransform.sizeDelta = new Vector2(140 * (1f - (f.healEnd - Time.time) / 3f), 4) * K; }
-            else reloadFill.color = new Color(1f, .83f, .3f);
+            // using a medkit (green +) or reloading (gold): a small loading ring in the middle of the screen
+            bool healing = f.healEnd > 0 && !spectating, rel = reloading && !healing && !spectating && !scoped;
+            healRing.gameObject.SetActive(healing || rel);
+            healPlus.enabled = healing;
+            if (healing) { healFg.color = new Color(.42f, .9f, .35f); healFg.fillAmount = Mathf.Clamp01(1f - (f.healEnd - Time.time) / 3f); }
+            else if (rel) { healFg.color = new Color(1f, .83f, .3f); healFg.fillAmount = Mathf.Clamp01(1f - (f.reloadEnd - Time.time) / f.Gun.def.reloadTime); }
             // the scope button only exists while a LONG-RANGE gun is in your hands (rifle / sniper)
             input.ShowScope(f.air == 0 && f.Alive && !f.holstered && f.Gun != null && (f.Gun.def.id == "rifle" || f.Gun.def.id == "sniper"));
 
