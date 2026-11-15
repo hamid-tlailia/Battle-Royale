@@ -98,8 +98,11 @@ namespace LastWar
             var fill = UiKit.Img(fa, "f", null, Vector2.zero, Vector2.zero, Vector2.one, new Color(1f, .83f, .3f, .55f));
             var ha = new GameObject("handles", typeof(RectTransform)).GetComponent<RectTransform>(); ha.SetParent(rt, false);
             ha.anchorMin = Vector2.zero; ha.anchorMax = Vector2.one; ha.offsetMin = new Vector2(10 * fk, 0); ha.offsetMax = new Vector2(-10 * fk, 0);
-            var handle = UiKit.Img(ha, "h", UiKit.Diamond, new Vector2(0, .5f), Vector2.zero, Vector2.one, Color.white, true);
-            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(26, 19) * fk; // (lower than wide: a diamond, not a spike)
+            // (the Slider stretches its handle over the full height: the diamond is a fixed-size child of it)
+            var handle = UiKit.Img(ha, "h", null, new Vector2(0, .5f), Vector2.zero, Vector2.one, new Color(0, 0, 0, 0), true);
+            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(26 * fk, 0);
+            var gem = UiKit.Img(handle.rectTransform, "gem", UiKit.Diamond, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, Color.white);
+            gem.rectTransform.pivot = new Vector2(.5f, .5f); gem.rectTransform.sizeDelta = new Vector2(26, 22) * fk; // a diamond, not a tall spike
             var sl = go.GetComponent<ScrollSlider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.transition = Selectable.Transition.None;
             sl.minValue = min; sl.maxValue = max; sl.value = val;
