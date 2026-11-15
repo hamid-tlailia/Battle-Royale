@@ -95,7 +95,7 @@ namespace LastWar
             // movement relative to the camera's heading
             Vector2 mv = input.Move;
             if (input.Sprint && mv.y > -0.3f) mv = new Vector2(mv.x * 0.5f, 1f); // locked run keeps going through a quick scope / reload / jump
-            bool sprinting = input.Sprint && mv.y > 0.5f && !Scoped; // firing does not end or slow the run (only the scope does)
+            bool sprinting = input.Sprint && mv.y > 0.5f && !Scoped; // (FIRE on the ground ends the run in the controls; from a jump it goes on)
             // crawling is slow and goes in pulls (the body moves with the arms, not as a slide)
             float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * body.CrawlPull : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
@@ -123,6 +123,7 @@ namespace LastWar
             body.SetBack(backList);
 
             bool onGround = cc.isGrounded || NearGround();
+            input.InAir = !onGround;
             bool moving = flat.sqrMagnitude > 1f;
             bool fired = false;
             GunState gun = armed ? fighter.Gun : null;
@@ -315,22 +316,27 @@ namespace LastWar
                 Fighter q = h.collider.GetComponentInParent<Fighter>();
                 OnEnemy = q != null && q != fighter && q.Alive ? q : null;
             }
-            // 1b) scoped close range (an enemy within ~8 m in front): the aim sits on their body and does not leave it
-            if (Scoped && GameBoot.Instance != null)
+            // 1b) close range (8 m): through the scope the aim jumps onto the nearest enemy all around you; firing from
+            //     the hip (close or long gun) onto the nearest one in front - and it stays on their body
+            bool hip = AimAssistOn && input.FireHeld && !Scoped && fighter.Gun != null && !fighter.holstered;
+            if ((Scoped || hip) && GameBoot.Instance != null)
             {
                 Fighter close = null; float cd = 8.2f;
                 foreach (Fighter q in GameBoot.Instance.Fighters)
                 {
-                    if (q == fighter || !q.Alive) continue;
-                    Vector3 d = q.transform.position - transform.position; d.y = 0;
-                    float m = d.magnitude;
-                    if (m >= cd || Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg)) > 80f) continue;
+                    if (q == fighter || !q.Alive || q.air != 0) continue;
+                    Vector3 d = q.transform.position - transform.position;
+                    if (Mathf.Abs(d.y) > 4f) continue;
+                    d.y = 0; float m = d.magnitude;
+                    if (m >= cd) continue;
+                    if (!Scoped && Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg)) > 75f) continue;
+                    if (!Los(cam.transform.position, q.transform.position + Vector3.up * 1.05f, q)) continue;
                     cd = m; close = q;
                 }
                 if (close != null)
                 {
                     Angles(close, out float qy, out float qp, out _, out _);
-                    float kk = Mathf.Min(1f, dt * 22f);
+                    float kk = Mathf.Min(1f, dt * (Scoped ? 22f : 14f));
                     yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
                     lockTarget = close; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = close;
                     return;
@@ -371,15 +377,15 @@ namespace LastWar
             {
                 if (q == fighter || !q.Alive) continue;
                 Angles(q, out float qy, out float qp, out float dist, out Vector3 t);
-                if (dist > (Scoped ? 260f : 110f)) continue;
+                if (dist > (Scoped ? 260f : 160f)) continue;
                 float dyaw = Mathf.DeltaAngle(yaw, qy) * Mathf.Deg2Rad, dp = qp - pitch;
                 float ang = Mathf.Sqrt(dyaw * dyaw + dp * dp);
-                float cone = Mathf.Max(0.05f, Mathf.Atan(1f / dist)) * (Scoped ? 1.2f : 1.8f);
+                float cone = Mathf.Max(0.07f, Mathf.Atan(1f / dist)) * (Scoped ? 1.4f : 3.2f); // (hip fire: a wider catch)
                 if (ang > cone || ang > bestAng || !Los(cam.transform.position, t, q)) continue;
                 bestAng = ang; by = dyaw; bp = dp;
             }
             if (bestAng == float.MaxValue) return;
-            float k = Mathf.Min(1f, (input.FireHeld ? 7f : 3.5f) * dt);
+            float k = Mathf.Min(1f, (input.FireHeld ? 11f : 3.5f) * dt);
             yaw += by * k * Mathf.Rad2Deg; pitch += bp * k * 0.6f;
         }
 

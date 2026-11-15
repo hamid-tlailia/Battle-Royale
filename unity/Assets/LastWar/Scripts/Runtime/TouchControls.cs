@@ -29,6 +29,7 @@ namespace LastWar
         public bool FrostAim;
         bool scopeAllowed = true; RectTransform gearRt; Vector2? jumpGround;
         public bool Scoped;         // scope toggle
+        public bool InAir; // the player is in a jump (set by the controller)
         public bool SniperAiming, CancelShot; // sniper shot being aimed (FIRE held) / X tapped this frame
         RectTransform cancelShot;
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
@@ -247,7 +248,7 @@ namespace LastWar
                 {
                     if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
-                        fireFinger = t.fingerId; FirePressed = true; // (a shot does not end the locked run: it only slows while FIRE is held)
+                        fireFinger = t.fingerId; FirePressed = true; if (!InAir) Sprint = false; // a shot ends the run - except from a jump
                         if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                     }
                     else if (OverBlocker(t.position)) continue;
@@ -291,7 +292,7 @@ namespace LastWar
             Vector2 mp = Input.mousePosition;
             bool onFire = Over(fireBtn, mp) || Over(fireLeft, mp);
             bool onUi = OverBlocker(mp) && !onFire;
-            if (Input.GetMouseButtonDown(0) && !onUi) FirePressed = true;
+            if (Input.GetMouseButtonDown(0) && !onUi) { FirePressed = true; if (!InAir) Sprint = false; }
             if (Input.GetKeyDown(KeyCode.C)) { Crouch = !Crouch; Prone = false; }
             if (Input.GetKeyDown(KeyCode.Z)) { Prone = !Prone; Crouch = false; }
             if (Input.GetKeyDown(KeyCode.H)) HealPressed = true;

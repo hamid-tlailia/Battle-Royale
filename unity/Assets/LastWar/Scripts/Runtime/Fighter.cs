@@ -21,6 +21,11 @@ namespace LastWar
         public string displayName = "Soldier";
         public bool isPlayer;
         public float hp = MaxHp, armor = 0f;
+        /// <summary>vest level 0 (none) .. 3: a better vest takes a bigger share of every hit</summary>
+        public int armorLv;
+        public static readonly float[] ArmorShare = { 0f, .35f, .5f, .65f };
+        /// <summary>damage this fighter deals x this (the player grows with the profile level, bots hit softer)</summary>
+        public float DamageMult = 1f;
         public int kills;
         public int meds, frost;          // medkits, ice walls
         public int air;                  // 0 ground, 1 in the plane, 2 free fall, 3 parachute
@@ -110,8 +115,13 @@ namespace LastWar
                     frost += take; it.amount -= take; Picked(); return it.amount <= 0;
                 }
                 case Loot.Kind.Armor:
+                {
+                    int lv = Mathf.Clamp(int.TryParse(it.item, out int l) ? l : 1, 1, 3);
+                    if (lv > armorLv) { armorLv = lv; armor = MaxArmor; Picked(); return true; } // a better vest: put it on, full
                     if (armor >= MaxArmor) return false;
-                    armor = Mathf.Min(MaxArmor, armor + 50f); Picked(); return true;
+                    if (armorLv == 0) armorLv = lv;
+                    armor = Mathf.Min(MaxArmor, armor + 50f); Picked(); return true;               // same / lower: patches yours
+                }
                 case Loot.Kind.Scope:
                 {
                     int z = it.Zoom, bit = ScopeBit(z);
@@ -166,9 +176,9 @@ namespace LastWar
             spare.Clear();
             if (meds > 0) Put(Loot.Kind.Med, null, meds);
             if (frost > 0) Put(Loot.Kind.Frost, null, frost);
-            if (armor > 0) Put(Loot.Kind.Armor, null, 1);
+            if (armor > 0) Put(Loot.Kind.Armor, Mathf.Max(1, armorLv).ToString(), 1);
             foreach (int z in new[] { 2, 4, 8 }) if ((scopes & ScopeBit(z)) != 0) Put(Loot.Kind.Scope, z.ToString(), 1);
-            meds = frost = scopes = scope = 0; armor = 0;
+            meds = frost = scopes = scope = 0; armor = 0; armorLv = 0;
         }
         void AddSpare(string id, int n) { spare[id] = (spare.TryGetValue(id, out int s) ? s : 0) + n; }
 
@@ -241,7 +251,7 @@ namespace LastWar
             BurstPending = g.def.id == "shotgun" && !second && g.mag > 0;
             nextShot = Time.time + (BurstPending ? 0.15f : g.def.Interval);
             // the web game's cone: wider on the move and in the air, tighter crouched
-            float spread = (scoped ? g.def.adsSpread : g.def.hipSpread) * (moving ? 1.2f : 1f) * (crouch ? 0.7f : 1f) * (grounded ? 1f : 1.6f);
+            float spread = (scoped ? g.def.adsSpread : g.def.hipSpread) * (moving ? 1.2f : 1f) * (crouch ? 0.7f : 1f) * (grounded ? 1f : 1.05f); // (shots from a jump stay tight)
             for (int p = 0; p < Mathf.Max(1, g.def.pellets); p++)
             {
                 Vector3 dir = Spread(aimDir, spread);
@@ -254,7 +264,7 @@ namespace LastWar
                     {
                         // head = top 30 cm of the capsule
                         bool head = hit.point.y > victim.transform.position.y + victim.HeadHeight - 0.3f;
-                        victim.TakeDamage(g.def.DamageAt(hit.distance, head), this, g.def.id, head, hit.point);
+                        victim.TakeDamage(g.def.DamageAt(hit.distance, head) * DamageMult * UnityEngine.Random.Range(0.93f, 1.07f), this, g.def.id, head, hit.point);
                     }
                     else if (victim == null) { IceWall wall = hit.collider.GetComponentInParent<IceWall>(); if (wall != null) wall.Damage(g.def.DamageAt(hit.distance, false)); }
                 }
@@ -293,7 +303,7 @@ namespace LastWar
         public void TakeDamage(float dmg, Fighter attacker, string weapon, bool head, Vector3 point)
         {
             if (!Alive || God) return;
-            float toArmor = attacker != null ? Mathf.Min(armor, dmg * ArmorAbsorb) : 0f; // the zone ignores armour
+            float toArmor = attacker != null ? Mathf.Min(armor, dmg * ArmorShare[Mathf.Clamp(armorLv, armor > 0 ? 1 : 0, 3)]) : 0f; // the zone ignores armour
             armor -= toArmor; hp -= dmg - toArmor;
             OnHit?.Invoke(this, attacker, dmg, head, point);
             if (hp <= 0f)

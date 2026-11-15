@@ -122,7 +122,7 @@ namespace LastWar
                     : AddRow(left, ref y, UiKit.Get("gun_" + g.def.id), g.def.name, $"{g.mag} in magazine", buttons.ToArray());
                 Draggable(row, pos, g != null ? () => f.DropWeapon(s) : (System.Action)null);
             }
-            AddRow(left, ref y, UiKit.Get("icon_vest"), "Armor", $"{Mathf.RoundToInt(f.armor)} / 100");
+            AddRow(left, ref y, UiKit.Get("icon_vest"), f.armor > 0 ? $"Armor Lv{Mathf.Max(1, f.armorLv)}" : "Armor", f.armor > 0 ? $"{Mathf.RoundToInt(f.armor)} / 100 · -{Mathf.RoundToInt(Fighter.ArmorShare[Mathf.Clamp(f.armorLv, 1, 3)] * 100)}% damage" : "none");
 
             y = 0;
             foreach (string id in new[] { "rifle", "sniper", "shotgun", "smg", "pistol" })

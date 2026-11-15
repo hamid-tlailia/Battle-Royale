@@ -88,6 +88,8 @@ namespace LastWar
             Player = PlayerController.Spawn(pos, controls, cam);
             if (url.Contains("sniper=1")) Player.fighter.guns[0] = new GunState("sniper"); // test switch: sniper in the long-range slot
             if (url.Contains("god=1")) Player.fighter.God = true;
+            // the player hits harder as the profile level grows (+3 % a level, up to +60 %); bots hit softer
+            Player.fighter.DamageMult = 1f + Mathf.Min(0.6f, 0.03f * (Profile.Level - 1));
             Fighters.Add(Player.fighter);
 
             // bots on other spawn points, spread over the map
@@ -96,7 +98,7 @@ namespace LastWar
             {
                 Vec2 s = Map.spawns[1 + (b * (n - 1) / BotCount) % (n - 1)];
                 Vector3 p = Coords.ToUnity(s.x, Map.HeightAt(s.x, s.z) + 0.2f, s.z);
-                Fighters.Add(BotBrain.Spawn(p, BotNames[b % BotNames.Length], 1000 + b * 7919 + Random.Range(0, 99999)).fighter);
+                { var bf = BotBrain.Spawn(p, BotNames[b % BotNames.Length], 1000 + b * 7919 + Random.Range(0, 99999)).fighter; bf.DamageMult = 0.5f; Fighters.Add(bf); }
             }
             AliveCount = Fighters.Count;
             Fighter.OnKill += (victim, killer, w, head) =>

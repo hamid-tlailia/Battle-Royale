@@ -30,7 +30,7 @@ namespace LastWar
             Kind.Weapon => Tuning.Weapon(item)?.name ?? item,
             Kind.Ammo => (Tuning.Weapon(item)?.name ?? item) + " ammo",
             Kind.Med => "Medkit",
-            Kind.Armor => "Armor vest",
+            Kind.Armor => "Armor vest Lv" + (string.IsNullOrEmpty(item) ? "1" : item),
             Kind.Scope => "×" + item + " scope",
             _ => "Ice wall",
         };
@@ -39,7 +39,7 @@ namespace LastWar
             Kind.Weapon => Tuning.SlotNames[Fighter.SlotOf(item)],
             Kind.Ammo => amount + " rounds",
             Kind.Med => (amount > 1 ? "× " + amount + " · " : "") + "+100 HP",
-            Kind.Armor => "+50 armor",
+            Kind.Armor => "-" + Mathf.RoundToInt(Fighter.ArmorShare[Mathf.Clamp(int.TryParse(item, out int al) ? al : 1, 1, 3)] * 100) + "% damage",
             Kind.Scope => "rifle / sniper",
             _ => (amount > 1 ? "× " + amount + " · " : "") + "blocks bullets",
         };
@@ -163,7 +163,7 @@ namespace LastWar
             // (more guns, medkits and ice than the web: 30 fighters share the valley)
             (Kind.Weapon, "pistol", 12), (Kind.Weapon, "rifle", 14), (Kind.Weapon, "shotgun", 10), (Kind.Weapon, "sniper", 6), (Kind.Weapon, "smg", 11),
             (Kind.Ammo, "pistol", 7), (Kind.Ammo, "rifle", 10), (Kind.Ammo, "shotgun", 5), (Kind.Ammo, "sniper", 4), (Kind.Ammo, "smg", 7),
-            (Kind.Med, null, 17), (Kind.Armor, null, 6), (Kind.Scope, "2", 4), (Kind.Scope, "4", 2), (Kind.Scope, "8", 1), (Kind.Frost, null, 13),
+            (Kind.Med, null, 17), (Kind.Armor, "1", 5), (Kind.Armor, "2", 3), (Kind.Armor, "3", 1), (Kind.Scope, "2", 4), (Kind.Scope, "4", 2), (Kind.Scope, "8", 1), (Kind.Frost, null, 13),
         };
 
         public static void SpawnMap(MapData map, int seed)

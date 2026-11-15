@@ -411,8 +411,10 @@ namespace LastWar
             load = Mathf.Clamp01(load + ammo / 3f * .6f);
             bagRing.fillAmount = load;
             bagRing.color = load < .5f ? Color.white : load < .85f ? new Color(1f, .83f, .3f) : new Color(1f, .3f, .25f);
-            vestText.text = f.armor > 0 ? Mathf.RoundToInt(f.armor).ToString() : "-";
-            vestText.color = f.armor > 0 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .45f); vestIcon.color = f.armor > 0 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .45f);
+            // armour points, coloured by the vest level (Lv1 blue, Lv2 purple, Lv3 gold)
+            vestText.text = f.armor > 0 ? $"{Mathf.RoundToInt(f.armor)}<size={Mathf.RoundToInt(8 * K)}> L{Mathf.Max(1, f.armorLv)}</size>" : "-";
+            Color vc = f.armor <= 0 ? new Color(1, 1, 1, .45f) : f.armorLv >= 3 ? new Color(1f, .83f, .3f) : f.armorLv == 2 ? new Color(.77f, .55f, 1f) : new Color(.44f, .71f, 1f);
+            vestText.color = vc; vestIcon.color = vc;
             hpFill.rectTransform.sizeDelta = new Vector2(BarW * f.hp / Fighter.MaxHp, 6) * K;
             hpFill.color = f.hp > Fighter.MaxHp * 0.3f ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
             armorFill.rectTransform.sizeDelta = new Vector2(BarW * f.armor / 100f, 7) * K;

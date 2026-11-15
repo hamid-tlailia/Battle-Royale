@@ -15,7 +15,9 @@ namespace LastWar
         public float Interval => 60f / Mathf.Max(1f, rpm);
         public float DamageAt(float dist, bool head)
         {
-            float f = 1f;
+            // close in hits harder (+30 % at point blank, fading to the base value at half the falloff distance),
+            // far away weaker - so the number changes with the distance instead of always the same
+            float f = 1f + 0.3f * (1f - Mathf.Clamp01(dist / Mathf.Max(1f, falloffStart * 0.5f)));
             if (dist > falloffStart) f = 1f - (1f - minDamageFrac) * Mathf.Clamp01((dist - falloffStart) / Mathf.Max(1f, range - falloffStart));
             return damage * f * (head ? headMult : 1f);
         }
