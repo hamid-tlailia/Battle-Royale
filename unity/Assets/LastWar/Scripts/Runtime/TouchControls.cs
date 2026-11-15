@@ -29,6 +29,8 @@ namespace LastWar
         public bool FrostAim;
         bool scopeAllowed = true; RectTransform gearRt; Vector2? jumpGround;
         public bool Scoped;         // scope toggle
+        public bool SniperAiming, CancelShot; // sniper shot being aimed (FIRE held) / X tapped this frame
+        RectTransform cancelShot;
         public int SlotPressed = -1;// weapon slot tapped this frame (-1 none)
         public bool ReloadPressed;  // true for one frame
         public Canvas Canvas => canvas;
@@ -86,6 +88,12 @@ namespace LastWar
             // positions = the web defaults (style.css .btn-*): centre from the corner, in CSS px
             fireBtn = Button("fire", "btn_fire", 84, BR, new Vector2(-68, 150), null);
             fireLeft = Button("fire", "btn_fire", 60, TL, new Vector2(60, -139), null);
+            // sniper: while FIRE is held (aiming the shot), an X beside it cancels the shot
+            cancelShot = UiKit.CloseButton(root, BR, new Vector2(-185, 105), 46, null).rectTransform;
+            cancelShot.pivot = new Vector2(.5f, .5f); cancelShot.anchoredPosition = new Vector2(-185, 105) * UiKit.K;
+            { var ct = cancelShot.gameObject.AddComponent<EventTrigger>(); var ce = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ce.callback.AddListener(_ => CancelShot = true); ct.triggers.Add(ce); }
+            cancelShot.gameObject.SetActive(false);
+            blockers.Add(cancelShot);
             jumpBtn = Button("jump", "btn", 64, BR, new Vector2(-56, 58), () => JumpPressed = true);
             Button("reload", "btn", 50, BR, new Vector2(-153, 125), () => ReloadPressed = true);
             scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => Scoped = !Scoped);
@@ -204,6 +212,7 @@ namespace LastWar
             if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
             // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
             if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; joyKnob.anchoredPosition = Vector2.zero; return; }
+            bool xOn = SniperAiming && !Spectating; if (cancelShot.gameObject.activeSelf != xOn) cancelShot.gameObject.SetActive(xOn);
             bool wasHeld = FireHeld;
             if (Input.touchCount > 0) Touches();
             else
@@ -226,7 +235,7 @@ namespace LastWar
             }
         }
 
-        void LateUpdate() { JumpPressed = false; FirePressed = false; FireReleased = false; HolsterPressed = false; ReloadPressed = false; SlotPressed = -1; HealPressed = FrostPressed = BagPressed = GearPressed = false; }
+        void LateUpdate() { JumpPressed = false; FirePressed = false; FireReleased = false; HolsterPressed = false; ReloadPressed = false; SlotPressed = -1; HealPressed = FrostPressed = BagPressed = GearPressed = false; CancelShot = false; }
 
         void Touches()
         {
@@ -238,7 +247,7 @@ namespace LastWar
                 {
                     if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
-                        fireFinger = t.fingerId; FirePressed = true; Sprint = false;
+                        fireFinger = t.fingerId; FirePressed = true; // (a shot does not end the locked run: it only slows while FIRE is held)
                         if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                     }
                     else if (OverBlocker(t.position)) continue;
@@ -280,7 +289,7 @@ namespace LastWar
             Vector2 mp = Input.mousePosition;
             bool onFire = Over(fireBtn, mp) || Over(fireLeft, mp);
             bool onUi = OverBlocker(mp) && !onFire;
-            if (Input.GetMouseButtonDown(0) && !onUi) { FirePressed = true; Sprint = false; }
+            if (Input.GetMouseButtonDown(0) && !onUi) FirePressed = true;
             if (Input.GetKeyDown(KeyCode.C)) { Crouch = !Crouch; Prone = false; }
             if (Input.GetKeyDown(KeyCode.Z)) { Prone = !Prone; Crouch = false; }
             if (Input.GetKeyDown(KeyCode.H)) HealPressed = true;

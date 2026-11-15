@@ -160,9 +160,10 @@ namespace LastWar
         // ---------------------------------------------------------------- the map's loot (web spawnLoot)
         static readonly (Kind kind, string item, int weight)[] Table =
         {
-            (Kind.Weapon, "pistol", 8), (Kind.Weapon, "rifle", 8), (Kind.Weapon, "shotgun", 6), (Kind.Weapon, "sniper", 3), (Kind.Weapon, "smg", 6),
+            // (more guns, medkits and ice than the web: 30 fighters share the valley)
+            (Kind.Weapon, "pistol", 12), (Kind.Weapon, "rifle", 14), (Kind.Weapon, "shotgun", 10), (Kind.Weapon, "sniper", 6), (Kind.Weapon, "smg", 11),
             (Kind.Ammo, "pistol", 7), (Kind.Ammo, "rifle", 10), (Kind.Ammo, "shotgun", 5), (Kind.Ammo, "sniper", 4), (Kind.Ammo, "smg", 7),
-            (Kind.Med, null, 9), (Kind.Armor, null, 6), (Kind.Scope, "2", 4), (Kind.Scope, "4", 2), (Kind.Scope, "8", 1), (Kind.Frost, null, 6),
+            (Kind.Med, null, 17), (Kind.Armor, null, 6), (Kind.Scope, "2", 4), (Kind.Scope, "4", 2), (Kind.Scope, "8", 1), (Kind.Frost, null, 13),
         };
 
         public static void SpawnMap(MapData map, int seed)
@@ -179,13 +180,13 @@ namespace LastWar
                 // a gun usually comes with some ammo next to it
                 if (e.Item1 == Kind.Weapon && rnd.NextDouble() < 0.8) Spawn(Kind.Ammo, e.Item2, Fighter.AmmoBox[e.Item2], p + new Vector3(0.5f, 0, 0.3f));
             }
-            // inside every house / farm building: up to 6 things on the floor
+            // inside every house / farm building: up to 8 things on the floor
             foreach (PropData h in map.props)
             {
                 if (!h.p.StartsWith("house") && h.p != "farmhouse") continue;
                 var bounds = MapBuilder.PropBounds(h);
                 int n = 0;
-                for (int k = 0; k < 20 && n < 6; k++)
+                for (int k = 0; k < 28 && n < 8; k++)
                 {
                     Vector3 c = bounds.center + new Vector3((float)(rnd.NextDouble() - .5) * bounds.size.x * 0.7f, 0, (float)(rnd.NextDouble() - .5) * bounds.size.z * 0.7f);
                     Vector3 top = new Vector3(c.x, h.y + 1.6f, c.z);
@@ -195,7 +196,7 @@ namespace LastWar
                 }
             }
             // and across the valley
-            int want = Mathf.RoundToInt(115f * Mathf.Pow(map.playRadius / 125f, 2f));
+            int want = Mathf.RoundToInt(160f * Mathf.Pow(map.playRadius / 125f, 2f));
             for (int k = 0, n = 0; k < 2000 && n < want; k++)
             {
                 double a = rnd.NextDouble() * Mathf.PI * 2, d = System.Math.Sqrt(rnd.NextDouble()) * (map.playRadius - 8);

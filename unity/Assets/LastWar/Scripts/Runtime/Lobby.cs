@@ -29,6 +29,7 @@ namespace LastWar
         static readonly string[] Tips = { "Welcome to Last War!", "Land, loot a gun, stay in the zone.", "Tap a weapon to equip it, tap it again to reload.", "Headshots hit twice as hard.", "The shotgun fires two blasts per press." };
 
         public static Lobby Current;
+        static float LobbyGunTurn = 58f;
         /// <summary>back button: closes the open page; false when there was none</summary>
         public bool Back() { if (sheet == null) return false; Close(); return true; }
 
@@ -36,11 +37,13 @@ namespace LastWar
         {
             var l = new GameObject("Lobby").AddComponent<Lobby>(); Current = l;
             l.cam = cam; l.Build3D(map); l.BuildUi();
+            l.StartCoroutine(MapBuilder.Preload(System.Array.ConvertAll(SoldierBody.OutfitFiles, f => "outfit_" + f)));
             // test switches: ?open=settings|outfit|map|edit opens that panel; ?lpose=kneel|crawl|runfree shows that pose
             string url = Application.absoluteURL ?? "";
             string Arg(string key) { int i = url.IndexOf(key + "="); if (i < 0) return null; string v = url.Substring(i + key.Length + 1); int e = v.IndexOf('&'); return e >= 0 ? v.Substring(0, e) : v; }
             string open = Arg("open"), lp = Arg("lpose");
             if (float.TryParse(Arg("lyaw") ?? "x", out float ly)) l.soldierYaw = ly;
+            if (float.TryParse(Arg("lgun") ?? "x", out float lg)) LobbyGunTurn = lg;
             if (open == "edit") l.CustomizeButtons(); else if (open != null) l.Open(open);
             if (lp != null && l.lobbyBody != null)
             {
@@ -103,6 +106,15 @@ namespace LastWar
 
             L = JsonUtility.FromJson<LobbyLayout>(Resources.Load<TextAsset>("UI/Lobby/lobby_layout").text);
             // the captured web layout, scaled to the screen's height - or to its width when the screen is narrower
+            foreach (LobbyNode n in L.nodes)
+            {
+                // the gear is as big as the trophy / kills chips beside it
+                if (n.id == "gear") { n.x = 805; n.y = 16; n.w = 34; n.h = 34; }
+                if (n.id == "gear_icon") { n.x = 812; n.y = 23; n.w = 20; n.h = 20; }
+                // season: the xp numbers on the "Level" line (right), the bar alone below across the card
+                if (n.id == "season_xp") { n.y = 300; n.h = 14; }
+                if (n.id == "season_bar") n.w = 218 - n.x;
+            }
             Canvas.ForceUpdateCanvases();
             Rect safe = root.rect;
             if (safe.height < 10f) safe = new Rect(0, 0, 1080f * Screen.width / Mathf.Max(1f, Screen.height) * 0.95f, 1080f);
@@ -168,14 +180,13 @@ namespace LastWar
                 var tipImg = tipRt.GetComponent<Image>();
                 if (tipImg != null) { tipImg.sprite = UiKit.Panel; tipImg.type = Image.Type.Sliced; tipImg.pixelsPerUnitMultiplier = 3f; }
             }
-            // season card: the xp numbers end inside the card, the bar stops before them
-            if (texts.TryGetValue("season_xp", out Text xp) && nodes.TryGetValue("season_bar", out RectTransform sbar))
+            // season card: the xp numbers end at the card's right edge, on the "Level" line
+            if (texts.TryGetValue("season_xp", out Text xp))
             {
                 xp.alignment = TextAnchor.MiddleRight; xp.horizontalOverflow = HorizontalWrapMode.Overflow;
                 float right = (10 + 220 - 12) * s, wTxt = xp.preferredWidth + 2;
                 RectTransform xr = xp.rectTransform; xr.sizeDelta = new Vector2(wTxt, xr.sizeDelta.y);
                 xr.anchoredPosition = new Vector2(right - wTxt, xr.anchoredPosition.y);
-                sbar.sizeDelta = new Vector2(Mathf.Max(30 * s, right - wTxt - 8 * s - sbar.anchoredPosition.x), sbar.sizeDelta.y);
             }
             // keep icons / labels above their panels
             foreach (var kv in texts) kv.Value.transform.SetAsLastSibling();
@@ -270,7 +281,7 @@ namespace LastWar
             {
                 case "outfit": OutfitSheet(); break;
                 case "map": MapSheet(); break;
-                case "friends": Note("Playing with friends online is coming to the app soon.\nFor now: SOLO battle royale against 15 bots."); break;
+                case "friends": Note("Playing with friends online is coming to the app soon.\nFor now: SOLO battle royale against 30 bots."); break;
                 case "settings": SettingsSheet(); break;
             }
         }
@@ -286,11 +297,13 @@ namespace LastWar
         {
             if (w < 0) w = ColW;
             var view = new GameObject("view", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect)).GetComponent<RectTransform>();
-            view.SetParent(sheet, false); view.anchorMin = new Vector2(.5f, 0); view.anchorMax = new Vector2(.5f, 1); view.pivot = new Vector2(.5f, .5f);
-            view.offsetMin = new Vector2(-w / 2f, 12 * s); view.offsetMax = new Vector2(w / 2f, -52 * s);
-            view.GetComponent<Image>().color = new Color(1, 1, 1, 0f); // catches the drags anywhere in the column
+            // the view is the whole page (a drag anywhere on it scrolls), the content a centred column of width w
+            view.SetParent(sheet, false); view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one; view.pivot = new Vector2(.5f, .5f);
+            view.offsetMin = new Vector2(0, 12 * s); view.offsetMax = new Vector2(0, -52 * s);
+            view.GetComponent<Image>().color = new Color(1, 1, 1, 0f); // catches the drags anywhere on the page
             var content = new GameObject("content", typeof(RectTransform)).GetComponent<RectTransform>();
-            content.SetParent(view, false); content.anchorMin = new Vector2(0, 1); content.anchorMax = new Vector2(1, 1); content.pivot = new Vector2(.5f, 1);
+            content.SetParent(view, false); content.anchorMin = content.anchorMax = content.pivot = new Vector2(.5f, 1);
+            content.sizeDelta = new Vector2(w, 0);
             var sr = view.GetComponent<ScrollRect>(); sr.content = content; sr.horizontal = false; sr.movementType = ScrollRect.MovementType.Clamped;
             return content;
         }
@@ -300,22 +313,60 @@ namespace LastWar
             float cw = L.card.w * s, ch = L.card.h * s, gap = 8 * s;
             int cols = Mathf.Clamp(Mathf.FloorToInt((PageW + gap) / (cw + gap)), 3, 6);
             var content = ScrollArea(cols * (cw + gap) - gap);
+            // parts: the full outfit (now) and single pieces (coming later)
+            float tabsH = 30 * s, top = tabsH + 12 * s;
+            SettingsPanel.Segments(content, Vector2.zero, new Vector2(content.sizeDelta.x, tabsH), 11 * k, OutfitTabs, outfitTab, t => { outfitTab = t; Open("outfit"); });
+            if (outfitTab != 0)
+            {
+                var none = UiKit.Txt(content, new Vector2(.5f, 1), Vector2.zero, Vector2.one, 14 * k, TextAnchor.MiddleCenter, new Color(1, 1, 1, .6f));
+                none.rectTransform.pivot = new Vector2(.5f, 1); none.rectTransform.anchoredPosition = new Vector2(0, -top - 60 * s);
+                none.rectTransform.sizeDelta = new Vector2(content.sizeDelta.x, 30 * s); none.text = "NOT AVAILABLE YET";
+                content.sizeDelta = new Vector2(content.sizeDelta.x, top + 120 * s);
+                return;
+            }
             for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++)
             {
                 int skin = i;
                 bool on = i == Profile.Skin;
                 var card = UiKit.Img(content, "card", UiKit.Get(on ? "Lobby/card_on" : "Lobby/card"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
-                card.rectTransform.anchoredPosition = new Vector2((i % cols) * (cw + gap), -(i / cols) * (ch + gap));
+                card.rectTransform.anchoredPosition = new Vector2((i % cols) * (cw + gap), -top - (i / cols) * (ch + gap));
                 card.rectTransform.sizeDelta = new Vector2(cw, ch);
                 var pic = UiKit.Img(card.rectTransform, "pic", Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i]), new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
                 pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
                 pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw, ch - 22 * s);
                 var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), Vector2.zero, Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, on ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : Color.white);
                 name.rectTransform.pivot = new Vector2(.5f, 0); name.rectTransform.sizeDelta = new Vector2(cw, 18 * s); name.text = SoldierBody.OutfitNames[i];
-                if (on) { var ck = UiKit.Txt(card.rectTransform, new Vector2(1, 1), new Vector2(-4, -2) * k, new Vector2(20, 20) * k, 12 * k, TextAnchor.MiddleCenter, new Color(27 / 255f, 20 / 255f, 4 / 255f)); ck.rectTransform.pivot = new Vector2(1, 1); ck.text = ""; }
-                Clickable.Add(card.gameObject, () => { Profile.Skin = skin; SpawnSoldier(); Open("outfit"); if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[skin]); });
+                if (on) Check(card.rectTransform, cw);
+                // the card turns gold at once; the 3D soldier changes on the next frame
+                Clickable.Add(card.gameObject, () =>
+                {
+                    if (Profile.Skin == skin) return;
+                    Profile.Skin = skin; Open("outfit");
+                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[skin]);
+                    StartCoroutine(SpawnNextFrame());
+                });
             }
-            content.sizeDelta = new Vector2(0, Mathf.CeilToInt(SoldierBody.OutfitFiles.Length / (float)cols) * (ch + gap));
+            content.sizeDelta = new Vector2(content.sizeDelta.x, top + Mathf.CeilToInt(SoldierBody.OutfitFiles.Length / (float)cols) * (ch + gap));
+        }
+
+        static readonly string[] OutfitTabs = { "FULL OUTFIT", "MASK", "T-SHIRT", "PANTS", "SHOES" };
+        int outfitTab;
+        System.Collections.IEnumerator SpawnNextFrame() { yield return null; SpawnSoldier(); }
+
+        /// <summary>a dark tick on the chosen card's gold corner badge</summary>
+        void Check(RectTransform card, float cw)
+        {
+            float u = cw / 96f; // card picture units (the card is 96 css px wide)
+            Vector2 c = new Vector2(-15.5f * u, -14.5f * u);
+            void Bar(Vector2 from, Vector2 to)
+            {
+                var b = UiKit.Img(card, "tick", null, new Vector2(1, 1), Vector2.zero, Vector2.one, new Color(27 / 255f, 20 / 255f, 4 / 255f));
+                Vector2 d = to - from; var rt = b.rectTransform;
+                rt.pivot = new Vector2(0, .5f); rt.anchoredPosition = c + from * u; rt.sizeDelta = new Vector2(d.magnitude * u + 1.6f * u, 2.4f * u);
+                rt.localEulerAngles = new Vector3(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+            }
+            Bar(new Vector2(-4.5f, 0.5f), new Vector2(-1.3f, -2.8f));
+            Bar(new Vector2(-1.8f, -2.8f), new Vector2(4.8f, 3.6f));
         }
 
         void MapSheet()
@@ -342,7 +393,7 @@ namespace LastWar
                 var d = UiKit.Txt(card.rectTransform, new Vector2(1, 0), new Vector2(-12, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerRight, new Color(1, 1, 1, .85f)); d.rectTransform.pivot = new Vector2(1, 0); d.fontStyle = FontStyle.Normal; d.text = desc[i];
                 Clickable.Add(card.gameObject, () => { Profile.MapAuto = false; if (Profile.Map == id) { Close(); return; } Profile.Map = id; Loader.Go("Loading " + MapName(id) + "…"); });
             }
-            content.sizeDelta = new Vector2(0, top + ids.Length * (h + 10 * s));
+            content.sizeDelta = new Vector2(content.sizeDelta.x, top + ids.Length * (h + 10 * s));
         }
 
         void Note(string text)
@@ -375,7 +426,7 @@ namespace LastWar
             cbt.rectTransform.pivot = new Vector2(.5f, .5f); cbt.rectTransform.sizeDelta = new Vector2(w * .9f, 32 * s); cbt.text = "CUSTOMIZE BUTTONS";
             Clickable.Add(cb.gameObject, CustomizeButtons);
             y += 42 * s;
-            content.sizeDelta = new Vector2(0, y + 10 * s);
+            content.sizeDelta = new Vector2(content.sizeDelta.x, y + 10 * s);
         }
 
         /// <summary>the match controls laid over the lobby, with stand-ins for the weapon box and the minimap, in the layout editor</summary>
@@ -463,7 +514,8 @@ namespace LastWar
                 if (mouseDrag) { soldierYaw -= (Input.mousePosition.x - dragLast.x) * 0.4f; dragLast = Input.mousePosition; }
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
-            if (lobbyBody != null) lobbyBody.AimDir = soldier.transform.forward;
+            // rifle held across the body (barrel to the soldier's left and a little down) so the camera sees the whole gun
+            if (lobbyBody != null) lobbyBody.AimDir = Quaternion.AngleAxis(-LobbyGunTurn, soldier.transform.up) * Quaternion.AngleAxis(22f, soldier.transform.right) * soldier.transform.forward;
             if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }
 

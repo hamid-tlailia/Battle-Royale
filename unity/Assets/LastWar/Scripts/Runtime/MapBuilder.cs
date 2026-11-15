@@ -194,6 +194,18 @@ namespace LastWar
             return m;
         }
 
+        /// <summary>loads models in the background (the lobby's outfits: switching outfit is then instant)</summary>
+        public static System.Collections.IEnumerator Preload(string[] names)
+        {
+            foreach (string n in names)
+            {
+                if (models.ContainsKey(n)) continue;
+                var req = Resources.LoadAsync<GameObject>("Models/" + n);
+                yield return req;
+                if (!models.ContainsKey(n)) models[n] = req.asset as GameObject;
+            }
+        }
+
         static void PlaceProp(PropData p, Transform parent)
         {
             var root = new GameObject(p.p);

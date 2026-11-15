@@ -4,7 +4,7 @@ using UnityEngine.UI;
 namespace LastWar
 {
     /// <summary>
-    /// The web game's victory celebration: a gold glow over the screen, VICTORY popping in, #1 / players, kills,
+    /// The web game's victory celebration (also when a bot is the last one standing: WINNER + its name): a gold glow over the screen, VICTORY popping in, #1 / players, kills,
     /// confetti raining down, only the victory music playing - then a countdown and back to the lobby by itself
     /// (or LOBBY now).
     /// </summary>
@@ -16,7 +16,7 @@ namespace LastWar
         struct Bit { public RectTransform rt; public float speed, spin, sway, phase; }
         Bit[] bits;
 
-        public static void Show(Transform full, Transform hudRoot, int kills, int players)
+        public static void Show(Transform full, Transform hudRoot, int kills, int players, string winner = null, int myRank = 0)
         {
             const float K = UiKit.K;
             var shade = UiKit.Img(full, "Victory", null, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, new Color(0, 0, 0, .55f), true);
@@ -40,13 +40,15 @@ namespace LastWar
             c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, .55f);
             c.box.sizeDelta = new Vector2(700, 300) * K;
             var h1 = UiKit.Txt(c.box, new Vector2(.5f, 1), Vector2.zero, new Vector2(700, 120), 96, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
-            h1.rectTransform.pivot = new Vector2(.5f, 1); h1.text = "VICTORY";
+            h1.rectTransform.pivot = new Vector2(.5f, 1); h1.text = winner == null ? "VICTORY" : "WINNER";
             var sh = h1.GetComponent<Shadow>(); sh.effectColor = new Color(.54f, .35f, .05f, 1f); sh.effectDistance = new Vector2(0, -4 * K);
             h1.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f, .35f);
             var place = UiKit.Txt(c.box, new Vector2(.5f, 1), new Vector2(0, -120), new Vector2(700, 60), 52, TextAnchor.MiddleCenter, Color.white);
-            place.rectTransform.pivot = new Vector2(.5f, 1); place.text = $"#1 <size={Mathf.RoundToInt(24 * K)}><color=#ffffffcc>/ {players}</color></size>";
+            place.rectTransform.pivot = new Vector2(.5f, 1);
+            place.text = winner == null ? $"#1 <size={Mathf.RoundToInt(24 * K)}><color=#ffffffcc>/ {players}</color></size>" : winner;
             var sub = UiKit.Txt(c.box, new Vector2(.5f, 1), new Vector2(0, -182), new Vector2(700, 26), 18, TextAnchor.MiddleCenter, Color.white);
-            sub.rectTransform.pivot = new Vector2(.5f, 1); sub.text = $"Last one standing · {kills} kill{(kills == 1 ? "" : "s")}";
+            sub.rectTransform.pivot = new Vector2(.5f, 1);
+            sub.text = $"Last one standing · {kills} kill{(kills == 1 ? "" : "s")}" + (winner != null && myRank > 0 ? $"   ·   you placed #{myRank} / {players}" : "");
             c.count = UiKit.Txt(c.box, new Vector2(.5f, 1), new Vector2(0, -222), new Vector2(700, 20), 12, TextAnchor.MiddleCenter, new Color(1, 1, 1, .75f));
             c.count.rectTransform.pivot = new Vector2(.5f, 1);
             var lobby = UiKit.Img(c.box, "lobby", UiKit.GoldPlate, new Vector2(.5f, 1), new Vector2(0, -250), new Vector2(150, 36), Color.white, true);

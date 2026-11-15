@@ -58,8 +58,9 @@ namespace LastWar
         void Update()
         {
             float dt = Time.deltaTime;
+            input.SniperAiming = false; // (set again below while a sniper shot is held)
             if (vaultT >= 0f) { VaultStep(dt); return; }
-            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
+            if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (lockTarget != null && AimAssistOn ? 0.6f : 1f);
@@ -126,11 +127,20 @@ namespace LastWar
             bool fired = false;
             GunState gun = armed ? fighter.Gun : null;
             // FIRE with the guns put away takes the last one back out (web)
-            if (fighter.holstered && fighter.HasGun && input.FirePressed) { fighter.ToggleHolster(); input.FirePressed = false; }
+            if (fighter.holstered && fighter.HasGun && input.FirePressed && !input.FrostAim) { fighter.ToggleHolster(); input.FirePressed = false; }
 
-            // ice wall: one tap raises it at once (no aiming step, no FIRE press: running carries on)
-            input.FrostAim = false;
-            if (input.FrostPressed && fighter.frost > 0 && onGround && IceWall.Place(transform)) fighter.frost--;
+            // ice wall: the button shows the half-round wall, FIRE raises it (also mid-jump); the button again cancels
+            if (input.FrostPressed) input.FrostAim = !input.FrostAim && fighter.frost > 0;
+            if (input.FrostAim && fighter.frost <= 0) input.FrostAim = false;
+            if (frostGhost == null) frostGhost = IceWall.Ghost();
+            var wallSpot = input.FrostAim ? IceWall.Spot(transform) : null;
+            frostGhost.gameObject.SetActive(input.FrostAim);
+            if (input.FrostAim) IceWall.ShowGhost(frostGhost, wallSpot);
+            if (input.FrostAim && input.FirePressed)
+            {
+                if (wallSpot.Count > 0) { IceWall.Place(wallSpot, transform.position); fighter.frost--; input.FrostAim = false; }
+                input.FirePressed = false; blockFire = true; // this press built the wall, no shot
+            }
             if (blockFire) { if (!input.FireHeld) blockFire = false; else gun = null; }
 
             // loot: walking over takes it (a gun only into an empty slot); the rest within reach is listed with TAKE
@@ -150,6 +160,8 @@ namespace LastWar
             {
                 // sniper: FIRE down opens the scope, letting go takes the shot (the scope closes again if FIRE opened it)
                 if (input.FirePressed) { sniperAuto = !input.Scoped; input.Scoped = true; sniperHold = true; unscopeAt = 0; }
+                // X: the shot is called off (the scope closes if FIRE opened it)
+                if (sniperHold && input.CancelShot) { sniperHold = false; if (sniperAuto) input.Scoped = false; }
                 if (sniperHold && input.FireReleased)
                 {
                     sniperHold = false;
@@ -164,6 +176,7 @@ namespace LastWar
                 bool wantFire = gun != null && (input.FireHeld || input.FirePressed || fighter.BurstPending);
                 fired = wantFire && fighter.Fire(eye, aim, Scoped, moving, input.Crouch || input.Prone, onGround);
             }
+            input.SniperAiming = sniperHold;
             if (unscopeAt > 0 && Time.time >= unscopeAt) { unscopeAt = 0; input.Scoped = false; }
             bool firing = Time.time - fighter.lastShotAt < 0.35f || (input.FireHeld && gun != null && gun.def.id != "sniper");
 
@@ -302,10 +315,10 @@ namespace LastWar
                 Fighter q = h.collider.GetComponentInParent<Fighter>();
                 OnEnemy = q != null && q != fighter && q.Alive ? q : null;
             }
-            // 1b) scoped point-blank (an enemy within ~2 m in front): the aim sits on their body and does not leave it
+            // 1b) scoped close range (an enemy within ~4 m in front): the aim sits on their body and does not leave it
             if (Scoped && GameBoot.Instance != null)
             {
-                Fighter close = null; float cd = 2.3f;
+                Fighter close = null; float cd = 4.2f;
                 foreach (Fighter q in GameBoot.Instance.Fighters)
                 {
                     if (q == fighter || !q.Alive) continue;
@@ -406,7 +419,7 @@ namespace LastWar
         /// <summary>things within reach that walking over did not take (shown in the HUD list with TAKE)</summary>
         public readonly System.Collections.Generic.List<Loot> Nearby = new System.Collections.Generic.List<Loot>();
         public void Take(Loot it) { if (it != null && fighter.TryPickup(it, true)) Destroy(it.gameObject); }
-        bool blockFire; float camY = float.NaN;
+        Transform frostGhost; bool blockFire; float camY = float.NaN;
 
         // ------------------------------------------------------------ vault (through a window / over a low wall)
         float vaultT = -1f; Vector3 vaultFrom, vaultApex, vaultTo;
@@ -510,9 +523,9 @@ namespace LastWar
                 cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, ScopeFov, Time.deltaTime * 20f);
                 return;
             }
-            float targetDist = fighter.air != 0 ? 6.5f : 3.6f;
+            float targetDist = fighter.air != 0 ? 5.6f : 2.85f; // closer: the soldier fills more of the screen
             camDist = Mathf.Lerp(camDist, targetDist, Time.deltaTime * 12f);
-            Vector3 back = look * new Vector3(fighter.air != 0 ? 0.65f : 1.05f, 0.45f, -camDist);
+            Vector3 back = look * new Vector3(fighter.air != 0 ? 0.6f : 0.9f, 0.4f, -camDist);
             float len = back.magnitude;
             if (Physics.SphereCast(pivot, 0.2f, back / len, out RaycastHit hit, len, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) len = Mathf.Max(0.4f, hit.distance - 0.1f);
             cam.transform.position = pivot + back.normalized * len;

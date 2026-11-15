@@ -85,9 +85,9 @@ namespace LastWar
             flash.rectTransform.pivot = C; flash.transform.SetAsFirstSibling();
 
             // ---- bottom centre: bars (bottom 6), reload bar, weapon box
-            RectTransform hpBg = hpBgRt = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 6), new Vector2(BarW, 10), new Color(0, 0, 0, .45f)).rectTransform;
-            hpFill = UiKit.Img(hpBg, "Hp", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(BarW, 10), new Color(0.48f, 0.85f, 0.32f));
-            hpText = UiKit.Txt(hpBg, new Vector2(1, .5f), Vector2.zero, new Vector2(30, 14), 12, TextAnchor.MiddleLeft, Color.white);
+            RectTransform hpBg = hpBgRt = UiKit.Img(c, "HpBg", UiKit.Round, BC, new Vector2(0, 7), new Vector2(BarW, 6), new Color(0, 0, 0, .45f)).rectTransform;
+            hpFill = UiKit.Img(hpBg, "Hp", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(BarW, 6), new Color(0.48f, 0.85f, 0.32f));
+            hpText = UiKit.Txt(hpBg, new Vector2(1, .5f), Vector2.zero, new Vector2(30, 12), 10, TextAnchor.MiddleLeft, Color.white);
             hpText.rectTransform.pivot = new Vector2(0, .5f); hpText.rectTransform.anchoredPosition = new Vector2(5 * UiKit.K, 0);
             RectTransform arBg = arBgRt = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(BarW, 7), new Color(0, 0, 0, .45f)).rectTransform;
             armorFill = UiKit.Img(arBg, "Ar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(BarW, 7), new Color(0.35f, 0.67f, 1f));
@@ -227,11 +227,11 @@ namespace LastWar
             vestIcon = UiKit.Img(status, "vest", UiKit.Get("icon_vest"), new Vector2(0, .5f), Vector2.zero, new Vector2(17, 17), Color.white); vestIcon.rectTransform.pivot = new Vector2(0, .5f);
             vestText = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(20, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, Color.white);
             // the backpack: a ring round its icon fills with what you carry - white, then yellow, red when full
-            bagRingBg = UiKit.Img(status, "bagRingBg", UiKit.Ring, new Vector2(0, .5f), new Vector2(31, 0), new Vector2(23, 23), new Color(1, 1, 1, .2f)); bagRingBg.rectTransform.pivot = new Vector2(0, .5f);
+            bagRingBg = UiKit.Img(status, "bagRingBg", UiKit.Ring, new Vector2(0, .5f), new Vector2(54, 0), new Vector2(23, 23), new Color(1, 1, 1, .2f)); bagRingBg.rectTransform.pivot = new Vector2(0, .5f);
             bagRing = UiKit.Img(bagRingBg.rectTransform, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(23, 23), Color.white); bagRing.rectTransform.pivot = new Vector2(.5f, .5f);
             bagRing.type = Image.Type.Filled; bagRing.fillMethod = Image.FillMethod.Radial360; bagRing.fillOrigin = (int)Image.Origin360.Top; bagRing.fillAmount = 0;
             var bagIc = UiKit.Img(bagRingBg.rectTransform, "bag", UiKit.Get("icon_bag"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(15, 15), new Color(1f, .83f, .3f)); bagIc.rectTransform.pivot = new Vector2(.5f, .5f);
-            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(57, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1";
+            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(80, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1";
 
             // things within reach (web .loot-list): a see-through panel to the left of the fire button, picture, name, TAKE
             lootPanel = UiKit.Img(c, "LootList", UiKit.Round, new Vector2(1, .56f), new Vector2(-232, 0), new Vector2(172, 40), new Color(10 / 255f, 18 / 255f, 10 / 255f, .42f), true).rectTransform;
@@ -413,7 +413,7 @@ namespace LastWar
             bagRing.color = load < .5f ? Color.white : load < .85f ? new Color(1f, .83f, .3f) : new Color(1f, .3f, .25f);
             vestText.text = f.armor > 0 ? Mathf.RoundToInt(f.armor).ToString() : "-";
             vestText.color = f.armor > 0 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .45f); vestIcon.color = f.armor > 0 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .45f);
-            hpFill.rectTransform.sizeDelta = new Vector2(BarW * f.hp / Fighter.MaxHp, 10) * K;
+            hpFill.rectTransform.sizeDelta = new Vector2(BarW * f.hp / Fighter.MaxHp, 6) * K;
             hpFill.color = f.hp > Fighter.MaxHp * 0.3f ? new Color(0.48f, 0.85f, 0.32f) : new Color(0.94f, 0.36f, 0.3f);
             armorFill.rectTransform.sizeDelta = new Vector2(BarW * f.armor / 100f, 7) * K;
             hpText.text = Mathf.CeilToInt(f.hp).ToString();
@@ -599,7 +599,17 @@ namespace LastWar
             if (spectating && (gb.AliveCount <= 1 || player.SpectateTarget == null)) spectating = false;
             // victory: the web's celebration (confetti, music, countdown back to the lobby) instead of the result card
             if (gb.Result > 0 && !celebrating) { celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
-            if (gb.Result < 0 && !endPanel.gameObject.activeSelf && !spectating)
+            // you are out and the match is over: the celebration for whoever won (a bot), same music, back to the lobby
+            if (gb.Result < 0 && !celebrating && gb.AliveCount <= 1)
+            {
+                Fighter win = null; foreach (Fighter q in gb.Fighters) if (q.Alive) win = q;
+                if (win != null)
+                {
+                    celebrating = true; spectating = false; endPanel.gameObject.SetActive(false);
+                    Celebrate.Show(full, input.Root, win.kills, gb.Fighters.Count, win.displayName, gb.Rank);
+                }
+            }
+            if (gb.Result < 0 && !celebrating && !endPanel.gameObject.activeSelf && !spectating)
             {
                 spectateBtn.gameObject.SetActive(gb.Result < 0 && gb.AliveCount > 1);
                 endPanel.Find("card/Again").GetComponent<RectTransform>().anchoredPosition = new Vector2(gb.Result < 0 && gb.AliveCount > 1 ? -70 : 0, -45) * K;

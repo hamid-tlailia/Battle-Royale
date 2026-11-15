@@ -476,7 +476,7 @@ namespace LastWar
                 // crawling on the belly: one elbow reaches forward while the other pulls back, the opposite knee draws
                 // up to the side and pushes; the body moves only as far as the limbs pull it
                 // about one full cycle per 1.3 m (two pulls), eased so each reach lingers like a real crawl
-                crawlPhase += Time.deltaTime * Mathf.Clamp(Speed, 0.3f, 1.2f) * 0.75f;
+                crawlPhase += Time.deltaTime * Mathf.Clamp(Speed, 0.6f, 1.2f) * 1.35f; // quicker strokes (they dragged)
                 float raw = Mathf.Sin(crawlPhase * Mathf.PI * 2f);
                 float a = Mathf.Sign(raw) * Mathf.SmoothStep(0, 1, Mathf.Abs(raw)), l = Mathf.Max(0, a), r = Mathf.Max(0, -a);
                 CrawlPull = 0.3f + 0.7f * Mathf.Abs(Mathf.Cos(crawlPhase * Mathf.PI * 2f)); // the body moves while the limbs pull, rests while they reach

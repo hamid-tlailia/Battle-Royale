@@ -84,7 +84,7 @@ namespace LastWar
             v.rectTransform.anchoredPosition = new Vector2(x, -y); v.rectTransform.sizeDelta = new Vector2(w, 18 * fk); v.text = val.ToString(fmt);
             y += 20 * fk;
             // the slider's own box: 22px tall, the full width (the thumb's half-width is kept inside)
-            var go = new GameObject("slider", typeof(RectTransform), typeof(Image), typeof(Slider));
+            var go = new GameObject("slider", typeof(RectTransform), typeof(Image), typeof(ScrollSlider));
             var rt = (RectTransform)go.transform; rt.SetParent(p, false);
             rt.anchorMin = rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1);
             rt.anchoredPosition = new Vector2(x, -y); rt.sizeDelta = new Vector2(w, 24 * fk);
@@ -100,7 +100,7 @@ namespace LastWar
             ha.anchorMin = Vector2.zero; ha.anchorMax = Vector2.one; ha.offsetMin = new Vector2(10 * fk, 0); ha.offsetMax = new Vector2(-10 * fk, 0);
             var handle = UiKit.Img(ha, "h", UiKit.Diamond, new Vector2(0, .5f), Vector2.zero, Vector2.one, Color.white, true);
             handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.sizeDelta = new Vector2(24, 24) * fk;
-            var sl = go.GetComponent<Slider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
+            var sl = go.GetComponent<ScrollSlider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.transition = Selectable.Transition.None;
             sl.minValue = min; sl.maxValue = max; sl.value = val;
             sl.onValueChanged.AddListener(nv => { v.text = nv.ToString(fmt); on(nv); });
@@ -195,5 +195,19 @@ namespace LastWar
             }
             Paint(sel);
         }
+    }
+
+    /// <summary>a slider inside a scrolling page: a mostly-vertical drag scrolls the page instead of moving the thumb</summary>
+    public class ScrollSlider : Slider, IBeginDragHandler, IEndDragHandler
+    {
+        ScrollRect scroll; bool passing;
+        public void OnBeginDrag(PointerEventData e)
+        {
+            scroll = GetComponentInParent<ScrollRect>();
+            passing = scroll != null && Mathf.Abs(e.delta.y) > Mathf.Abs(e.delta.x);
+            if (passing) scroll.OnBeginDrag(e);
+        }
+        public override void OnDrag(PointerEventData e) { if (passing) scroll.OnDrag(e); else base.OnDrag(e); }
+        public void OnEndDrag(PointerEventData e) { if (passing) scroll.OnEndDrag(e); passing = false; }
     }
 }

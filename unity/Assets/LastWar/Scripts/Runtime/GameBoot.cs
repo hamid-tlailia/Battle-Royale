@@ -20,8 +20,8 @@ namespace LastWar
         public int Rank { get; private set; }
         float startTime;
         public float MatchTime => Time.time - startTime;
-        public const int BotCount = 15;
-        static readonly string[] BotNames = { "Viper", "Nomad", "Ghost", "Raven", "Falcon", "Cobra", "Wolf", "Shadow", "Hunter", "Blaze", "Storm", "Rogue", "Jackal", "Titan", "Spectre", "Onyx", "Ranger", "Sable", "Mako", "Drift" };
+        public const int BotCount = 30;
+        static readonly string[] BotNames = { "Viper", "Nomad", "Ghost", "Raven", "Falcon", "Cobra", "Wolf", "Shadow", "Hunter", "Blaze", "Storm", "Rogue", "Jackal", "Titan", "Spectre", "Onyx", "Ranger", "Sable", "Mako", "Drift", "Havoc", "Reaper", "Bishop", "Kestrel", "Bandit", "Atlas", "Fury", "Lynx", "Talon", "Saber" };
         Text fps;
         float fpsAcc; int fpsFrames;
 
@@ -62,12 +62,13 @@ namespace LastWar
             BuildSky(cam);
             cam.gameObject.AddComponent<AudioListener>();
 
-            Map = MapData.Load(Profile.Map);
+            // test switch: ?play=1 in the WebGL URL goes straight into a match
+            if (!InMatch && (Application.absoluteURL ?? "").Contains("play=1")) InMatch = true;
+            // the lobby always stands on the Highlands; the match is played on the chosen map
+            Map = MapData.Load(InMatch ? Profile.Map : "green");
             Loader.Progress(0.45f); yield return null;
             MapBuilder.Build(Map);
             Loader.Progress(0.75f); yield return null;
-            // test switch: ?play=1 in the WebGL URL goes straight into a match
-            if (!InMatch && (Application.absoluteURL ?? "").Contains("play=1")) InMatch = true;
             if (!InMatch) { Lobby.Create(Map, cam); Loader.Progress(1f); Loader.HideSoon(); Music.PlayLobby(); yield break; }
             Loader.Progress(0.85f); yield return null;
             Loot.SpawnMap(Map, Map.id.GetHashCode());
