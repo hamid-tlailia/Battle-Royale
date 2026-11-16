@@ -102,7 +102,7 @@ namespace LastWar
             crouchBtn = Button("crouch", "btn", 54, BR, new Vector2(-131, 49), () => { Crouch = !Crouch; if (Crouch) { Prone = false; Sprint = false; } });
             proneBtn = Button("prone", "btn", 50, BR, new Vector2(-201, 45), () => { Prone = !Prone; if (Prone) { Crouch = false; Sprint = false; } });
             healBtn = Button("heal", "btn", 50, BL, new Vector2(215, 95), () => HealPressed = true);
-            frostBtn = Button("frost", "btn", 48, BR, new Vector2(-220, 188), () => FrostPressed = true);
+            frostBtn = Button("frost", "btn", 48, BR, new Vector2(-220, 188), () => { FrostPressed = true; Scoped = false; }); // (the ice closes the scope)
             healBadge = Badge(healBtn); frostBadge = Badge(frostBtn);
             Button("bag", "btn", 42, TL, new Vector2(125, -27), () => BagPressed = true);
             // settings: small dark square, top-left (web .gear-btn)
@@ -169,7 +169,8 @@ namespace LastWar
             if (airMode > 0) return b == jumpBtn;
             if (b == frostBtn && frostCount <= 0 && !FrostAim) return false;
             if (b == scopeBtn && !scopeAllowed) return false;
-            return !ScopedUi || b == fireBtn || b == fireLeft || b == scopeBtn;
+            // through the optic: FIRE, SCOPE and the moves you need in a fight (ice, run, jump, crouch, prone) stay
+            return !ScopedUi || b == fireBtn || b == fireLeft || b == scopeBtn || b == frostBtn || b == runBtn || b == jumpBtn || b == crouchBtn || b == proneBtn;
         }
 
         /// <summary>counts on the heal / ice-wall buttons (0 = faded, like the web)</summary>

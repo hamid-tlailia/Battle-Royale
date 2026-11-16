@@ -339,7 +339,8 @@ namespace LastWar
                 if (close != null)
                 {
                     Angles(close, out float qy, out float qp, out _, out _);
-                    float kk = Mathf.Min(1f, dt * (Scoped ? 22f : 14f));
+                    // a new target: straight onto the body at once; then it follows them
+                    float kk = close != lockTarget ? 1f : Mathf.Min(1f, dt * (Scoped ? 22f : 14f));
                     yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
                     lockTarget = close; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = close;
                     return;
