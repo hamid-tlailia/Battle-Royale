@@ -16,7 +16,8 @@ namespace LastWar
         static readonly List<Block> spot = new List<Block>();
         float hp = Hp, until, born;
         readonly List<(Transform t, float w, float baseY)> parts = new List<(Transform, float, float)>();
-        static Material ice, ghostMat;
+        static Material ice, ghostMat, crystalMat, glowMat;
+        Transform look;
 
         static Material Mat(float a)
         {
@@ -65,6 +66,8 @@ namespace LastWar
                 c.GetComponent<Renderer>().sharedMaterial = ice;
                 wall.parts.Add((c.transform, b.w, b.ground));
             }
+            foreach (var pt in wall.parts) pt.t.GetComponent<Renderer>().enabled = false; // the blocks only stop bullets; the look is the crystal mesh
+            wall.look = BuildLook(blocks, go.transform);
             wall.born = Time.time; wall.until = Time.time + Life;
             Sfx.Play("reload", soundAt, 0.6f, 1.6f);
         }
@@ -97,6 +100,89 @@ namespace LastWar
             }
         }
 
+        /// <summary>solid crystal ice like the concept art: jagged shards of several heights along the arc (faceted,
+        /// deep blue at the foot to near white at the tips) and a glowing line where it meets the ground</summary>
+        static Transform BuildLook(List<Block> blocks, Transform parent)
+        {
+            var root = new GameObject("crystal").transform; root.SetParent(parent, false);
+            Vector3 origin = blocks[blocks.Count / 2].pos; origin.y = blocks[blocks.Count / 2].ground;
+            root.position = origin;
+            var rnd = new System.Random(blocks.Count * 7919 + (int)(origin.x * 13) + (int)(origin.z * 17));
+            float R() => (float)rnd.NextDouble();
+            var v = new List<Vector3>(); var col = new List<Color>(); var tri = new List<int>();
+            void Tri(Vector3 a, Vector3 b, Vector3 c, Color ca, Color cb, Color cc)
+            {
+                float shade = 0.82f + R() * 0.3f; int i = v.Count;
+                v.Add(a); v.Add(b); v.Add(c); col.Add(ca * shade); col.Add(cb * shade); col.Add(cc * shade);
+                tri.Add(i); tri.Add(i + 1); tri.Add(i + 2); tri.Add(i); tri.Add(i + 2); tri.Add(i + 1); // both sides
+            }
+            Color cBase = new Color(.28f, .55f, .9f), cMid = new Color(.55f, .82f, 1f), cTop = new Color(.9f, .97f, 1f);
+            int shards = blocks.Count * 3 + 1;
+            var line = new List<Vector3>();
+            for (int k = 0; k < shards; k++)
+            {
+                float t = k / (float)(shards - 1) * (blocks.Count - 1);
+                int i0 = Mathf.Clamp(Mathf.FloorToInt(t), 0, blocks.Count - 1), i1 = Mathf.Min(i0 + 1, blocks.Count - 1);
+                float f = t - i0;
+                Vector3 c = Vector3.Lerp(blocks[i0].pos, blocks[i1].pos, f); c.y = Mathf.Lerp(blocks[i0].ground, blocks[i1].ground, f) - 0.08f;
+                Quaternion rot = Quaternion.Slerp(blocks[i0].rot, blocks[i1].rot, f);
+                line.Add(c + Vector3.up * 0.1f);
+                float h = Height * (0.65f + R() * 0.4f), r = 0.22f + R() * 0.16f;
+                Vector3 tilt = rot * new Vector3((R() - .5f) * 0.35f, 0, (R() - .5f) * 0.25f);
+                const int n = 5; var ring0 = new Vector3[n]; var ring1 = new Vector3[n];
+                for (int j = 0; j < n; j++)
+                {
+                    float a = (j / (float)n + R() * 0.08f) * Mathf.PI * 2f;
+                    Vector3 d = rot * new Vector3(Mathf.Cos(a) * (r * 1.6f), 0, Mathf.Sin(a) * r); // wider along the wall than through it
+                    ring0[j] = c + d * (0.9f + R() * 0.2f);
+                    ring1[j] = c + d * (0.55f + R() * 0.2f) + Vector3.up * h * (0.62f + R() * 0.12f) + tilt * 0.6f;
+                }
+                Vector3 tip = c + Vector3.up * h + tilt + rot * new Vector3((R() - .5f) * 0.2f, 0, 0);
+                for (int j = 0; j < n; j++)
+                {
+                    int jn = (j + 1) % n;
+                    Tri(ring0[j], ring0[jn], ring1[j], cBase, cBase, cMid);
+                    Tri(ring1[j], ring0[jn], ring1[jn], cMid, cBase, cMid);
+                    Tri(ring1[j], ring1[jn], tip, cMid, cMid, cTop);
+                }
+            }
+            for (int i = 0; i < v.Count; i++) v[i] = root.InverseTransformPoint(v[i]);
+            var mesh = new Mesh { name = "ice crystal" };
+            mesh.SetVertices(v); mesh.SetColors(col); mesh.SetTriangles(tri, 0); mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            var go = new GameObject("shards", typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(root, false);
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            if (crystalMat == null)
+            {
+                var vb = Resources.Load<Material>("Materials/VertexLit");
+                if (vb != null)
+                {
+                    crystalMat = new Material(vb); crystalMat.SetFloat("_Smoothness", 0.92f);
+                    crystalMat.EnableKeyword("_EMISSION"); crystalMat.SetColor("_EmissionColor", new Color(.06f, .16f, .28f));
+                }
+                else crystalMat = Mat(0.85f);
+            }
+            go.GetComponent<MeshRenderer>().sharedMaterial = crystalMat;
+            // the glowing foot line
+            if (line.Count > 1)
+            {
+                var lv = new List<Vector3>(); var lt = new List<int>();
+                for (int i = 0; i < line.Count; i++)
+                {
+                    Vector3 dir = (line[Mathf.Min(i + 1, line.Count - 1)] - line[Mathf.Max(i - 1, 0)]); dir.y = 0; dir.Normalize();
+                    Vector3 side = Vector3.Cross(Vector3.up, dir) * 0.09f;
+                    lv.Add(root.InverseTransformPoint(line[i] - side)); lv.Add(root.InverseTransformPoint(line[i] + side));
+                    if (i > 0) { int b = i * 2; lt.AddRange(new[] { b - 2, b - 1, b, b - 1, b + 1, b, b - 2, b, b - 1, b - 1, b, b + 1 }); }
+                }
+                var lm = new Mesh(); lm.SetVertices(lv); lm.SetTriangles(lt, 0); lm.RecalculateBounds();
+                var lg = new GameObject("glow", typeof(MeshFilter), typeof(MeshRenderer)); lg.transform.SetParent(parent, false);
+                lg.transform.SetPositionAndRotation(root.position, root.rotation);
+                lg.GetComponent<MeshFilter>().sharedMesh = lm;
+                if (glowMat == null) glowMat = new Material(Shader.Find("UI/Default")) { color = new Color(.45f, .9f, 1f, .95f), renderQueue = 3001 };
+                lg.GetComponent<MeshRenderer>().sharedMaterial = glowMat;
+            }
+            return root;
+        }
+
         public void Damage(float d)
         {
             hp -= d;
@@ -108,6 +194,7 @@ namespace LastWar
             if (Time.time > until) { Destroy(gameObject); return; }
             // shoots up out of the ground, and the last seconds it melts down
             float h = Height * Mathf.Min(Mathf.Clamp01((Time.time - born) / Rise), Mathf.Max(0.05f, (until - Time.time) / 2f));
+            if (look != null) look.localScale = new Vector3(1f, Mathf.Max(0.02f, h / Height), 1f);
             foreach (var (t, w, y) in parts)
             {
                 if (t == null) continue;

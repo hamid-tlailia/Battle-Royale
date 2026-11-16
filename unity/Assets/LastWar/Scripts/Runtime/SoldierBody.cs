@@ -397,6 +397,10 @@ namespace LastWar
         // ---- procedural poses on top of the animation (the web game's applyPose)
         /// <summary>"sky" = free fall, belly down with the arms in a W and the legs spread; "chute" = hanging upright, hands up on the lines; null = none</summary>
         public string Pose;
+        /// <summary>holding a snowball (aiming the ice wall)</summary>
+        public bool Snowball; Transform snowball;
+        /// <summary>false: the gun stays where the clip's hand holds it (the lobby's display pose)</summary>
+        public bool ShoulderGrip = true;
         string poseKind; float poseW;
         Dictionary<string, Transform> poseBones;
 
@@ -568,12 +572,38 @@ namespace LastWar
             FixFeet();
             ApplyPose();
             PlaceBack();
+            // aiming the ice wall: a small snowball in the right hand instead of the gun
+            if (Snowball && handR != null)
+            {
+                if (snowball == null)
+                {
+                    snowball = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform; Destroy(snowball.GetComponent<Collider>());
+                    snowball.name = "snowball"; snowball.localScale = Vector3.one * 0.13f;
+                    snowball.GetComponent<Renderer>().sharedMaterial = MapBuilder.NewLit(new Color(.82f, .94f, 1f));
+                }
+                snowball.gameObject.SetActive(visible);
+                snowball.position = handR.position + transform.forward * 0.06f;
+            }
+            else if (snowball != null) snowball.gameObject.SetActive(false);
             // gun: grip in the right hand, barrel (model -Z) along the aim
             if (gun == null || handR == null) return;
             gun.position = handR.position;
             Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
             Transform handL = PoseBone("LeftHand");
             bool carried = current == "run" || current == "prone" || Pose == "crawl";
+            // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim, the
+            // right hand brought to the grip - so aiming up, down or to the side never pushes the gun into the body
+            if (ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !current.StartsWith("death"))
+            {
+                Transform ra = PoseBone("RightArm"), rf = PoseBone("RightForeArm");
+                if (ra != null && rf != null)
+                {
+                    Vector3 grip = ra.position + dir * (gunId == "pistol" ? 0.42f : 0.26f) - transform.up * 0.07f;
+                    grip = Vector3.Lerp(handR.position, grip, 0.85f);
+                    TwoBone(ra, rf, handR, grip);
+                    gun.position = grip;
+                }
+            }
             if (carried && handL != null)
             {
                 // carried (running / crawling): exactly along the two hands, as the clip holds it
@@ -589,6 +619,6 @@ namespace LastWar
             }
         }
 
-        void OnDestroy() { if (graph.IsValid()) graph.Destroy(); srcPose?.Dispose(); dstPose?.Dispose(); }
+        void OnDestroy() { if (snowball != null) Destroy(snowball.gameObject); if (graph.IsValid()) graph.Destroy(); srcPose?.Dispose(); dstPose?.Dispose(); }
     }
 }

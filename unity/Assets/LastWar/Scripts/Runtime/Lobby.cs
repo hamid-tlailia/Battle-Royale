@@ -87,7 +87,7 @@ namespace LastWar
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin);
-            lobbyBody.SetGun("rifle");
+            lobbyBody.SetGun("rifle"); lobbyBody.ShoulderGrip = false;
             lobbyBody.Play("idle_rifle");
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
             string url = Application.absoluteURL ?? ""; int pq = url.IndexOf("pose=");
@@ -187,6 +187,29 @@ namespace LastWar
                 float right = (10 + 220 - 12) * s, wTxt = xp.preferredWidth + 2;
                 RectTransform xr = xp.rectTransform; xr.sizeDelta = new Vector2(wTxt, xr.sizeDelta.y);
                 xr.anchoredPosition = new Vector2(right - wTxt, xr.anchoredPosition.y);
+            }
+            // "LV 10": the xp bar starts after the level text, whatever its length
+            if (texts.TryGetValue("level", out Text lvT) && nodes.TryGetValue("xpbar", out RectTransform xb))
+            {
+                float end = xb.anchoredPosition.x + xb.sizeDelta.x, start = lvT.rectTransform.anchoredPosition.x + lvT.preferredWidth + 8 * s;
+                lvT.rectTransform.sizeDelta = new Vector2(lvT.preferredWidth + 2, lvT.rectTransform.sizeDelta.y);
+                xb.anchoredPosition = new Vector2(start, xb.anchoredPosition.y); xb.sizeDelta = new Vector2(Mathf.Max(30 * s, end - start), xb.sizeDelta.y);
+            }
+            // trophy / kills chips: one width that fits the longer number (100, 1000...), laid right to left before the gear
+            if (nodes.TryGetValue("chip0", out RectTransform c0) && nodes.TryGetValue("chip1", out RectTransform c1) && nodes.TryGetValue("gear", out RectTransform gr)
+                && texts.TryGetValue("chip0_text", out Text t0) && texts.TryGetValue("chip1_text", out Text t1))
+            {
+                float w = Mathf.Max(c0.sizeDelta.x, Mathf.Max(t0.preferredWidth, t1.preferredWidth) + 39 * s + 13 * s), right = gr.anchoredPosition.x - 8 * s;
+                foreach (var (chip, txt, icon) in new[] { (c1, t1, "chip1_icon"), (c0, t0, "chip0_icon") })
+                {
+                    float x = right - w;
+                    chip.anchoredPosition = new Vector2(x, chip.anchoredPosition.y); chip.sizeDelta = new Vector2(w, chip.sizeDelta.y);
+                    if (nodes.TryGetValue(icon, out RectTransform ic)) ic.anchoredPosition = new Vector2(x + 13 * s, ic.anchoredPosition.y);
+                    txt.horizontalOverflow = HorizontalWrapMode.Overflow;
+                    txt.rectTransform.anchoredPosition = new Vector2(x + 39 * s, txt.rectTransform.anchoredPosition.y);
+                    txt.rectTransform.sizeDelta = new Vector2(w - 39 * s - 8 * s, txt.rectTransform.sizeDelta.y);
+                    right = x - 8 * s;
+                }
             }
             // keep icons / labels above their panels
             foreach (var kv in texts) kv.Value.transform.SetAsLastSibling();

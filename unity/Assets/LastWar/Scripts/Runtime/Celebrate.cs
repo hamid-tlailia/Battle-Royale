@@ -60,11 +60,11 @@ namespace LastWar
             // only the celebration on screen, only the victory music
             if (hudRoot != null) hudRoot.gameObject.SetActive(false);
             AudioListener.pause = true;
-            var clip = Resources.Load<AudioClip>("Audio/victory");
+            var clip = Resources.Load<AudioClip>("Audio/victory_light"); // light and calm like the lobby music, a tune of its own
             if (clip != null)
             {
                 c.music = shade.gameObject.AddComponent<AudioSource>();
-                c.music.clip = clip; c.music.ignoreListenerPause = true; c.music.spatialBlend = 0f; c.music.volume = Profile.SoundOn || Profile.MusicOn ? 0.9f : 0f;
+                c.music.clip = clip; c.music.loop = true; c.music.ignoreListenerPause = true; c.music.spatialBlend = 0f; c.music.volume = Profile.SoundOn || Profile.MusicOn ? 0.32f : 0f;
                 c.music.ignoreListenerVolume = true; c.music.Play();
             }
         }

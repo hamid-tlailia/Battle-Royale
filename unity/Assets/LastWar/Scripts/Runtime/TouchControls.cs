@@ -97,7 +97,7 @@ namespace LastWar
             blockers.Add(cancelShot);
             jumpBtn = Button("jump", "btn", 64, BR, new Vector2(-56, 58), () => JumpPressed = true);
             Button("reload", "btn", 50, BR, new Vector2(-153, 125), () => ReloadPressed = true);
-            scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => Scoped = !Scoped);
+            scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => { Scoped = !Scoped; FrostAim = false; }); // the scope puts the snowball away
             runBtn = Button("sprint", "btn", 52, BL, new Vector2(194, 202), () => { Sprint = !Sprint; if (Sprint) Crouch = Prone = false; });
             crouchBtn = Button("crouch", "btn", 54, BR, new Vector2(-131, 49), () => { Crouch = !Crouch; if (Crouch) { Prone = false; Sprint = false; } });
             proneBtn = Button("prone", "btn", 50, BR, new Vector2(-201, 45), () => { Prone = !Prone; if (Prone) { Crouch = false; Sprint = false; } });

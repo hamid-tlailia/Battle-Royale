@@ -70,6 +70,8 @@ namespace LastWar
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
 
             // weapons
+            // holding the snowball (ice wall aimed): a tap on the weapon box only puts it away - back to the gun / fists
+            if (input.FrostAim && (input.HolsterPressed || input.SlotPressed >= 0 || input.ReloadPressed)) { input.FrostAim = false; input.HolsterPressed = false; input.SlotPressed = -1; input.ReloadPressed = false; }
             // a tap on the weapon box (switch / reload / fists) closes the scope first
             if (input.HolsterPressed || input.SlotPressed >= 0 || input.ReloadPressed) { input.Scoped = false; sniperHold = false; unscopeAt = 0; }
             if (input.HolsterPressed) fighter.ToggleHolster();
@@ -116,7 +118,8 @@ namespace LastWar
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
             body.AimDir = aim;
-            body.SetGun(armed ? fighter.Gun.def.id : null);
+            body.SetGun(armed && !input.FrostAim ? fighter.Gun.def.id : null);
+            body.Snowball = input.FrostAim;
             // long guns that are not in the hands hang across the back (the pistol goes in the pocket)
             backList.Clear();
             for (int k = 0; k < 3; k++) { GunState bg = fighter.guns[k]; if (bg != null && bg.def.id != "pistol" && (fighter.holstered || k != fighter.slot)) backList.Add(bg.def.id); }

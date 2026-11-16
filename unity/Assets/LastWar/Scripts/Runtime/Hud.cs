@@ -15,6 +15,7 @@ namespace LastWar
     {
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
+        RectTransform iceCover;
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
         RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly Image[] sides = new Image[4]; Image hole; int lensZoom; Transform full;
         static Texture2D lensCross, lensPlain;
@@ -115,6 +116,13 @@ namespace LastWar
                 input.RegisterBlocker(s.rt);
                 slots[k] = s;
             }
+            // holding the ice: a frosty cover over the weapon box (a tap on it puts the snowball away)
+            iceCover = UiKit.Img(box, "IceCover", UiKit.Round, BC, Vector2.zero, Vector2.one, new Color(.55f, .82f, 1f, .82f)).rectTransform;
+            iceCover.pivot = new Vector2(.5f, 0);
+            var icI = UiKit.Img(iceCover, "ice", UiKit.Get("icon_frost"), new Vector2(.5f, .5f), new Vector2(0, 8), new Vector2(34, 34), Color.white); icI.rectTransform.pivot = new Vector2(.5f, .5f);
+            var icT = UiKit.Txt(iceCover, new Vector2(.5f, 0), new Vector2(0, 5), new Vector2(200, 16), 9.5f, TextAnchor.MiddleCenter, new Color(.05f, .16f, .26f));
+            icT.rectTransform.pivot = new Vector2(.5f, 0); icT.text = "ICE WALL · FIRE to build · tap to cancel"; Destroy(icT.GetComponent<Shadow>());
+            iceCover.gameObject.SetActive(false);
             input.AddEditable("weapons", box);
 
             // ---- top centre: ALIVE / KILLS box and the zone banner under it
@@ -470,6 +478,21 @@ namespace LastWar
             if (scoped && player.ScopeZoom != lensZoom) SetLens(player.ScopeZoom);
             if (!scoped) lensZoom = 0;
             box.gameObject.SetActive((f.air == 0 && !spectating) || input.Editing); // (stays while scoped, like the web)
+            bool iceOn = input.FrostAim && !spectating && !input.Editing;
+            if (iceCover.gameObject.activeSelf != iceOn) iceCover.gameObject.SetActive(iceOn);
+            if (iceOn)
+            {
+                // cover exactly the boxes on screen (their layout changes with the chosen gun)
+                Vector2 mn = new Vector2(float.MaxValue, float.MaxValue), mx = new Vector2(float.MinValue, float.MinValue);
+                foreach (Slot sl in slots)
+                {
+                    if (!sl.rt.gameObject.activeSelf) continue;
+                    Vector2 p0 = sl.rt.anchoredPosition - Vector2.Scale(sl.rt.pivot, sl.rt.sizeDelta), p1 = p0 + sl.rt.sizeDelta;
+                    mn = Vector2.Min(mn, p0); mx = Vector2.Max(mx, p1);
+                }
+                if (mn.x < mx.x) { iceCover.anchoredPosition = new Vector2((mn.x + mx.x) / 2f, mn.y); iceCover.sizeDelta = mx - mn; }
+                iceCover.SetAsLastSibling();
+            }
             hpBgRt.gameObject.SetActive(!scoped); arBgRt.gameObject.SetActive(false); // no armour bar: the armour number sits by the vest icon
             // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
  string hint = f.air == 1 ? (input.JumpReady ? "Tap <b>JUMP</b> to drop" : "") : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
