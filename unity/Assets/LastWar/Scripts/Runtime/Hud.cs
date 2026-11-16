@@ -431,6 +431,7 @@ namespace LastWar
             var (rimTex, markTex) = WebLens(zoom >= 8 ? 8 : zoom >= 4 ? 4 : 2);
             glass.texture = rimTex; lensMark.texture = markTex;
             glass.rectTransform.sizeDelta = new Vector2(L, L); lensMark.rectTransform.sizeDelta = new Vector2(L, L);
+            zoomTag.rectTransform.anchoredPosition = new Vector2(0, -((H - L) / 2f + L * 0.1f)); // inside the ring, top centre
             // one big dark sheet with a round hole the size of the lens (no seams, no gaps), the rim drawn over its edge
             float oa = OutsideA;
             string url = Application.absoluteURL ?? "";
