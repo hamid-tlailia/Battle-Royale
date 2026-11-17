@@ -91,6 +91,7 @@ namespace LastWar
                         if (slot == si) reloadEnd = 0;
                     }
                     var g = new GunState(id) { reserve = spare.TryGetValue(id, out int have) ? have : 0 };
+                    if (isPlayer) { g.def = Armory.DefFor(id); g.mag = g.def.mag; } // your armory version of it
                     spare[id] = 0;
                     guns[si] = g;
                     if (guns[slot] == null || holstered && !HadGunBefore(si)) { slot = si; holstered = false; }

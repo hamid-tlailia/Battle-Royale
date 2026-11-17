@@ -27,6 +27,7 @@ namespace LastWar
             PlayerPrefs.SetInt("lw.matches", Matches + 1);
             PlayerPrefs.SetInt("lw.kills", Kills + kills);
             if (win) PlayerPrefs.SetInt("lw.wins", Wins + 1);
+            Armory.Coins += Armory.Reward(kills, win, place);
             PlayerPrefs.SetInt("lw.xp", Xp + 10 + kills * 5 + (win ? 30 : Mathf.Max(0, 16 - place)));
             PlayerPrefs.Save();
         }

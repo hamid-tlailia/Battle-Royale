@@ -297,6 +297,27 @@ namespace LastWar
             qYaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; qPitch = Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude);
         }
 
+        Fighter scopeLock; bool scopeWasOpen, scopeSpent;
+
+        /// <summary>the nearest living enemy on the ground within `range` m, inside `cone` degrees of the view, in sight</summary>
+        Fighter Nearest(float range, float cone)
+        {
+            if (GameBoot.Instance == null || cam == null) return null;
+            Fighter best = null; float bd = range;
+            foreach (Fighter q in GameBoot.Instance.Fighters)
+            {
+                if (q == fighter || !q.Alive || q.air != 0) continue;
+                Vector3 d = q.transform.position - transform.position;
+                if (Mathf.Abs(d.y) > 4f) continue;
+                d.y = 0; float m = d.magnitude;
+                if (m >= bd) continue;
+                if (cone < 180f && Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg)) > cone) continue;
+                if (!Los(cam.transform.position, q.transform.position + Vector3.up * 1.05f, q)) continue;
+                bd = m; best = q;
+            }
+            return best;
+        }
+
         bool Los(Vector3 from, Vector3 to, Fighter q)
         {
             Vector3 d = to - from;
@@ -319,28 +340,41 @@ namespace LastWar
                 Fighter q = h.collider.GetComponentInParent<Fighter>();
                 OnEnemy = q != null && q != fighter && q.Alive ? q : null;
             }
-            // 1b) close range (8 m): through the scope the aim jumps onto the nearest enemy all around you; firing from
-            //     the hip (close or long gun) onto the nearest one in front - and it stays on their body
-            bool hip = AimAssistOn && input.FireHeld && !Scoped && fighter.Gun != null && !fighter.holstered;
-            if ((Scoped || hip) && GameBoot.Instance != null)
+            // 1b) the scope's own lock. Opening the scope with an enemy within 8 m (any direction, in sight): the aim
+            //     goes onto their body at once and stays there. It only lets go when they are gone from sight (dead,
+            //     behind a wall / ice) or run far away - and then nothing is caught again until the scope is closed and
+            //     opened anew. While it holds, a second enemy never takes it over.
+            bool scopedNow = Scoped;
+            if (scopedNow && !scopeWasOpen)
             {
-                Fighter close = null; float cd = 8.2f;
-                foreach (Fighter q in GameBoot.Instance.Fighters)
+                scopeLock = Nearest(8.2f, 360f); scopeSpent = false;
+            }
+            if (!scopedNow) { scopeLock = null; scopeSpent = false; }
+            scopeWasOpen = scopedNow;
+            if (scopedNow && scopeLock != null)
+            {
+                Vector3 tp = scopeLock.transform.position + Vector3.up * 1.05f;
+                if (!scopeLock.Alive || (scopeLock.transform.position - transform.position).magnitude > 30f || !Los(cam.transform.position, tp, scopeLock))
+                { scopeLock = null; scopeSpent = true; lockTarget = null; }
+                else
                 {
-                    if (q == fighter || !q.Alive || q.air != 0) continue;
-                    Vector3 d = q.transform.position - transform.position;
-                    if (Mathf.Abs(d.y) > 4f) continue;
-                    d.y = 0; float m = d.magnitude;
-                    if (m >= cd) continue;
-                    if (!Scoped && Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg)) > 75f) continue;
-                    if (!Los(cam.transform.position, q.transform.position + Vector3.up * 1.05f, q)) continue;
-                    cd = m; close = q;
+                    Angles(scopeLock, out float qy, out float qp, out _, out _);
+                    float kk = lockTarget != scopeLock ? 1f : Mathf.Min(1f, dt * 25f); // straight onto the body, then it follows
+                    yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
+                    lockTarget = scopeLock; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = scopeLock;
+                    return;
                 }
+            }
+            if (scopedNow && scopeSpent) { lockTarget = null; return; } // the lock was lost: free aim until the scope is reopened
+            // 1c) from the hip (assist on): the nearest enemy within 8 m in front, the aim on their body while FIRE is held
+            bool hip = AimAssistOn && input.FireHeld && !scopedNow && fighter.Gun != null && !fighter.holstered;
+            if (hip)
+            {
+                Fighter close = Nearest(8.2f, 75f);
                 if (close != null)
                 {
                     Angles(close, out float qy, out float qp, out _, out _);
-                    // a new target: straight onto the body at once; then it follows them
-                    float kk = close != lockTarget ? 1f : Mathf.Min(1f, dt * (Scoped ? 22f : 14f));
+                    float kk = close != lockTarget ? 1f : Mathf.Min(1f, dt * 14f);
                     yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
                     lockTarget = close; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = close;
                     return;
@@ -348,7 +382,8 @@ namespace LastWar
             }
             if (!AimAssistOn) { lockTarget = null; return; }
             // 2) sticky aim: lock on when the dot turns red and follow the target's movement
-            if (OnEnemy != null && lockTarget != OnEnemy) { Angles(OnEnemy, out lockYaw, out lockPitch, out _, out _); lockTarget = OnEnemy; lockOff = 0; }
+            // (through the scope a lock is never handed over to another enemy while it holds)
+            if (OnEnemy != null && lockTarget != OnEnemy && !(Scoped && lockTarget != null && lockTarget.Alive)) { Angles(OnEnemy, out lockYaw, out lockPitch, out _, out _); lockTarget = OnEnemy; lockOff = 0; }
             if (lockTarget != null)
             {
                 Angles(lockTarget, out float qy, out float qp, out float dist, out Vector3 t);
@@ -357,7 +392,7 @@ namespace LastWar
                 bool near = off < Mathf.Atan(1.3f / Mathf.Max(1f, dist));
                 lockOff = OnEnemy != null || near ? 0 : lockOff + dt;
                 // (scoped: long range too - the sniper reaches 320 m)
-                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > 0.9f || !Los(cam.transform.position, t, lockTarget)) lockTarget = null;
+                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > 0.9f || !Los(cam.transform.position, t, lockTarget)) { lockTarget = null; if (Scoped) scopeSpent = true; }
                 else
                 {
                     yaw += Mathf.DeltaAngle(lockYaw, qy);

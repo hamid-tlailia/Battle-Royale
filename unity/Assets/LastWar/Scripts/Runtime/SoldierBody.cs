@@ -251,6 +251,29 @@ namespace LastWar
             for (int i = 0; i < na; i++) armBones[i].localRotation = Quaternion.Slerp(runArm[i], armBones[i].localRotation, freeW);
         }
 
+        /// <summary>
+        /// A running human, not a machine: the upper body leans into the run, the chest swings against the hips with
+        /// every stride, the shoulders roll and the head stays steady. Layered on top of the run clip.
+        /// </summary>
+        void RunLife()
+        {
+            runW = Mathf.MoveTowards(runW, current == "run" && Tilt == 0 && Pose != "crawl" ? 1f : 0f, Time.deltaTime * 5f);
+            if (runW <= 0f) return;
+            float ph = ClipPhase() * Mathf.PI * 2f, sw = Mathf.Sin(ph), bob = Mathf.Abs(Mathf.Sin(ph));
+            Vector3 up = transform.up, right = transform.right;
+            Transform hips = PoseBone("Hips"), sp = PoseBone("Spine"), sp1 = PoseBone("Spine1"), sp2 = PoseBone("Spine2"), neck = PoseBone("Neck"), head = PoseBone("Head");
+            float k = runW;
+            // hips turn with the leading leg, the chest the other way (the body's natural counter-swing)
+            if (hips != null) hips.rotation = Quaternion.AngleAxis(sw * 7f * k, up) * hips.rotation;
+            if (sp != null) sp.rotation = Quaternion.AngleAxis((-sw * 6f) * k, up) * Quaternion.AngleAxis((6f + bob * 2f) * k, right) * sp.rotation;
+            if (sp1 != null) sp1.rotation = Quaternion.AngleAxis((-sw * 5f) * k, up) * Quaternion.AngleAxis(4f * k, right) * sp1.rotation;
+            if (sp2 != null) sp2.rotation = Quaternion.AngleAxis((-sw * 4f) * k, up) * Quaternion.AngleAxis(Mathf.Sin(ph * 2f) * 2f * k, transform.forward) * sp2.rotation;
+            // the head looks ahead: take back most of the lean and the swing
+            if (neck != null) neck.rotation = Quaternion.AngleAxis(sw * 8f * k, up) * Quaternion.AngleAxis(-7f * k, right) * neck.rotation;
+            if (head != null) head.rotation = Quaternion.AngleAxis(-5f * k, right) * head.rotation;
+        }
+        float runW;
+
         /// <summary>no feet inside the ground: lift the body when a toe is below the ground under it (web fixFeet)</summary>
         void FixFeet()
         {
@@ -483,7 +506,10 @@ namespace LastWar
                 crawlPhase += Time.deltaTime * Mathf.Clamp(Speed, 0.5f, 1.2f) * 0.9f; // calm, steady strokes
                 float raw = Mathf.Sin(crawlPhase * Mathf.PI * 2f);
                 float a = Mathf.Sign(raw) * Mathf.SmoothStep(0, 1, Mathf.Abs(raw)), l = Mathf.Max(0, a), r = Mathf.Max(0, -a);
-                CrawlPull = 0.3f + 0.7f * Mathf.Abs(Mathf.Cos(crawlPhase * Mathf.PI * 2f)); // the body moves while the limbs pull, rests while they reach
+                // the limbs move the body: it slides forward only while an elbow / knee pulls back (|sin| falling) and
+                // stays put while they reach forward again (same average speed as before, all of it in the pulls)
+                float pullNow = Mathf.Max(0f, -Mathf.Sign(raw) * Mathf.Cos(crawlPhase * Mathf.PI * 2f));
+                CrawlPull = 0.06f + 2.15f * pullNow;
                 Aim("LeftArm", "LeftForeArm", Mathf.Lerp(0.55f, 0.3f, l), -0.25f, Mathf.Lerp(0.15f, 1f, l), w);
                 Aim("LeftForeArm", "LeftHand", Mathf.Lerp(-0.25f, 0.05f, l), -0.35f, 1, w);
                 Aim("RightArm", "RightForeArm", -Mathf.Lerp(0.55f, 0.3f, r), -0.25f, Mathf.Lerp(0.15f, 1f, r), w);
@@ -571,6 +597,7 @@ namespace LastWar
             Retarget();
             FixFeet();
             ApplyPose();
+            RunLife();
             PlaceBack();
             // aiming the ice wall: a small snowball in the right hand instead of the gun
             if (Snowball && handR != null)

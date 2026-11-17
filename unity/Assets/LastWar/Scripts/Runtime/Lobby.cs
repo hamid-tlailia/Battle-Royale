@@ -31,7 +31,7 @@ namespace LastWar
         public static Lobby Current;
         static float LobbyGunTurn = 58f;
         /// <summary>back button: closes the open page; false when there was none</summary>
-        public bool Back() { if (sheet == null) return false; Close(); return true; }
+        public bool Back() { if (matching != null) { CancelMatch(); return true; } if (sheet == null) return false; Close(); return true; }
 
         public static Lobby Create(MapData map, Camera cam)
         {
@@ -106,6 +106,14 @@ namespace LastWar
 
             L = JsonUtility.FromJson<LobbyLayout>(Resources.Load<TextAsset>("UI/Lobby/lobby_layout").text);
             // the captured web layout, scaled to the screen's height - or to its width when the screen is narrower
+            // a fifth tab under FRIENDS: the ARMORY (a copy of the FRIENDS tab, one row lower)
+            {
+                var extra = new List<LobbyNode>(L.nodes);
+                foreach (LobbyNode n in L.nodes)
+                    if (n.id == "tab3" || n.id == "tab3_icon" || n.id == "tab3_text")
+                        extra.Add(new LobbyNode { id = n.id.Replace("tab3", "tab4"), kind = n.kind, text = n.id == "tab3_text" ? "ARMORY" : n.text, color = n.color, weight = n.weight, align = n.align, x = n.x, y = n.y + 38, w = n.id == "tab3_text" ? 70 : n.w, h = n.h, size = n.size });
+                L.nodes = extra.ToArray();
+            }
             foreach (LobbyNode n in L.nodes)
             {
                 // the gear is as big as the trophy / kills chips beside it
@@ -121,7 +129,7 @@ namespace LastWar
             s = Mathf.Min(safe.height / L.H, safe.width / L.W);
             var sprites = new Dictionary<string, string> {
                 { "logo", "Lobby/logo" }, { "banner", "Lobby/banner" }, { "chip0", "Lobby/chip" }, { "chip1", "Lobby/chip" }, { "gear", "Lobby/gear" },
-                { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" },
+                { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" }, { "tab4", "Lobby/tab" }, { "tab4_icon", "gun_rifle" },
                 { "mapcard", "Lobby/mapcard_" + (Profile.Map == "desert" || Profile.Map == "classic" ? Profile.Map : "green") }, { "season", "Lobby/season" }, { "tip", "Lobby/tip" },
                 { "modes", "Lobby/modes" }, { "play", "Lobby/play" },
                 { "rank", "icon_rank" }, { "chip0_icon", "icon_trophy" }, { "chip1_icon", "icon_fire" }, { "gear_icon", "icon_settings" },
@@ -165,7 +173,12 @@ namespace LastWar
                     img.type = Image.Type.Simple;
                     Place(img.rectTransform, n);
                     nodes[n.id] = img.rectTransform;
-                    if (n.id == "xpbar" || n.id == "season_bar") Fill(img.rectTransform, have / (float)need);
+                    if (n.id == "xpbar" || n.id == "season_bar")
+                    {
+                        // the bar's own track (the one baked in the card picture was removed: it no longer matched)
+                        img.sprite = UiKit.Round; img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 6f; img.color = new Color(.27f, .29f, .31f, 1f);
+                        Fill(img.rectTransform, have / (float)need);
+                    }
                 }
             }
             // the tip strip grows with its text (long tips ran out of the box) and stays centred under the soldier
@@ -215,7 +228,7 @@ namespace LastWar
             foreach (var kv in texts) kv.Value.transform.SetAsLastSibling();
             foreach (var kv in nodes) if (kv.Key.EndsWith("_icon") || kv.Key == "rank" || kv.Key == "mapcard_pin") kv.Value.SetAsLastSibling();
 
-            Tap("tab1", () => Open("outfit")); Tap("tab2", () => Open("map")); Tap("tab3", () => Open("friends"));
+            Tap("tab1", () => Open("outfit")); Tap("tab2", () => Open("map")); Tap("tab3", () => Open("friends")); Tap("tab4", () => Open("armory"));
             Tap("gear", () => Open("settings")); Tap("mapcard", () => Open("map")); Tap("mode1", () => Open("friends"));
             Tap("play", Play);
             Tap("tab0", Close);
@@ -241,7 +254,7 @@ namespace LastWar
         {
             var f = UiKit.Img(track, "fill", UiKit.Round, new Vector2(0, .5f), Vector2.zero, Vector2.zero, new Color(1f, .83f, .3f));
             f.rectTransform.anchorMin = new Vector2(0, 0); f.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(k), 1);
-            f.rectTransform.offsetMin = f.rectTransform.offsetMax = Vector2.zero;
+            f.rectTransform.offsetMin = f.rectTransform.offsetMax = Vector2.zero; f.pixelsPerUnitMultiplier = 6f;
         }
 
         void Tap(string id, Action a)
@@ -264,7 +277,7 @@ namespace LastWar
 
         void SetTab(int on)
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 5; i++)
             {
                 if (!nodes.TryGetValue("tab" + i, out RectTransform rt)) continue;
                 rt.GetComponent<Image>().sprite = UiKit.Get(i == on ? "Lobby/tab_on" : "Lobby/tab");
@@ -285,7 +298,7 @@ namespace LastWar
         void Open(string what)
         {
             Close();
-            SetTab(what == "outfit" ? 1 : what == "map" ? 2 : what == "friends" ? 3 : 0);
+            SetTab(what == "outfit" ? 1 : what == "map" ? 2 : what == "friends" ? 3 : what == "armory" ? 4 : 0);
             // full-screen page over the lobby (nothing behind it takes the drags), BACK top-left
             shade = UiKit.Img(canvas.transform, "shade", null, new Vector2(.5f, .5f), Vector2.zero, new Vector2(1400, 1400), new Color(0.05f, 0.06f, 0.07f, 1f), true).rectTransform;
             shade.pivot = new Vector2(.5f, .5f); UiKit.Fill(shade); shade.SetAsLastSibling();
@@ -306,6 +319,7 @@ namespace LastWar
                 case "map": MapSheet(); break;
                 case "friends": Note("Playing with friends online is coming to the app soon.\nFor now: SOLO battle royale against 30 bots."); break;
                 case "settings": SettingsSheet(); break;
+                case "armory": ArmorySheet(); break;
             }
         }
 
@@ -425,6 +439,71 @@ namespace LastWar
             t.rectTransform.pivot = new Vector2(.5f, .5f); t.fontStyle = FontStyle.Normal; t.horizontalOverflow = HorizontalWrapMode.Wrap; t.text = text;
         }
 
+        // ------------------------------------------------------------------ ARMORY: upgraded guns for coins
+        int armoryGun;
+        void ArmorySheet()
+        {
+            float pw = Mathf.Min(PageW, 760 * s);
+            var content = ScrollArea(pw);
+            float w = pw, y = 0;
+            Color gold = new Color(1f, .83f, .3f), ink = new Color(27 / 255f, 20 / 255f, 4 / 255f);
+            // coins, top right of the page
+            var coins = UiKit.Txt(sheet, new Vector2(1, 1), new Vector2(-24, -16) * k, new Vector2(260, 24) * k, 15 * k, TextAnchor.UpperRight, gold);
+            coins.rectTransform.pivot = new Vector2(1, 1); coins.text = $"COINS  {Armory.Coins}";
+            // the gun kinds
+            SettingsPanel.Segments(content, Vector2.zero, new Vector2(w, 30 * s), 11 * k, new[] { "RIFLE", "SMG", "SHOTGUN", "SNIPER", "PISTOL" }, armoryGun, i => { armoryGun = i; Open("armory"); });
+            y += 42 * s;
+            string gun = Armory.Guns[armoryGun];
+            // the best of each number among this gun's versions fills its bar
+            float mD = 0, mR = 0, mG = 0, mS = 0; int mM = 0;
+            foreach (var v in Armory.All) if (v.gun == gun) { var st = Armory.Stats(v); mD = Mathf.Max(mD, st.dmg); mR = Mathf.Max(mR, st.rpm); mG = Mathf.Max(mG, st.range); mS = Mathf.Max(mS, st.steady); mM = Mathf.Max(mM, st.mag); }
+            float cardH = 132 * s;
+            foreach (var v in Armory.All)
+            {
+                if (v.gun != gun) continue;
+                var vv = v;
+                bool owned = Armory.Owned(v), on = Armory.Equipped(gun) == v.key;
+                var card = UiKit.Img(content, "card", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, on ? new Color(.3f, .26f, .1f, .95f) : new Color(.13f, .15f, .17f, .95f), true);
+                card.rectTransform.anchoredPosition = new Vector2(0, -y); card.rectTransform.sizeDelta = new Vector2(w, cardH);
+                if (on) card.gameObject.AddComponent<Outline>().effectColor = gold;
+                Transform c = card.transform;
+                var pic = UiKit.Img(c, "gun", UiKit.Get("gun_" + gun), new Vector2(0, .5f), new Vector2(14, 6) * k, new Vector2(150, 64) * k, Color.white);
+                pic.rectTransform.pivot = new Vector2(0, .5f); pic.preserveAspect = true;
+                var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.name;
+                var pk = UiKit.Txt(c, new Vector2(0, 0), new Vector2(14, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerLeft, new Color(1, 1, 1, .7f)); pk.fontStyle = FontStyle.Normal; pk.text = v.perk;
+                // the numbers as bars
+                var st2 = Armory.Stats(v);
+                (string, float, string)[] bars = {
+                    ("DAMAGE", st2.dmg / mD, Mathf.RoundToInt(st2.dmg).ToString()), ("FIRE RATE", st2.rpm / mR, Mathf.RoundToInt(st2.rpm) + "/min"),
+                    ("RANGE", st2.range / mG, Mathf.RoundToInt(st2.range) + " m"), ("STEADINESS", st2.steady / mS, ""), ("MAGAZINE", st2.mag / (float)mM, st2.mag.ToString()) };
+                float bx = 180 * s, bw = w - bx - 150 * s;
+                for (int i = 0; i < bars.Length; i++)
+                {
+                    float by = -14 * s - i * 22 * s;
+                    var lb = UiKit.Txt(c, new Vector2(0, 1), Vector2.zero, Vector2.one, 9 * k, TextAnchor.MiddleLeft, new Color(.8f, .84f, .86f));
+                    lb.rectTransform.anchoredPosition = new Vector2(bx, by); lb.rectTransform.sizeDelta = new Vector2(90 * s, 16 * s); lb.text = bars[i].Item1;
+                    var tr = UiKit.Img(c, "bar", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(.05f, .06f, .07f, 1f));
+                    tr.pixelsPerUnitMultiplier = 6f; tr.rectTransform.anchoredPosition = new Vector2(bx + 92 * s, by - 5 * s); tr.rectTransform.sizeDelta = new Vector2(bw - 140 * s, 7 * s);
+                    var fl = UiKit.Img(tr.rectTransform, "f", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, gold); fl.pixelsPerUnitMultiplier = 6f;
+                    fl.rectTransform.anchorMin = Vector2.zero; fl.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(bars[i].Item2), 1); fl.rectTransform.offsetMin = fl.rectTransform.offsetMax = Vector2.zero;
+                    var val = UiKit.Txt(c, new Vector2(0, 1), Vector2.zero, Vector2.one, 9 * k, TextAnchor.MiddleLeft, Color.white);
+                    val.rectTransform.anchoredPosition = new Vector2(bx + 92 * s + bw - 132 * s, by); val.rectTransform.sizeDelta = new Vector2(60 * s, 16 * s); val.text = bars[i].Item3;
+                }
+                // BUY / EQUIP / EQUIPPED
+                string label = on ? "EQUIPPED" : owned ? "EQUIP" : $"BUY  {v.cost}";
+                bool can = !on && (owned || Armory.Coins >= v.cost);
+                var b = UiKit.Img(c, "act", UiKit.GoldPlate, new Vector2(1, .5f), Vector2.zero, Vector2.one, can ? Color.white : new Color(1, 1, 1, .35f), true);
+                b.rectTransform.pivot = new Vector2(1, .5f); b.rectTransform.anchoredPosition = new Vector2(-14 * s, 0); b.rectTransform.sizeDelta = new Vector2(124 * s, 36 * s);
+                var bt = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, 11 * k, TextAnchor.MiddleCenter, ink);
+                bt.rectTransform.pivot = new Vector2(.5f, .5f); bt.rectTransform.sizeDelta = b.rectTransform.sizeDelta; bt.text = label; Destroy(bt.GetComponent<Shadow>());
+                if (can) Clickable.Add(b.gameObject, () => { if (!Armory.Owned(vv)) Armory.Buy(vv); Armory.Equip(vv); Open("armory"); });
+                y += cardH + 10 * s;
+            }
+            var note = UiKit.Txt(content, new Vector2(0, 1), new Vector2(0, -y / UiKit.K), new Vector2(w / UiKit.K, 20 * s / UiKit.K), 10 * k, TextAnchor.UpperLeft, new Color(1, 1, 1, .6f));
+            note.fontStyle = FontStyle.Normal; note.text = "Coins: +20 a match, +15 a kill, +150 for a win. The equipped version is the one you pick up in a match.";
+            content.sizeDelta = new Vector2(content.sizeDelta.x, y + 40 * s);
+        }
+
         void SettingsSheet()
         {
             var content = ScrollArea();
@@ -507,15 +586,77 @@ namespace LastWar
         // ------------------------------------------------------------------ PLAY + turning the soldier
         public static string MapName(string id) => id == "desert" ? "Red Canyon" : id == "classic" ? "Valley" : "Highlands";
 
+        // ------------------------------------------------------------------ PLAY: a short matchmaking wait (cancellable)
+        Coroutine matching; RectTransform spinner, spinArc; Text spinText; float matchStart;
+
+        /// <summary>PLAY: a yellow ring spins in the middle (the game emblem inside) while the game checks the network,
+        /// loads the map and gathers the players; PLAY turns into CANCEL meanwhile.</summary>
         void Play()
         {
+            if (matching != null) { CancelMatch(); return; }
+            matching = StartCoroutine(Matchmake());
+        }
 
+        void CancelMatch()
+        {
+            if (matching != null) StopCoroutine(matching);
+            matching = null;
+            if (spinner != null) Destroy(spinner.gameObject);
+            SetPlayButton(false);
+        }
+
+        void SetPlayButton(bool cancel)
+        {
+            if (texts.TryGetValue("play_text", out Text pt)) pt.text = cancel ? "CANCEL" : "PLAY";
+            if (texts.TryGetValue("play_sub", out Text ps)) ps.text = cancel ? "Tap to stop searching" : "Battle royale · vs bots";
+            if (nodes.TryGetValue("play", out RectTransform pr)) pr.GetComponent<Image>().color = cancel ? new Color(.85f, .55f, .5f) : Color.white;
+        }
+
+        System.Collections.IEnumerator Matchmake()
+        {
+            SetPlayButton(true);
+            matchStart = Time.unscaledTime;
+            const float K = UiKit.K; float u = s / K;
+            spinner = new GameObject("Matchmaking", typeof(RectTransform)).GetComponent<RectTransform>();
+            spinner.SetParent(root, false); spinner.anchorMin = spinner.anchorMax = spinner.pivot = new Vector2(.5f, .5f);
+            spinner.anchoredPosition = new Vector2(0, 10 * s); spinner.sizeDelta = Vector2.one * 92 * s;
+            var bgRing = UiKit.Img(spinner, "track", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(92, 92) * u, new Color(0, 0, 0, .45f)); bgRing.rectTransform.pivot = new Vector2(.5f, .5f);
+            var disc = UiKit.Img(spinner, "back", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(84, 84) * u, new Color(.06f, .07f, .08f, .78f)); disc.rectTransform.pivot = new Vector2(.5f, .5f);
+            var arc = UiKit.Img(spinner, "arc", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(92, 92) * u, new Color(1f, .83f, .3f));
+            arc.rectTransform.pivot = new Vector2(.5f, .5f); arc.type = Image.Type.Filled; arc.fillMethod = Image.FillMethod.Radial360; arc.fillAmount = 0.28f;
+            spinArc = arc.rectTransform;
+            var icon = UiKit.Img(spinner, "emblem", Resources.Load<Sprite>("UI/emblem"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(52, 52) * u, Color.white);
+            icon.rectTransform.pivot = new Vector2(.5f, .5f); icon.preserveAspect = true;
+            spinText = UiKit.Txt(spinner, new Vector2(.5f, 0), new Vector2(0, -8) * u, new Vector2(320, 20) * u, 12 * u, TextAnchor.UpperCenter, Color.white);
+            spinText.rectTransform.pivot = new Vector2(.5f, 1);
+
+            // 1) the network (the match itself runs offline against bots when there is none)
+            spinText.text = "Checking connection…";
+            bool online = Application.internetReachability != NetworkReachability.NotReachable;
+            yield return new WaitForSecondsRealtime(0.6f);
+            // 2) the map and the soldiers (read in the background, the wait shows meanwhile)
+            spinText.text = "Loading " + MapName(Profile.Map) + "…";
+            var req = Resources.LoadAsync<TextAsset>("Maps/" + Profile.Map);
+            while (!req.isDone) yield return null;
+            yield return new WaitForSecondsRealtime(0.5f);
+            // 3) the players
+            float until = Time.unscaledTime + UnityEngine.Random.Range(1.2f, 2.2f);
+            while (Time.unscaledTime < until)
+            {
+                int found = Mathf.Min(GameBoot.BotCount + 1, 1 + Mathf.RoundToInt((1f - (until - Time.unscaledTime) / 2.2f) * GameBoot.BotCount));
+                spinText.text = $"Finding players… {found}/{GameBoot.BotCount + 1}" + (online ? "" : "  ·  offline");
+                yield return null;
+            }
+            spinText.text = "Match ready!";
+            yield return new WaitForSecondsRealtime(0.35f);
+            matching = null;
             GameBoot.InMatch = true;
             Loader.Go("Loading " + MapName(Profile.Map) + "…");
         }
 
         void Update()
         {
+            if (spinArc != null) spinArc.localEulerAngles = new Vector3(0, 0, -Time.unscaledTime * 300f);
             // (a sheet or the button editor is open: their drags belong to them, the soldier stays put)
             if (sheet != null || soldier == null || !canvas.enabled) { dragFinger = -1; mouseDrag = false; return; }
             // drag anywhere off the buttons to turn the soldier
