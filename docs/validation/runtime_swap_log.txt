@@ -1,0 +1,61 @@
+[LastWar] swap 0: Veteran parts 9,8,7,0 gun True anim True pieces 8
+
+[LastWar] swap 1: Veteran parts 7,8,0,10 gun True anim True pieces 8
+
+[LastWar] swap 2: Agent X parts 20,18,15,21 gun True anim True pieces 33
+
+[LastWar] swap 3: Ghost parts 1,9,9,4 gun True anim True pieces 8
+
+[LastWar] swap 4: King parts 14,17,20,11 gun True anim True pieces 32
+
+[LastWar] swap 5: Astronaut parts 17,16,12,16 gun True anim True pieces 29
+
+[LastWar] swap 6: Veteran parts 0,8,10,0 gun True anim True pieces 8
+
+[LastWar] swap 7: Infantry parts 7,10,8,3 gun True anim True pieces 8
+
+[LastWar] swap 8: Operator parts 1,2,0,0 gun True anim True pieces 8
+
+[LastWar] swap 9: Agent X parts 12,18,16,21 gun True anim True pieces 34
+
+[LastWar] swap 10: Hoodie parts 18,19,12,11 gun True anim True pieces 28
+
+[LastWar] swap 11: Worker parts 21,13,18,17 gun True anim True pieces 36
+
+[LastWar] swap 12: Agent X parts 12,18,13,20 gun True anim True pieces 32
+
+[LastWar] swap 13: Punk parts 21,15,17,19 gun True anim True pieces 36
+
+[LastWar] swap 14: Punk parts 13,15,18,14 gun True anim True pieces 36
+
+[LastWar] swap 15: Punk parts 11,15,16,12 gun True anim True pieces 34
+
+[LastWar] swap 16: Agent parts 1,1,9,3 gun True anim True pieces 8
+
+[LastWar] swap 17: SWAT parts 8,0,6,7 gun True anim True pieces 8
+
+[LastWar] swap 18: King parts 21,17,12,11 gun True anim True pieces 33
+
+[LastWar] swap 19: Ghost parts 1,9,9,4 gun True anim True pieces 8
+
+[LastWar] swap 20: Rifleman parts 4,6,2,3 gun True anim True pieces 8
+
+[LastWar] swap 21: Infantry parts 9,10,6,2 gun True anim True pieces 8
+
+[LastWar] swap 22: Ranger parts 13,12,15,18 gun True anim True pieces 35
+
+[LastWar] swap 23: Infantry parts 2,10,2,9 gun True anim True pieces 8
+
+[LastWar] swap 24: Woodland parts 10,4,10,4 gun True anim True pieces 8
+
+[LastWar] swap 25: Recon parts 4,3,5,0 gun True anim True pieces 8
+
+[LastWar] swap 26: Ranger parts 17,12,11,19 gun True anim True pieces 31
+
+[LastWar] swap 27: Astronaut parts 16,16,15,17 gun True anim True pieces 31
+
+[LastWar] swap 28: Rifleman parts 2,6,0,3 gun True anim True pieces 8
+
+[LastWar] swap 29: Agent X parts 12,18,17,13 gun True anim True pieces 35
+
+[LastWar] swap done: 30/30 passed
