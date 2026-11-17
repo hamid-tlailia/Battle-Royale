@@ -823,7 +823,7 @@ namespace LastWar
                     }
                     TwoBone(la, lf, handL, c - k * palm * 0.7f);
                     OrientHand(handL, lf, "Left", k, n);
-                    if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 48f, 55f, 32f, 25f);
+                    if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 48f, 55f, 32f, 0f, dir);
                 }
             }
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
@@ -897,7 +897,7 @@ namespace LastWar
         }
 
         /// <summary>closes the fingers toward the palm (base, middle, tip angles) and brings the thumb round</summary>
-        void Curl(string sd, float a1, float a2, float a3, float thumb)
+        void Curl(string sd, float a1, float a2, float a3, float thumb, Vector3 thumbAlong = default)
         {
             if (fingerRest == null) return;
             Transform hand = sd == "Right" ? handR : PoseBone("LeftHand");
@@ -908,6 +908,14 @@ namespace LastWar
             float[] ang = { a1, a2, a3 };
             foreach (string f in FingerNames)
                 for (int i = knuckle; i <= 3; i++) { Transform b = PoseBone(sd + "Hand" + f + i); if (b != null) b.rotation = Quaternion.AngleAxis(ang[i - knuckle], axis) * b.rotation; }
+            // the thumb laid along a direction (the left thumb along the handguard)
+            Transform t1 = PoseBone(sd + "HandThumb" + knuckle), t2 = PoseBone(sd + "HandThumb" + (knuckle + 1));
+            if (thumbAlong != default && t1 != null && t2 != null)
+            {
+                Vector3 td = t2.position - t1.position;
+                if (td.sqrMagnitude > 1e-10f) t1.rotation = Quaternion.Slerp(Quaternion.identity, Quaternion.FromToRotation(td, thumbAlong), 0.75f) * t1.rotation;
+                return;
+            }
             for (int i = 1; i <= 3; i++)
             {
                 Transform b = PoseBone(sd + "HandThumb" + i), c = PoseBone(sd + "HandThumb" + (i + 1));
