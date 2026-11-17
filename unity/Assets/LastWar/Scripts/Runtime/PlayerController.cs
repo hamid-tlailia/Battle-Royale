@@ -49,7 +49,7 @@ namespace LastWar
             string url = Application.absoluteURL ?? "";
             if (url.Contains("armed=1") || url.Contains("sniper=1") || url.Contains("nodrop=1")) pc.fighter.GiveStartingGuns("rifle", "shotgun");
             else pc.fighter.holstered = true;
-            pc.body = SoldierBody.Attach(go, Profile.Skin);
+            pc.body = SoldierBody.Attach(go, Profile.Skin, Profile.Parts);
             return pc;
         }
 

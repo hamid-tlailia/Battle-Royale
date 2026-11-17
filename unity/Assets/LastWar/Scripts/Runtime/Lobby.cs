@@ -86,7 +86,7 @@ namespace LastWar
             soldier = new GameObject("LobbySoldier");
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
-            lobbyBody = SoldierBody.Attach(soldier, Profile.Skin);
+            lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
             lobbyBody.SetGun("rifle"); lobbyBody.ShoulderGrip = false;
             lobbyBody.Play("idle_rifle");
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
@@ -353,33 +353,45 @@ namespace LastWar
             // parts: the full outfit (now) and single pieces (coming later)
             float tabsH = 30 * s, top = tabsH + 12 * s;
             SettingsPanel.Segments(content, Vector2.zero, new Vector2(content.sizeDelta.x, tabsH), 11 * k, OutfitTabs, outfitTab, t => { outfitTab = t; Open("outfit"); });
-            if (outfitTab != 0)
-            {
-                var none = UiKit.Txt(content, new Vector2(.5f, 1), Vector2.zero, Vector2.one, 14 * k, TextAnchor.MiddleCenter, new Color(1, 1, 1, .6f));
-                none.rectTransform.pivot = new Vector2(.5f, 1); none.rectTransform.anchoredPosition = new Vector2(0, -top - 60 * s);
-                none.rectTransform.sizeDelta = new Vector2(content.sizeDelta.x, 30 * s); none.text = "NOT AVAILABLE YET";
-                content.sizeDelta = new Vector2(content.sizeDelta.x, top + 120 * s);
-                return;
-            }
+            // tab 0: whole outfits; tabs 1-4: one piece (mask, T-shirt, pants, shoes) taken from any outfit
+            int part = outfitTab - 1;
             for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++)
             {
                 int skin = i;
-                bool on = i == Profile.Skin;
+                int wearing = part < 0 ? Profile.Skin : (Profile.Part(part) >= 0 ? Profile.Part(part) : Profile.Skin);
+                bool on = part < 0 ? (i == Profile.Skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) : i == wearing;
                 var card = UiKit.Img(content, "card", UiKit.Get(on ? "Lobby/card_on" : "Lobby/card"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
                 card.rectTransform.anchoredPosition = new Vector2((i % cols) * (cw + gap), -top - (i / cols) * (ch + gap));
                 card.rectTransform.sizeDelta = new Vector2(cw, ch);
-                var pic = UiKit.Img(card.rectTransform, "pic", Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i]), new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
-                pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
-                pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw, ch - 22 * s);
+                Sprite sp = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i]);
+                if (part < 0)
+                {
+                    var pic = UiKit.Img(card.rectTransform, "pic", sp, new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
+                    pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
+                    pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw, ch - 22 * s);
+                }
+                else if (sp != null)
+                {
+                    // only that piece of the outfit's picture, enlarged (head / chest / legs / boots band)
+                    float[] y0 = { .78f, .42f, .14f, 0f }, y1 = { 1f, .8f, .5f, .2f };
+                    var raw = new GameObject("pic", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+                    raw.transform.SetParent(card.rectTransform, false); raw.raycastTarget = false; raw.texture = sp.texture;
+                    Rect tr = sp.textureRect; float tw = sp.texture.width, th = sp.texture.height;
+                    float bandH = (y1[part] - y0[part]) * tr.height, bandW = Mathf.Min(tr.width, bandH * cw / (ch - 22 * s));
+                    raw.uvRect = new Rect((tr.x + (tr.width - bandW) / 2f) / tw, (tr.y + y0[part] * tr.height) / th, bandW / tw, bandH / th);
+                    var rr = raw.rectTransform; rr.anchorMin = rr.anchorMax = rr.pivot = new Vector2(.5f, 1);
+                    rr.anchoredPosition = new Vector2(0, -2 * s); rr.sizeDelta = new Vector2(cw - 6 * s, ch - 24 * s);
+                }
                 var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), Vector2.zero, Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, on ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : Color.white);
                 name.rectTransform.pivot = new Vector2(.5f, 0); name.rectTransform.sizeDelta = new Vector2(cw, 18 * s); name.text = SoldierBody.OutfitNames[i];
                 if (on) Check(card.rectTransform, cw);
                 // the card turns gold at once; the 3D soldier changes on the next frame
                 Clickable.Add(card.gameObject, () =>
                 {
-                    if (Profile.Skin == skin) return;
-                    Profile.Skin = skin; Open("outfit");
-                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[skin]);
+                    if (part < 0) { if (Profile.Skin == skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) return; Profile.Skin = skin; Profile.ClearParts(); }
+                    else Profile.SetPart(part, skin);
+                    Open("outfit");
+                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[Profile.Part(1) >= 0 ? Profile.Part(1) : Profile.Skin]);
                     StartCoroutine(SpawnNextFrame());
                 });
             }

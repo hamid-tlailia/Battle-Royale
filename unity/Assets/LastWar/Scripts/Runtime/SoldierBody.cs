@@ -28,9 +28,12 @@ namespace LastWar
         public static readonly string[] OutfitNames = { "SWAT", "Agent", "Operator", "Recon", "Woodland", "Commando", "Rifleman", "Desert", "Veteran", "Ghost", "Infantry" };
 
         /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
-        public static SoldierBody Attach(GameObject owner, int skin = -1)
+        /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
+        /// null = the whole of `skin`</summary>
+        public static SoldierBody Attach(GameObject owner, int skin = -1, int[] parts = null)
         {
             var body = owner.AddComponent<SoldierBody>();
+            body.parts = parts;
             body.Build(skin);
             return body;
         }
@@ -42,18 +45,22 @@ namespace LastWar
 
         static string BoneKey(string n) { int c = n.LastIndexOf(':'); return c >= 0 ? n.Substring(c + 1) : n; }
 
-        void SetupOutfit(int skin)
+        // ---- mix and match: the torso's outfit is the one the soldier drives (gun hands, poses); the head, legs and feet
+        //      may come from other outfits, which copy that outfit's pose every frame
+        public static readonly string[] PartNames = { "head", "torso", "legs", "feet" };
+        int[] parts;
+        readonly HashSet<Renderer> hiddenParts = new HashSet<Renderer>();
+        class Extra { public Transform root; public List<Transform> from = new List<Transform>(), to = new List<Transform>(); public Transform hips; public Vector3 hipsOffset; }
+        readonly List<Extra> extras = new List<Extra>();
+
+        /// <summary>an outfit model, 1.8 m tall, feet on the ground; only the pieces in `show` stay visible</summary>
+        GameObject PlaceOutfit(int skin, bool[] show, out Dictionary<string, Transform> dst)
         {
-            if (skin < 0 || skin >= OutfitFiles.Length) return;
+            dst = new Dictionary<string, Transform>();
             GameObject src = MapBuilder.Model("outfit_" + OutfitFiles[skin]);
-            if (src == null) return;
+            if (src == null) return null;
             GameObject o = Instantiate(src, transform, false);
-            outfitRoot = o.transform;
-            // 1.8 m from the head-top joint, feet on the ground
-            var dst = new Dictionary<string, Transform>();
             foreach (Transform t in o.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) dst[BoneKey(t.name)] = t;
-            // (a rig without the head-top joint is measured from the head joint, ~89 % of the body height:
-            //  left unscaled it stood 100x too big, a giant among the players)
             bool hasTop = dst.TryGetValue("HeadTop_End", out Transform head);
             if (!hasTop) dst.TryGetValue("Head", out head);
             if (head != null)
@@ -69,12 +76,52 @@ namespace LastWar
             }
             foreach (Renderer r in o.GetComponentsInChildren<Renderer>(true))
             {
+                // (split outfits: body_head / body_torso / body_legs / body_feet; an unsplit one shows whole)
+                int part = -1; for (int i = 0; i < 4; i++) if (r.name.EndsWith("_" + PartNames[i])) part = i;
+                if (part >= 0 && !show[part]) { hiddenParts.Add(r); r.enabled = false; }
+            }
+            return o;
+        }
+
+        void SetupOutfit(int skin)
+        {
+            if (skin < 0 || skin >= OutfitFiles.Length) return;
+            int[] wear = new int[4];
+            for (int i = 0; i < 4; i++) wear[i] = parts != null && i < parts.Length && parts[i] >= 0 && parts[i] < OutfitFiles.Length ? parts[i] : skin;
+            skin = wear[1]; // the torso's outfit leads
+            bool[] mine = new bool[4]; for (int i = 0; i < 4; i++) mine[i] = wear[i] == skin;
+            GameObject o = PlaceOutfit(skin, mine, out var dst);
+            if (o == null) return;
+            outfitRoot = o.transform;
+            // the other outfits: only their pieces, posed like the leading one
+            var done = new HashSet<int> { skin };
+            for (int i = 0; i < 4; i++)
+            {
+                if (done.Contains(wear[i])) continue;
+                done.Add(wear[i]);
+                bool[] show = new bool[4]; for (int j = 0; j < 4; j++) show[j] = wear[j] == wear[i];
+                GameObject e = PlaceOutfit(wear[i], show, out var ed);
+                if (e == null) continue;
+                var x = new Extra { root = e.transform };
+                foreach (var kv in ed)
+                {
+                    if (!dst.TryGetValue(kv.Key, out Transform lead)) continue;
+                    if (kv.Key == "Hips") { x.hips = kv.Value; x.hipsOffset = transform.InverseTransformVector(kv.Value.position - lead.position); }
+                    x.from.Add(lead); x.to.Add(kv.Value);
+                }
+                extras.Add(x);
+            }
+            o = outfitRoot.gameObject;
+            var allOutfits = new List<GameObject> { o }; foreach (Extra x in extras) allOutfits.Add(x.root.gameObject);
+            foreach (GameObject og in allOutfits)
+            foreach (Renderer r in og.GetComponentsInChildren<Renderer>(true))
+            {
                 if (r is SkinnedMeshRenderer smr) smr.updateWhenOffscreen = true;
                 var mats = r.sharedMaterials;
                 for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]);
                 r.sharedMaterials = mats;
             }
-            foreach (Animator a in o.GetComponentsInChildren<Animator>(true)) a.enabled = false;
+            foreach (GameObject og in allOutfits) foreach (Animator a in og.GetComponentsInChildren<Animator>(true)) a.enabled = false;
             // preferred: humanoid avatars on both rigs, pose copied through muscle space every frame
             // (humanoid transfer turned the outfits into a hunch: off until the rigs' rest poses are sorted out)
             Avatar srcAv = null, dstAv = null;
@@ -347,7 +394,7 @@ namespace LastWar
         void ApplyVisible()
         {
             foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
-                r.enabled = visible && (outfitRoot == null || model == null || !r.transform.IsChildOf(model));
+                r.enabled = visible && !hiddenParts.Contains(r) && (outfitRoot == null || model == null || !r.transform.IsChildOf(model));
         }
 
         /// <summary>open (true) or fold (false) the parachute: striped red / white canopy with lines</summary>
@@ -598,6 +645,7 @@ namespace LastWar
             FixFeet();
             ApplyPose();
             RunLife();
+            SyncExtras();
             PlaceBack();
             // aiming the ice wall: a small snowball in the right hand instead of the gun
             if (Snowball && handR != null)
@@ -643,6 +691,20 @@ namespace LastWar
             {
                 Transform la = PoseBone("LeftArm"), lf = PoseBone("LeftForeArm");
                 if (la != null && lf != null) TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f);
+            }
+        }
+
+        /// <summary>the head / legs / feet from other outfits take the leading outfit's pose</summary>
+        void SyncExtras()
+        {
+            foreach (Extra x in extras)
+            {
+                for (int i = 0; i < x.from.Count; i++) x.to[i].localRotation = x.from[i].localRotation;
+                if (x.hips != null)
+                {
+                    int hi = x.to.IndexOf(x.hips);
+                    if (hi >= 0) x.hips.position = x.from[hi].position + transform.TransformVector(x.hipsOffset);
+                }
             }
         }
 
