@@ -649,7 +649,7 @@ namespace LastWar
             GameObject src = MapBuilder.Model("bag" + lv);
             if (src == null) return;
             bagLook = Instantiate(src, transform, false).transform;
-            bagLook.localScale = Vector3.one * 0.85f;
+            bagLook.localScale = Vector3.one * 0.55f; // (a pack, not a wardrobe)
             foreach (Renderer r in bagLook.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
         }
 
@@ -661,7 +661,7 @@ namespace LastWar
             // follows the chest in every pose (standing, running, crawling): the chest's turn from the first frame
             if (!bagOffsetSet) { bagOffsetSet = true; bagSpineOffset = Quaternion.Inverse(spine.rotation) * transform.rotation; }
             Quaternion bodyRot = spine.rotation * bagSpineOffset;
-            bagLook.position = spine.position + bodyRot * new Vector3(0f, -0.38f, -0.13f);
+            bagLook.position = spine.position + bodyRot * new Vector3(0f, -0.27f, -0.12f);
             bagLook.rotation = bodyRot * Quaternion.Euler(0, 180f, 0); // pockets out, straps on the back
         }
 
@@ -676,7 +676,7 @@ namespace LastWar
             {
                 float side = i == 0 ? 1f : -1f;
                 // diagonal across the back, the two crossed, flat against the body
-                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(0.17f + (bagLook != null ? 0.26f : 0f) + i * 0.05f)); // (behind the backpack when there is one)
+                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(0.17f + (bagLook != null ? 0.17f : 0f) + i * 0.05f)); // (behind the backpack when there is one)
                 Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
                 backGuns[i].rotation = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
             }
@@ -746,7 +746,13 @@ namespace LastWar
             {
                 // carried (running / crawling): exactly along the two hands, as the clip holds it
                 Vector3 lh = handL.position - handR.position; float len = lh.magnitude;
-                if (len > 0.15f && len < 0.75f && Vector3.Dot(lh, transform.forward) > 0.04f) dir = lh / len; else carried = false;
+                if (len > 0.15f && len < 0.75f && Vector3.Dot(lh, transform.forward) > 0.04f)
+                {
+                    // carried in front, muzzle forward and a little down - never swung out to the side
+                    Vector3 front = (transform.forward - transform.up * 0.35f).normalized;
+                    dir = Vector3.RotateTowards(front, lh / len, 30f * Mathf.Deg2Rad, 0f);
+                }
+                else carried = false;
             }
             gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
             // standing / walking / firing: the barrel follows the view and the support hand comes to the handguard

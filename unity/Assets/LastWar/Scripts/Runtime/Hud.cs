@@ -78,7 +78,7 @@ namespace LastWar
             var h = new GameObject("Hud").AddComponent<Hud>();
             h.input = input; h.player = player; h.Build();
             Fighter.OnHit += h.Hit; Fighter.OnKill += h.Kill;
-            h.StartCoroutine(PrewarmLenses()); // draw the three optics while flying in (no hitch the first time you scope)
+            foreach (int z in new[] { 2, 4, 8 }) WebLens(z); // (read behind the loading screen: no hitch when you first scope)
             return h;
         }
 
@@ -331,69 +331,20 @@ namespace LastWar
         /// cross open above with ranging ticks under the chevron, x8 a fine cross, heavy outer posts and dots. The green
         /// dot / chevron is a second texture so it can turn red on an enemy.
         /// </summary>
-        static System.Collections.IEnumerator PrewarmLenses() { foreach (int z in new[] { 4, 8, 2 }) { yield return new WaitForSeconds(1f); WebLens(z); } }
-
         static (Texture2D, Texture2D) WebLens(int z)
         {
             if (webLens.TryGetValue(z, out var have)) return have;
-            const int n = 1024; float u = n / 200f, c0 = (n - 1) / 2f;
-            // rim (viewBox units): x2 14+3 px of 259, x4 12+3 of 302, x8 10+2 of 338; inner shadow ~50 px
-            float rimW = z == 2 ? 10.8f : z == 4 ? 8f : 6f, edgeW = z == 2 ? 2.3f : z == 4 ? 2f : 1.2f, shade = z == 8 ? .85f : z == 4 ? .8f : .7f, shadeW = z == 2 ? 24f : 30f;
-            var segs = new System.Collections.Generic.List<(Vector2 a, Vector2 b, float w)>();
-            var dots = new System.Collections.Generic.List<(Vector2 c, float r)>();
-            var rings = new System.Collections.Generic.List<(float r, float w)>();
-            var mSegs = new System.Collections.Generic.List<(Vector2 a, Vector2 b, float w)>(); var mDots = new System.Collections.Generic.List<(Vector2 c, float r)>();
-            if (z == 8)
+            // drawn once by scripts/unity/bake-lenses.py (drawing them here stalled the game for a moment)
+            Texture2D Load(string name)
             {
-                segs.Add((new Vector2(-100, 0), new Vector2(-14, 0), 1.2f)); segs.Add((new Vector2(14, 0), new Vector2(100, 0), 1.2f));
-                segs.Add((new Vector2(0, -100), new Vector2(0, -14), 1.2f)); segs.Add((new Vector2(0, 14), new Vector2(0, 100), 1.2f));
-                segs.Add((new Vector2(-100, 0), new Vector2(-60, 0), 5f)); segs.Add((new Vector2(60, 0), new Vector2(100, 0), 5f)); segs.Add((new Vector2(0, 60), new Vector2(0, 100), 5f));
-                foreach (float x in new[] { -40f, -30f, -20f, 20f, 30f, 40f }) { dots.Add((new Vector2(x, 0), 1.6f)); dots.Add((new Vector2(0, x), 1.6f)); }
-                mDots.Add((Vector2.zero, 1.8f));
+                var t = new Texture2D(2, 2, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+                var ta = Resources.Load<TextAsset>("Lens/" + name + ".png");
+                if (ta != null) t.LoadImage(ta.bytes);
+                return t;
             }
-            else if (z == 4)
-            {
-                segs.Add((new Vector2(-100, 0), new Vector2(-8, 0), 1f)); segs.Add((new Vector2(8, 0), new Vector2(100, 0), 1f)); segs.Add((new Vector2(0, 8), new Vector2(0, 100), 1f));
-                foreach (float y in new[] { 12f, 20f, 28f, 36f }) segs.Add((new Vector2(-y / 4f, y), new Vector2(y / 4f, y), 1f));
-                mSegs.Add((new Vector2(-5, 6), Vector2.zero, 1.6f)); mSegs.Add((Vector2.zero, new Vector2(5, 6), 1.6f));
-            }
-            else
-            {
-                rings.Add((22f, 1.4f));
-                segs.Add((new Vector2(-22, 0), new Vector2(-12, 0), 1.4f)); segs.Add((new Vector2(12, 0), new Vector2(22, 0), 1.4f)); segs.Add((new Vector2(0, 22), new Vector2(0, 12), 1.4f));
-                mDots.Add((Vector2.zero, 2.2f));
-            }
-            float Seg(Vector2 p, Vector2 a, Vector2 b) { Vector2 ab = b - a; float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(1e-4f, ab.sqrMagnitude)); return (p - (a + ab * t)).magnitude; }
-            var rim = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-            var mark = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-            var rp = new Color32[n * n]; var mp = new Color32[n * n];
-            float px = 1f / u; // one texel in viewBox units (anti-aliasing width)
-            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
-                {
-                    // viewBox coordinates: y grows downward like the SVG
-                    var p = new Vector2((x - c0) / u, -(y - c0) / u); float d = p.magnitude, R = 100f;
-                    Color col = new Color(0, 0, 0, 0);
-                    if (d > R) col = new Color(0, 0, 0, 0);
-                    else if (d > R - rimW) col = new Color(18 / 255f, 19 / 255f, 21 / 255f, 1f);                       // rim
-                    else if (d > R - rimW - edgeW) col = new Color(46 / 255f, 49 / 255f, 53 / 255f, 1f);              // lighter inner edge
-                    else { float k = Mathf.Clamp01((d - (R - rimW - edgeW - shadeW)) / shadeW); col = new Color(0, 0, 0, k * k * shade); } // soft inner shadow
-                    if (d < R - rimW)
-                    {
-                        float a = 0f;
-                        foreach (var sg in segs) a = Mathf.Max(a, Mathf.Clamp01((sg.w / 2f - Seg(p, sg.a, sg.b)) / px + .5f));
-                        foreach (var dt in dots) a = Mathf.Max(a, Mathf.Clamp01((dt.r - (p - dt.c).magnitude) / px + .5f));
-                        foreach (var rg in rings) a = Mathf.Max(a, Mathf.Clamp01((rg.w / 2f - Mathf.Abs(d - rg.r)) / px + .5f));
-                        if (a > 0f) col = Color.Lerp(col, new Color(.07f, .07f, .07f, 1f), a);
-                        float m = 0f;
-                        foreach (var sg in mSegs) m = Mathf.Max(m, Mathf.Clamp01((sg.w / 2f - Seg(p, sg.a, sg.b)) / px + .5f));
-                        foreach (var dt in mDots) m = Mathf.Max(m, Mathf.Clamp01((dt.r - (p - dt.c).magnitude) / px + .5f));
-                        mp[y * n + x] = new Color(1, 1, 1, m);
-                    }
-                    rp[y * n + x] = col;
-                }
-            rim.SetPixels32(rp); rim.Apply(); mark.SetPixels32(mp); mark.Apply();
-            webLens[z] = (rim, mark);
-            return (rim, mark);
+            var pair = (Load("rim" + z), Load("mark" + z));
+            webLens[z] = pair;
+            return pair;
         }
 
         /// <summary>size and look of the optic for its zoom (web: x2 72 %, x4 84 %, x8 94 % of the screen height)</summary>

@@ -274,6 +274,9 @@ namespace LastWar
                 if (g != null) { int take = Mathf.Min(g.def.mag - g.mag, g.reserve); g.mag += take; g.reserve -= take; }
                 reloadEnd = 0;
             }
+            // an empty magazine reloads by itself (when there are spare rounds), once the last shot has gone
+            GunState cur = Alive && air == 0 && !holstered ? Gun : null;
+            if (cur != null && cur.mag <= 0 && cur.reserve > 0 && reloadEnd <= 0 && !BurstPending && Time.time >= nextShot) Reload();
         }
 
         public bool CanFire => Alive && air == 0 && !holstered && Gun != null && reloadEnd == 0 && Time.time >= nextShot;

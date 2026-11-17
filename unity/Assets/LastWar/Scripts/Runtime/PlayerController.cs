@@ -99,7 +99,7 @@ namespace LastWar
             if (input.Sprint && mv.y > -0.3f) mv = new Vector2(mv.x * 0.5f, 1f); // locked run keeps going through a quick scope / reload / jump
             bool sprinting = input.Sprint && mv.y > 0.5f && !Scoped; // (FIRE on the ground ends the run in the controls; from a jump it goes on)
             // crawling is slow and goes in pulls (the body moves with the arms, not as a slide)
-            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * body.CrawlPull : input.Crouch ? 0.55f : 1f);
+            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * (body.Pose == "crawl" ? body.CrawlPull : 1f) : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
             Vector3 want = heading * new Vector3(mv.x, 0, mv.y) * speed;
             bool grounded = cc.isGrounded;

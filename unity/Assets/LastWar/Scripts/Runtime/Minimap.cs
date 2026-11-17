@@ -45,7 +45,7 @@ namespace LastWar
             frame = border.rectTransform;
             // small map: tap = open the big one; big map: tap = put your marker there (tap it again to remove it)
             var bt = border.gameObject.AddComponent<EventTrigger>(); var be = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-            be.callback.AddListener(ev => { if (input.Editing) return; if (!big) { SetBig(true); return; } PlaceMarker(((PointerEventData)ev).position); });
+            be.callback.AddListener(ev => { if (input.Editing) return; if (!big) { SetBig(true); return; } var pe = (PointerEventData)ev; if (bigClose != null && RectTransformUtility.RectangleContainsScreenPoint(bigClose, pe.position, null)) return; /* (the X closes, it does not mark) */ PlaceMarker(pe.position); });
             bt.triggers.Add(be);
             input.RegisterBlocker(frame);
             input.AddEditable("minimap", frame);

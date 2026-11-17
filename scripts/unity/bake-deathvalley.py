@@ -139,6 +139,7 @@ def flatten(cx, cz, r, h):
             H[j, i] = H[j, i] * (1 - t) + h * t
 
 props, boxes, areas = [], [], []
+taken = []  # (x, z, radius) of what stands in the settlements
 def prop(name, x, z, rot, s=1.0, dy=0.0): props.append({'p': name, 'x': round(x, 2), 'y': round(hat(x, z) + dy, 2), 'z': round(z, 2), 'rot': round(rot, 3), 's': s})
 def box(x, z, w, h, d, rot, color):
     boxes.append({'x': round(x, 2), 'y': round(hat(x, z) + h / 2 - 0.1, 2), 'z': round(z, 2), 'hx': round(w / 2, 2), 'hy': round(h / 2, 2), 'hz': round(d / 2, 2), 'rot': round(rot, 3), 'color': color})
@@ -159,13 +160,19 @@ for (score, sx, sz), kind in zip(sites, kinds):
             off = 17 if kind == 'desert' else 15
             x = sx + math.cos(road) * along - math.sin(road) * side * off; z = sz + math.sin(road) * along + math.cos(road) * side * off
             prop(houses[q % len(houses)] if kind == 'desert' else rnd.choice(houses), x, z, road + (math.pi if side > 0 else 0) + rnd.uniform(-.08, .08))
+            taken.append((x, z, 9))
         if kind == 'desert':
             prop('bld_shop', sx + math.cos(road) * (count / 4 * gap + 26), sz + math.sin(road) * (count / 4 * gap + 26), road)
         for q in range(4):
             prop(rnd.choice(['car1', 'car2', 'car3', 'car4']), sx + rnd.uniform(-rad, rad) * .7, sz + rnd.uniform(-rad, rad) * .7, rnd.random() * 6.28)
         if kind == 'village':
             for extra in ['well', 'wagon', 'haybale', 'haybale', 'windmill']:
-                x, z = sx + rnd.uniform(-rad, rad) * .8, sz + rnd.uniform(-rad, rad) * .8
+                # a free spot: never inside a house (the windmill needs the most room)
+                need = 13 if extra == 'windmill' else 5
+                for _ in range(60):
+                    x, z = sx + rnd.uniform(-rad, rad) * .9, sz + rnd.uniform(-rad, rad) * .9
+                    if all(math.hypot(x - tx, z - tz) > tr + need for tx, tz, tr in taken): break
+                taken.append((x, z, need))
                 prop(extra, x, z, rnd.random() * 6.28)
                 if extra == 'windmill': prop('windmill_blades', x, z, props[-1]['rot'])
         for q in range(6):  # yard walls / fences round the place

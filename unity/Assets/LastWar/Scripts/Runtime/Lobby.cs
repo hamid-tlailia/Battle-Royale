@@ -111,7 +111,7 @@ namespace LastWar
                 var extra = new List<LobbyNode>(L.nodes);
                 foreach (LobbyNode n in L.nodes)
                     if (n.id == "tab3" || n.id == "tab3_icon" || n.id == "tab3_text")
-                        extra.Add(new LobbyNode { id = n.id.Replace("tab3", "tab4"), kind = n.kind, text = n.id == "tab3_text" ? "ARMORY" : n.text, color = n.color, weight = n.weight, align = n.align, x = n.x, y = n.y + 38, w = n.id == "tab3_text" ? 70 : n.w, h = n.h, size = n.size });
+                        extra.Add(new LobbyNode { id = n.id.Replace("tab3", "tab4"), kind = n.kind, text = n.id == "tab3_text" ? "ARMORY" : n.text, color = n.color, weight = n.weight, align = n.align, x = n.id == "tab3_icon" ? n.x - 6 : n.x, y = n.id == "tab3_icon" ? n.y + 38 - 3 : n.y + 38, w = n.id == "tab3_text" ? 70 : n.id == "tab3_icon" ? n.w + 12 : n.w, h = n.id == "tab3_icon" ? n.h + 6 : n.h, size = n.size });
                 L.nodes = extra.ToArray();
             }
             foreach (LobbyNode n in L.nodes)
@@ -479,7 +479,7 @@ namespace LastWar
                 card.rectTransform.anchoredPosition = new Vector2(0, -y); card.rectTransform.sizeDelta = new Vector2(w, cardH);
                 if (on) card.gameObject.AddComponent<Outline>().effectColor = gold;
                 Transform c = card.transform;
-                var pic = UiKit.Img(c, "gun", UiKit.Get("gun_" + gun), new Vector2(0, .5f), new Vector2(14, 6) * k, new Vector2(150, 64) * k, Color.white);
+                var pic = UiKit.Img(c, "gun", Resources.Load<Sprite>("UI/Items/gun_" + v.key) ?? UiKit.Get("gun_" + gun), new Vector2(0, .5f), new Vector2(10, 4) * k, new Vector2(165, 70) * k, Color.white); // its own real model, in colour
                 pic.rectTransform.pivot = new Vector2(0, .5f); pic.preserveAspect = true;
                 var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.name;
                 var pk = UiKit.Txt(c, new Vector2(0, 0), new Vector2(14, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerLeft, new Color(1, 1, 1, .7f)); pk.fontStyle = FontStyle.Normal; pk.text = v.perk;

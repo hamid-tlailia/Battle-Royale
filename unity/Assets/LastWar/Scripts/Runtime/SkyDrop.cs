@@ -11,7 +11,7 @@ namespace LastWar
     /// </summary>
     public class SkyDrop : MonoBehaviour
     {
-        public const float Altitude = 115f, PlaneSpeed = 24f, FallSpeed = 16f, DiveSpeed = 30f, FallSpeedH = 20f, ChuteSpeed = 5f, ChuteSpeedH = 17f, ChuteHeight = 60f;
+        public const float Altitude = 115f, PlaneSpeed = 24f, FallSpeed = 13f, DiveSpeed = 30f, FallSpeedH = 30f, ChuteSpeed = 4f, ChuteSpeedH = 26f, ChuteHeight = 60f; // (a longer glide than the web's)
         public static SkyDrop Instance { get; private set; }
         public Vector3 A, B;         // route ends (Unity coordinates)
         public float Duration, T;   // seconds on the route, time since take-off
