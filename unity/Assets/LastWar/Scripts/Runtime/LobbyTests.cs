@@ -78,6 +78,7 @@ namespace LastWar
             cam.orthographic = true;
             float h = rSkin.Count * dy;
             cam.orthographicSize = zoom ? h * 0.36f : h * 0.56f + 0.2f;
+            if (!zoom) cam.orthographicSize = Mathf.Max(cam.orthographicSize, (Clips.Length * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect)); // wide rows fit too
             cam.transform.position = origin + new Vector3(0, -(rSkin.Count - 1) * dy / 2f + 0.9f, -30f);
             cam.transform.rotation = Quaternion.identity;
             cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(.78f, .84f, .88f);
