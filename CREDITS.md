@@ -100,3 +100,4 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Ultimate Modular Characters | outfits `q_*` (11 characters, mix-and-match pieces; scripts/unity/split-quaternius.mjs) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularcharacters.html |
 | Mixamo characters (SWAT, Marine, Exo, Shadow, Hazmat, Knight, Archer) | outfits `mx_*` (worn whole; scripts/unity/import-mixamo-chars.mjs) | Adobe Mixamo | Mixamo terms (royalty-free in games, downloaded by the project owner) | https://www.mixamo.com |
 | Pro Rifle Pack (Mixamo) | rifle clips `mx_*` in soldier.glb (scripts/unity/retarget-mixamo.mjs) | Adobe Mixamo | Mixamo terms (royalty-free in games, downloaded by the project owner) | https://www.mixamo.com |
+| ui_click.wav, ui_start.wav | lobby button click / PLAY start sounds | synthesized for this project (scripts in session) | CC0 | - |

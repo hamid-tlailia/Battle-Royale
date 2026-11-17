@@ -114,9 +114,26 @@ namespace LastWar
                 if (foot == float.MaxValue) foot = transform.position.y;
                 float h = (head.position.y - foot) / (hasTop ? 1f : 0.89f);
                 if (h > 0.001f) { o.transform.localScale *= 1.8f / (h * 1.03f); }
-                foot = float.MaxValue;
-                foreach (string f in new[] { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" }) if (dst.TryGetValue(f, out Transform ft)) foot = Mathf.Min(foot, ft.position.y);
-                if (foot != float.MaxValue) o.transform.position += Vector3.up * (transform.position.y + 0.03f - foot);
+                // stand on the soles: the lowest point of the posed meshes (baked once), not the toe bones' height
+                float sole = float.MaxValue;
+                var baked = new Mesh();
+                foreach (SkinnedMeshRenderer smr in o.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    if (smr.sharedMesh == null || !smr.sharedMesh.isReadable) continue;
+                    smr.BakeMesh(baked, true);
+                    var vs = baked.vertices; Matrix4x4 m = smr.transform.localToWorldMatrix;
+                    // (BakeMesh with scale: vertices in the renderer's space without its scale twice)
+                    m = Matrix4x4.TRS(smr.transform.position, smr.transform.rotation, Vector3.one);
+                    for (int vi = 0; vi < vs.Length; vi += 3) sole = Mathf.Min(sole, m.MultiplyPoint3x4(vs[vi]).y);
+                }
+                Destroy(baked);
+                if (sole == float.MaxValue)
+                {
+                    foot = float.MaxValue;
+                    foreach (string f in new[] { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" }) if (dst.TryGetValue(f, out Transform ft)) foot = Mathf.Min(foot, ft.position.y);
+                    if (foot != float.MaxValue) sole = foot - 0.03f;
+                }
+                if (sole != float.MaxValue) o.transform.position += Vector3.up * (transform.position.y + 0.005f - sole);
             }
             foreach (Renderer r in o.GetComponentsInChildren<Renderer>(true))
             {

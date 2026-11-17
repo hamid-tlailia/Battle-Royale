@@ -8,7 +8,8 @@ namespace LastWar
     public class Clickable : MonoBehaviour, IPointerClickHandler
     {
         public Action onClick;
-        public static void Add(GameObject go, Action a) { var c = go.AddComponent<Clickable>(); c.onClick = a; }
-        public void OnPointerClick(PointerEventData e) { if (!e.dragging) onClick?.Invoke(); }
+        public bool silent; // (PLAY has its own sound)
+        public static Clickable Add(GameObject go, Action a) { var c = go.AddComponent<Clickable>(); c.onClick = a; return c; }
+        public void OnPointerClick(PointerEventData e) { if (e.dragging) return; if (!silent) Sfx.Play2D("ui_click", 0.55f); onClick?.Invoke(); }
     }
 }

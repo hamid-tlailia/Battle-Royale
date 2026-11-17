@@ -61,7 +61,7 @@ namespace LastWar
         internal static void Tap(GameObject go, Action a)
         {
             var tr = go.AddComponent<EventTrigger>(); var e = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
-            e.callback.AddListener(ev => { ((PointerEventData)ev).Use(); a(); }); tr.triggers.Add(e);
+            e.callback.AddListener(ev => { ((PointerEventData)ev).Use(); Sfx.Play2D("ui_click", 0.55f); a(); }); tr.triggers.Add(e);
         }
 
         internal static Text Label(Transform p, ref float y, string text)

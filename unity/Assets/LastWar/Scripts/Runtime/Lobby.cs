@@ -271,7 +271,7 @@ namespace LastWar
         {
             if (!nodes.TryGetValue(id, out RectTransform rt)) return;
             var g = rt.GetComponent<Graphic>(); if (g != null) g.raycastTarget = true;
-            Clickable.Add(rt.gameObject, a);
+            Clickable.Add(rt.gameObject, a).silent = id == "play";
         }
 
         static Color ParseColor(string css)
@@ -624,7 +624,8 @@ namespace LastWar
         /// loads the map and gathers the players; PLAY turns into CANCEL meanwhile.</summary>
         void Play()
         {
-            if (matching != null) { CancelMatch(); return; }
+            if (matching != null) { Sfx.Play2D("ui_click", 0.55f); CancelMatch(); return; }
+            Sfx.Play2D("ui_start", 0.8f);
             matching = StartCoroutine(Matchmake());
         }
 
