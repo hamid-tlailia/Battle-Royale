@@ -26,6 +26,8 @@ namespace LastWar
             var h = new float[Clips.Length]; for (int i = 0; i < h.Length; i++) h[i] = 0.35f; Holds = h;
         }
         static bool RawClips;
+        /// <summary>?gyaw= : which way the grid soldiers face (215 = three-quarter front, 0 = their back to the camera as in the game, 270 = side)</summary>
+        public static float GridYaw = 215f;
 
         public static bool Run(Camera cam, Canvas ui, string grid, int from, int n, bool zoom, bool swap)
         {
@@ -61,7 +63,7 @@ namespace LastWar
                 {
                     var go = new GameObject($"t{r}_{c}");
                     go.transform.position = origin + new Vector3((c - (Clips.Length - 1) / 2f) * dx, -r * dy, 0);
-                    go.transform.rotation = Quaternion.Euler(0, 180f + 35f, 0); // three-quarter view toward the camera
+                    go.transform.rotation = Quaternion.Euler(0, GridYaw, 0); // default: three-quarter view toward the camera
                     var body = SoldierBody.Attach(go, rSkin[r], rParts[r]);
                     bool gunOn = RawClips ? Clips[c].StartsWith("mx_") : c != 0;
                     body.SetGun(gunOn ? "rifle" : null); body.Armed = gunOn;

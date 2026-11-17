@@ -52,6 +52,7 @@ namespace LastWar
             if (Arg("retcheck") == "1") { LobbyTests.RetCheck(); if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("trans") == "1") { LobbyTests.TransCheck(cam); if (l.canvas != null) l.canvas.enabled = false; return l; }
             LobbyTests.SetClips(Arg("clips"));
+            if (float.TryParse(Arg("gyaw") ?? "x", out float gyaw)) LobbyTests.GridYaw = gyaw;
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
             if (Arg("hgrip") == "0") SoldierBody.HandGrip = false;
             if (float.TryParse(Arg("jumpat") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ja)) LobbyTests.Holds[2] = ja;
