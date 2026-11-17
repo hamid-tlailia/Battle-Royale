@@ -251,9 +251,8 @@ namespace LastWar
             var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(80, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1"; bagLvText = bagTx;
 
             // things within reach (web .loot-list): a see-through panel to the left of the fire button, picture, name, TAKE
-            lootPanel = UiKit.Img(c, "LootList", UiKit.Round, new Vector2(1, .56f), new Vector2(-232, 0), new Vector2(172, 40), new Color(10 / 255f, 18 / 255f, 10 / 255f, .42f), true).rectTransform;
+            lootPanel = UiKit.Img(c, "LootList", UiKit.Round, new Vector2(1, .56f), new Vector2(-232, 0), new Vector2(172, 40), new Color(24 / 255f, 32 / 255f, 40 / 255f, .6f), true).rectTransform;
             lootPanel.pivot = new Vector2(1, .5f);
-            lootPanel.gameObject.AddComponent<Outline>().effectColor = new Color(1, 1, 1, .14f);
             input.RegisterBlocker(lootPanel);
             for (int i = 0; i < 6; i++)
             {
@@ -483,7 +482,7 @@ namespace LastWar
                     s.line.enabled = false;
                     continue;
                 }
-                s.gun.sprite = g != null ? UiKit.Get("gun_" + g.def.id) : null; s.gun.enabled = s.gun.sprite != null;
+                s.gun.sprite = g != null ? (UiKit.Get("gun_" + g.def.Look) ?? UiKit.Get("gun_" + g.def.id)) : null; s.gun.enabled = s.gun.sprite != null;
                 s.gun.rectTransform.sizeDelta = (sel ? new Vector2(100, 28) : new Vector2(40, 19)) * K;
                 s.gun.rectTransform.anchoredPosition = (sel ? new Vector2(-10, -5) : new Vector2(-3, -3)) * K;
                 bool low = g != null && g.mag <= g.def.mag / 4;

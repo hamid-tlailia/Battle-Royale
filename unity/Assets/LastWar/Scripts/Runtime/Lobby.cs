@@ -29,7 +29,7 @@ namespace LastWar
         static readonly string[] Tips = { "Welcome to Last War!", "Land, loot a gun, stay in the zone.", "Tap a weapon to equip it, tap it again to reload.", "Headshots hit twice as hard.", "The shotgun fires two blasts per press." };
 
         public static Lobby Current;
-        static float LobbyGunTurn = 58f;
+        static float LobbyGunTurn = 55f, LobbyGunUp = 38f; static Vector3 LobbyGrip = new Vector3(0.04f, -0.45f, 0.1f);
         /// <summary>back button: closes the open page; false when there was none</summary>
         public bool Back() { if (matching != null) { CancelMatch(); return true; } if (sheet == null) return false; Close(); return true; }
 
@@ -44,6 +44,8 @@ namespace LastWar
             string open = Arg("open"), lp = Arg("lpose");
             if (float.TryParse(Arg("lyaw") ?? "x", out float ly)) l.soldierYaw = ly;
             if (float.TryParse(Arg("lgun") ?? "x", out float lg)) LobbyGunTurn = lg;
+            if (float.TryParse(Arg("lgunup") ?? "x", out float lu)) LobbyGunUp = lu;
+            if (float.TryParse(Arg("lgripy") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float gy)) LobbyGrip.y = gy;
             // outfit validation bench (?grid= / ?swap=1)
             if (Arg("qfingers") == "1") SoldierBody.QFingers = true;
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
@@ -94,7 +96,8 @@ namespace LastWar
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
-            lobbyBody.SetGun(Armory.Equipped("rifle")); lobbyBody.ShoulderGrip = false; // (the armory version you carry)
+            lobbyBody.SetGun(Armory.Equipped("rifle")); lobbyBody.ShoulderGrip = true; lobbyBody.Plant = true;
+            lobbyBody.GripOffset = LobbyGrip; // (the armory version you carry)
             lobbyBody.Play("idle_rifle");
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
             string url = Application.absoluteURL ?? ""; int pq = url.IndexOf("pose=");
@@ -118,7 +121,7 @@ namespace LastWar
                 var extra = new List<LobbyNode>(L.nodes);
                 foreach (LobbyNode n in L.nodes)
                     if (n.id == "tab3" || n.id == "tab3_icon" || n.id == "tab3_text")
-                        extra.Add(new LobbyNode { id = n.id.Replace("tab3", "tab4"), kind = n.kind, text = n.id == "tab3_text" ? "ARMORY" : n.text, color = n.color, weight = n.weight, align = n.align, x = n.id == "tab3_icon" ? n.x - 6 : n.x, y = n.id == "tab3_icon" ? n.y + 38 - 3 : n.y + 38, w = n.id == "tab3_text" ? 70 : n.id == "tab3_icon" ? n.w + 12 : n.w, h = n.id == "tab3_icon" ? n.h + 6 : n.h, size = n.size });
+                        extra.Add(new LobbyNode { id = n.id.Replace("tab3", "tab4"), kind = n.kind, text = n.id == "tab3_text" ? "ARMORY" : n.text, color = n.color, weight = n.weight, align = n.align, x = n.x, y = n.y + 38, w = n.id == "tab3_text" ? 70 : n.w, h = n.h, size = n.size });
                 L.nodes = extra.ToArray();
             }
             foreach (LobbyNode n in L.nodes)
@@ -136,7 +139,7 @@ namespace LastWar
             s = Mathf.Min(safe.height / L.H, safe.width / L.W);
             var sprites = new Dictionary<string, string> {
                 { "logo", "Lobby/logo" }, { "banner", "Lobby/banner" }, { "chip0", "Lobby/chip" }, { "chip1", "Lobby/chip" }, { "gear", "Lobby/gear" },
-                { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" }, { "tab4", "Lobby/tab" }, { "tab4_icon", "gun_rifle" },
+                { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" }, { "tab4", "Lobby/tab" }, { "tab4_icon", "icon_armory" },
                 { "mapcard", "Lobby/mapcard_" + (Profile.Map == "desert" || Profile.Map == "classic" || Profile.Map == "valley" ? Profile.Map : "green") }, { "season", "Lobby/season" }, { "tip", "Lobby/tip" },
                 { "modes", "Lobby/modes" }, { "play", "Lobby/play" },
                 { "rank", "icon_rank" }, { "chip0_icon", "icon_trophy" }, { "chip1_icon", "icon_fire" }, { "gear_icon", "icon_settings" },
@@ -383,7 +386,7 @@ namespace LastWar
                 else if (sp != null)
                 {
                     // only that piece of the outfit's picture, enlarged (head / chest / legs / boots band)
-                    float[] y0 = { .78f, .42f, .14f, 0f }, y1 = { 1f, .8f, .5f, .2f };
+                    float[] y0 = { .78f, .53f, .16f, 0f }, y1 = { 1f, .84f, .5f, .17f };
                     var raw = new GameObject("pic", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
                     raw.transform.SetParent(card.rectTransform, false); raw.raycastTarget = false; raw.texture = sp.texture;
                     Rect tr = sp.textureRect; float tw = sp.texture.width, th = sp.texture.height;
@@ -706,8 +709,8 @@ namespace LastWar
                 if (mouseDrag) { soldierYaw -= (Input.mousePosition.x - dragLast.x) * 0.4f; dragLast = Input.mousePosition; }
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
-            // rifle held across the body (barrel to the soldier's left and a little down) so the camera sees the whole gun
-            if (lobbyBody != null) lobbyBody.AimDir = Quaternion.AngleAxis(-LobbyGunTurn, soldier.transform.up) * Quaternion.AngleAxis(22f, soldier.transform.right) * soldier.transform.forward;
+            // rifle held diagonally across the chest (port arms): muzzle up and to the soldier's left, grip at the waist
+            if (lobbyBody != null) lobbyBody.AimDir = Quaternion.AngleAxis(-LobbyGunTurn, soldier.transform.up) * Quaternion.AngleAxis(-LobbyGunUp, soldier.transform.right) * soldier.transform.forward;
             if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }
 

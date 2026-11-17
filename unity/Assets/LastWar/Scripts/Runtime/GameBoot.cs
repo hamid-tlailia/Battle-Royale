@@ -37,6 +37,7 @@ namespace LastWar
             QualitySettings.vSyncCount = 0;
             Profile.ApplyQuality();
             SoldierBody.LogRig = (Application.absoluteURL ?? "").Contains("rig=1");
+            PlayerController.DebugAim = (Application.absoluteURL ?? "").Contains("dbgaim=1");
             // test switch: ?parts=h,t,l,f (outfit per piece: head, torso, legs, feet)
             { string u = Application.absoluteURL ?? ""; int pi = u.IndexOf("parts="); if (pi >= 0) { string[] ps = u.Substring(pi + 6).Split('&')[0].Split(','); for (int i = 0; i < 4 && i < ps.Length; i++) if (int.TryParse(ps[i], out int pv)) Profile.SetPart(i, pv); } }
             if ((Application.absoluteURL ?? "").Contains("skin=")) { string u = Application.absoluteURL; int si = u.IndexOf("skin=") + 5; int sv = 0; while (si < u.Length && char.IsDigit(u[si])) sv = sv * 10 + (u[si++] - '0'); Profile.Skin = sv; }

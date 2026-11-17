@@ -59,7 +59,7 @@ namespace LastWar
         float noiseSeed = Random.value * 100f; float turn, stepAcc, groundTime, lootScan, lootSeek, strafeT; int strafeDir = 1; string longGun, closeGun; float armAfter;
         void Update()
         {
-            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; enabled = false; return; }
+            if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; body.HideAfter(1.6f); enabled = false; return; }
             float dt = Time.deltaTime;
             // the match goes on after you are out (you may be watching): bots stop only when one is left
             if (GameBoot.Instance == null || GameBoot.Instance.AliveCount <= 1) { body.Play("idle_rifle"); return; }

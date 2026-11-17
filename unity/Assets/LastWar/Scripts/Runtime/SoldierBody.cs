@@ -202,6 +202,7 @@ namespace LastWar
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             if (dst.TryGetValue("RightHand", out Transform rh)) handR = rh;
             CacheFingerRest();
+            { float m = SoleY(); if (m != float.MaxValue) restSole = m - transform.position.y; }
         }
 
         Quaternion hipsCorr = Quaternion.identity;
@@ -405,6 +406,25 @@ namespace LastWar
             }
             if (lift > 0.005f) hips.position += Vector3.up * Mathf.Min(lift, 0.45f);
         }
+
+        // ---- standing on a flat stage (the lobby): the lower foot rests exactly on the floor, never sinks or floats
+        public bool Plant;
+        float restSole = float.NaN;
+        static readonly string[] Soles = { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" };
+        float SoleY()
+        {
+            float m = float.MaxValue;
+            foreach (string f in Soles) { Transform t = PoseBone(f); if (t != null) m = Mathf.Min(m, t.position.y); }
+            return m;
+        }
+        void PlantFeet()
+        {
+            if (!Plant) return;
+            Transform hips = outfitRoot != null ? dstHips : PoseBone("Hips");
+            if (hips == null || float.IsNaN(restSole)) return;
+            float m = SoleY(); if (m == float.MaxValue) return;
+            hips.position += Vector3.up * (transform.position.y + restSole - m);
+        }
         void Update()
         {
             if (weights == null || current == null) return;
@@ -449,6 +469,9 @@ namespace LastWar
         float tiltNow; Vector3 outfitBase, modelBase; Quaternion outfitBaseRot, modelBaseRot; bool baseSet;
         Transform chute; float chuteK;
         bool visible = true;
+        /// <summary>the fallen soldier vanishes after the fall; what they carried stays on the ground</summary>
+        public void HideAfter(float seconds) => Invoke(nameof(HideNow), seconds);
+        void HideNow() { SetVisible(false); PlaceBack(); }
 
         public void SetVisible(bool v)
         {
@@ -740,6 +763,7 @@ namespace LastWar
             FixFeet();
             ApplyPose();
             RunLife();
+            PlantFeet();
             SyncExtras();
             PlaceBack();
             // aiming the ice wall: a small snowball in the right hand instead of the gun
@@ -769,7 +793,7 @@ namespace LastWar
                 Transform ra = PoseBone("RightArm");
                 if (ra != null)
                 {
-                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? 0.42f : 0.26f) - transform.up * 0.07f, 0.85f);
+                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? 0.42f : 0.26f) - transform.up * 0.07f + transform.TransformVector(GripOffset), 0.85f);
                     hasGrip = true;
                 }
             }
@@ -831,6 +855,8 @@ namespace LastWar
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;
+        /// <summary>where the grip sits relative to the usual shoulder-aim spot (body space); the lobby moves it down to the waist</summary>
+        public Vector3 GripOffset;
         static readonly string[] FingerNames = { "Index", "Middle", "Ring", "Pinky" };
         Dictionary<Transform, Quaternion> fingerRest;
 

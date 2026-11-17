@@ -118,6 +118,12 @@ namespace LastWar
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
             body.AimDir = aim;
+            if (DebugAim && Time.time > nextAimLog)
+            {
+                nextAimLog = Time.time + 2f;
+                Vector3 cf = cam.transform.forward; cf.y = 0; Vector3 af = aim; af.y = 0;
+                Debug.Log($"[LastWar] aim: yaw(aim vs camera) {Vector3.SignedAngle(cf, af, Vector3.up):0.0} pitch {Mathf.Asin(Mathf.Clamp(aim.y, -1, 1)) * Mathf.Rad2Deg:0.0} body vs camera {Vector3.SignedAngle(cf, transform.forward, Vector3.up):0.0}");
+            }
             body.SetGun(armed && !input.FrostAim ? fighter.Gun.def.Look : null);
             body.Snowball = input.FrostAim;
             // long guns that are not in the hands hang across the back (the pistol goes in the pocket)
@@ -264,6 +270,7 @@ namespace LastWar
         }
 
         /// <summary>direction from the soldier's eye to whatever the crosshair (screen centre) is on</summary>
+        public static bool DebugAim; float nextAimLog;
         public Vector3 AimDirection(out Vector3 eye)
         {
             eye = transform.position + Vector3.up * (cc.height - 0.25f);
