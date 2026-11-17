@@ -16,7 +16,11 @@ namespace LastWar
             ("RightShoulder", "RightShoulder"), ("RightUpperArm", "RightArm"), ("RightLowerArm", "RightForeArm"), ("RightHand", "RightHand"),
             ("LeftUpperLeg", "LeftUpLeg"), ("LeftLowerLeg", "LeftLeg"), ("LeftFoot", "LeftFoot"), ("LeftToes", "LeftToeBase"),
             ("RightUpperLeg", "RightUpLeg"), ("RightLowerLeg", "RightLeg"), ("RightFoot", "RightFoot"), ("RightToes", "RightToeBase"),
+            // fingers (optional: a rig without them still makes an avatar)
+            ("Left Thumb Proximal", "LeftHandThumb1"), ("Left Thumb Intermediate", "LeftHandThumb2"), ("Left Thumb Distal", "LeftHandThumb3"), ("Left Index Proximal", "LeftHandIndex1"), ("Left Index Intermediate", "LeftHandIndex2"), ("Left Index Distal", "LeftHandIndex3"), ("Left Middle Proximal", "LeftHandMiddle1"), ("Left Middle Intermediate", "LeftHandMiddle2"), ("Left Middle Distal", "LeftHandMiddle3"), ("Left Ring Proximal", "LeftHandRing1"), ("Left Ring Intermediate", "LeftHandRing2"), ("Left Ring Distal", "LeftHandRing3"), ("Left Little Proximal", "LeftHandPinky1"), ("Left Little Intermediate", "LeftHandPinky2"), ("Left Little Distal", "LeftHandPinky3"), ("Right Thumb Proximal", "RightHandThumb1"), ("Right Thumb Intermediate", "RightHandThumb2"), ("Right Thumb Distal", "RightHandThumb3"), ("Right Index Proximal", "RightHandIndex1"), ("Right Index Intermediate", "RightHandIndex2"), ("Right Index Distal", "RightHandIndex3"), ("Right Middle Proximal", "RightHandMiddle1"), ("Right Middle Intermediate", "RightHandMiddle2"), ("Right Middle Distal", "RightHandMiddle3"), ("Right Ring Proximal", "RightHandRing1"), ("Right Ring Intermediate", "RightHandRing2"), ("Right Ring Distal", "RightHandRing3"), ("Right Little Proximal", "RightHandPinky1"), ("Right Little Intermediate", "RightHandPinky2"), ("Right Little Distal", "RightHandPinky3"),
         };
+        /// <summary>the last Build: human bones mapped, finger bones among them, optional bones that were missing</summary>
+        public static int LastMapped, LastFingers; public static readonly List<string> LastMissing = new List<string>();
 
         static string Key(string n) { int c = n.LastIndexOf(':'); return c >= 0 ? n.Substring(c + 1) : n; }
 
@@ -29,10 +33,12 @@ namespace LastWar
                 if (!seen.Add(t.name) && !t.name.Contains("mixamorig")) { t.name = t.name + "_" + (n++); seen.Add(t.name); } // (bones keep their names: the clips bind by path)
             var byKey = new Dictionary<string, Transform>();
             foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) byKey[Key(t.name)] = t;
-            var human = new List<HumanBone>();
+            var human = new List<HumanBone>(); LastMapped = 0; LastFingers = 0; LastMissing.Clear();
             foreach (var (h, m) in Map)
             {
-                if (!byKey.TryGetValue(m, out Transform t)) { if (h == "UpperChest" || h == "LeftToes" || h == "RightToes" || h == "Neck") continue; return null; }
+                bool optional = h == "UpperChest" || h == "LeftToes" || h == "RightToes" || h == "Neck" || h.Contains(" ");
+                if (!byKey.TryGetValue(m, out Transform t)) { LastMissing.Add(m); if (optional) continue; return null; }
+                LastMapped++; if (h.Contains(" ")) LastFingers++;
                 var hb = new HumanBone { humanName = h, boneName = t.name }; hb.limit.useDefaultValues = true;
                 human.Add(hb);
             }

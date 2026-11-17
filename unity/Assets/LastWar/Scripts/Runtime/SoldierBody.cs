@@ -257,6 +257,7 @@ namespace LastWar
             if (src == null) src = MapBuilder.Model("soldier");
             if (src == null) return;
             GameObject m = Instantiate(src, transform, false);
+            m.name = src.name; // (keeps the base's name: the rig check reports which skeleton drives the body)
             model = m.transform;
             Transform head = null;
             foreach (Transform t in m.GetComponentsInChildren<Transform>(true))
@@ -278,6 +279,11 @@ namespace LastWar
         }
 
         public const string BaseModel = "lw_base";
+        // ---- validation hooks (LobbyTests): the base skeleton driving the body, its bones and the outfit's
+        public string BaseName => model != null ? model.name : "";
+        public Transform BaseBone(string key) => SrcBone(key);
+        public Transform OutfitBone(string key) => PoseBone(key);
+        public string PlayingClip => playing;
         public static bool UseOldBase; // test switch ?base=old
         public static Material Lit(Material src) => MapBuilder.LitFrom(src);
         /// <summary>characters a little brighter than the world (dark suits vanished in shade and against the sand)</summary>

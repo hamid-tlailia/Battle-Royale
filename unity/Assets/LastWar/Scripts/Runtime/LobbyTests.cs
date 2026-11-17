@@ -15,7 +15,7 @@ namespace LastWar
     public class LobbyTests : MonoBehaviour
     {
         static readonly string[] Clips = { "idle", "run", "jump", "crouch_idle", "idle_rifle", "fire" };
-        public static readonly float[] Holds = { 0.3f, 0.3f, 0.55f, 0.3f, 0.3f, 0.25f }; // the frame shown of each clip
+        public static float[] Holds = { 0.3f, 0.3f, 0.55f, 0.3f, 0.3f, 0.25f }; // the frame shown of each clip
         readonly List<SoldierBody> bodies = new List<SoldierBody>(); readonly List<float> holdAt = new List<float>();
         static readonly string[] ClipNames = { "IDLE", "RUN", "JUMP", "CROUCH", "AIM", "SHOOT" };
 
@@ -47,7 +47,7 @@ namespace LastWar
                 }
             }
             Vector3 origin = new Vector3(0, 300f, 0); // above everything: an empty sky behind
-            float dx = 1.25f, dy = 2.35f;
+            float dx = Clips.Length > 6 ? 1.05f : 1.25f, dy = 2.35f;
             for (int r = 0; r < rSkin.Count; r++)
                 for (int c = 0; c < Clips.Length; c++)
                 {
@@ -55,7 +55,8 @@ namespace LastWar
                     go.transform.position = origin + new Vector3((c - (Clips.Length - 1) / 2f) * dx, -r * dy, 0);
                     go.transform.rotation = Quaternion.Euler(0, 180f + 35f, 0); // three-quarter view toward the camera
                     var body = SoldierBody.Attach(go, rSkin[r], rParts[r]);
-                    body.SetGun(c == 0 ? null : "rifle"); body.Armed = c != 0;
+                    bool gunOn = RawClips ? Clips[c].StartsWith("mx_") : c != 0;
+                    body.SetGun(gunOn ? "rifle" : null); body.Armed = gunOn;
                     body.Play(Clips[c]); body.Speed = c == 1 ? 6f : 0f;
                     body.AimDir = go.transform.forward;
                     bodies.Add(body); holdAt.Add(Holds[c]);
@@ -132,9 +133,74 @@ namespace LastWar
                 int bones = 0; foreach (Transform t in o.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) bones++;
                 Avatar av = HumanRig.Build(o.transform);
                 int clips = Resources.LoadAll<AnimationClip>("Models/" + f).Length;
-                Debug.Log($"[LastWar] rigcheck {f}: bones {bones} humanoid {(av != null ? "valid" : "FAILED")} rest {(Mathf.Abs(down) < 15 ? "T-pose" : "A-pose")} ({down:0}deg) arm/leg {(leg > 0 ? arm / leg : 0):0.00} clips {clips}");
+                Debug.Log($"[LastWar] rigcheck {f}: bones {bones} humanoid {(av != null ? "valid" : "FAILED")} mapped {HumanRig.LastMapped}/{22 + 30} fingers {HumanRig.LastFingers}/30 missing [{string.Join(",", HumanRig.LastMissing)}] rest {(Mathf.Abs(down) < 15 ? "T-pose" : "A-pose")} ({down:0}deg) arm/leg {(leg > 0 ? arm / leg : 0):0.00} clips {clips}");
                 Object.Destroy(o);
             }
+        }
+
+        /// <summary>?retcheck=1 : each outfit on the base skeleton, held in several clips; per bone, the angle between the base
+        /// bone's direction and the outfit bone's (a wrong mapping or a bad rest correction shows as a large angle);
+        /// also which skeleton drives the body and the outfit's height</summary>
+        public static void RetCheck() { new GameObject("RetCheck").AddComponent<LobbyTests>().StartCoroutine(RetCheckCo()); }
+        static IEnumerator RetCheckCo()
+        {
+            string[] clips = { "mx_idle", "mx_aim", "mx_sprint", "mx_crouch_aim", "mx_reload", "mx_crawl", "walk_ual", "death" };
+            string[,] chain = { { "LeftArm", "LeftForeArm" }, { "LeftForeArm", "LeftHand" }, { "RightArm", "RightForeArm" }, { "RightForeArm", "RightHand" },
+                { "LeftHand", "LeftHandMiddle1" }, { "RightHand", "RightHandMiddle1" }, { "LeftUpLeg", "LeftLeg" }, { "LeftLeg", "LeftFoot" },
+                { "RightUpLeg", "RightLeg" }, { "RightLeg", "RightFoot" }, { "Spine", "Spine2" }, { "Neck", "Head" } };
+            SoldierBody.UseRifleClips = false;
+            for (int s = 0; s < SoldierBody.OutfitFiles.Length; s++)
+            {
+                var go = new GameObject("rc" + s); go.transform.position = new Vector3(0, 300, 0);
+                var body = SoldierBody.Attach(go, s);
+                yield return null;
+                float worst = 0; string worstAt = ""; float sum = 0; int n = 0;
+                foreach (string clip in clips)
+                {
+                    body.Play(clip); yield return new WaitForSeconds(0.45f); body.Hold(0.4f); yield return null; yield return null;
+                    for (int k = 0; k < chain.GetLength(0); k++)
+                    {
+                        Transform a = body.BaseBone(chain[k, 0]), b = body.BaseBone(chain[k, 1]), c = body.OutfitBone(chain[k, 0]), d = body.OutfitBone(chain[k, 1]);
+                        if (a == null || b == null || c == null || d == null) { Debug.Log($"[LastWar] retcheck {SoldierBody.OutfitNames[s]}: bone missing {chain[k, 0]}/{chain[k, 1]}"); continue; }
+                        float ang = Vector3.Angle(b.position - a.position, d.position - c.position);
+                        sum += ang; n++; if (ang > worst) { worst = ang; worstAt = $"{chain[k, 0]}->{chain[k, 1]} in {clip}"; }
+                    }
+                }
+                Transform head = body.OutfitBone("Head");
+                Debug.Log($"[LastWar] retcheck {SoldierBody.OutfitNames[s]}: driven by '{body.BaseName}', head {(head != null ? head.position.y - 300f : 0):0.00} m, bone direction error mean {(n > 0 ? sum / n : 0):0.0} deg, worst {worst:0.0} deg ({worstAt})");
+                Object.Destroy(go);
+                yield return null;
+            }
+            Debug.Log("[LastWar] retcheck done");
+        }
+
+        /// <summary>?trans=1 : one soldier stepping through clip changes (the game's own names, rifle swap on); every frame the
+        /// pose is checked for broken values (NaN, the body flying off or sinking) - the blend itself is the transition</summary>
+        public static void TransCheck(Camera cam) { new GameObject("TransCheck").AddComponent<LobbyTests>().StartCoroutine(TransCo(cam)); }
+        static IEnumerator TransCo(Camera cam)
+        {
+            string[] seq = { "idle_rifle", "fire", "walk_fire", "run", "jump", "idle_rifle", "crouch_idle", "crouch_fire", "crouch_walk", "prone", "idle_rifle", "fire", "run", "idle" };
+            Vector3 at = new Vector3(0, 300, 0);
+            cam.orthographic = true; cam.orthographicSize = 1.2f; cam.transform.position = at + new Vector3(0, 0.95f, -10f); cam.transform.rotation = Quaternion.identity;
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(.78f, .84f, .88f); RenderSettings.fog = false;
+            var go = new GameObject("trans"); go.transform.position = at; go.transform.rotation = Quaternion.Euler(0, 215f, 0);
+            var body = SoldierBody.Attach(go, 0); body.SetGun("rifle"); body.Armed = true;
+            int bad = 0;
+            foreach (string clip in seq)
+            {
+                body.Play(clip); body.Speed = clip == "run" ? 6f : clip.Contains("walk") ? 2f : 0f;
+                for (float t = 0; t < 0.7f; t += Time.deltaTime)
+                {
+                    yield return null;
+                    Transform hips = body.OutfitBone("Hips"), hr = body.OutfitBone("RightHand");
+                    if (hips == null || hr == null) continue;
+                    float hy = hips.position.y - at.y;
+                    bool nan = float.IsNaN(hips.position.x) || float.IsNaN(hr.position.x);
+                    if (nan || hy < -0.1f || hy > 1.6f || (hr.position - hips.position).magnitude > 1.6f) { bad++; if (bad < 6) Debug.Log($"[LastWar] trans BAD in {clip}: hips {hy:0.00} hand-hips {(hr.position - hips.position).magnitude:0.00} nan {nan}"); }
+                }
+                Debug.Log($"[LastWar] trans {clip} -> plays {body.PlayingClip}");
+            }
+            Debug.Log($"[LastWar] trans done: {bad} bad frames");
         }
     }
 }
