@@ -24,8 +24,11 @@ namespace LastWar
         static AnimationClip[] clips;
 
         /// <summary>outfits in the web game's order (SKINS): index = saved skin</summary>
-        public static readonly string[] OutfitFiles = { "swat", "tactical", "fsb", "ksk", "bundeswehr", "sfarmy", "rusoldier", "uasoldier", "ww2", "crouchsold", "armyman" };
-        public static readonly string[] OutfitNames = { "SWAT", "Agent", "Operator", "Recon", "Woodland", "Commando", "Rifleman", "Desert", "Veteran", "Ghost", "Infantry" };
+        public static readonly string[] OutfitFiles = { "swat", "tactical", "fsb", "ksk", "bundeswehr", "sfarmy", "rusoldier", "uasoldier", "ww2", "crouchsold", "armyman",
+            // Quaternius modular characters (CC0): one rig, so their pieces mix with no gaps
+            "q_swat", "q_adventurer", "q_worker", "q_farmer", "q_punk", "q_spacesuit", "q_king", "q_suit", "q_casual", "q_casual2", "q_beach" };
+        public static readonly string[] OutfitNames = { "SWAT", "Agent", "Operator", "Recon", "Woodland", "Commando", "Rifleman", "Desert", "Veteran", "Ghost", "Infantry",
+            "Tactical", "Ranger", "Worker", "Farmer", "Punk", "Astronaut", "King", "Agent X", "Hoodie", "Casual", "Beach" };
 
         /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
         /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
@@ -50,7 +53,32 @@ namespace LastWar
         public static readonly string[] PartNames = { "head", "torso", "legs", "feet" };
         int[] parts;
         readonly HashSet<Renderer> hiddenParts = new HashSet<Renderer>();
-        class Extra { public Transform root; public List<Transform> from = new List<Transform>(), to = new List<Transform>(); public Transform hips; public Vector3 hipsOffset; }
+        class Extra { public Transform root; public List<Transform> from = new List<Transform>(), to = new List<Transform>(); public Transform hips; public Vector3 hipsOffset; public List<Quaternion> map; }
+        List<Quaternion> boneMap = new List<Quaternion>();
+
+        /// <summary>
+        /// For each bone pair (both rigs in their rest poses now): the rotation that makes the second bone point where
+        /// the first points - to = from * map. The rests may differ (T-pose / A-pose): each bone's direction to its
+        /// first paired child is turned onto the other's.
+        /// </summary>
+        static List<Quaternion> RestMaps(List<Transform> from, List<Transform> to)
+        {
+            var maps = new List<Quaternion>(from.Count);
+            var index = new Dictionary<Transform, int>(); for (int i = 0; i < from.Count; i++) index[from[i]] = i;
+            for (int i = 0; i < from.Count; i++)
+            {
+                Quaternion fix = Quaternion.identity;
+                foreach (Transform c in from[i])
+                {
+                    if (!index.TryGetValue(c, out int ci)) continue;
+                    Vector3 a = to[ci].position - to[i].position, b = c.position - from[i].position;
+                    if (a.sqrMagnitude > 1e-8f && b.sqrMagnitude > 1e-8f && BoneKey(from[i].name) != "Hips") fix = Quaternion.FromToRotation(a, b);
+                    break;
+                }
+                maps.Add(Quaternion.Inverse(from[i].rotation) * fix * to[i].rotation);
+            }
+            return maps;
+        }
         readonly List<Extra> extras = new List<Extra>();
 
         /// <summary>an outfit model, 1.8 m tall, feet on the ground; only the pieces in `show` stay visible</summary>
@@ -138,7 +166,7 @@ namespace LastWar
                 if (!t.name.Contains("mixamorig") || !dst.TryGetValue(BoneKey(t.name), out Transform d)) continue;
                 if (BoneKey(t.name) == "Hips")
                 {
-                    srcHips = t; dstHips = d;
+                    srcHips = t; dstHips = d; srcBones.Add(t); dstBones.Add(d);
                     hipsCorr = Quaternion.Inverse(d.parent.rotation) * t.parent.rotation;
                     if (LogRig) Debug.Log($"[LastWar] rig {OutfitFiles[skin]}: srcHipsW {(Quaternion.Inverse(transform.rotation) * t.rotation).eulerAngles} dstHipsW {(Quaternion.Inverse(transform.rotation) * d.rotation).eulerAngles} srcParentW {(Quaternion.Inverse(transform.rotation) * t.parent.rotation).eulerAngles} dstParentW {(Quaternion.Inverse(transform.rotation) * d.parent.rotation).eulerAngles} srcHipsL {t.localRotation.eulerAngles} dstHipsL {d.localRotation.eulerAngles} corr {hipsCorr.eulerAngles}");
                     srcHipsBind = transform.InverseTransformPoint(t.position); dstHipsBind = transform.InverseTransformPoint(d.position);
@@ -146,6 +174,8 @@ namespace LastWar
                 }
                 srcBones.Add(t); dstBones.Add(d);
             }
+            boneMap = RestMaps(srcBones, dstBones);
+            foreach (Extra x in extras) x.map = RestMaps(x.from, x.to);
             // the soldier keeps animating, invisible
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             if (dst.TryGetValue("RightHand", out Transform rh)) handR = rh;
@@ -171,10 +201,10 @@ namespace LastWar
                 }
                 return;
             }
-            for (int i = 0; i < srcBones.Count; i++) dstBones[i].localRotation = srcBones[i].localRotation;
+            // world space: each outfit bone turns like the soldier's (its own rest pose corrected - A-pose rigs too)
+            for (int i = 0; i < srcBones.Count; i++) dstBones[i].rotation = srcBones[i].rotation * boneMap[i];
             if (srcHips != null)
             {
-                dstHips.localRotation = hipsCorr * srcHips.localRotation;
                 Vector3 d = transform.InverseTransformPoint(srcHips.position) - srcHipsBind;
                 float k = srcHipsBind.y > 0.01f ? dstHipsBind.y / srcHipsBind.y : 1f;
                 dstHips.position = transform.TransformPoint(dstHipsBind + d * k);
@@ -732,7 +762,7 @@ namespace LastWar
         {
             foreach (Extra x in extras)
             {
-                for (int i = 0; i < x.from.Count; i++) x.to[i].localRotation = x.from[i].localRotation;
+                for (int i = 0; i < x.from.Count; i++) x.to[i].rotation = x.from[i].rotation * x.map[i];
                 if (x.hips != null)
                 {
                     int hi = x.to.IndexOf(x.hips);

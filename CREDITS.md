@@ -97,3 +97,4 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Shanty / Mansion / Wooden | enterable building `bld_mansion` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/cf93dfd6da1640f08ebe051ba280426d |
 | Abandoned / Building / Shop / Old / House | enterable building `bld_shop` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/0ed14367314946b298d9a58db66da040 |
 | Enterable Panel House | enterable building `bld_panel` (Death Valley) | c01l3d | CC Attribution | https://sketchfab.com/3d-models/22a08dc43c1c4888ad8d33b7d2e69e81 |
+| Ultimate Modular Characters | outfits `q_*` (11 characters, mix-and-match pieces; scripts/unity/split-quaternius.mjs) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularcharacters.html |
