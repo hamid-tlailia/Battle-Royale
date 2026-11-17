@@ -19,7 +19,7 @@ namespace LastWar
 
         Tuning tune;
         Vector2 fromCentre; float fromRadius;
-        Transform wall;
+        Transform wall; float scale = 1f;
         float tick;
 
         public static Zone Create(float playRadius)
@@ -28,6 +28,7 @@ namespace LastWar
             Instance = z;
             z.tune = Tuning.Get();
             z.Radius = z.NextRadius = Mathf.Max(z.tune.zoneStartRadius, playRadius + 10f);
+            z.scale = Mathf.Max(1f, playRadius / 185f); // a bigger map: wider circles, a little more time per phase
             z.Centre = z.NextCentre = Vector2.zero;
             z.PhaseEnds = Time.time + z.tune.zoneDelay;
             z.BuildWall();
@@ -45,7 +46,7 @@ namespace LastWar
             if (Shrinking)
             {
                 ZonePhase ph = tune.zonePhases[Phase];
-                float t = 1f - SecondsLeft / Mathf.Max(0.01f, ph.shrink);
+                float t = 1f - SecondsLeft / Mathf.Max(0.01f, ph.shrink * Mathf.Sqrt(scale));
                 Centre = Vector2.Lerp(fromCentre, NextCentre, t); Radius = Mathf.Lerp(fromRadius, NextRadius, t);
             }
             if (wall != null)
@@ -68,7 +69,7 @@ namespace LastWar
         {
             if (Phase < 0) { StartWait(0); return; }
             ZonePhase ph = tune.zonePhases[Phase];
-            if (!Shrinking) { Shrinking = true; fromCentre = Centre; fromRadius = Radius; PhaseEnds = Time.time + ph.shrink; return; }
+            if (!Shrinking) { Shrinking = true; fromCentre = Centre; fromRadius = Radius; PhaseEnds = Time.time + ph.shrink * Mathf.Sqrt(scale); return; }
             Shrinking = false; Centre = NextCentre; Radius = NextRadius;
             if (Phase + 1 < tune.zonePhases.Length) StartWait(Phase + 1);
             else PhaseEnds = float.MaxValue;
@@ -80,10 +81,10 @@ namespace LastWar
             ZonePhase ph = tune.zonePhases[p];
             Dps = ph.dps;
             // next circle lies fully inside the current one
-            NextRadius = Mathf.Min(ph.radius, Radius);
+            NextRadius = Mathf.Min(ph.radius * scale, Radius);
             Vector2 c = Centre + Random.insideUnitCircle * Mathf.Max(0, Radius - NextRadius) * 0.8f;
             NextCentre = c;
-            PhaseEnds = Time.time + ph.wait;
+            PhaseEnds = Time.time + ph.wait * Mathf.Sqrt(scale);
         }
 
         void BuildWall()

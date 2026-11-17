@@ -137,7 +137,7 @@ namespace LastWar
         {
             Fighter.ClearEvents();
             InMatch = false;
-            if (Profile.MapAuto) { string[] rot = { "green", "desert", "classic" }; int i = System.Array.IndexOf(rot, Profile.Map); Profile.Map = rot[(i + 1) % rot.Length]; }
+            if (Profile.MapAuto) { string[] rot = { "green", "desert", "classic", "valley" }; int i = System.Array.IndexOf(rot, Profile.Map); Profile.Map = rot[(i + 1) % rot.Length]; }
             Loader.Go("Back to the lobby…");
         }
 

@@ -31,7 +31,7 @@ namespace LastWar
             float nx = -Mathf.Sin(a), nz = Mathf.Cos(a);
             Vector2 wa = new Vector2(Mathf.Cos(a) * R + nx * off, Mathf.Sin(a) * R + nz * off), wb = new Vector2(-Mathf.Cos(a) * R + nx * off, -Mathf.Sin(a) * R + nz * off);
             s.A = Coords.ToUnity(wa.x, Altitude, wa.y); s.B = Coords.ToUnity(wb.x, Altitude, wb.y);
-            s.Duration = Vector3.Distance(s.A, s.B) / PlaneSpeed;
+            s.Duration = Vector3.Distance(s.A, s.B) / (PlaneSpeed * Mathf.Sqrt(Mathf.Max(1f, map.size / 440f))); // a big map: a faster crossing
             s.BuildPlane();
             s.engine = s.Loop("plane", 0.9f); s.wind = s.Loop("wind", 0f); // (the wind recording is boosted +20 dB)
             return s;

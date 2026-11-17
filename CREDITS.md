@@ -68,3 +68,5 @@ Game code, map generation, terrain and UI are original work.
 - Lobby music (`unity/Assets/LastWar/Resources/Audio/lobby_music.wav`): original loop synthesised for this project.
 
 Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running footsteps on dirt / grass) and `victory_light.wav` (victory tune) are synthesized for this project (original, no third-party audio). The app icon and logo emblem (winged skull) are original artwork made for this project.
+
+| Death Valley - Terrain | Death Valley map: terrain heights and ground colours (baked by `scripts/unity/bake-deathvalley.py`) | artfromheath | CC Attribution 4.0 | https://sketchfab.com/3d-models/9f57bca156e14cff9e4e316a9ccc3e0d |

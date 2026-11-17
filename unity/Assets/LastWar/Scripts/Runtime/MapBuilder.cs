@@ -54,11 +54,11 @@ namespace LastWar
         {
             // land beyond the valley: the rim's hills keep rolling outward (noise), grass-coloured, then fade into the haze;
             // seen from the plane the map sits in a landscape instead of a crater over an empty plain
-            const int seg = 160, rings = 26; float half = map.size / 2f, r0 = half * 0.975f, rMax = 1700f;
+            const int seg = 160, rings = 26; float half = map.size / 2f, r0 = half * 0.975f, rMax = Mathf.Max(1700f, map.size * 1.6f);
             float low = float.MaxValue; foreach (float h in map.heights) low = Mathf.Min(low, h);
-            bool desert = map.id == "desert";
-            Color grassA = desert ? new Color(.74f, .5f, .35f) : new Color(.33f, .5f, .22f), grassB = desert ? new Color(.62f, .38f, .26f) : new Color(.26f, .41f, .18f);
-            Color rock = desert ? new Color(.55f, .32f, .22f) : new Color(.45f, .45f, .4f), snow = new Color(.9f, .92f, .95f);
+            bool desert = map.id == "desert", dvalley = map.id == "valley";
+            Color grassA = dvalley ? new Color(.5f, .43f, .33f) : desert ? new Color(.74f, .5f, .35f) : new Color(.33f, .5f, .22f), grassB = dvalley ? new Color(.42f, .36f, .28f) : desert ? new Color(.62f, .38f, .26f) : new Color(.26f, .41f, .18f);
+            Color rock = dvalley ? new Color(.38f, .33f, .27f) : desert ? new Color(.55f, .32f, .22f) : new Color(.45f, .45f, .4f), snow = new Color(.9f, .92f, .95f);
             var verts = new Vector3[seg * rings]; var cols = new Color[seg * rings]; var uvs = new Vector2[seg * rings];
             float seed = map.id.GetHashCode() % 1000;
             for (int r = 0; r < rings; r++)
@@ -149,7 +149,7 @@ namespace LastWar
                 terrainMat = new Material(baseTerrain);
                 terrainMat.SetTexture("_BaseMap", tex);
                 // desert: sand grain instead of grass
-                var detail = Resources.Load<Texture2D>(map.id == "desert" ? "Maps/detail_sand" : "Maps/detail_grass");
+                var detail = Resources.Load<Texture2D>(map.id == "desert" || map.id == "valley" ? "Maps/detail_sand" : "Maps/detail_grass");
                 if (detail != null) { detail.wrapMode = TextureWrapMode.Repeat; detail.anisoLevel = 8; terrainMat.SetTexture("_DetailAlbedoMap", detail); }
                 terrainMat.SetTextureScale("_DetailAlbedoMap", Vector2.one * (map.size / 1.6f));
             }

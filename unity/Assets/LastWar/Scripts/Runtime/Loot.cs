@@ -196,7 +196,7 @@ namespace LastWar
                 }
             }
             // and across the valley
-            int want = Mathf.RoundToInt(160f * Mathf.Pow(map.playRadius / 125f, 2f));
+            int want = Mathf.Min(1100, Mathf.RoundToInt(160f * Mathf.Pow(map.playRadius / 125f, 2f))); // (capped: phones)
             for (int k = 0, n = 0; k < 2000 && n < want; k++)
             {
                 double a = rnd.NextDouble() * Mathf.PI * 2, d = System.Math.Sqrt(rnd.NextDouble()) * (map.playRadius - 8);
