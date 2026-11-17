@@ -44,6 +44,9 @@ namespace LastWar
             string open = Arg("open"), lp = Arg("lpose");
             if (float.TryParse(Arg("lyaw") ?? "x", out float ly)) l.soldierYaw = ly;
             if (float.TryParse(Arg("lgun") ?? "x", out float lg)) LobbyGunTurn = lg;
+            // outfit validation bench (?grid= / ?swap=1)
+            int.TryParse(Arg("from") ?? "0", out int tFrom); int.TryParse(Arg("n") ?? "4", out int tN);
+            if (LobbyTests.Run(cam, l.canvas, Arg("grid"), tFrom, tN, Arg("zoom") == "1", Arg("swap") == "1")) return l;
             if (open == "edit") l.CustomizeButtons(); else if (open != null) l.Open(open);
             if (lp != null && l.lobbyBody != null)
             {

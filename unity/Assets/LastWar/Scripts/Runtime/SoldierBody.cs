@@ -51,6 +51,14 @@ namespace LastWar
         // ---- mix and match: the torso's outfit is the one the soldier drives (gun hands, poses); the head, legs and feet
         //      may come from other outfits, which copy that outfit's pose every frame
         public static readonly string[] PartNames = { "head", "torso", "legs", "feet" };
+        // ---- checks for the outfit test bench
+        public bool GunAtHand(float tol) => gun != null && handR != null && (gun.position - handR.position).magnitude < tol + 0.3f;
+        public bool Animating => graph.IsValid() && graph.IsPlaying();
+        public int VisiblePieces { get { int k = 0; foreach (var r in GetComponentsInChildren<SkinnedMeshRenderer>(true)) if (r.enabled && !hiddenParts.Contains(r) && (model == null || !r.transform.IsChildOf(model))) k++; return k; } }
+
+        /// <summary>0 = the military outfits (each its own mixamo rig), 1 = the Quaternius characters (one shared rig).
+        /// Pieces are only ever mixed inside one group.</summary>
+        public static int Group(int skin) => skin >= 0 && skin < OutfitFiles.Length && OutfitFiles[skin].StartsWith("q_") ? 1 : 0;
         int[] parts;
         readonly HashSet<Renderer> hiddenParts = new HashSet<Renderer>();
         class Extra { public Transform root; public List<Transform> from = new List<Transform>(), to = new List<Transform>(); public Transform hips; public Vector3 hipsOffset; public List<Quaternion> map; }
@@ -117,6 +125,7 @@ namespace LastWar
             int[] wear = new int[4];
             for (int i = 0; i < 4; i++) wear[i] = parts != null && i < parts.Length && parts[i] >= 0 && parts[i] < OutfitFiles.Length ? parts[i] : skin;
             skin = wear[1]; // the torso's outfit leads
+            for (int i = 0; i < 4; i++) if (Group(wear[i]) != Group(skin)) wear[i] = skin; // the two groups never mix
             bool[] mine = new bool[4]; for (int i = 0; i < 4; i++) mine[i] = wear[i] == skin;
             GameObject o = PlaceOutfit(skin, mine, out var dst);
             if (o == null) return;
@@ -294,6 +303,14 @@ namespace LastWar
             // restart one-shot clips (jump, death) from the beginning
             var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[clip]);
             if (OneShot(clip)) { cp.SetTime(0); cp.SetSpeed(1); }
+        }
+
+        /// <summary>test bench: stop the current clip at a fraction of its length (a fixed frame for screenshots)</summary>
+        public void Hold(float fraction)
+        {
+            if (current == null || !clipIndex.ContainsKey(current)) return;
+            var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[current]);
+            var c = cp.GetAnimationClip(); cp.SetTime(c != null ? c.length * fraction : 0); cp.SetSpeed(0);
         }
 
         static bool OneShot(string clip) => clip.StartsWith("death") || clip == "jump";
