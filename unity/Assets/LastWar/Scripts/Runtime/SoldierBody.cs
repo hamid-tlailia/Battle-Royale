@@ -74,13 +74,14 @@ namespace LastWar
             for (int i = 0; i < from.Count; i++)
             {
                 Quaternion fix = Quaternion.identity; bool found = false;
-                foreach (Transform c in from[i])
+                // the bone's main axis: toward its paired child - the middle finger for a hand (not whichever finger comes
+                // first), and through unpaired in-between bones (SWAT's Neck1) down to the next paired one (the head)
+                int ci = UseOldBase ? FirstChild(from[i], index) : AxisChild(from[i], index); // (?base=old keeps its old behaviour)
+                if (ci >= 0)
                 {
-                    if (!index.TryGetValue(c, out int ci)) continue;
-                    Vector3 a = to[ci].position - to[i].position, b = c.position - from[i].position;
+                    Vector3 a = to[ci].position - to[i].position, b = from[ci].position - from[i].position;
                     if (a.sqrMagnitude > 1e-8f && b.sqrMagnitude > 1e-8f && BoneKey(from[i].name) != "Hips") fix = Quaternion.FromToRotation(a, b);
                     found = true;
-                    break;
                 }
                 // an end bone (a hand whose fingers keep their rest, a foot without toes): it turns as its parent was turned
                 if (!found && from[i].parent != null && index.TryGetValue(from[i].parent, out int pi) && pi < i) fix = fixes[pi];
@@ -88,6 +89,22 @@ namespace LastWar
                 maps.Add(Quaternion.Inverse(from[i].rotation) * fix * to[i].rotation);
             }
             return maps;
+        }
+        static int FirstChild(Transform bone, Dictionary<Transform, int> index) { foreach (Transform c in bone) if (index.TryGetValue(c, out int ci)) return ci; return -1; }
+        /// <summary>the paired bone that gives a bone's direction (middle finger first for hands; searched below unpaired bones)</summary>
+        static int AxisChild(Transform bone, Dictionary<Transform, int> index)
+        {
+            string k = BoneKey(bone.name);
+            if (k.EndsWith("Hand"))
+                foreach (Transform c in bone) if (BoneKey(c.name).Contains("Middle1") && index.TryGetValue(c, out int mi)) return mi;
+            var queue = new Queue<Transform>(); foreach (Transform c in bone) queue.Enqueue(c);
+            while (queue.Count > 0)
+            {
+                Transform c = queue.Dequeue();
+                if (index.TryGetValue(c, out int ci)) return ci;
+                if (c.name.Contains("mixamorig")) foreach (Transform g in c) queue.Enqueue(g); // through an unpaired bone only
+            }
+            return -1;
         }
         readonly List<Extra> extras = new List<Extra>();
 
