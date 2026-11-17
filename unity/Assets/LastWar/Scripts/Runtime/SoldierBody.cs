@@ -26,6 +26,27 @@ namespace LastWar
         /// <summary>the outfits (index = saved skin): whole Mixamo characters, all animated with the same rifle clips</summary>
         public static readonly string[] OutfitFiles = { "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer", "tactical" };
         public static readonly string[] OutfitNames = { "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer", "Agent" };
+
+        /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
+        /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
+        /// null = the whole of `skin`</summary>
+        public static SoldierBody Attach(GameObject owner, int skin = -1, int[] parts = null)
+        {
+            var body = owner.AddComponent<SoldierBody>();
+            body.parts = parts;
+            body.Build(skin);
+            return body;
+        }
+
+        // ---- outfit driven by the (hidden) animated soldier: same mixamo bone names, rest-pose corrected
+        Transform outfitRoot;
+        readonly List<Transform> srcBones = new List<Transform>(), dstBones = new List<Transform>();
+        Transform srcHips, dstHips; Vector3 srcHipsBind, dstHipsBind;
+
+        static string BoneKey(string n) { int c = n.LastIndexOf(':'); return c >= 0 ? n.Substring(c + 1) : n; }
+
+        // ---- mix and match: the torso's outfit is the one the soldier drives (gun hands, poses); the head, legs and feet
+        //      may come from other outfits, which copy that outfit's pose every frame
         public static readonly string[] PartNames = { "head", "torso", "legs", "feet" };
         // ---- checks for the outfit test bench
         public bool GunAtHand(float tol) => gun != null && handR != null && (gun.position - handR.position).magnitude < tol + 0.3f;
