@@ -70,3 +70,4 @@ Game code, map generation, terrain and UI are original work.
 Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running footsteps on dirt / grass) and `victory_light.wav` (victory tune) are synthesized for this project (original, no third-party audio). The app icon and logo emblem (winged skull) are original artwork made for this project.
 
 | Death Valley - Terrain | Death Valley map: terrain heights and ground colours (baked by `scripts/unity/bake-deathvalley.py`) | artfromheath | CC Attribution 4.0 | https://sketchfab.com/3d-models/9f57bca156e14cff9e4e316a9ccc3e0d |
+| Universal Animation Library (Standard) | sprint, jog, walk, crouch-walk and idle animations, retargeted onto the soldier (`scripts/unity/retarget-ual.mjs`) | Quaternius | CC0 1.0 | https://quaternius.itch.io/universal-animation-library |

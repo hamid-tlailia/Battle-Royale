@@ -226,6 +226,10 @@ namespace LastWar
                 clipIndex[n] = k;
             }
             weights = new float[clips.Length];
+            // natural human locomotion (Quaternius' Universal Animation Library, retargeted onto the soldier): the run is
+            // the sprint, the empty-handed walk the relaxed walk; the old run stays for the arms that carry a gun
+            if (clipIndex.TryGetValue("run", out int oldRun) && clipIndex.TryGetValue("sprint_ual", out int sprint)) { carryClip = clips[oldRun]; carryLen = carryClip.length; clipIndex["run"] = sprint; }
+            if (clipIndex.TryGetValue("walk_ual", out int walkU)) clipIndex["walk"] = walkU;
             // the web game's run_free: the run clip's legs with the walk clip's arms (swinging at the sides),
             // as a second layer that only moves the shoulders, arms and hands
             layers = AnimationLayerMixerPlayable.Create(graph, 2);
@@ -278,7 +282,7 @@ namespace LastWar
         }
 
         AnimationLayerMixerPlayable layers; AnimationClipPlayable walkArms; float walkLen, freeW;
-        AnimationClip walkClip; GameObject animRoot;
+        AnimationClip walkClip, carryClip; float carryLen; GameObject animRoot;
         readonly List<Transform> armBones = new List<Transform>(), bodyBones = new List<Transform>();
         Vector3[] keepPos; Quaternion[] keepRot, runArm;
 
@@ -288,12 +292,12 @@ namespace LastWar
         /// </summary>
         void FreeArms()
         {
-            if (freeW <= 0f || walkClip == null || animRoot == null) return;
+            if (freeW <= 0f || carryClip == null || animRoot == null) return;
             int nb = bodyBones.Count, na = armBones.Count;
             if (keepPos == null) { keepPos = new Vector3[nb]; keepRot = new Quaternion[nb]; runArm = new Quaternion[na]; }
             for (int i = 0; i < nb; i++) { keepPos[i] = bodyBones[i].localPosition; keepRot[i] = bodyBones[i].localRotation; }
             for (int i = 0; i < na; i++) runArm[i] = armBones[i].localRotation;
-            walkClip.SampleAnimation(animRoot, ClipPhase() * walkLen);
+            carryClip.SampleAnimation(animRoot, ClipPhase() * carryLen); // the gun-carrying arms of the old run
             for (int i = 0; i < nb; i++) { bodyBones[i].localPosition = keepPos[i]; bodyBones[i].localRotation = keepRot[i]; }
             for (int i = 0; i < na; i++) armBones[i].localRotation = Quaternion.Slerp(runArm[i], armBones[i].localRotation, freeW);
         }
@@ -304,7 +308,7 @@ namespace LastWar
         /// </summary>
         void RunLife()
         {
-            runW = Mathf.MoveTowards(runW, current == "run" && Tilt == 0 && Pose != "crawl" ? 1f : 0f, Time.deltaTime * 5f);
+            runW = Mathf.MoveTowards(runW, carryClip == null && current == "run" && Tilt == 0 && Pose != "crawl" ? 1f : 0f, Time.deltaTime * 5f); // (only the old robotic run needs this: the real sprint moves the body itself)
             if (runW <= 0f) return;
             float ph = ClipPhase() * Mathf.PI * 2f, sw = Mathf.Sin(ph), bob = Mathf.Abs(Mathf.Sin(ph));
             Vector3 up = transform.up, right = transform.right;
@@ -343,7 +347,7 @@ namespace LastWar
         {
             if (weights == null || current == null) return;
             // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
-            freeW = Mathf.MoveTowards(freeW, Pose == "runfree" && current == "run" ? 1f : 0f, Time.deltaTime * 6f);
+            freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
             if (walkArms.IsValid()) layers.SetInputWeight(1, 0f); // (the arms are copied from the walk clip in LateUpdate instead)
             int target = clipIndex[current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
