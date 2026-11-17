@@ -49,7 +49,7 @@ namespace LastWar
             // outfit validation bench (?grid= / ?swap=1)
             if (Arg("qfingers") == "1") SoldierBody.QFingers = true;
             if (Arg("rigcheck") == "1") { LobbyTests.RigCheck(); }
-            if (Arg("retcheck") == "1") { LobbyTests.RetCheck(); if (l.canvas != null) l.canvas.enabled = false; return l; }
+            if (Arg("retcheck") == "1") { int.TryParse(Arg("rcfrom") ?? "0", out int rf); int.TryParse(Arg("rcn") ?? "99", out int rn); LobbyTests.RetCheck(rf, rn); if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("trans") == "1") { LobbyTests.TransCheck(cam); if (l.canvas != null) l.canvas.enabled = false; return l; }
             LobbyTests.SetClips(Arg("clips"));
             if (float.TryParse(Arg("gyaw") ?? "x", out float gyaw)) LobbyTests.GridYaw = gyaw;

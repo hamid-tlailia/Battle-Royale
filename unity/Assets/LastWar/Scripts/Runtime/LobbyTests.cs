@@ -152,33 +152,55 @@ namespace LastWar
         /// <summary>?retcheck=1 : each outfit on the base skeleton, held in several clips; per bone, the angle between the base
         /// bone's direction and the outfit bone's (a wrong mapping or a bad rest correction shows as a large angle);
         /// also which skeleton drives the body and the outfit's height</summary>
-        public static void RetCheck() { new GameObject("RetCheck").AddComponent<LobbyTests>().StartCoroutine(RetCheckCo()); }
-        static IEnumerator RetCheckCo()
+        public static void RetCheck(int from = 0, int count = 99) { new GameObject("RetCheck").AddComponent<LobbyTests>().StartCoroutine(RetCheckCo(from, count)); }
+        static IEnumerator RetCheckCo(int from, int count)
         {
-            string[] clips = { "mx_idle", "mx_aim", "mx_sprint", "mx_crouch_aim", "mx_reload", "mx_crawl", "walk_ual", "death" };
+            string[] clips = { "mx_idle", "mx_aim", "mx_fire", "mx_sprint", "mx_walk", "mx_crouch_aim", "mx_reload", "mx_crawl", "walk_ual", "sprint_ual", "death" };
+            float[] phases = { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f };
             string[,] chain = { { "LeftArm", "LeftForeArm" }, { "LeftForeArm", "LeftHand" }, { "RightArm", "RightForeArm" }, { "RightForeArm", "RightHand" },
                 { "LeftHand", "LeftHandMiddle1" }, { "RightHand", "RightHandMiddle1" }, { "LeftUpLeg", "LeftLeg" }, { "LeftLeg", "LeftFoot" },
                 { "RightUpLeg", "RightLeg" }, { "RightLeg", "RightFoot" }, { "Spine", "Spine2" }, { "Neck", "Head" } };
             SoldierBody.UseRifleClips = false;
-            for (int s = 0; s < SoldierBody.OutfitFiles.Length; s++)
+            int nb = chain.GetLength(0);
+            for (int s = from; s < Mathf.Min(SoldierBody.OutfitFiles.Length, from + count); s++)
             {
                 var go = new GameObject("rc" + s); go.transform.position = new Vector3(0, 300, 0);
                 var body = SoldierBody.Attach(go, s);
+                body.Rate = 0f; // the clip stays exactly where it is put
                 yield return null;
-                float worst = 0; string worstAt = ""; float sum = 0; int n = 0;
+                string who = SoldierBody.OutfitNames[s];
+                float[] maxA = new float[nb], minIdle = new float[nb], sumA = new float[nb]; int[] over = new int[nb]; string[] maxAt = new string[nb];
+                var overAt = new List<string>[nb]; for (int k = 0; k < nb; k++) { minIdle[k] = 999; overAt[k] = new List<string>(); }
+                int samples = 0; float total = 0;
                 foreach (string clip in clips)
                 {
-                    body.Play(clip); yield return new WaitForSeconds(0.45f); body.Hold(0.4f); yield return null; yield return null;
-                    for (int k = 0; k < chain.GetLength(0); k++)
+                    body.Play(clip); yield return new WaitForSeconds(0.35f);
+                    foreach (float ph in phases)
                     {
-                        Transform a = body.BaseBone(chain[k, 0]), b = body.BaseBone(chain[k, 1]), c = body.OutfitBone(chain[k, 0]), d = body.OutfitBone(chain[k, 1]);
-                        if (a == null || b == null || c == null || d == null) { Debug.Log($"[LastWar] retcheck {SoldierBody.OutfitNames[s]}: bone missing {chain[k, 0]}/{chain[k, 1]}"); continue; }
-                        float ang = Vector3.Angle(b.position - a.position, d.position - c.position);
-                        sum += ang; n++; if (ang > worst) { worst = ang; worstAt = $"{chain[k, 0]}->{chain[k, 1]} in {clip}"; }
+                        body.Hold(ph); body.Rate = 0f; yield return null; yield return null;
+                        samples++;
+                        for (int k = 0; k < nb; k++)
+                        {
+                            Transform a = body.BaseBone(chain[k, 0]), b = body.BaseBone(chain[k, 1]), c = body.OutfitBone(chain[k, 0]), d = body.OutfitBone(chain[k, 1]);
+                            if (a == null || b == null || c == null || d == null) continue;
+                            float ang = Vector3.Angle(b.position - a.position, d.position - c.position);
+                            sumA[k] += ang; total += ang;
+                            if (ang > maxA[k]) { maxA[k] = ang; maxAt[k] = $"{clip}@{ph:0.0}"; }
+                            if (clip == "mx_idle") minIdle[k] = Mathf.Min(minIdle[k], ang);
+                            if (ang > 8f) { over[k]++; if (overAt[k].Count < 6) overAt[k].Add($"{clip}@{ph:0.0}={ang:0}"); }
+                        }
                     }
                 }
+                float all = 0; foreach (float m in maxA) all = Mathf.Max(all, m);
                 Transform head = body.OutfitBone("Head");
-                Debug.Log($"[LastWar] retcheck {SoldierBody.OutfitNames[s]}: driven by '{body.BaseName}', head {(head != null ? head.position.y - 300f : 0):0.00} m, bone direction error mean {(n > 0 ? sum / n : 0):0.0} deg, worst {worst:0.0} deg ({worstAt})");
+                Debug.Log($"[LastWar] retcheck {who}: driven by '{body.BaseName}', head {(head != null ? head.position.y - 300f : 0):0.00} m, mean {(total / Mathf.Max(1, samples * nb)):0.0} deg, worst {all:0.0} deg, samples {samples} per bone");
+                for (int k = 0; k < nb; k++)
+                {
+                    if (maxA[k] < 5f) continue;
+                    // persistent = already off in the standing idle at every phase; transient = only in some frames of some clips
+                    string kind = minIdle[k] > 6f ? "PERSISTENT" : "transient";
+                    Debug.Log($"[LastWar] retcheck   {who} {chain[k, 0]}->{chain[k, 1]}: max {maxA[k]:0.0} at {maxAt[k]}, mean {sumA[k] / samples:0.0}, idle min {minIdle[k]:0.0}, >8deg in {over[k]}/{samples} samples [{string.Join(" ", overAt[k])}] -> {kind}");
+                }
                 Object.Destroy(go);
                 yield return null;
             }
