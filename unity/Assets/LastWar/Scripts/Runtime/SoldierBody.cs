@@ -318,10 +318,13 @@ namespace LastWar
         // ---- rifle animations (Mixamo Pro Rifle Pack, retargeted): with a gun in the hands the game's clips are swapped
         // for these - the hands sit on the gun as the animator placed them
         static readonly Dictionary<string, string> RifleClips = new Dictionary<string, string> {
-            { "idle", "mx_idle" }, { "idle_rifle", "mx_idle" }, { "fire", "mx_aim" }, { "walk_fire", "mx_walk" }, { "walk", "mx_walk" },
-            { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_aim" },
+            { "idle", "mx_idle" }, { "idle_rifle", "mx_idle" }, { "fire", "mx_fire" }, { "walk_fire", "mx_walk" }, { "walk", "mx_walk" },
+            { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
             { "crouch_walk", "mx_crouch_walk" } };
         public static bool UseRifleClips = true;
+        /// <summary>reloading: standing still (or aiming / firing / walking) the rifle reload clip plays, timed to the reload</summary>
+        public bool Reloading; public float ReloadTime = 2f;
+        static readonly HashSet<string> ReloadOver = new HashSet<string> { "mx_idle", "mx_aim", "mx_fire", "mx_walk" };
         string playing; // the clip the mixer plays for `current` (a rifle clip when one stands in)
         bool RifleClip => playing != null && playing.StartsWith("mx_");
 
@@ -330,11 +333,12 @@ namespace LastWar
             if (!clipIndex.ContainsKey(clip)) return;
             string key = clip;
             if (UseRifleClips && Armed && gun != null && !gunId.StartsWith("pistol") && RifleClips.TryGetValue(clip, out string mx) && clipIndex.ContainsKey(mx)) key = mx;
+            if (Reloading && ReloadOver.Contains(key) && clipIndex.ContainsKey("mx_reload")) key = "mx_reload";
             if (clip == current && key == playing) return;
             current = clip; playing = key;
             // restart one-shot clips (jump, death) from the beginning
             var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[key]);
-            if (OneShot(key)) { cp.SetTime(0); cp.SetSpeed(1); }
+            if (OneShot(key) || key == "mx_reload") { cp.SetTime(0); cp.SetSpeed(1); }
         }
 
         /// <summary>test bench: stop the current clip at a fraction of its length (a fixed frame for screenshots)</summary>
@@ -459,7 +463,8 @@ namespace LastWar
             {
                 // locomotion follows the real speed; backwards (retreating) the clip is stepped by hand
                 var cp = (AnimationClipPlayable)mixer.GetInput(target);
-                if (Rate >= 0) cp.SetSpeed(Rate);
+                if (playing == "mx_reload") cp.SetSpeed(clips[target].length / Mathf.Max(0.3f, ReloadTime));
+                else if (Rate >= 0) cp.SetSpeed(Rate);
                 else
                 {
                     cp.SetSpeed(0);
@@ -883,7 +888,9 @@ namespace LastWar
             Transform hl = PoseBone("LeftHand");
             if (hl == null) { gun.position = handR.position; gun.rotation = Quaternion.LookRotation(-aim, Vector3.up); return; }
             // aiming clips: the chest turns (spread over the three spine bones) so the gun points where the crosshair is
-            if (ShoulderGrip && (playing == "mx_aim" || playing == "mx_crouch_aim" || playing == "mx_walk"))
+            // reloading: the gun stays in the right hand as it was held, while the left hand changes the magazine
+            if (playing == "mx_reload") { gun.rotation = handR.rotation * gunInHand; gun.position = handR.TransformPoint(gunAtHand); return; }
+            if (ShoulderGrip && (playing == "mx_aim" || playing == "mx_fire" || playing == "mx_crouch_aim" || playing == "mx_crouch_fire" || playing == "mx_walk"))
             {
                 Vector3 g = Palm("Left") - Palm("Right");
                 if (g.sqrMagnitude > 1e-4f)
@@ -899,7 +906,9 @@ namespace LastWar
             Vector3 dir = d.sqrMagnitude > 1e-4f ? d.normalized : aim;
             gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
             gun.position = rp + gun.up * (gunId.StartsWith("smg") ? 0.04f : 0.05f);
+            gunInHand = Quaternion.Inverse(handR.rotation) * gun.rotation; gunAtHand = handR.InverseTransformPoint(gun.position);
         }
+        Quaternion gunInHand = Quaternion.identity; Vector3 gunAtHand;
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;

@@ -154,6 +154,7 @@ namespace LastWar
                 if (fighter.Gun != null && fighter.Gun.mag < fighter.Gun.def.mag / 2) fighter.Reload();
             }
             body.SetGun(fighter.Gun != null ? fighter.Gun.def.Look : null);
+            body.Reloading = fighter.reloadEnd > 0f; if (fighter.Gun != null) body.ReloadTime = fighter.Gun.def.reloadTime;
             body.SetBag(fighter.bagLv);
 
             float speed = sprint ? PlayerController.SprintSpeed : PlayerController.WalkSpeed;

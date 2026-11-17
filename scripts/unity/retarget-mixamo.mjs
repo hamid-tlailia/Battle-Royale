@@ -10,7 +10,7 @@ const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const SOLDIER = 'unity/Assets/LastWar/Resources/Models/soldier.glb';
 const CLIPS = { idle: 'mx_idle', idle_aiming: 'mx_aim', walk_forward: 'mx_walk', run_forward: 'mx_run', sprint_forward: 'mx_sprint',
   jump_loop: 'mx_jump', idle_crouching: 'mx_crouch', idle_crouching_aiming: 'mx_crouch_aim', walk_crouching_forward: 'mx_crouch_walk',
-  death_from_the_front: 'mx_death' };
+  death_from_the_front: 'mx_death', fire_a: 'mx_fire', fire_b: 'mx_crouch_fire', prone_fire: 'mx_prone_fire', reload: 'mx_reload' };
 // ---- quaternion / vector helpers ([x,y,z,w])
 const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
 const qinv = (a) => [-a[0], -a[1], -a[2], a[3]];

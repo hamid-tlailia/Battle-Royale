@@ -125,6 +125,7 @@ namespace LastWar
                 Debug.Log($"[LastWar] aim: yaw(aim vs camera) {Vector3.SignedAngle(cf, af, Vector3.up):0.0} pitch {Mathf.Asin(Mathf.Clamp(aim.y, -1, 1)) * Mathf.Rad2Deg:0.0} body vs camera {Vector3.SignedAngle(cf, transform.forward, Vector3.up):0.0}");
             }
             body.SetGun(armed && !input.FrostAim ? fighter.Gun.def.Look : null);
+            body.Reloading = fighter.reloadEnd > 0f; if (fighter.Gun != null) body.ReloadTime = fighter.Gun.def.reloadTime;
             body.Snowball = input.FrostAim;
             // long guns that are not in the hands hang across the back (the pistol goes in the pocket)
             backList.Clear();
