@@ -47,6 +47,7 @@ namespace LastWar
             // outfit validation bench (?grid= / ?swap=1)
             if (Arg("qfingers") == "1") SoldierBody.QFingers = true;
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
+            if (Arg("hgrip") == "0") SoldierBody.HandGrip = false;
             if (float.TryParse(Arg("jumpat") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ja)) LobbyTests.Holds[2] = ja;
             int.TryParse(Arg("from") ?? "0", out int tFrom); int.TryParse(Arg("n") ?? "4", out int tN);
             if (LobbyTests.Run(cam, l.canvas, Arg("grid"), tFrom, tN, Arg("zoom") == "1", Arg("swap") == "1")) return l;
@@ -361,13 +362,16 @@ namespace LastWar
             SettingsPanel.Segments(content, Vector2.zero, new Vector2(content.sizeDelta.x, tabsH), 11 * k, OutfitTabs, outfitTab, t => { outfitTab = t; Open("outfit"); });
             // tab 0: whole outfits; tabs 1-4: one piece (mask, T-shirt, pants, shoes) taken from any outfit
             int part = outfitTab - 1;
+            // single pieces only from the modular characters (the military outfits are worn whole)
+            int slot = 0;
             for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++)
             {
-                int skin = i;
+                if (part >= 0 && SoldierBody.Group(i) != 1) continue;
+                int skin = i, at = slot++;
                 int wearing = part < 0 ? Profile.Skin : (Profile.Part(part) >= 0 ? Profile.Part(part) : Profile.Skin);
                 bool on = part < 0 ? (i == Profile.Skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) : i == wearing;
                 var card = UiKit.Img(content, "card", UiKit.Get(on ? "Lobby/card_on" : "Lobby/card"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
-                card.rectTransform.anchoredPosition = new Vector2((i % cols) * (cw + gap), -top - (i / cols) * (ch + gap));
+                card.rectTransform.anchoredPosition = new Vector2((at % cols) * (cw + gap), -top - (at / cols) * (ch + gap));
                 card.rectTransform.sizeDelta = new Vector2(cw, ch);
                 Sprite sp = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i]);
                 if (part < 0)
@@ -395,13 +399,19 @@ namespace LastWar
                 Clickable.Add(card.gameObject, () =>
                 {
                     if (part < 0) { if (Profile.Skin == skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) return; Profile.Skin = skin; Profile.ClearParts(); }
-                    else Profile.SetPart(part, skin);
+                    else
+                    {
+                        // a piece goes on a modular character: from a military outfit, start from this character whole
+                        int torso = Profile.Part(1) >= 0 ? Profile.Part(1) : Profile.Skin;
+                        if (SoldierBody.Group(torso) != 1) { Profile.Skin = skin; Profile.ClearParts(); }
+                        else Profile.SetPart(part, skin);
+                    }
                     Open("outfit");
                     if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[Profile.Part(1) >= 0 ? Profile.Part(1) : Profile.Skin]);
                     StartCoroutine(SpawnNextFrame());
                 });
             }
-            content.sizeDelta = new Vector2(content.sizeDelta.x, top + Mathf.CeilToInt(SoldierBody.OutfitFiles.Length / (float)cols) * (ch + gap));
+            content.sizeDelta = new Vector2(content.sizeDelta.x, top + Mathf.CeilToInt(slot / (float)cols) * (ch + gap));
         }
 
         static readonly string[] OutfitTabs = { "FULL OUTFIT", "MASK", "T-SHIRT", "PANTS", "SHOES" };

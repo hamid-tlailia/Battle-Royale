@@ -60,6 +60,9 @@ namespace LastWar
                     body.AimDir = go.transform.forward;
                     bodies.Add(body); holdAt.Add(Holds[c]);
                     Debug.Log($"[LastWar] test row {r} {rLabel[r]} pose {ClipNames[c]}");
+                    if (c == 0)
+                        foreach (var smr in go.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                            Debug.Log($"[LastWar] piece {smr.name} < {(smr.transform.parent ? smr.transform.parent.name : "-")} on={smr.enabled}");
                 }
             cam.orthographic = true;
             float h = rSkin.Count * dy;

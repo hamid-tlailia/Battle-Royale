@@ -118,7 +118,13 @@ namespace LastWar
             foreach (Renderer r in o.GetComponentsInChildren<Renderer>(true))
             {
                 // (split outfits: body_head / body_torso / body_legs / body_feet; an unsplit one shows whole)
-                int part = -1; for (int i = 0; i < 4; i++) if (r.name.EndsWith("_" + PartNames[i])) part = i;
+                // the piece's name is on the renderer or on a parent (a piece with several materials is split in sub-objects)
+                int part = -1;
+                for (Transform t = r.transform; t != null && t != o.transform.parent && part < 0; t = t.parent)
+                {
+                    string n = System.Text.RegularExpressions.Regex.Replace(t.name, @"(_\d+|\s*\(\d+\)|_?[Pp]rimitive\d*)$", "");
+                    for (int i = 0; i < 4; i++) if (n.EndsWith("_" + PartNames[i])) part = i;
+                }
                 if (part >= 0 && !show[part]) { hiddenParts.Add(r); r.enabled = false; }
             }
             return o;
@@ -130,7 +136,7 @@ namespace LastWar
             int[] wear = new int[4];
             for (int i = 0; i < 4; i++) wear[i] = parts != null && i < parts.Length && parts[i] >= 0 && parts[i] < OutfitFiles.Length ? parts[i] : skin;
             skin = wear[1]; // the torso's outfit leads
-            for (int i = 0; i < 4; i++) if (Group(wear[i]) != Group(skin)) wear[i] = skin; // the two groups never mix
+            for (int i = 0; i < 4; i++) if (Group(wear[i]) != Group(skin) || Group(skin) == 0) wear[i] = skin; // groups never mix; military outfits are worn whole
             bool[] mine = new bool[4]; for (int i = 0; i < 4; i++) mine[i] = wear[i] == skin;
             GameObject o = PlaceOutfit(skin, mine, out var dst);
             if (o == null) return;
@@ -195,6 +201,7 @@ namespace LastWar
             // the soldier keeps animating, invisible
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             if (dst.TryGetValue("RightHand", out Transform rh)) handR = rh;
+            CacheFingerRest();
         }
 
         Quaternion hipsCorr = Quaternion.identity;
@@ -748,43 +755,161 @@ namespace LastWar
                 snowball.position = handR.position + transform.forward * 0.06f;
             }
             else if (snowball != null) snowball.gameObject.SetActive(false);
-            // gun: grip in the right hand, barrel (model -Z) along the aim
+            // gun: the right hand closes on the pistol grip, the left hand holds the handguard from below
             if (gun == null || handR == null) return;
-            gun.position = handR.position;
             Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
             Transform handL = PoseBone("LeftHand");
             bool carried = current == "run" || current == "prone" || Pose == "crawl";
-            // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim, the
-            // right hand brought to the grip - so aiming up, down or to the side never pushes the gun into the body
-            if (ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !current.StartsWith("death"))
+            bool dead = current.StartsWith("death"), pistol = gunId.StartsWith("pistol");
+            bool aim = ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !dead;
+            Vector3 grip = Vector3.zero; bool hasGrip = false;
+            // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim
+            if (aim)
             {
-                Transform ra = PoseBone("RightArm"), rf = PoseBone("RightForeArm");
-                if (ra != null && rf != null)
+                Transform ra = PoseBone("RightArm");
+                if (ra != null)
                 {
-                    Vector3 grip = ra.position + dir * (gunId.StartsWith("pistol") ? 0.42f : 0.26f) - transform.up * 0.07f;
-                    grip = Vector3.Lerp(handR.position, grip, 0.85f);
-                    TwoBone(ra, rf, handR, grip);
-                    gun.position = grip;
+                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? 0.42f : 0.26f) - transform.up * 0.07f, 0.85f);
+                    hasGrip = true;
                 }
             }
             if (carried && handL != null)
             {
-                // carried (running / crawling): exactly along the two hands, as the clip holds it
+                // carried (running / crawling): along the two hands, as the clip holds it, never swung out to the side
                 Vector3 lh = handL.position - handR.position; float len = lh.magnitude;
                 if (len > 0.15f && len < 0.75f && Vector3.Dot(lh, transform.forward) > 0.04f)
                 {
-                    // carried in front, muzzle forward and a little down - never swung out to the side
                     Vector3 front = (transform.forward - transform.up * 0.35f).normalized;
                     dir = Vector3.RotateTowards(front, lh / len, 30f * Mathf.Deg2Rad, 0f);
                 }
                 else carried = false;
             }
             gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
-            // standing / walking / firing: the barrel follows the view and the support hand comes to the handguard
-            if (!carried && handL != null && (Pose == null || Pose == "kneel") && !current.StartsWith("death"))
+            Vector3 up = gun.up, side = Vector3.Cross(up, dir).normalized; // side: the shooter's right
+            if (!HandGrip || dead) gun.position = handR.position;
+            else
+            {
+                // right hand: fingers down and forward round the grip, palm against its right side
+                Vector3 k = (dir * 0.45f - up * 0.89f).normalized, n = -side;
+                float palm = PalmLen(handR, "Right");
+                Transform rf = PoseBone("RightForeArm"), ra = PoseBone("RightArm");
+                if (hasGrip && ra != null && rf != null) TwoBone(ra, rf, handR, grip - n * 0.022f - k * palm);
+                if (rf != null) OrientHand(handR, rf, "Right", k, n);
+                Curl("Right", 78f, 82f, 48f, 30f);
+                // the pistol grip (a little below the gun's origin) sits in the closed hand
+                Vector3 g = handR.position + HandDir(handR, "Right") * palm + PalmNormal(handR, "Right") * 0.022f;
+                gun.position = g + up * (pistol ? 0.035f : 0.05f);
+            }
+            // standing / walking / firing: the support hand comes to the gun
+            if (!carried && handL != null && (Pose == null || Pose == "kneel") && !dead)
             {
                 Transform la = PoseBone("LeftArm"), lf = PoseBone("LeftForeArm");
-                if (la != null && lf != null) TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f);
+                if (la != null && lf != null)
+                {
+                    if (!HandGrip) { TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f); return; }
+                    float palm = PalmLen(handL, "Left");
+                    Vector3 k, n, c;
+                    if (pistol)
+                    {
+                        // cupping the right hand: palm against it from the left, fingers wrapped over its fingers
+                        k = (dir * 0.35f - up * 0.94f).normalized; n = side;
+                        c = handR.position + HandDir(handR, "Right") * palm * 0.8f - side * 0.05f;
+                    }
+                    else
+                    {
+                        // under the handguard: palm up, fingers round its right side
+                        k = (side * 0.75f + dir * 0.66f).normalized; n = up;
+                        c = gun.position + dir * GripAhead(gunId) - up * 0.045f;
+                    }
+                    TwoBone(la, lf, handL, c - k * palm * 0.7f);
+                    OrientHand(handL, lf, "Left", k, n);
+                    if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 58f, 62f, 38f, 25f);
+                }
+            }
+            else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
+        }
+
+        // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
+        public static bool HandGrip = true;
+        static readonly string[] FingerNames = { "Index", "Middle", "Ring", "Pinky" };
+        Dictionary<Transform, Quaternion> fingerRest;
+
+        void CacheFingerRest()
+        {
+            fingerRest = new Dictionary<Transform, Quaternion>();
+            foreach (string sd in new[] { "Left", "Right" })
+                foreach (string f in new[] { "Index", "Middle", "Ring", "Pinky", "Thumb" })
+                    for (int i = 1; i <= 3; i++) { Transform b = PoseBone(sd + "Hand" + f + i); if (b != null) fingerRest[b] = b.localRotation; }
+        }
+
+        /// <summary>wrist to the knuckles, along the fingers</summary>
+        Vector3 HandDir(Transform hand, string sd)
+        {
+            Transform m = PoseBone(sd + "HandMiddle1");
+            Vector3 d = m != null ? m.position - hand.position : hand.rotation * Vector3.up;
+            return d.sqrMagnitude > 1e-8f ? d.normalized : hand.up;
+        }
+
+        float PalmLen(Transform hand, string sd)
+        {
+            Transform m = PoseBone(sd + "HandMiddle1");
+            return m != null ? Mathf.Clamp((m.position - hand.position).magnitude * 0.8f, 0.04f, 0.12f) : 0.07f;
+        }
+
+        /// <summary>out of the palm (right hand: knuckles x (pinky to index); the left hand is mirrored)</summary>
+        Vector3 PalmNormal(Transform hand, string sd)
+        {
+            Transform ix = PoseBone(sd + "HandIndex1"), pk = PoseBone(sd + "HandPinky1");
+            Vector3 k = HandDir(hand, sd);
+            if (ix == null || pk == null) return sd == "Right" ? -hand.right : hand.right;
+            Vector3 n = Vector3.Cross(k, ix.position - pk.position);
+            if (sd == "Left") n = -n;
+            return n.sqrMagnitude > 1e-10f ? n.normalized : -hand.forward;
+        }
+
+        /// <summary>turns the hand so its fingers point along k and its palm faces n; half the twist is taken by the forearm</summary>
+        void OrientHand(Transform hand, Transform fore, string sd, Vector3 k, Vector3 n)
+        {
+            Vector3 k0 = HandDir(hand, sd), n0 = PalmNormal(hand, sd);
+            n0 = Vector3.ProjectOnPlane(n0, k0); n = Vector3.ProjectOnPlane(n, k);
+            if (n0.sqrMagnitude < 1e-8f || n.sqrMagnitude < 1e-8f) return;
+            Quaternion delta = Quaternion.LookRotation(k, n) * Quaternion.Inverse(Quaternion.LookRotation(k0, n0));
+            Quaternion want = delta * hand.rotation;
+            Vector3 axis = hand.position - fore.position;
+            if (axis.sqrMagnitude > 1e-8f)
+            {
+                axis.Normalize();
+                Vector3 p = Vector3.Project(new Vector3(delta.x, delta.y, delta.z), axis);
+                var twist = new Quaternion(p.x, p.y, p.z, delta.w);
+                float m = Mathf.Sqrt(twist.x * twist.x + twist.y * twist.y + twist.z * twist.z + twist.w * twist.w);
+                if (m > 1e-6f)
+                {
+                    twist = new Quaternion(twist.x / m, twist.y / m, twist.z / m, twist.w / m);
+                    fore.rotation = Quaternion.Slerp(Quaternion.identity, twist, 0.5f) * fore.rotation;
+                }
+            }
+            hand.rotation = want;
+        }
+
+        /// <summary>closes the fingers toward the palm (base, middle, tip angles) and brings the thumb round</summary>
+        void Curl(string sd, float a1, float a2, float a3, float thumb)
+        {
+            if (fingerRest == null) return;
+            Transform hand = sd == "Right" ? handR : PoseBone("LeftHand");
+            if (hand == null) return;
+            foreach (var kv in fingerRest) if (kv.Key.name.Contains(sd + "Hand")) kv.Key.localRotation = kv.Value;
+            Vector3 k = HandDir(hand, sd), n = PalmNormal(hand, sd);
+            Vector3 axis = Vector3.Cross(k, n).normalized;
+            float[] ang = { a1, a2, a3 };
+            foreach (string f in FingerNames)
+                for (int i = 1; i <= 3; i++) { Transform b = PoseBone(sd + "Hand" + f + i); if (b != null) b.rotation = Quaternion.AngleAxis(ang[i - 1], axis) * b.rotation; }
+            for (int i = 1; i <= 3; i++)
+            {
+                Transform b = PoseBone(sd + "HandThumb" + i), c = PoseBone(sd + "HandThumb" + (i + 1));
+                if (b == null) break;
+                Vector3 td = (c != null ? c.position : b.position + (b.position - b.parent.position)) - b.position;
+                Vector3 ax = Vector3.Cross(td, n);
+                if (ax.sqrMagnitude > 1e-10f) b.rotation = Quaternion.AngleAxis(thumb, ax.normalized) * b.rotation;
             }
         }
 
