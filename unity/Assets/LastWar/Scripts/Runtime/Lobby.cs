@@ -48,6 +48,8 @@ namespace LastWar
             if (float.TryParse(Arg("lgripy") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float gy)) LobbyGrip.y = gy;
             // outfit validation bench (?grid= / ?swap=1)
             if (Arg("qfingers") == "1") SoldierBody.QFingers = true;
+            if (Arg("base") == "old") SoldierBody.UseOldBase = true;
+            if (Arg("rigcheck") == "1") { LobbyTests.RigCheck(); }
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
             if (Arg("hgrip") == "0") SoldierBody.HandGrip = false;
             if (float.TryParse(Arg("jumpat") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ja)) LobbyTests.Holds[2] = ja;

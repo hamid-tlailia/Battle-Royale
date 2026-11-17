@@ -252,7 +252,9 @@ namespace LastWar
 
         void Build(int skin)
         {
-            GameObject src = MapBuilder.Model("soldier");
+            // LW_BaseCharacter: the Mixamo SWAT skeleton carrying every clip (scripts/unity/build-base.mjs); the old soldier rig is the fallback
+            GameObject src = UseOldBase ? null : MapBuilder.Model(BaseModel);
+            if (src == null) src = MapBuilder.Model("soldier");
             if (src == null) return;
             GameObject m = Instantiate(src, transform, false);
             model = m.transform;
@@ -275,6 +277,8 @@ namespace LastWar
             SetupOutfit(skin);
         }
 
+        public const string BaseModel = "lw_base";
+        public static bool UseOldBase; // test switch ?base=old
         public static Material Lit(Material src) => MapBuilder.LitFrom(src);
         /// <summary>characters a little brighter than the world (dark suits vanished in shade and against the sand)</summary>
         static readonly Dictionary<Material, Material> charMats = new Dictionary<Material, Material>();
@@ -295,7 +299,7 @@ namespace LastWar
             if (animator == null) animator = m.AddComponent<Animator>();
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate; // keeps driving an outfit even though its own mesh is hidden
-            if (clips == null) clips = Resources.LoadAll<AnimationClip>("Models/soldier");
+            if (clips == null) { clips = UseOldBase ? new AnimationClip[0] : Resources.LoadAll<AnimationClip>("Models/" + BaseModel); if (clips.Length == 0) clips = Resources.LoadAll<AnimationClip>("Models/soldier"); }
             if (clips.Length == 0) return;
             graph = PlayableGraph.Create("soldier");
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);

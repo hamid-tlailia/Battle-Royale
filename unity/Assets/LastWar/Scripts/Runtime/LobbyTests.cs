@@ -107,5 +107,34 @@ namespace LastWar
             }
             Debug.Log($"[LastWar] swap done: {30 - fails}/30 passed");
         }
+
+        /// <summary>Phase 1 rig audit in Unity (?rigcheck=1): for each outfit - can a Humanoid avatar be built on it, its rest pose,
+        /// its arm / leg proportions against the base skeleton</summary>
+        public static void RigCheck()
+        {
+            float Arm(Transform root, out float leg, out float armDown)
+            {
+                var b = new Dictionary<string, Transform>();
+                foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) b[t.name.Substring(t.name.LastIndexOf(':') + 1)] = t;
+                float D(string a, string c) => b.ContainsKey(a) && b.ContainsKey(c) ? (b[a].position - b[c].position).magnitude : 0f;
+                leg = D("LeftUpLeg", "LeftLeg") + D("LeftLeg", "LeftFoot");
+                Vector3 up = b.ContainsKey("LeftForeArm") ? b["LeftForeArm"].position - b["LeftArm"].position : Vector3.right;
+                armDown = Mathf.Atan2(-up.y, new Vector2(up.x, up.z).magnitude) * Mathf.Rad2Deg;
+                return D("LeftArm", "LeftForeArm") + D("LeftForeArm", "LeftHand");
+            }
+            var files = new List<string> { SoldierBody.BaseModel, "soldier" }; foreach (string f in SoldierBody.OutfitFiles) files.Add("outfit_" + f);
+            foreach (string f in files)
+            {
+                GameObject src = MapBuilder.Model(f);
+                if (src == null) { Debug.Log($"[LastWar] rigcheck {f}: MISSING"); continue; }
+                GameObject o = Object.Instantiate(src); o.transform.position = new Vector3(0, -500, 0);
+                float arm = Arm(o.transform, out float leg, out float down);
+                int bones = 0; foreach (Transform t in o.GetComponentsInChildren<Transform>(true)) if (t.name.Contains("mixamorig")) bones++;
+                Avatar av = HumanRig.Build(o.transform);
+                int clips = Resources.LoadAll<AnimationClip>("Models/" + f).Length;
+                Debug.Log($"[LastWar] rigcheck {f}: bones {bones} humanoid {(av != null ? "valid" : "FAILED")} rest {(Mathf.Abs(down) < 15 ? "T-pose" : "A-pose")} ({down:0}deg) arm/leg {(leg > 0 ? arm / leg : 0):0.00} clips {clips}");
+                Object.Destroy(o);
+            }
+        }
     }
 }
