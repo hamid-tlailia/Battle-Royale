@@ -624,7 +624,7 @@ namespace LastWar
         }
 
         // ---- support hand on the gun (two-bone IK on the left arm)
-        static float GripAhead(string id) => id == "pistol" ? 0.03f : id == "smg" ? 0.2f : id == "sniper" ? 0.34f : 0.3f;
+        static float GripAhead(string id) => id.StartsWith("pistol") ? 0.03f : id.StartsWith("smg") ? 0.2f : id.StartsWith("sniper") ? 0.34f : 0.3f;
 
         void TwoBone(Transform up, Transform mid, Transform end, Vector3 target)
         {
@@ -677,7 +677,7 @@ namespace LastWar
                 Transform ra = PoseBone("RightArm"), rf = PoseBone("RightForeArm");
                 if (ra != null && rf != null)
                 {
-                    Vector3 grip = ra.position + dir * (gunId == "pistol" ? 0.42f : 0.26f) - transform.up * 0.07f;
+                    Vector3 grip = ra.position + dir * (gunId.StartsWith("pistol") ? 0.42f : 0.26f) - transform.up * 0.07f;
                     grip = Vector3.Lerp(handR.position, grip, 0.85f);
                     TwoBone(ra, rf, handR, grip);
                     gun.position = grip;

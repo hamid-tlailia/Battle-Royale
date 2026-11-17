@@ -118,11 +118,11 @@ namespace LastWar
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
             body.AimDir = aim;
-            body.SetGun(armed && !input.FrostAim ? fighter.Gun.def.id : null);
+            body.SetGun(armed && !input.FrostAim ? fighter.Gun.def.Look : null);
             body.Snowball = input.FrostAim;
             // long guns that are not in the hands hang across the back (the pistol goes in the pocket)
             backList.Clear();
-            for (int k = 0; k < 3; k++) { GunState bg = fighter.guns[k]; if (bg != null && bg.def.id != "pistol" && (fighter.holstered || k != fighter.slot)) backList.Add(bg.def.id); }
+            for (int k = 0; k < 3; k++) { GunState bg = fighter.guns[k]; if (bg != null && bg.def.id != "pistol" && (fighter.holstered || k != fighter.slot)) backList.Add(bg.def.Look); }
             body.SetBack(backList);
 
             bool onGround = cc.isGrounded || NearGround();

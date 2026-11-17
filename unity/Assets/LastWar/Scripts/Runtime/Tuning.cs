@@ -12,6 +12,9 @@ namespace LastWar
         public float damage, headMult, rpm; public bool auto;
         public int mag; public float reloadTime, range, falloffStart, minDamageFrac, hipSpread, adsSpread;
         public int pellets; public float scopeFov; public int startReserve;
+        /// <summary>the 3D model key (an armory version has its own: gun_rifle_marksman ...); empty = the id</summary>
+        public string model;
+        public string Look => string.IsNullOrEmpty(model) ? id : model;
         public float Interval => 60f / Mathf.Max(1f, rpm);
         public float DamageAt(float dist, bool head)
         {

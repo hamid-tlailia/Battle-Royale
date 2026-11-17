@@ -153,7 +153,7 @@ namespace LastWar
                 body.AimDir = transform.forward;
                 if (fighter.Gun != null && fighter.Gun.mag < fighter.Gun.def.mag / 2) fighter.Reload();
             }
-            body.SetGun(fighter.Gun != null ? fighter.Gun.def.id : null);
+            body.SetGun(fighter.Gun != null ? fighter.Gun.def.Look : null);
 
             float speed = sprint ? PlayerController.SprintSpeed : PlayerController.WalkSpeed;
             Vector3 flat = Vector3.MoveTowards(new Vector3(velocity.x, 0, velocity.z), move * speed, PlayerController.GroundAccel * dt);

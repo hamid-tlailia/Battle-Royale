@@ -71,3 +71,19 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 
 | Death Valley - Terrain | Death Valley map: terrain heights and ground colours (baked by `scripts/unity/bake-deathvalley.py`) | artfromheath | CC Attribution 4.0 | https://sketchfab.com/3d-models/9f57bca156e14cff9e4e316a9ccc3e0d |
 | Universal Animation Library (Standard) | sprint, jog, walk, crouch-walk and idle animations, retargeted onto the soldier (`scripts/unity/retarget-ual.mjs`) | Quaternius | CC0 1.0 | https://quaternius.itch.io/universal-animation-library |
+
+| Low-Poly AKM | gun model `gun_rifle` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/849b7cdf8622487485febc40db89e734 |
+| Low-Poly FN SCAR H | gun model `gun_rifle_marksman` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/c52bc2a8ddaa47caa34e94d69ff72d96 |
+| Low-Poly M4a1 | gun model `gun_rifle_storm` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/8cab1cbeb82c4396a154f9fc8771417b |
+| Low-Poly HK MP5 | gun model `gun_smg` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/80980f757c2c463ebc73460a31611652 |
+| Low-Poly IMI Uzi | gun model `gun_smg_viper` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/d9f0070b3c924caf8fe47e41881389f0 |
+| Low-Poly HK MP7 | gun model `gun_smg_hornet` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/0ebd1e2b7a60408cb3b587b4807635ab |
+| Low-Poly Remington 870 | gun model `gun_shotgun` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/8766498ce778479aa03c3b6078937510 |
+| Low-Poly SPAS-12 | gun model `gun_shotgun_breacher` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/c95154ea2348443e9195250a6ad122cb |
+| Low-Poly Mossberg 590 | gun model `gun_shotgun_long` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/c0551a6b841145f7a8e59e9304728f1f |
+| Low-Poly SVD Dragunov | gun model `gun_sniper` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/fe40c5c2696441bc8696ed042056709e |
+| Low-Poly Barrett M82A1 | gun model `gun_sniper_long` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/9c7027e5a64e40e9ae927adb0872b6d8 |
+| Low-Poly Barrett M98B | gun model `gun_sniper_swift` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/bef95e90408b41e4a48725543f4323ed |
+| Low-Poly G17 | gun model `gun_pistol` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/60efc54ac59e47d18bdff94b2f5144ff |
+| Low-Poly Desert Eagle | gun model `gun_pistol_magnum` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/b81da261345f4462b2c4412352162287 |
+| Low-Poly Beretta 93R | gun model `gun_pistol_auto` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/22e30431f4d4455984b8e41adf59ab60 |

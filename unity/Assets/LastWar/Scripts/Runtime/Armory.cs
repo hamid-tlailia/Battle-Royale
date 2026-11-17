@@ -57,7 +57,7 @@ namespace LastWar
             if (b == null || v == null || v.cost == 0) return b;
             if (made.TryGetValue(v.key, out WeaponDef d)) return d;
             d = JsonUtility.FromJson<WeaponDef>(JsonUtility.ToJson(b));
-            d.name = v.name; d.damage *= v.dmg; d.rpm *= v.rpm; d.range *= v.range; d.falloffStart *= v.range;
+            d.name = v.name; d.model = v.key; d.damage *= v.dmg; d.rpm *= v.rpm; d.range *= v.range; d.falloffStart *= v.range;
             d.hipSpread *= v.spread; d.adsSpread *= v.spread; d.reloadTime *= v.reload; d.mag = Mathf.Max(1, d.mag + v.mag);
             if (v.auto.HasValue) d.auto = v.auto.Value;
             return made[v.key] = d;
