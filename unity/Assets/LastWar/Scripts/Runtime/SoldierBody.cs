@@ -607,8 +607,37 @@ namespace LastWar
             }
         }
 
+        // ---- the backpack worn on the back (its level's model: straps against the body)
+        Transform bagLook; int bagLvShown; Quaternion bagSpineOffset; bool bagOffsetSet;
+        public void SetBag(int lv)
+        {
+            if (lv == bagLvShown) return;
+            bagLvShown = lv;
+            if (bagLook != null) Destroy(bagLook.gameObject);
+            bagLook = null;
+            if (lv <= 0) return;
+            GameObject src = MapBuilder.Model("bag" + lv);
+            if (src == null) return;
+            bagLook = Instantiate(src, transform, false).transform;
+            bagLook.localScale = Vector3.one * 0.85f;
+            foreach (Renderer r in bagLook.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
+        }
+
+        void PlaceBag()
+        {
+            if (bagLook == null) return;
+            Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
+            if (spine == null) return;
+            // follows the chest in every pose (standing, running, crawling): the chest's turn from the first frame
+            if (!bagOffsetSet) { bagOffsetSet = true; bagSpineOffset = Quaternion.Inverse(spine.rotation) * transform.rotation; }
+            Quaternion bodyRot = spine.rotation * bagSpineOffset;
+            bagLook.position = spine.position + bodyRot * new Vector3(0f, -0.38f, -0.13f);
+            bagLook.rotation = bodyRot * Quaternion.Euler(0, 180f, 0); // pockets out, straps on the back
+        }
+
         void PlaceBack()
         {
+            PlaceBag();
             if (backGuns.Count == 0) return;
             Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
             if (spine == null) return;
@@ -617,7 +646,7 @@ namespace LastWar
             {
                 float side = i == 0 ? 1f : -1f;
                 // diagonal across the back, the two crossed, flat against the body
-                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(0.17f + i * 0.05f));
+                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(0.17f + (bagLook != null ? 0.26f : 0f) + i * 0.05f)); // (behind the backpack when there is one)
                 Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
                 backGuns[i].rotation = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
             }

@@ -9,7 +9,7 @@ namespace LastWar
     /// </summary>
     public class Loot : MonoBehaviour
     {
-        public enum Kind { Weapon, Ammo, Med, Armor, Scope, Frost }
+        public enum Kind { Weapon, Ammo, Med, Armor, Scope, Frost, Helmet, Bag }
         public Kind kind;
         /// <summary>weapon / ammo: weapon id; scope: "2" / "4" / "8"</summary>
         public string item;
@@ -32,6 +32,8 @@ namespace LastWar
             Kind.Med => "Medkit",
             Kind.Armor => "Armor vest Lv" + (string.IsNullOrEmpty(item) ? "1" : item),
             Kind.Scope => "×" + item + " scope",
+            Kind.Helmet => "Helmet Lv" + (string.IsNullOrEmpty(item) ? "1" : item),
+            Kind.Bag => "Backpack Lv" + (string.IsNullOrEmpty(item) ? "1" : item),
             _ => "Ice wall",
         };
         public string Sub => kind switch
@@ -41,16 +43,20 @@ namespace LastWar
             Kind.Med => (amount > 1 ? "× " + amount + " · " : "") + "+100 HP",
             Kind.Armor => "-" + Mathf.RoundToInt(Fighter.ArmorShare[Mathf.Clamp(int.TryParse(item, out int al) ? al : 1, 1, 3)] * 100) + "% damage",
             Kind.Scope => "rifle / sniper",
+            Kind.Helmet => "-" + Mathf.RoundToInt(Fighter.HelmetShare[Mathf.Clamp(int.TryParse(item, out int hl) ? hl : 1, 1, 3)] * 100) + "% headshots",
+            Kind.Bag => "carries x" + Fighter.BagMult[Mathf.Clamp(int.TryParse(item, out int bl) ? bl : 1, 1, 3)].ToString("0.#"),
             _ => (amount > 1 ? "× " + amount + " · " : "") + "blocks bullets",
         };
         /// <summary>HUD picture for the list / backpack</summary>
         public Sprite Icon => kind switch
         {
-            Kind.Weapon => UiKit.Get("gun_" + item),
+            Kind.Weapon => Resources.Load<Sprite>("UI/Items/gun_" + item) ?? UiKit.Get("gun_" + item),
             Kind.Ammo => UiKit.Get("icon_ammo"),
             Kind.Med => UiKit.Get("icon_heal"),
             Kind.Armor => UiKit.Get("icon_vest"),
             Kind.Scope => UiKit.Get("icon_scope"),
+            Kind.Helmet => Resources.Load<Sprite>("UI/Items/helmet" + (string.IsNullOrEmpty(item) ? "1" : item)),
+            Kind.Bag => Resources.Load<Sprite>("UI/Items/bag" + (string.IsNullOrEmpty(item) ? "1" : item)),
             _ => UiKit.Get("icon_frost"),
         };
 
@@ -124,6 +130,8 @@ namespace LastWar
                 Kind.Ammo => MapBuilder.Model("item_ammo"),
                 Kind.Med => MapBuilder.Model("item_med"),
                 Kind.Armor => MapBuilder.Model("item_vest"),
+                Kind.Helmet => MapBuilder.Model("helmet" + (string.IsNullOrEmpty(item) ? "1" : item)),
+                Kind.Bag => MapBuilder.Model("bag" + (string.IsNullOrEmpty(item) ? "1" : item)),
                 _ => null,
             };
             Transform look;
@@ -131,7 +139,7 @@ namespace LastWar
             {
                 look = Instantiate(src, transform, false).transform;
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
-                if (kind == Kind.Weapon) { look.localRotation = Quaternion.Euler(0, 0, 90f); look.localPosition = Vector3.up * 0.07f; look.localScale = Vector3.one * 0.85f; } // the gun lies on its side
+                if (kind == Kind.Weapon) { look.localRotation = Quaternion.Euler(0, 0, 90f); look.localPosition = Vector3.up * 0.06f; } // the gun lies on its side (real size)
             }
             else if (kind == Kind.Scope)
             {
@@ -151,7 +159,7 @@ namespace LastWar
             Color rc = kind switch
             {
                 Kind.Weapon => new Color(1f, .83f, .3f), Kind.Ammo => new Color(.87f, .87f, .87f), Kind.Med => new Color(1f, .42f, .42f),
-                Kind.Armor => new Color(.35f, .67f, 1f), Kind.Scope => new Color(.77f, .55f, 1f), _ => new Color(.56f, .91f, 1f),
+                Kind.Armor => new Color(.35f, .67f, 1f), Kind.Helmet => new Color(.45f, .8f, .45f), Kind.Bag => new Color(.95f, .65f, .3f), Kind.Scope => new Color(.77f, .55f, 1f), _ => new Color(.56f, .91f, 1f),
             };
             rc.a = .75f;
             Ring(transform, rc, 0.62f);
@@ -163,7 +171,7 @@ namespace LastWar
             // (more guns, medkits and ice than the web: 30 fighters share the valley)
             (Kind.Weapon, "pistol", 12), (Kind.Weapon, "rifle", 14), (Kind.Weapon, "shotgun", 10), (Kind.Weapon, "sniper", 6), (Kind.Weapon, "smg", 11),
             (Kind.Ammo, "pistol", 7), (Kind.Ammo, "rifle", 10), (Kind.Ammo, "shotgun", 5), (Kind.Ammo, "sniper", 4), (Kind.Ammo, "smg", 7),
-            (Kind.Med, null, 17), (Kind.Armor, "1", 5), (Kind.Armor, "2", 3), (Kind.Armor, "3", 1), (Kind.Scope, "2", 4), (Kind.Scope, "4", 2), (Kind.Scope, "8", 1), (Kind.Frost, null, 13),
+            (Kind.Med, null, 17), (Kind.Armor, "1", 5), (Kind.Armor, "2", 3), (Kind.Armor, "3", 1), (Kind.Helmet, "1", 5), (Kind.Helmet, "2", 3), (Kind.Helmet, "3", 1), (Kind.Bag, "1", 5), (Kind.Bag, "2", 3), (Kind.Bag, "3", 1), (Kind.Scope, "2", 4), (Kind.Scope, "4", 2), (Kind.Scope, "8", 1), (Kind.Frost, null, 13),
         };
 
         public static void SpawnMap(MapData map, int seed)

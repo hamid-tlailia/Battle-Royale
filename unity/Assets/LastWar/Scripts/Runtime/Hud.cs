@@ -248,7 +248,7 @@ namespace LastWar
             bagRing = UiKit.Img(bagRingBg.rectTransform, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(23, 23), Color.white); bagRing.rectTransform.pivot = new Vector2(.5f, .5f);
             bagRing.type = Image.Type.Filled; bagRing.fillMethod = Image.FillMethod.Radial360; bagRing.fillOrigin = (int)Image.Origin360.Top; bagRing.fillAmount = 0;
             var bagIc = UiKit.Img(bagRingBg.rectTransform, "bag", UiKit.Get("icon_bag"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(15, 15), new Color(1f, .83f, .3f)); bagIc.rectTransform.pivot = new Vector2(.5f, .5f);
-            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(80, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1";
+            var bagTx = UiKit.Txt(status, new Vector2(0, .5f), new Vector2(80, 0), new Vector2(40, 18), 11, TextAnchor.MiddleLeft, new Color(1f, .83f, .3f)); bagTx.text = "Lv1"; bagLvText = bagTx;
 
             // things within reach (web .loot-list): a see-through panel to the left of the fire button, picture, name, TAKE
             lootPanel = UiKit.Img(c, "LootList", UiKit.Round, new Vector2(1, .56f), new Vector2(-232, 0), new Vector2(172, 40), new Color(10 / 255f, 18 / 255f, 10 / 255f, .42f), true).rectTransform;
@@ -285,7 +285,7 @@ namespace LastWar
             input.AddEditable("status", status);
         }
         RectTransform feedRoot;
-        RectTransform status, lootPanel, healRing; Image vestIcon, healFg, bagRing, bagRingBg; Text vestText, healPlus;
+        RectTransform status, lootPanel, healRing; Image vestIcon, healFg, bagRing, bagRingBg; Text vestText, healPlus, bagLvText;
         static Sprite thickRing;
         static Sprite ThickRing()
         {
@@ -497,10 +497,9 @@ namespace LastWar
             // spectating: the bars, weapon box and status show the one you watch
             Fighter f = spectating && player.SpectateTarget != null ? player.SpectateTarget : player.fighter; float dt = Time.deltaTime; const float K = UiKit.K; Camera cam = player.cam;
             input.Spectating = spectating;
-            // how full the backpack is: medkits, ice walls and spare rounds against what a Lv1 pack holds
-            float load = f.meds / (float)Fighter.MaxMeds * .25f + f.frost / (float)Fighter.MaxFrost * .15f, ammo = 0;
-            foreach (var kv in Fighter.MaxReserve) ammo += Mathf.Clamp01(f.AmmoOf(kv.Key) / (float)kv.Value);
-            load = Mathf.Clamp01(load + ammo / 3f * .6f);
+            // how full the backpack is (its capacity grows with its level)
+            float load = Mathf.Clamp01(f.Load / (float)Mathf.Max(1, f.Capacity) * 2.2f);
+            bagLvText.text = "Lv" + Mathf.Max(1, f.bagLv); bagLvText.color = f.bagLv >= 3 ? new Color(1f, .83f, .3f) : f.bagLv == 2 ? new Color(.77f, .55f, 1f) : f.bagLv == 1 ? new Color(.44f, .71f, 1f) : new Color(1, 1, 1, .7f);
             bagRing.fillAmount = load;
             bagRing.color = load < .5f ? Color.white : load < .85f ? new Color(1f, .83f, .3f) : new Color(1f, .3f, .25f);
             // armour points, coloured by the vest level (Lv1 blue, Lv2 purple, Lv3 gold)

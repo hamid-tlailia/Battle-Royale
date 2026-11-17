@@ -87,3 +87,9 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Low-Poly G17 | gun model `gun_pistol` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/60efc54ac59e47d18bdff94b2f5144ff |
 | Low-Poly Desert Eagle | gun model `gun_pistol_magnum` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/b81da261345f4462b2c4412352162287 |
 | Low-Poly Beretta 93R | gun model `gun_pistol_auto` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/22e30431f4d4455984b8e41adf59ab60 |
+| M1 Helmet | loot / gear model `helmet1` | MelvinEbbuts | CC Attribution | https://sketchfab.com/3d-models/6d7929b10c994db0b6b39e35b379bfbd |
+| Low-Poly Altyn Helmet | loot / gear model `helmet3` | notcplkerry | CC Attribution | https://sketchfab.com/3d-models/c3cf2fdf55b94b248d39063d11507230 |
+| Military Tactical Backpack | loot / gear model `bag2` | liamch | CC Attribution | https://sketchfab.com/3d-models/9fa2da2c42234b58896e8d23393cac24 |
+| Low Poly Game Ready Military Tactical Backpack | loot / gear model `bag3` | 1799danly | CC Attribution | https://sketchfab.com/3d-models/95a4fc7300584384b56ce3add58dbc9f |
+| Hełm wz. 2005 (Helmet model 2005) | loot / gear model `helmet2` | armoredwave | CC Attribution | https://sketchfab.com/3d-models/3bef9733977142599dc2275cf889fcef |
+| VINTAGE MILITARY BACKPACK | loot / gear model `bag1` | pixabar | CC Attribution | https://sketchfab.com/3d-models/dce182b7965546118df059f90df497dc |

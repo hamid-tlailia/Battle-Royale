@@ -124,6 +124,7 @@ namespace LastWar
             backList.Clear();
             for (int k = 0; k < 3; k++) { GunState bg = fighter.guns[k]; if (bg != null && bg.def.id != "pistol" && (fighter.holstered || k != fighter.slot)) backList.Add(bg.def.Look); }
             body.SetBack(backList);
+            body.SetBag(fighter.bagLv);
 
             bool onGround = cc.isGrounded || NearGround();
             input.InAir = !onGround;
