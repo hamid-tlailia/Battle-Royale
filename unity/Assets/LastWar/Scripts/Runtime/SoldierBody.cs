@@ -193,7 +193,7 @@ namespace LastWar
         }
 
         Quaternion hipsCorr = Quaternion.identity;
-        public static bool UseHumanoid = false, LogRig = false, QFingers = false;
+        public static bool UseHumanoid = false, LogRig = false, QFingers = false, ExtraPos = true;
         static bool IsFinger(string n) => n.Contains("Index") || n.Contains("Middle") || n.Contains("Ring") || n.Contains("Pinky") || n.Contains("Thumb");
         HumanPoseHandler srcPose, dstPose; HumanPose pose;
         void Retarget()
@@ -788,11 +788,13 @@ namespace LastWar
         {
             foreach (Extra x in extras)
             {
-                for (int i = 0; i < x.from.Count; i++) x.to[i].rotation = x.from[i].rotation * x.map[i];
+                // the pieces of another outfit share the leading skeleton: each joint sits where the leading joint is
+                // (another body's bone lengths would otherwise leave gaps at the waist / ankles), turned by the rest map
+                for (int i = 0; i < x.from.Count; i++) { x.to[i].rotation = x.from[i].rotation * x.map[i]; if (ExtraPos) x.to[i].position = x.from[i].position; }
                 if (x.hips != null)
                 {
                     int hi = x.to.IndexOf(x.hips);
-                    if (hi >= 0) x.hips.position = x.from[hi].position + transform.TransformVector(x.hipsOffset);
+                    if (hi >= 0 && !ExtraPos) x.hips.position = x.from[hi].position + transform.TransformVector(x.hipsOffset);
                 }
             }
         }

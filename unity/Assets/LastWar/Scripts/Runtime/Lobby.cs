@@ -46,6 +46,7 @@ namespace LastWar
             if (float.TryParse(Arg("lgun") ?? "x", out float lg)) LobbyGunTurn = lg;
             // outfit validation bench (?grid= / ?swap=1)
             if (Arg("qfingers") == "1") SoldierBody.QFingers = true;
+            if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
             if (float.TryParse(Arg("jumpat") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ja)) LobbyTests.Holds[2] = ja;
             int.TryParse(Arg("from") ?? "0", out int tFrom); int.TryParse(Arg("n") ?? "4", out int tN);
             if (LobbyTests.Run(cam, l.canvas, Arg("grid"), tFrom, tN, Arg("zoom") == "1", Arg("swap") == "1")) return l;
