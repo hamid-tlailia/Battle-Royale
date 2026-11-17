@@ -16,7 +16,7 @@ namespace LastWar
     {
         static readonly string[] Clips = { "idle", "run", "jump", "crouch_idle", "idle_rifle", "fire" };
         static readonly float[] Holds = { 0.3f, 0.3f, 0.42f, 0.3f, 0.3f, 0.25f }; // the frame shown of each clip
-        readonly List<(SoldierBody b, float at)> bodies = new List<(SoldierBody, float)>();
+        readonly List<SoldierBody> bodies = new List<SoldierBody>(); readonly List<float> holdAt = new List<float>();
         static readonly string[] ClipNames = { "IDLE", "RUN", "JUMP", "CROUCH", "AIM", "SHOOT" };
 
         public static bool Run(Camera cam, Canvas ui, string grid, int from, int n, bool zoom, bool swap)
@@ -32,39 +32,39 @@ namespace LastWar
 
         void Grid(Camera cam, string grid, int from, int n, bool zoom)
         {
-            var rows = new List<(int skin, int[] parts, string label)>();
+            var rSkin = new List<int>(); var rParts = new List<int[]>(); var rLabel = new List<string>();
             bool mix = grid.StartsWith("mix");
             var list = GroupList(grid.EndsWith("q") ? 1 : 0);
             if (!mix)
-                for (int i = from; i < Mathf.Min(list.Count, from + n); i++) rows.Add((list[i], null, SoldierBody.OutfitNames[list[i]]));
+                for (int i = from; i < Mathf.Min(list.Count, from + n); i++) { rSkin.Add(list[i]); rParts.Add(null); rLabel.Add(SoldierBody.OutfitNames[list[i]]); }
             else
             {
                 // every row: a different outfit for each piece (head / torso / legs / feet), all inside the group
                 for (int r = 0; r < n; r++)
                 {
                     int a = list[(from + r) % list.Count], b = list[(from + r + 3) % list.Count], c = list[(from + r + 6) % list.Count], d = list[(from + r + 9) % list.Count];
-                    rows.Add((b, new[] { a, b, c, d }, $"H:{SoldierBody.OutfitNames[a]} T:{SoldierBody.OutfitNames[b]} L:{SoldierBody.OutfitNames[c]} F:{SoldierBody.OutfitNames[d]}"));
+                    rSkin.Add(b); rParts.Add(new[] { a, b, c, d }); rLabel.Add($"H:{SoldierBody.OutfitNames[a]} T:{SoldierBody.OutfitNames[b]} L:{SoldierBody.OutfitNames[c]} F:{SoldierBody.OutfitNames[d]}");
                 }
             }
             Vector3 origin = new Vector3(0, 300f, 0); // above everything: an empty sky behind
             float dx = 1.25f, dy = 2.35f;
-            for (int r = 0; r < rows.Count; r++)
+            for (int r = 0; r < rSkin.Count; r++)
                 for (int c = 0; c < Clips.Length; c++)
                 {
                     var go = new GameObject($"t{r}_{c}");
                     go.transform.position = origin + new Vector3((c - (Clips.Length - 1) / 2f) * dx, -r * dy, 0);
                     go.transform.rotation = Quaternion.Euler(0, 180f + 35f, 0); // three-quarter view toward the camera
-                    var body = SoldierBody.Attach(go, rows[r].skin, rows[r].parts);
+                    var body = SoldierBody.Attach(go, rSkin[r], rParts[r]);
                     body.SetGun(c == 0 ? null : "rifle"); body.Armed = c != 0;
                     body.Play(Clips[c]); body.Speed = c == 1 ? 6f : 0f;
                     body.AimDir = go.transform.forward;
-                    bodies.Add((body, Holds[c]));
-                    Debug.Log($"[LastWar] test row {r} {rows[r].label} pose {ClipNames[c]}");
+                    bodies.Add(body); holdAt.Add(Holds[c]);
+                    Debug.Log($"[LastWar] test row {r} {rLabel[r]} pose {ClipNames[c]}");
                 }
             cam.orthographic = true;
-            float h = rows.Count * dy;
+            float h = rSkin.Count * dy;
             cam.orthographicSize = zoom ? h * 0.36f : h * 0.56f + 0.2f;
-            cam.transform.position = origin + new Vector3(0, -(rows.Count - 1) * dy / 2f + 0.9f, -30f);
+            cam.transform.position = origin + new Vector3(0, -(rSkin.Count - 1) * dy / 2f + 0.9f, -30f);
             cam.transform.rotation = Quaternion.identity;
             cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(.78f, .84f, .88f);
             cam.farClipPlane = 100f;
@@ -75,7 +75,7 @@ namespace LastWar
         IEnumerator HoldAll()
         {
             yield return new WaitForSeconds(1.0f); // the crossfades settle
-            foreach (var (b, at) in bodies) b.Hold(at);
+            for (int i = 0; i < bodies.Count; i++) bodies[i].Hold(holdAt[i]);
             Debug.Log("[LastWar] test grid ready");
         }
 
