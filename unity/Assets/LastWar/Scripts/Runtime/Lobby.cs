@@ -96,7 +96,7 @@ namespace LastWar
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
-            lobbyBody.SetGun(Armory.Equipped("rifle")); lobbyBody.ShoulderGrip = true; lobbyBody.Plant = true;
+            lobbyBody.SetGun(Armory.Equipped("rifle")); lobbyBody.ShoulderGrip = false; lobbyBody.Plant = true;
             lobbyBody.GripOffset = LobbyGrip; // (the armory version you carry)
             lobbyBody.Play("idle_rifle");
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL

@@ -26,9 +26,12 @@ namespace LastWar
         /// <summary>outfits in the web game's order (SKINS): index = saved skin</summary>
         public static readonly string[] OutfitFiles = { "swat", "tactical", "fsb", "ksk", "bundeswehr", "sfarmy", "rusoldier", "uasoldier", "ww2", "crouchsold", "armyman",
             // Quaternius modular characters (CC0): one rig, so their pieces mix with no gaps
-            "q_swat", "q_adventurer", "q_worker", "q_farmer", "q_punk", "q_spacesuit", "q_king", "q_suit", "q_casual", "q_casual2", "q_beach" };
+            "q_swat", "q_adventurer", "q_worker", "q_farmer", "q_punk", "q_spacesuit", "q_king", "q_suit", "q_casual", "q_casual2", "q_beach",
+            // Mixamo characters (worn whole), animated with the Mixamo rifle clips
+            "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer" };
         public static readonly string[] OutfitNames = { "SWAT", "Agent", "Operator", "Recon", "Woodland", "Commando", "Rifleman", "Desert", "Veteran", "Ghost", "Infantry",
-            "Tactical", "Ranger", "Worker", "Farmer", "Punk", "Astronaut", "King", "Agent X", "Hoodie", "Casual", "Beach" };
+            "Tactical", "Ranger", "Worker", "Farmer", "Punk", "Astronaut", "King", "Agent X", "Hoodie", "Casual", "Beach",
+            "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer" };
 
         /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
         /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
@@ -312,20 +315,33 @@ namespace LastWar
             graph.Play();
         }
 
+        // ---- rifle animations (Mixamo Pro Rifle Pack, retargeted): with a gun in the hands the game's clips are swapped
+        // for these - the hands sit on the gun as the animator placed them
+        static readonly Dictionary<string, string> RifleClips = new Dictionary<string, string> {
+            { "idle", "mx_idle" }, { "idle_rifle", "mx_idle" }, { "fire", "mx_aim" }, { "walk_fire", "mx_walk" }, { "walk", "mx_walk" },
+            { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_aim" },
+            { "crouch_walk", "mx_crouch_walk" } };
+        public static bool UseRifleClips = true;
+        string playing; // the clip the mixer plays for `current` (a rifle clip when one stands in)
+        bool RifleClip => playing != null && playing.StartsWith("mx_");
+
         public void Play(string clip)
         {
-            if (clip == current || !clipIndex.ContainsKey(clip)) return;
-            current = clip;
+            if (!clipIndex.ContainsKey(clip)) return;
+            string key = clip;
+            if (UseRifleClips && Armed && gun != null && !gunId.StartsWith("pistol") && RifleClips.TryGetValue(clip, out string mx) && clipIndex.ContainsKey(mx)) key = mx;
+            if (clip == current && key == playing) return;
+            current = clip; playing = key;
             // restart one-shot clips (jump, death) from the beginning
-            var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[clip]);
-            if (OneShot(clip)) { cp.SetTime(0); cp.SetSpeed(1); }
+            var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[key]);
+            if (OneShot(key)) { cp.SetTime(0); cp.SetSpeed(1); }
         }
 
         /// <summary>test bench: stop the current clip at a fraction of its length (a fixed frame for screenshots)</summary>
         public void Hold(float fraction)
         {
-            if (current == null || !clipIndex.ContainsKey(current)) return;
-            var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[current]);
+            if (playing == null || !clipIndex.ContainsKey(playing)) return;
+            var cp = (AnimationClipPlayable)mixer.GetInput(clipIndex[playing]);
             var c = cp.GetAnimationClip(); cp.SetTime(c != null ? c.length * fraction : 0); cp.SetSpeed(0);
         }
 
@@ -429,11 +445,11 @@ namespace LastWar
         {
             if (weights == null || current == null) return;
             // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
-            freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
+            freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" && !RifleClip ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
             if (walkArms.IsValid()) layers.SetInputWeight(1, 0f); // (the arms are copied from the walk clip in LateUpdate instead)
-            int target = clipIndex[current];
+            int target = clipIndex[playing ?? current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
-            if (OneShot(current))
+            if (OneShot(playing ?? current))
             {
                 var cp = (AnimationClipPlayable)mixer.GetInput(target);
                 float len = clips[target].length - 0.02f;
@@ -661,7 +677,7 @@ namespace LastWar
         /// <summary>how far through its loop the current clip is (0..1)</summary>
         float ClipPhase()
         {
-            if (current == null || !clipIndex.TryGetValue(current, out int i)) return 0;
+            if (playing == null || !clipIndex.TryGetValue(playing, out int i)) return 0;
             double len = clips[i].length; if (len < 0.01) return 0;
             double t = ((AnimationClipPlayable)mixer.GetInput(i)).GetTime() % len; if (t < 0) t += len;
             return (float)(t / len);
@@ -785,6 +801,7 @@ namespace LastWar
             Transform handL = PoseBone("LeftHand");
             bool carried = current == "run" || current == "prone" || Pose == "crawl";
             bool dead = current.StartsWith("death"), pistol = gunId.StartsWith("pistol");
+            if (RifleClip && !dead) { RifleHold(dir); return; }
             bool aim = ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !dead;
             Vector3 grip = Vector3.zero; bool hasGrip = false;
             // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim
@@ -851,6 +868,37 @@ namespace LastWar
                 }
             }
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
+        }
+
+        // ---- the rifle clips hold the hands where a rifle goes: the gun lies from the right palm to the left one
+        Vector3 Palm(string sd)
+        {
+            Transform h = sd == "Right" ? handR : PoseBone("LeftHand"), m = PoseBone(sd + "HandMiddle1");
+            if (h == null) return Vector3.zero;
+            return m != null ? Vector3.Lerp(h.position, m.position, 0.8f) : h.position;
+        }
+
+        void RifleHold(Vector3 aim)
+        {
+            Transform hl = PoseBone("LeftHand");
+            if (hl == null) { gun.position = handR.position; gun.rotation = Quaternion.LookRotation(-aim, Vector3.up); return; }
+            // aiming clips: the chest turns (spread over the three spine bones) so the gun points where the crosshair is
+            if (ShoulderGrip && (playing == "mx_aim" || playing == "mx_crouch_aim" || playing == "mx_walk"))
+            {
+                Vector3 g = Palm("Left") - Palm("Right");
+                if (g.sqrMagnitude > 1e-4f)
+                {
+                    Quaternion q = Quaternion.FromToRotation(g.normalized, aim);
+                    q.ToAngleAxis(out float ang, out Vector3 ax); if (ang > 180f) ang -= 360f;
+                    ang = Mathf.Clamp(ang, -75f, 75f);
+                    Quaternion part = Quaternion.AngleAxis(ang / 3f, ax);
+                    foreach (string b in new[] { "Spine", "Spine1", "Spine2" }) { Transform t = PoseBone(b); if (t != null) t.rotation = part * t.rotation; }
+                }
+            }
+            Vector3 rp = Palm("Right"), lp = Palm("Left"), d = lp - rp;
+            Vector3 dir = d.sqrMagnitude > 1e-4f ? d.normalized : aim;
+            gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
+            gun.position = rp + gun.up * (gunId.StartsWith("smg") ? 0.04f : 0.05f);
         }
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)

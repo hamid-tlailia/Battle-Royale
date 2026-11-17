@@ -7,7 +7,7 @@ namespace LastWar
     public static class Profile
     {
         public static string Name { get => PlayerPrefs.GetString("lw.name", "Soldier"); set { PlayerPrefs.SetString("lw.name", string.IsNullOrWhiteSpace(value) ? "Soldier" : value.Trim()); PlayerPrefs.Save(); } }
-        public static int Skin { get => PlayerPrefs.GetInt("lw.skin", 0); set { PlayerPrefs.SetInt("lw.skin", value); PlayerPrefs.Save(); } }
+        public static int Skin { get => PlayerPrefs.GetInt("lw.skin", 22); set { PlayerPrefs.SetInt("lw.skin", value); PlayerPrefs.Save(); } }
         /// <summary>mix and match: the outfit worn for each piece (0 head, 1 torso, 2 legs, 3 feet); -1 = the full outfit's</summary>
         public static int Part(int i) => PlayerPrefs.GetInt("lw.part" + i, -1);
         public static void SetPart(int i, int skin) { PlayerPrefs.SetInt("lw.part" + i, skin); PlayerPrefs.Save(); }
