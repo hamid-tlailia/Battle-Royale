@@ -14,10 +14,18 @@ namespace LastWar
     /// </summary>
     public class LobbyTests : MonoBehaviour
     {
-        static readonly string[] Clips = { "idle", "run", "jump", "crouch_idle", "idle_rifle", "fire" };
+        static string[] Clips = { "idle", "run", "jump", "crouch_idle", "idle_rifle", "fire" };
         public static float[] Holds = { 0.3f, 0.3f, 0.55f, 0.3f, 0.3f, 0.25f }; // the frame shown of each clip
         readonly List<SoldierBody> bodies = new List<SoldierBody>(); readonly List<float> holdAt = new List<float>();
-        static readonly string[] ClipNames = { "IDLE", "RUN", "JUMP", "CROUCH", "AIM", "SHOOT" };
+        static string[] ClipNames = { "IDLE", "RUN", "JUMP", "CROUCH", "AIM", "SHOOT" };
+        /// <summary>?clips=a,b,c : the grid plays exactly these clips (no rifle swap), e.g. every clip of the base skeleton</summary>
+        public static void SetClips(string list)
+        {
+            if (string.IsNullOrEmpty(list)) return;
+            Clips = list.Split(','); ClipNames = (string[])Clips.Clone(); SoldierBody.UseRifleClips = false; RawClips = true;
+            var h = new float[Clips.Length]; for (int i = 0; i < h.Length; i++) h[i] = 0.35f; Holds = h;
+        }
+        static bool RawClips;
 
         public static bool Run(Camera cam, Canvas ui, string grid, int from, int n, bool zoom, bool swap)
         {
