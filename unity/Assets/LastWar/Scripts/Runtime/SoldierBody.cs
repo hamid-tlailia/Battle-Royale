@@ -343,7 +343,7 @@ namespace LastWar
         static readonly Dictionary<string, string> RifleClips = new Dictionary<string, string> {
             { "idle", "mx_idle" }, { "idle_rifle", "mx_idle" }, { "fire", "mx_fire" }, { "walk_fire", "mx_walk" }, { "walk", "mx_walk" },
             { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
-            { "crouch_walk", "mx_crouch_walk" } };
+            { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
         /// <summary>reloading: standing still (or aiming / firing / walking) the rifle reload clip plays, timed to the reload</summary>
         public bool Reloading; public float ReloadTime = 2f;
@@ -356,6 +356,8 @@ namespace LastWar
             if (!clipIndex.ContainsKey(clip)) return;
             string key = clip;
             if (UseRifleClips && Armed && gun != null && !gunId.StartsWith("pistol") && RifleClips.TryGetValue(clip, out string mx) && clipIndex.ContainsKey(mx)) key = mx;
+            // lying down with a rifle: the Mixamo prone clips (still / crawling forward; backward = the crawl stepped back)
+            if (key == "mx_prone" && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("mx_crawl")) key = "mx_crawl";
             if (Reloading && ReloadOver.Contains(key) && clipIndex.ContainsKey("mx_reload")) key = "mx_reload";
             if (clip == current && key == playing) return;
             current = clip; playing = key;
@@ -632,6 +634,8 @@ namespace LastWar
 
         void ApplyPose()
         {
+            // the rifle's prone clips crawl by themselves: no hand-made crawl on top
+            if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl")) { poseW = 0; CrawlPull = 1f; return; }
             if (Pose != null) poseKind = Pose;
             poseW = Mathf.Clamp01(poseW + (Pose != null ? 1 : -1) * Time.deltaTime * 7f);
             float w = poseW;
