@@ -819,11 +819,11 @@ namespace LastWar
                     {
                         // under the handguard: palm up, fingers round its right side
                         k = (side * 0.75f + dir * 0.66f).normalized; n = up;
-                        c = gun.position + dir * GripAhead(gunId) - up * 0.045f;
+                        c = gun.position + dir * GripAhead(gunId) - up * 0.015f;
                     }
                     TwoBone(la, lf, handL, c - k * palm * 0.7f);
                     OrientHand(handL, lf, "Left", k, n);
-                    if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 58f, 62f, 38f, 25f);
+                    if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 48f, 55f, 32f, 25f);
                 }
             }
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
@@ -834,9 +834,14 @@ namespace LastWar
         static readonly string[] FingerNames = { "Index", "Middle", "Ring", "Pinky" };
         Dictionary<Transform, Quaternion> fingerRest;
 
+        int knuckle = 1; // the bone level at the knuckles: 1 on mixamo rigs, 2 on Quaternius (its first finger bones all start in the palm)
+
         void CacheFingerRest()
         {
             fingerRest = new Dictionary<Transform, Quaternion>();
+            Transform i1 = PoseBone("RightHandIndex1"), p1 = PoseBone("RightHandPinky1"), m1 = PoseBone("RightHandMiddle1");
+            knuckle = i1 != null && p1 != null && m1 != null && handR != null && PoseBone("RightHandIndex2") != null
+                && (i1.position - p1.position).magnitude < 0.25f * (m1.position - handR.position).magnitude + 1e-4f ? 2 : 1;
             foreach (string sd in new[] { "Left", "Right" })
                 foreach (string f in new[] { "Index", "Middle", "Ring", "Pinky", "Thumb" })
                     for (int i = 1; i <= 3; i++) { Transform b = PoseBone(sd + "Hand" + f + i); if (b != null) fingerRest[b] = b.localRotation; }
@@ -845,21 +850,21 @@ namespace LastWar
         /// <summary>wrist to the knuckles, along the fingers</summary>
         Vector3 HandDir(Transform hand, string sd)
         {
-            Transform m = PoseBone(sd + "HandMiddle1");
+            Transform m = PoseBone(sd + "HandMiddle" + knuckle);
             Vector3 d = m != null ? m.position - hand.position : hand.rotation * Vector3.up;
             return d.sqrMagnitude > 1e-8f ? d.normalized : hand.up;
         }
 
         float PalmLen(Transform hand, string sd)
         {
-            Transform m = PoseBone(sd + "HandMiddle1");
+            Transform m = PoseBone(sd + "HandMiddle" + knuckle);
             return m != null ? Mathf.Clamp((m.position - hand.position).magnitude * 0.8f, 0.04f, 0.12f) : 0.07f;
         }
 
         /// <summary>out of the palm (right hand: knuckles x (pinky to index); the left hand is mirrored)</summary>
         Vector3 PalmNormal(Transform hand, string sd)
         {
-            Transform ix = PoseBone(sd + "HandIndex1"), pk = PoseBone(sd + "HandPinky1");
+            Transform ix = PoseBone(sd + "HandIndex" + knuckle), pk = PoseBone(sd + "HandPinky" + knuckle);
             Vector3 k = HandDir(hand, sd);
             if (ix == null || pk == null) return sd == "Right" ? -hand.right : hand.right;
             Vector3 n = Vector3.Cross(k, ix.position - pk.position);
@@ -902,7 +907,7 @@ namespace LastWar
             Vector3 axis = Vector3.Cross(k, n).normalized;
             float[] ang = { a1, a2, a3 };
             foreach (string f in FingerNames)
-                for (int i = 1; i <= 3; i++) { Transform b = PoseBone(sd + "Hand" + f + i); if (b != null) b.rotation = Quaternion.AngleAxis(ang[i - 1], axis) * b.rotation; }
+                for (int i = knuckle; i <= 3; i++) { Transform b = PoseBone(sd + "Hand" + f + i); if (b != null) b.rotation = Quaternion.AngleAxis(ang[i - knuckle], axis) * b.rotation; }
             for (int i = 1; i <= 3; i++)
             {
                 Transform b = PoseBone(sd + "HandThumb" + i), c = PoseBone(sd + "HandThumb" + (i + 1));
