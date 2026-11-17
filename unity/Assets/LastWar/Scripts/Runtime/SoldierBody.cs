@@ -181,6 +181,8 @@ namespace LastWar
                     srcHipsBind = transform.InverseTransformPoint(t.position); dstHipsBind = transform.InverseTransformPoint(d.position);
                     continue;
                 }
+                // Quaternius hands: the fingers keep their own relaxed rest (the soldier's finger rests differ in twist)
+                if (Group(skin) == 1 && !QFingers && IsFinger(t.name)) continue;
                 srcBones.Add(t); dstBones.Add(d);
             }
             boneMap = RestMaps(srcBones, dstBones);
@@ -191,7 +193,8 @@ namespace LastWar
         }
 
         Quaternion hipsCorr = Quaternion.identity;
-        public static bool UseHumanoid = false, LogRig = false;
+        public static bool UseHumanoid = false, LogRig = false, QFingers = false;
+        static bool IsFinger(string n) => n.Contains("Index") || n.Contains("Middle") || n.Contains("Ring") || n.Contains("Pinky") || n.Contains("Thumb");
         HumanPoseHandler srcPose, dstPose; HumanPose pose;
         void Retarget()
         {

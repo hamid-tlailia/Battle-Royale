@@ -15,7 +15,7 @@ namespace LastWar
     public class LobbyTests : MonoBehaviour
     {
         static readonly string[] Clips = { "idle", "run", "jump", "crouch_idle", "idle_rifle", "fire" };
-        static readonly float[] Holds = { 0.3f, 0.3f, 0.42f, 0.3f, 0.3f, 0.25f }; // the frame shown of each clip
+        public static readonly float[] Holds = { 0.3f, 0.3f, 0.55f, 0.3f, 0.3f, 0.25f }; // the frame shown of each clip
         readonly List<SoldierBody> bodies = new List<SoldierBody>(); readonly List<float> holdAt = new List<float>();
         static readonly string[] ClipNames = { "IDLE", "RUN", "JUMP", "CROUCH", "AIM", "SHOOT" };
 
