@@ -113,7 +113,7 @@ namespace LastWar
                 body.SetGun(k % 2 == 0 ? "rifle" : "pistol"); body.Armed = true; body.Play(k % 3 == 0 ? "run" : "idle_rifle");
                 yield return new WaitForSeconds(0.4f);
                 // the checks: the hand holds the gun, the soldier animates, the outfit pieces are there
-                bool gunOk = body.GunAtHand(0.12f), animOk = body.Animating, partsOk = body.VisiblePieces >= 4;
+                bool gunOk = body.GunAtHand(0.12f), animOk = body.Animating, partsOk = body.VisiblePieces >= 1; // (whole characters: 1-3 meshes)
                 if (!(gunOk && animOk && partsOk)) fails++;
                 Debug.Log($"[LastWar] swap {k}: {SoldierBody.OutfitNames[skin]} parts {string.Join(",", parts)} gun {gunOk} anim {animOk} pieces {body.VisiblePieces}");
             }
