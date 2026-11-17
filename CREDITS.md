@@ -93,3 +93,7 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Low Poly Game Ready Military Tactical Backpack | loot / gear model `bag3` | 1799danly | CC Attribution | https://sketchfab.com/3d-models/95a4fc7300584384b56ce3add58dbc9f |
 | Hełm wz. 2005 (Helmet model 2005) | loot / gear model `helmet2` | armoredwave | CC Attribution | https://sketchfab.com/3d-models/3bef9733977142599dc2275cf889fcef |
 | VINTAGE MILITARY BACKPACK | loot / gear model `bag1` | pixabar | CC Attribution | https://sketchfab.com/3d-models/dce182b7965546118df059f90df497dc |
+| Shanty / House / Building / Enterable | enterable building `bld_shanty` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/64f09376d1a44ffd8716d7cc5f28db9c |
+| Shanty / Mansion / Wooden | enterable building `bld_mansion` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/cf93dfd6da1640f08ebe051ba280426d |
+| Abandoned / Building / Shop / Old / House | enterable building `bld_shop` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/0ed14367314946b298d9a58db66da040 |
+| Enterable Panel House | enterable building `bld_panel` (Death Valley) | c01l3d | CC Attribution | https://sketchfab.com/3d-models/22a08dc43c1c4888ad8d33b7d2e69e81 |

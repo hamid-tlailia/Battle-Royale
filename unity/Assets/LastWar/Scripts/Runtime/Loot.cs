@@ -191,7 +191,7 @@ namespace LastWar
             // inside every house / farm building: up to 8 things on the floor
             foreach (PropData h in map.props)
             {
-                if (!h.p.StartsWith("house") && h.p != "farmhouse") continue;
+                if (!h.p.StartsWith("house") && h.p != "farmhouse" && !h.p.StartsWith("bld_")) continue;
                 var bounds = MapBuilder.PropBounds(h);
                 int n = 0;
                 for (int k = 0; k < 28 && n < 8; k++)

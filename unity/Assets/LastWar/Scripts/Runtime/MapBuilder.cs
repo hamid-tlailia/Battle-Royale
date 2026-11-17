@@ -226,7 +226,7 @@ namespace LastWar
             if (model != null)
             {
                 GameObject inst = UnityEngine.Object.Instantiate(model, root.transform, false);
-                if (p.p.StartsWith("house") || p.p == "farmhouse")
+                if (p.p.StartsWith("house") || p.p == "farmhouse" || p.p.StartsWith("bld_"))
                 {
                     Bounds b = new Bounds(root.transform.position, Vector3.zero);
                     foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true)) b.Encapsulate(r.bounds);

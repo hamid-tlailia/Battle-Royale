@@ -145,17 +145,22 @@ def box(x, z, w, h, d, rot, color):
 used = {}
 for (score, sx, sz), kind in zip(sites, kinds):
     nm = names[kind][used.get(kind, 0)]; used[kind] = used.get(kind, 0) + 1
-    rad = {'village': 55, 'desert': 50, 'city': 70, 'outpost': 30}[kind]
+    rad = {'village': 55, 'desert': 70, 'city': 85, 'outpost': 30}[kind]
     flatten(sx, sz, rad, hat(sx, sz)); areas.append({'name': nm, 'x': sx, 'z': sz})
     road = rnd.random() * math.pi
     if kind in ('village', 'outpost', 'desert'):
-        houses = ['house_a', 'house_b', 'house_c', 'house_d', 'farmhouse'] if kind == 'village' else ['house_e', 'house_f', 'house_d'] if kind == 'desert' else ['house_a', 'house_e']
-        count = {'village': 9, 'desert': 10, 'outpost': 3}[kind]
+        # the desert town: enterable shanties (stairs to a second floor) and wooden mansions, a shop on its square
+        houses = ['house_a', 'house_b', 'house_c', 'house_d', 'farmhouse'] if kind == 'village' else ['bld_shanty', 'bld_mansion', 'bld_shanty', 'house_e'] if kind == 'desert' else ['bld_shanty', 'house_a']
+        count = {'village': 9, 'desert': 8, 'outpost': 3}[kind]
+        gap = 24 if kind == 'desert' else 22
         for q in range(count):
             # two rows along a street
-            side = 1 if q % 2 else -1; along = (q // 2 - count / 4) * 22
-            x = sx + math.cos(road) * along - math.sin(road) * side * 15; z = sz + math.sin(road) * along + math.cos(road) * side * 15
-            prop(rnd.choice(houses), x, z, road + (math.pi if side > 0 else 0) + rnd.uniform(-.08, .08))
+            side = 1 if q % 2 else -1; along = (q // 2 - count / 4) * gap
+            off = 17 if kind == 'desert' else 15
+            x = sx + math.cos(road) * along - math.sin(road) * side * off; z = sz + math.sin(road) * along + math.cos(road) * side * off
+            prop(houses[q % len(houses)] if kind == 'desert' else rnd.choice(houses), x, z, road + (math.pi if side > 0 else 0) + rnd.uniform(-.08, .08))
+        if kind == 'desert':
+            prop('bld_shop', sx + math.cos(road) * (count / 4 * gap + 26), sz + math.sin(road) * (count / 4 * gap + 26), road)
         for q in range(4):
             prop(rnd.choice(['car1', 'car2', 'car3', 'car4']), sx + rnd.uniform(-rad, rad) * .7, sz + rnd.uniform(-rad, rad) * .7, rnd.random() * 6.28)
         if kind == 'village':
@@ -169,12 +174,13 @@ for (score, sx, sz), kind in zip(sites, kinds):
         # the city: blocks of concrete towers (solid cover) round a square, a few houses to loot between them
         greys = [0x8a8f94, 0x9c968c, 0x7d838a, 0xb0a99c, 0x6f7479]
         for gx2 in range(-2, 3):
-            for gz2 in range(-2, 3):
+            for gz2 in range(-1, 2):
                 if gx2 == 0 and gz2 == 0: continue
-                cxl, czl = gx2 * 26, gz2 * 26
+                cxl, czl = gx2 * 30, gz2 * 34
                 x = sx + math.cos(road) * cxl - math.sin(road) * czl; z = sz + math.sin(road) * cxl + math.cos(road) * czl
-                if (gx2 + gz2) % 3 == 0: prop(rnd.choice(['house_a', 'house_b', 'house_c']), x, z, road + rnd.choice([0, math.pi / 2, math.pi])); continue
-                box(x, z, rnd.uniform(12, 17), rnd.uniform(9, 26), rnd.uniform(12, 17), road, rnd.choice(greys))
+                # enterable apartment blocks (climb the stairs, shoot from the windows) between solid concrete towers
+                if (gx2 + gz2) % 2 == 0: prop('bld_panel', x, z, road + rnd.choice([0, math.pi])); continue
+                box(x, z, rnd.uniform(10, 14), rnd.uniform(9, 26), rnd.uniform(10, 14), road, rnd.choice(greys))
         for q in range(8): prop(rnd.choice(['car1', 'car2', 'car3', 'car4']), sx + rnd.uniform(-60, 60), sz + rnd.uniform(-60, 60), road + rnd.choice([0, math.pi]))
 
 # the wild: rocks, dry bushes, dead trees - away from the settlements and off the steep walls
