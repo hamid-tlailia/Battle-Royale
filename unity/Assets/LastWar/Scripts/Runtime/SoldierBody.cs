@@ -73,16 +73,21 @@ namespace LastWar
         {
             var maps = new List<Quaternion>(from.Count);
             var index = new Dictionary<Transform, int>(); for (int i = 0; i < from.Count; i++) index[from[i]] = i;
+            var fixes = new Quaternion[from.Count];
             for (int i = 0; i < from.Count; i++)
             {
-                Quaternion fix = Quaternion.identity;
+                Quaternion fix = Quaternion.identity; bool found = false;
                 foreach (Transform c in from[i])
                 {
                     if (!index.TryGetValue(c, out int ci)) continue;
                     Vector3 a = to[ci].position - to[i].position, b = c.position - from[i].position;
                     if (a.sqrMagnitude > 1e-8f && b.sqrMagnitude > 1e-8f && BoneKey(from[i].name) != "Hips") fix = Quaternion.FromToRotation(a, b);
+                    found = true;
                     break;
                 }
+                // an end bone (a hand whose fingers keep their rest, a foot without toes): it turns as its parent was turned
+                if (!found && from[i].parent != null && index.TryGetValue(from[i].parent, out int pi) && pi < i) fix = fixes[pi];
+                fixes[i] = fix;
                 maps.Add(Quaternion.Inverse(from[i].rotation) * fix * to[i].rotation);
             }
             return maps;
