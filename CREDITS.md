@@ -101,3 +101,4 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Mixamo characters (SWAT, Marine, Exo, Shadow, Hazmat, Knight, Archer) | outfits `mx_*` (worn whole; scripts/unity/import-mixamo-chars.mjs) | Adobe Mixamo | Mixamo terms (royalty-free in games, downloaded by the project owner) | https://www.mixamo.com |
 | Pro Rifle Pack (Mixamo) | rifle clips `mx_*` in soldier.glb (scripts/unity/retarget-mixamo.mjs) | Adobe Mixamo | Mixamo terms (royalty-free in games, downloaded by the project owner) | https://www.mixamo.com |
 | ui_click.wav, ui_start.wav | lobby button click / PLAY start sounds | synthesized for this project (scripts in session) | CC0 | - |
+| Gunshot sounds (sks, mosin, cz, shotty) | rifle / sniper / pistol (+ smg pitched) / shotgun shots | Vincent Sevedge (opengameart "Gunshot sounds") | CC-BY 3.0 (page lists CC0) | https://opengameart.org/content/gunshot-sounds |

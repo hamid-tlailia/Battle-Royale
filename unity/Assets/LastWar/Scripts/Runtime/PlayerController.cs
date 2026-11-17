@@ -368,7 +368,7 @@ namespace LastWar
                 else
                 {
                     Angles(scopeLock, out float qy, out float qp, out _, out _);
-                    float kk = lockTarget != scopeLock ? 1f : Mathf.Min(1f, dt * 25f); // straight onto the body, then it follows
+                    float kk = 1f; // glued to the body at once and every frame after (no catching up)
                     yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
                     lockTarget = scopeLock; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = scopeLock;
                     return;

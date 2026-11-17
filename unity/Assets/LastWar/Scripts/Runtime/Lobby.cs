@@ -361,8 +361,8 @@ namespace LastWar
             int cols = Mathf.Clamp(Mathf.FloorToInt((PageW + gap) / (cw + gap)), 3, 6);
             var content = ScrollArea(cols * (cw + gap) - gap);
             // parts: the full outfit (now) and single pieces (coming later)
-            float tabsH = 30 * s, top = tabsH + 12 * s;
-            SettingsPanel.Segments(content, Vector2.zero, new Vector2(content.sizeDelta.x, tabsH), 11 * k, OutfitTabs, outfitTab, t => { outfitTab = t; Open("outfit"); });
+            // whole outfits only (single pieces of different bodies never fitted together)
+            float top = 4 * s; outfitTab = 0;
             // tab 0: whole outfits; tabs 1-4: one piece (mask, T-shirt, pants, shoes) taken from any outfit
             int part = outfitTab - 1;
             // single pieces only from the modular characters (the military outfits are worn whole)

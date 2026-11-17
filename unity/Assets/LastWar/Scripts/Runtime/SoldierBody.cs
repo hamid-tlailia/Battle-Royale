@@ -23,36 +23,9 @@ namespace LastWar
         public Vector3? Muzzle => gun != null ? gun.position + AimDir.normalized * 0.55f : (Vector3?)null;
         static AnimationClip[] clips;
 
-        /// <summary>outfits in the web game's order (SKINS): index = saved skin</summary>
-        public static readonly string[] OutfitFiles = { "swat", "tactical", "fsb", "ksk", "bundeswehr", "sfarmy", "rusoldier", "uasoldier", "ww2", "crouchsold", "armyman",
-            // Quaternius modular characters (CC0): one rig, so their pieces mix with no gaps
-            "q_swat", "q_adventurer", "q_worker", "q_farmer", "q_punk", "q_spacesuit", "q_king", "q_suit", "q_casual", "q_casual2", "q_beach",
-            // Mixamo characters (worn whole), animated with the Mixamo rifle clips
-            "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer" };
-        public static readonly string[] OutfitNames = { "SWAT", "Agent", "Operator", "Recon", "Woodland", "Commando", "Rifleman", "Desert", "Veteran", "Ghost", "Infantry",
-            "Tactical", "Ranger", "Worker", "Farmer", "Punk", "Astronaut", "King", "Agent X", "Hoodie", "Casual", "Beach",
-            "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer" };
-
-        /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
-        /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
-        /// null = the whole of `skin`</summary>
-        public static SoldierBody Attach(GameObject owner, int skin = -1, int[] parts = null)
-        {
-            var body = owner.AddComponent<SoldierBody>();
-            body.parts = parts;
-            body.Build(skin);
-            return body;
-        }
-
-        // ---- outfit driven by the (hidden) animated soldier: same mixamo bone names, rest-pose corrected
-        Transform outfitRoot;
-        readonly List<Transform> srcBones = new List<Transform>(), dstBones = new List<Transform>();
-        Transform srcHips, dstHips; Vector3 srcHipsBind, dstHipsBind;
-
-        static string BoneKey(string n) { int c = n.LastIndexOf(':'); return c >= 0 ? n.Substring(c + 1) : n; }
-
-        // ---- mix and match: the torso's outfit is the one the soldier drives (gun hands, poses); the head, legs and feet
-        //      may come from other outfits, which copy that outfit's pose every frame
+        /// <summary>the outfits (index = saved skin): whole Mixamo characters, all animated with the same rifle clips</summary>
+        public static readonly string[] OutfitFiles = { "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer", "tactical" };
+        public static readonly string[] OutfitNames = { "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer", "Agent" };
         public static readonly string[] PartNames = { "head", "torso", "legs", "feet" };
         // ---- checks for the outfit test bench
         public bool GunAtHand(float tol) => gun != null && handR != null && (gun.position - handR.position).magnitude < tol + 0.3f;
@@ -186,7 +159,7 @@ namespace LastWar
             {
                 if (r is SkinnedMeshRenderer smr) smr.updateWhenOffscreen = true;
                 var mats = r.sharedMaterials;
-                for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]);
+                for (int k = 0; k < mats.Length; k++) mats[k] = CharLit(mats[k]);
                 r.sharedMaterials = mats;
             }
             foreach (GameObject og in allOutfits) foreach (Animator a in og.GetComponentsInChildren<Animator>(true)) a.enabled = false;
@@ -282,6 +255,18 @@ namespace LastWar
         }
 
         public static Material Lit(Material src) => MapBuilder.LitFrom(src);
+        /// <summary>characters a little brighter than the world (dark suits vanished in shade and against the sand)</summary>
+        static readonly Dictionary<Material, Material> charMats = new Dictionary<Material, Material>();
+        public static Material CharLit(Material src)
+        {
+            if (src != null && charMats.TryGetValue(src, out Material m)) return m;
+            m = new Material(Lit(src));
+            Color c = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : Color.white;
+            float lum = c.r * 0.3f + c.g * 0.59f + c.b * 0.11f, k = lum < 0.35f ? 1.7f : 1.35f;
+            m.SetColor("_BaseColor", new Color(c.r * k, c.g * k, c.b * k, c.a));
+            if (src != null) charMats[src] = m;
+            return m;
+        }
 
         void SetupAnimation(GameObject m)
         {
@@ -823,7 +808,8 @@ namespace LastWar
             Transform handL = PoseBone("LeftHand");
             bool carried = current == "run" || current == "prone" || Pose == "crawl";
             bool dead = current.StartsWith("death"), pistol = gunId.StartsWith("pistol");
-            if (RifleClip && !dead) { RifleHold(dir); return; }
+            // long guns: held in the right hand as the rifle clips expect (also lying down / crawling)
+            if (!dead && !pistol && clipIndex.ContainsKey("mx_aim") && (RifleClip || current == "prone" || Pose == "crawl")) { RifleHold(dir); return; }
             bool aim = ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !dead;
             Vector3 grip = Vector3.zero; bool hasGrip = false;
             // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim
@@ -900,32 +886,60 @@ namespace LastWar
             return m != null ? Vector3.Lerp(h.position, m.position, 0.8f) : h.position;
         }
 
+        // The gun is fixed in the right hand the way the rifle clips were made for (measured once on the soldier from the
+        // aiming clip: grip in the right palm, barrel toward the left hand), so it turns with the wrist like a held gun;
+        // the left hand is then put on the handguard. While aiming, the chest turns so the barrel meets the crosshair.
+        bool rifleCal; Quaternion gunInHand = Quaternion.identity; Vector3 gunAtHand = Vector3.zero;
+        Transform SrcBone(string key) { foreach (Transform t in srcBones) if (BoneKey(t.name) == key) return t; return null; }
+
+        void CalibrateRifle()
+        {
+            rifleCal = true;
+            if (!clipIndex.TryGetValue("mx_aim", out int ai) || animRoot == null) return;
+            Transform sh = SrcBone("RightHand"), sl = SrcBone("LeftHand"), smr = SrcBone("RightHandMiddle1"), sml = SrcBone("LeftHandMiddle1");
+            if (sh == null || sl == null) return;
+            int hi = srcBones.IndexOf(sh); if (hi < 0 || hi >= boneMap.Count) return;
+            clips[ai].SampleAnimation(animRoot, 0.4f);
+            Vector3 rp = smr != null ? Vector3.Lerp(sh.position, smr.position, 0.8f) : sh.position;
+            Vector3 lp = sml != null ? Vector3.Lerp(sl.position, sml.position, 0.8f) : sl.position;
+            Vector3 d = (lp - rp).normalized;
+            Quaternion g = Quaternion.LookRotation(-d, transform.up);
+            Vector3 gp = rp + g * Vector3.up * 0.05f;
+            Quaternion hand = sh.rotation * boneMap[hi]; // the outfit's right hand in that pose
+            gunInHand = Quaternion.Inverse(hand) * g;
+            gunAtHand = Quaternion.Inverse(hand) * (gp - sh.position);
+        }
+
         void RifleHold(Vector3 aim)
         {
+            if (!rifleCal) CalibrateRifle();
             Transform hl = PoseBone("LeftHand");
-            if (hl == null) { gun.position = handR.position; gun.rotation = Quaternion.LookRotation(-aim, Vector3.up); return; }
-            // aiming clips: the chest turns (spread over the three spine bones) so the gun points where the crosshair is
-            // reloading: the gun stays in the right hand as it was held, while the left hand changes the magazine
-            if (playing == "mx_reload") { gun.rotation = handR.rotation * gunInHand; gun.position = handR.TransformPoint(gunAtHand); return; }
+            Quaternion gr = handR.rotation * gunInHand;
+            // aiming / firing / walking with the gun up: the chest turns (over the three spine bones) to the crosshair
             if (ShoulderGrip && (playing == "mx_aim" || playing == "mx_fire" || playing == "mx_crouch_aim" || playing == "mx_crouch_fire" || playing == "mx_walk"))
             {
-                Vector3 g = Palm("Left") - Palm("Right");
-                if (g.sqrMagnitude > 1e-4f)
+                Vector3 barrel = gr * Vector3.back;
+                Quaternion q = Quaternion.FromToRotation(barrel, aim);
+                q.ToAngleAxis(out float ang, out Vector3 ax); if (ang > 180f) ang -= 360f;
+                if (Mathf.Abs(ang) > 0.5f && ax.sqrMagnitude > 0.5f)
                 {
-                    Quaternion q = Quaternion.FromToRotation(g.normalized, aim);
-                    q.ToAngleAxis(out float ang, out Vector3 ax); if (ang > 180f) ang -= 360f;
-                    ang = Mathf.Clamp(ang, -75f, 75f);
-                    Quaternion part = Quaternion.AngleAxis(ang / 3f, ax);
+                    Quaternion part = Quaternion.AngleAxis(Mathf.Clamp(ang, -70f, 70f) / 3f, ax);
                     foreach (string b in new[] { "Spine", "Spine1", "Spine2" }) { Transform t = PoseBone(b); if (t != null) t.rotation = part * t.rotation; }
+                    gr = handR.rotation * gunInHand;
                 }
             }
-            Vector3 rp = Palm("Right"), lp = Palm("Left"), d = lp - rp;
-            Vector3 dir = d.sqrMagnitude > 1e-4f ? d.normalized : aim;
-            gun.rotation = Quaternion.LookRotation(-dir, Vector3.up);
-            gun.position = rp + gun.up * (gunId.StartsWith("smg") ? 0.04f : 0.05f);
-            gunInHand = Quaternion.Inverse(handR.rotation) * gun.rotation; gunAtHand = handR.InverseTransformPoint(gun.position);
+            gun.rotation = gr;
+            gun.position = handR.position + handR.rotation * gunAtHand;
+            // the support hand on the handguard (not while it changes the magazine)
+            if (hl != null && playing != "mx_reload")
+            {
+                Transform la = PoseBone("LeftArm"), lf = PoseBone("LeftForeArm");
+                Vector3 barrel = gr * Vector3.back;
+                Vector3 guard = gun.position + barrel * GripAhead(gunId) - gun.up * 0.035f;
+                Vector3 palmOff = Palm("Left") - hl.position;
+                if (la != null && lf != null && (Palm("Left") - guard).magnitude < 0.45f) TwoBone(la, lf, hl, guard - palmOff);
+            }
         }
-        Quaternion gunInHand = Quaternion.identity; Vector3 gunAtHand;
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;

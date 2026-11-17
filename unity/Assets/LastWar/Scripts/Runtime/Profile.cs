@@ -7,11 +7,11 @@ namespace LastWar
     public static class Profile
     {
         public static string Name { get => PlayerPrefs.GetString("lw.name", "Soldier"); set { PlayerPrefs.SetString("lw.name", string.IsNullOrWhiteSpace(value) ? "Soldier" : value.Trim()); PlayerPrefs.Save(); } }
-        public static int Skin { get => PlayerPrefs.GetInt("lw.skin", 22); set { PlayerPrefs.SetInt("lw.skin", value); PlayerPrefs.Save(); } }
+        public static int Skin { get => Mathf.Clamp(PlayerPrefs.GetInt("lw.skin2", 0), 0, SoldierBody.OutfitFiles.Length - 1); set { PlayerPrefs.SetInt("lw.skin2", value); PlayerPrefs.Save(); } }
         /// <summary>mix and match: the outfit worn for each piece (0 head, 1 torso, 2 legs, 3 feet); -1 = the full outfit's</summary>
-        public static int Part(int i) => PlayerPrefs.GetInt("lw.part" + i, -1);
+        public static int Part(int i) => -1; // (outfits are worn whole)
         public static void SetPart(int i, int skin) { PlayerPrefs.SetInt("lw.part" + i, skin); PlayerPrefs.Save(); }
-        public static int[] Parts => new[] { Part(0), Part(1), Part(2), Part(3) };
+        public static int[] Parts => null;
         public static void ClearParts() { for (int i = 0; i < 4; i++) PlayerPrefs.DeleteKey("lw.part" + i); PlayerPrefs.Save(); }
         public static string Map { get => PlayerPrefs.GetString("lw.map", "green"); set { PlayerPrefs.SetString("lw.map", value); PlayerPrefs.Save(); } }
         /// <summary>a new map after every match (rotation); false = the chosen one stays</summary>

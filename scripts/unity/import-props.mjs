@@ -11,6 +11,7 @@ import sharp from 'sharp';
 import { bakeSkins, scenePoints, apply } from './gltf-util.mjs';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const [dir, listFile] = process.argv.slice(2);
+if (process.argv[1].endsWith("import-props.mjs")) {
 const OUT = 'unity/Assets/LastWar/Resources/Models';
 for (const line of fs.readFileSync(listFile, 'utf8').trim().split('\n')) {
   const [key, , size, col] = line.trim().split(/\s+/);
@@ -31,12 +32,16 @@ for (const line of fs.readFileSync(listFile, 'utf8').trim().split('\n')) {
   const b = getBounds(scene);
   console.log(key.padEnd(10), 'size', b.max.map((x, i) => (x - b.min[i]).toFixed(2)).join(' x '), (fs.statSync(`${OUT}/${key}.glb`).size / 1024).toFixed(0) + 'KB');
 }
+}
+
+// window glass is no wall: see-through / glass parts stay out of the collision shape (you can jump through windows)
+export const seeThrough = (p) => { const m = p.getMaterial(); return !!m && (/glass|window/i.test(m.getName()) || m.getAlphaMode() === 'BLEND'); };
 
 // the model's triangles (scene space, welded to 1 cm) as a 'trimesh' collision shape for MapBuilder
-function writeShape(key, scene) {
+export function writeShape(key, scene) {
   const v = [], idx = [], seen = new Map();
   scene.traverse((n) => { const m = n.getMesh(); if (!m) return; const wm = n.getWorldMatrix();
-    for (const p of m.listPrimitives()) { const a = p.getAttribute('POSITION'), I = p.getIndices(); const e = [];
+    for (const p of m.listPrimitives()) { if (seeThrough(p)) continue; const a = p.getAttribute('POSITION'), I = p.getIndices(); const e = [];
       const map = new Int32Array(a.getCount());
       for (let i = 0; i < a.getCount(); i++) { const q = apply(wm, a.getElement(i, e)).map((x) => Math.round(x * 100) / 100); const h = q.join(','); let id = seen.get(h); if (id === undefined) { id = v.length / 3; v.push(...q); seen.set(h, id); } map[i] = id; }
       const cnt = I ? I.getCount() : a.getCount();
