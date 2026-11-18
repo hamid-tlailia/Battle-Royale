@@ -16,7 +16,7 @@ namespace LastWar
         static readonly List<Block> spot = new List<Block>();
         float hp = Hp, until, born;
         readonly List<(Transform t, float w, float baseY)> parts = new List<(Transform, float, float)>();
-        static Material ice, ghostMat, crystalMat, glowMat;
+        static Material ice, ghostMat, crystalMat, glowMat, crackMat, fadeMat;
         Transform look;
 
         static Material Mat(float a)
@@ -136,6 +136,34 @@ namespace LastWar
                 tri.Add(i); tri.Add(i + 1); tri.Add(i + 2); tri.Add(i); tri.Add(i + 2); tri.Add(i + 1); // both sides
             }
             Color cBase = new Color(.28f, .55f, .9f), cMid = new Color(.55f, .82f, 1f), cTop = new Color(.9f, .97f, 1f);
+            // cracks: zigzag lines laid on the shards' faces now (hidden), shown in three stages as the wall weakens
+            var crackV = new[] { new List<Vector3>(), new List<Vector3>(), new List<Vector3>() };
+            var crackT = new[] { new List<int>(), new List<int>(), new List<int>() };
+            void Crack(int level, Vector3 r0a, Vector3 r0b, Vector3 r1a, Vector3 r1b, Vector3 centre)
+            {
+                Vector3 F(float u, float s) => Vector3.Lerp(Vector3.Lerp(r0a, r0b, u), Vector3.Lerp(r1a, r1b, u), s);
+                Vector3 n = Vector3.Cross(r0b - r0a, r1a - r0a).normalized;
+                if (Vector3.Dot(n, F(.5f, .5f) - centre) < 0) n = -n;
+                var pts = new List<Vector3>();
+                float u0 = 0.3f + R() * 0.4f, s0 = 0.05f + R() * 0.2f, s1 = 0.75f + R() * 0.22f; int segs = 5 + (int)(R() * 3);
+                for (int k = 0; k <= segs; k++) { float t = k / (float)segs; pts.Add(F(Mathf.Clamp01(u0 + (R() - .5f) * 0.32f), Mathf.Lerp(s0, s1, t)) + n * 0.014f); }
+                void Strip(List<Vector3> p, float wdt)
+                {
+                    var lv = crackV[level]; var lt = crackT[level];
+                    for (int k = 0; k + 1 < p.Count; k++)
+                    {
+                        Vector3 d = (p[k + 1] - p[k]).normalized, side = Vector3.Cross(n, d).normalized * (wdt * (1f - 0.5f * k / p.Count));
+                        int b = lv.Count; lv.Add(p[k] - side); lv.Add(p[k] + side); lv.Add(p[k + 1] - side); lv.Add(p[k + 1] + side);
+                        lt.AddRange(new[] { b, b + 1, b + 2, b + 1, b + 3, b + 2, b, b + 2, b + 1, b + 1, b + 2, b + 3 }); // (both sides)
+                    }
+                }
+                Strip(pts, 0.016f);
+                // a branch off the middle
+                int at = pts.Count / 2; var br = new List<Vector3> { pts[at] };
+                float bu = (R() < .5f ? -1 : 1) * (0.15f + R() * 0.15f);
+                for (int k = 1; k <= 3; k++) br.Add(F(Mathf.Clamp01(u0 + bu * k / 3f + (R() - .5f) * .1f), Mathf.Lerp(s0, s1, at / (float)segs) + 0.08f * k) + n * 0.014f);
+                Strip(br, 0.011f);
+            }
             int shards = blocks.Count * 3 + 1;
             var line = new List<Vector3>();
             for (int k = 0; k < shards; k++)
@@ -157,6 +185,9 @@ namespace LastWar
                     ring1[j] = c + d * (0.55f + R() * 0.2f) + Vector3.up * h * (0.62f + R() * 0.12f) + tilt * 0.6f;
                 }
                 Vector3 tip = c + Vector3.up * h + tilt + rot * new Vector3((R() - .5f) * 0.2f, 0, 0);
+                // this shard's cracks: one face cracks at the first stage, more at the next two
+                for (int lv = 0; lv < 3; lv++)
+                    for (int q = 0; q <= lv; q++) { int j = (int)(R() * n) % n; Crack(lv, ring0[j], ring0[(j + 1) % n], ring1[j], ring1[(j + 1) % n], c + Vector3.up * h * 0.4f); }
                 for (int j = 0; j < n; j++)
                 {
                     int jn = (j + 1) % n;
@@ -170,6 +201,15 @@ namespace LastWar
             mesh.SetVertices(v); mesh.SetColors(col); mesh.SetTriangles(tri, 0); mesh.RecalculateNormals(); mesh.RecalculateBounds();
             var go = new GameObject("shards", typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(root, false);
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            if (crackMat == null) crackMat = new Material(Shader.Find("UI/Default")) { color = new Color(.07f, .16f, .3f, .92f), renderQueue = 3002 };
+            for (int lv = 0; lv < 3; lv++)
+            {
+                for (int i = 0; i < crackV[lv].Count; i++) crackV[lv][i] = root.InverseTransformPoint(crackV[lv][i]);
+                var cm = new Mesh { name = "ice cracks " + lv }; cm.SetVertices(crackV[lv]); cm.SetTriangles(crackT[lv], 0); cm.RecalculateBounds();
+                var cg = new GameObject("cracks" + lv, typeof(MeshFilter), typeof(MeshRenderer)); cg.transform.SetParent(root, false);
+                cg.GetComponent<MeshFilter>().sharedMesh = cm; cg.GetComponent<MeshRenderer>().sharedMaterial = crackMat;
+                cg.SetActive(false);
+            }
             if (crystalMat == null)
             {
                 var vb = Resources.Load<Material>("Materials/VertexLit");
@@ -202,11 +242,27 @@ namespace LastWar
             return root;
         }
 
+        /// <summary>hit: cracks appear in three stages (a quarter, half, three quarters of its strength gone) and the ice
+        /// turns a little see-through, so you see it is about to give way</summary>
         public void Damage(float d)
         {
             hp -= d;
-            if (hp <= 0) Destroy(gameObject);
+            if (hp <= 0) { Destroy(gameObject); return; }
+            float lost = 1f - hp / Hp;
+            if (look == null) return;
+            for (int lv = 0; lv < 3; lv++) { Transform c = look.Find("cracks" + lv); if (c != null && !c.gameObject.activeSelf && lost >= 0.25f * (lv + 1)) c.gameObject.SetActive(true); }
+            Transform sh = look.Find("shards");
+            if (sh == null) return;
+            var r = sh.GetComponent<MeshRenderer>();
+            if (fadeMat == null) fadeMat = Resources.Load<Material>("Materials/IceFade");
+            if (fadeMat == null) return;
+            if (myFade == null) { myFade = new Material(fadeMat); r.sharedMaterial = myFade; }
+            Color bc = myFade.HasProperty("_BaseColor") ? myFade.GetColor("_BaseColor") : Color.white;
+            bc.a = 1f - 0.3f * lost; // (at most 30 % see-through: the cracks do the telling)
+            if (myFade.HasProperty("_BaseColor")) myFade.SetColor("_BaseColor", bc);
         }
+        Material myFade;
+        void OnDestroy() { if (myFade != null) Destroy(myFade); }
 
         void Update()
         {

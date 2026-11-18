@@ -210,6 +210,22 @@ namespace LastWar.EditorTools
                 var sh = Shader.Find("Universal Render Pipeline/Particles/Lit");
                 if (sh != null) { var m = new Material(sh) { enableInstancing = true }; m.SetFloat("_Smoothness", 0.25f); AssetDatabase.CreateAsset(m, vc); }
             }
+            // ice wall once it is hit: the same vertex-coloured particle Lit, see-through (alpha set at run time as it weakens)
+            string iceFade = dir + "/IceFade.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(iceFade) == null)
+            {
+                var sh = Shader.Find("Universal Render Pipeline/Particles/Lit");
+                if (sh != null)
+                {
+                    var m = new Material(sh); m.SetFloat("_Smoothness", 0.92f);
+                    m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f); m.SetFloat("_ZWrite", 0f); m.SetFloat("_Cull", 0f);
+                    m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); m.SetOverrideTag("RenderType", "Transparent");
+                    m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", new Color(.06f, .16f, .28f));
+                    m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                    AssetDatabase.CreateAsset(m, iceFade);
+                }
+            }
             // zone wall: see-through blue, both sides; tracer: bright additive streak
             Transparent(dir + "/ZoneWall.mat", new Color(0.25f, 0.55f, 1f, 0.28f), false);
             Transparent(dir + "/Tracer.mat", new Color(1f, 0.85f, 0.5f, 0.9f), true);

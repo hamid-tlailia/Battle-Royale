@@ -206,6 +206,24 @@ namespace LastWar
             }
         }
 
+        static void BedRock(Transform root, float embed)
+        {
+            Bounds lb = GunFrame.LocalBounds(root);
+            if (lb.size.sqrMagnitude < 1e-6f) return;
+            float low = float.MaxValue;
+            for (int i = 0; i < 3; i++)
+                for (int k = 0; k < 3; k++)
+                {
+                    Vector3 lp = new Vector3(Mathf.Lerp(lb.min.x, lb.max.x, 0.1f + 0.4f * i), lb.min.y, Mathf.Lerp(lb.min.z, lb.max.z, 0.1f + 0.4f * k));
+                    Vector3 w = root.TransformPoint(lp);
+                    Vector3 web = new Vector3(-w.x, w.y, w.z); // (map heights are in the web game's coordinates)
+                    low = Mathf.Min(low, currentMap.HeightAt(web.x, web.z));
+                }
+            float bottom = root.TransformPoint(new Vector3(lb.center.x, lb.min.y, lb.center.z)).y;
+            float drop = bottom - (low - embed);
+            if (drop > 0f) root.position -= Vector3.up * drop;
+        }
+
         static void PlaceProp(PropData p, Transform parent)
         {
             var root = new GameObject(p.p);
@@ -226,6 +244,9 @@ namespace LastWar
             if (model != null)
             {
                 GameObject inst = UnityEngine.Object.Instantiate(model, root.transform, false);
+                // boulders: bedded below the lowest ground under them (on slopes a rock placed at one height floated over
+                // the low side - Death Valley up to a metre); only ever lowered
+                if (p.p.StartsWith("rock")) BedRock(root.transform, 0.15f * p.s);
                 if (p.p.StartsWith("house") || p.p == "farmhouse" || p.p.StartsWith("bld_"))
                 {
                     Bounds b = new Bounds(root.transform.position, Vector3.zero);
