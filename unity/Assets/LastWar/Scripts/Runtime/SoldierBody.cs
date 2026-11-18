@@ -909,7 +909,8 @@ namespace LastWar
             // had the pack's front 3 cm behind it and lying on the back); 12 % of the shoulder width = ~4 cm
             float torsoBack = sl != null && sr != null ? (sl.position - sr.position).magnitude * 0.12f : 0.04f;
             Vector3 centreOff = bagNative.center * bagFit;                                           // (the model's own centre)
-            bagLook.rotation = bodyRot * Quaternion.Euler(0, 180f, 0); // pockets out, straps on the back
+            // straps against the back, pockets out: the Lv1 / Lv3 models face the other way from Lv2 (their straps showed outside)
+            bagLook.rotation = bodyRot * Quaternion.Euler(0, bagLvShown == 2 ? 180f : 0f, 0);
             bagLook.position = top - up * (bh / 2f) + back * (torsoBack + bd / 2f) - bagLook.rotation * centreOff;
         }
 
