@@ -269,31 +269,39 @@ namespace LastWar
         }
 
         int builtFrame = -1; // (weapon IK waits until the animation has posed the body at least once)
-        // ---- "has the animation posed this body yet?": the arms' local rotations as built (the rest pose) against now.
-        // Latched: once posed, a clip change never turns it back off.
-        Quaternion[] restArm; Transform[] restArmBones; public bool AnimPosed { get; private set; }
+        // ---- "has the animation posed this body yet?" Measured on the hidden source skeleton the outfit copies (lw_base),
+        // all its bones against their bind rotations. Latched: once posed, a clip change never turns it back off.
+        Quaternion[] restSrc; public bool AnimPosed { get; private set; }
+        public static float PoseThreshold = 0.05f; // degrees, any one bone (test switch ?posethresh=)
+        public string PosedBy { get; private set; } = "";
+        double lastClipTime = -1; int clipAdvances;
         void SnapshotRest()
         {
-            restArmBones = new[] { PoseBone("LeftArm"), PoseBone("LeftForeArm"), PoseBone("RightArm"), PoseBone("RightForeArm") };
-            restArm = new Quaternion[restArmBones.Length];
-            for (int i = 0; i < restArmBones.Length; i++) if (restArmBones[i] != null) restArm[i] = restArmBones[i].localRotation;
+            restSrc = new Quaternion[srcBones.Count];
+            for (int i = 0; i < srcBones.Count; i++) restSrc[i] = srcBones[i].localRotation;
         }
-        public static float PoseThreshold = 3f; // degrees (test switch ?posethresh=)
-        public string PosedBy { get; private set; } = "";
         /// <summary>
-        /// Two independent pieces of evidence, either one is enough: (1) the playable graph has evaluated - the playing
-        /// clip's time has moved past 0 (true for any valid clip, whatever pose it holds, even arms almost in a T);
-        /// (2) the arms have left their rest rotation by more than PoseThreshold. Latched.
+        /// Two independent pieces of evidence, either is enough:
+        ///  (1) pose: any bone of the source skeleton has left its bind rotation (beyond PoseThreshold) - every real clip
+        ///      does this somewhere (spine, legs, fingers) even when its arms stay near the rest pose;
+        ///  (2) time: the playing clip's time has advanced on two separate frames - the graph runs and the Animator writes
+        ///      its output (on the spawn frame the graph can tick once before the new Animator is bound, so one tick is
+        ///      not proof). This covers a clip that holds the bind pose exactly.
         /// </summary>
         public bool CheckPosed()
         {
             if (AnimPosed) return true;
+            if (restSrc != null)
+                for (int i = 0; i < restSrc.Length && i < srcBones.Count; i++)
+                    if (Quaternion.Angle(restSrc[i], srcBones[i].localRotation) > PoseThreshold) { AnimPosed = true; PosedBy = $"pose: {BoneKey(srcBones[i].name)} left its bind rotation"; return true; }
             string key = playing ?? current;
-            if (graph.IsValid() && graph.IsPlaying() && key != null && clipIndex.TryGetValue(key, out int ci) && ((AnimationClipPlayable)mixer.GetInput(ci)).GetTime() > 1e-4)
-            { AnimPosed = true; PosedBy = "graph evaluated (clip time > 0)"; return true; }
-            if (restArmBones == null) return false;
-            for (int i = 0; i < restArmBones.Length; i++)
-                if (restArmBones[i] != null && Quaternion.Angle(restArm[i], restArmBones[i].localRotation) > PoseThreshold) { AnimPosed = true; PosedBy = "arms left the rest pose"; break; }
+            if (graph.IsValid() && graph.IsPlaying() && key != null && clipIndex.TryGetValue(key, out int ci))
+            {
+                double t = ((AnimationClipPlayable)mixer.GetInput(ci)).GetTime();
+                if (t > 1e-4 && lastClipTime >= 0 && t != lastClipTime) clipAdvances++;
+                lastClipTime = t;
+                if (clipAdvances >= 2) { AnimPosed = true; PosedBy = "time: the clip advanced on two frames"; }
+            }
             return AnimPosed;
         }
         void Build(int skin)

@@ -101,7 +101,7 @@ namespace LastWar
 
                 // 4-5. the left hand onto the LeftHandGrip
                 bool want = b.playing != "mx_reload" && !b.current.StartsWith("death");
-                leftW = Mathf.MoveTowards(leftW, want ? 1f : 0f, Time.deltaTime * 5f);
+                leftW = Mathf.MoveTowards(leftW, want ? 1f : 0f, Mathf.Min(Time.deltaTime * 5f, 1f / 8f)); // >= 8 frames even when frames are slow
                 float w = leftW * leftW * (3f - 2f * leftW); // smoothstep: eases in and out
                 Transform la = b.PoseBone("LeftArm"), lf = b.PoseBone("LeftForeArm"), hl = b.PoseBone("LeftHand");
                 if (w <= 0.001f || la == null || lf == null || hl == null) { Log(p, c, 0, 0, la, lf, hl, Vector3.zero); FrameLog(true, p, c, w, 0, la, lf, hl, Vector3.zero); return; }
