@@ -40,9 +40,9 @@ namespace LastWar
             PlayerController.DebugAim = (Application.absoluteURL ?? "").Contains("dbgaim=1");
             SoldierBody.GunDebug = (Application.absoluteURL ?? "").Contains("gundbg=1");
             if ((Application.absoluteURL ?? "").Contains("wik=0")) SoldierBody.UseWeaponIK = false;
-            { string u = Application.absoluteURL ?? ""; int di = u.IndexOf("animdelay="); if (di >= 0) { int n = 0; for (int k = di + 10; k < u.Length && char.IsDigit(u[k]); k++) n = n * 10 + (u[k] - '0'); SoldierBody.AnimDelayFrames = n; } }
+            { string u = Application.absoluteURL ?? ""; int di = u.IndexOf("animdelay="); if (di >= 0) { int dn = 0; for (int k = di + 10; k < u.Length && char.IsDigit(u[k]); k++) dn = dn * 10 + (u[k] - '0'); SoldierBody.AnimDelayFrames = dn; } }
             { string u = Application.absoluteURL ?? ""; int pi = u.IndexOf("posethresh="); if (pi >= 0 && float.TryParse(u.Substring(pi + 11).Split('&')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float pt)) SoldierBody.PoseThreshold = pt; }
-            { string u = Application.absoluteURL ?? ""; int wi = u.IndexOf("wikframes="); if (wi >= 0) { int n = 0; for (int k = wi + 10; k < u.Length && char.IsDigit(u[k]); k++) n = n * 10 + (u[k] - '0'); SoldierBody.WikFrames = n; } }
+            { string u = Application.absoluteURL ?? ""; int wi = u.IndexOf("wikframes="); if (wi >= 0) { int wn = 0; for (int k = wi + 10; k < u.Length && char.IsDigit(u[k]); k++) wn = wn * 10 + (u[k] - '0'); SoldierBody.WikFrames = wn; } }
             SoldierBody.UseOldBase = (Application.absoluteURL ?? "").Contains("base=old"); // (before any soldier is built: the clips are loaded once)
             // test switch: ?parts=h,t,l,f (outfit per piece: head, torso, legs, feet)
             { string u = Application.absoluteURL ?? ""; int pi = u.IndexOf("parts="); if (pi >= 0) { string[] ps = u.Substring(pi + 6).Split('&')[0].Split(','); for (int i = 0; i < 4 && i < ps.Length; i++) if (int.TryParse(ps[i], out int pv)) Profile.SetPart(i, pv); } }
