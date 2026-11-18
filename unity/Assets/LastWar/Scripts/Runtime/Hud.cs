@@ -567,7 +567,7 @@ namespace LastWar
 
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
-            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens && !spectating);
+            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens && !spectating && !player.FreeLooking); // (free look: the centre is not the aim)
             // the dot is green, red on an enemy's body (every optic)
             lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : new Color(.22f, 1f, .42f);
             lensMark.color = lensDot.color;

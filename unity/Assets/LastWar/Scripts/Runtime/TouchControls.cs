@@ -14,6 +14,9 @@ namespace LastWar
     {
         public Vector2 Move;        // x = right, y = forward (-1..1)
         public Vector2 LookDelta;   // pixels this frame
+        /// <summary>free look (the eye button held and dragged, or V on a keyboard): the camera circles the soldier
+        /// 360 deg without turning the soldier or moving the aim; let go and it swings back behind</summary>
+        public bool FreeLook; public Vector2 FreeLookDelta;
         public bool Sprint;         // auto-run toggle
         public bool JumpPressed;    // true for one frame
         public bool FireHeld;       // finger / mouse on FIRE
@@ -58,7 +61,7 @@ namespace LastWar
         readonly List<RectTransform> blockers = new List<RectTransform>();
         Btn fireBtn, fireLeft, scopeBtn, runBtn;
         RectTransform joyBase, joyKnob;
-        int joyFinger = -1, lookFinger = -1, fireFinger = -1;
+        int joyFinger = -1, lookFinger = -1, fireFinger = -1, eyeFinger = -1; Vector2 eyeLast; Btn eyeBtn;
         Vector2 joyOrigin, lookLast;
         const float JoyRadius = 35f * UiKit.K;
         Canvas canvas;
@@ -103,6 +106,7 @@ namespace LastWar
             proneBtn = Button("prone", "btn", 50, BR, new Vector2(-201, 45), () => { Prone = !Prone; if (Prone) { Crouch = false; Sprint = false; } });
             healBtn = Button("heal", "btn", 50, BL, new Vector2(215, 95), () => HealPressed = true);
             frostBtn = Button("frost", "btn", 48, BR, new Vector2(-220, 188), () => { FrostPressed = true; Scoped = false; }); // (the ice closes the scope)
+            eyeBtn = Button("eye", "btn", 44, BR, new Vector2(-62, 262), null); // free look: hold and drag
             healBadge = Badge(healBtn); frostBadge = Badge(frostBtn);
             Button("bag", "btn", 42, TL, new Vector2(125, -27), () => BagPressed = true);
             // settings: small dark square, top-left (web .gear-btn)
@@ -169,6 +173,7 @@ namespace LastWar
             if (airMode > 0) return b == jumpBtn;
             if (b == frostBtn && frostCount <= 0 && !FrostAim) return false;
             if (b == scopeBtn && !scopeAllowed) return false;
+            if (b == eyeBtn && ScopedUi) return false;
             // through the optic: FIRE, SCOPE and the moves you need in a fight (ice, run, jump, crouch, prone) stay
             return !ScopedUi || b == fireBtn || b == fireLeft || b == scopeBtn || b == frostBtn || b == runBtn || b == jumpBtn || b == crouchBtn || b == proneBtn;
         }
@@ -206,23 +211,24 @@ namespace LastWar
 
         void Update()
         {
-            LookDelta = Vector2.zero;
+            LookDelta = Vector2.zero; FreeLookDelta = Vector2.zero;
             foreach (Btn b in btns) { bool show = Shown(b); if (b.rt.gameObject.activeSelf != show) b.rt.gameObject.SetActive(show); }
             bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0 && !Spectating);
             if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn); // no settings in the plane / during the drop / watching
             bool joyOn = Editing || Preview || (!Spectating && airMode != 1); if (joyBase.gameObject.activeSelf != joyOn) joyBase.gameObject.SetActive(joyOn);
-            if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; return; }
+            if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = eyeFinger = -1; FreeLook = false; return; }
             // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
-            if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = -1; joyKnob.anchoredPosition = Vector2.zero; return; }
+            if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = eyeFinger = -1; FreeLook = false; joyKnob.anchoredPosition = Vector2.zero; return; }
             bool xOn = SniperAiming && !Spectating; if (cancelShot.gameObject.activeSelf != xOn) cancelShot.gameObject.SetActive(xOn);
             bool wasHeld = FireHeld;
             if (Input.touchCount > 0) Touches();
             else
             {
                 if (joyFinger >= 0) joyKnob.anchoredPosition = Vector2.zero;
-                joyFinger = lookFinger = fireFinger = -1;
+                joyFinger = lookFinger = fireFinger = eyeFinger = -1;
                 Desktop();
             }
+            if (Input.touchCount > 0) FreeLook = eyeFinger >= 0 && !ScopedUi && !Spectating;
             if (wasHeld && !FireHeld) FireReleased = true;
             // button states like the web: pressed = gold ring, RUN / SCOPE on = green
             Sprite pressed = UiKit.Get("btn_pressed"), active = UiKit.Get("btn_active");
@@ -247,6 +253,7 @@ namespace LastWar
                 Touch t = Input.GetTouch(k);
                 if (t.phase == TouchPhase.Began)
                 {
+                    if (eyeFinger < 0 && Over(eyeBtn, t.position)) { eyeFinger = t.fingerId; eyeLast = t.position; continue; } // (the eye finger only circles the camera)
                     if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
                         fireFinger = t.fingerId; FirePressed = true; if (!InAir) Sprint = false; // a shot ends the run - except from a jump
@@ -256,6 +263,12 @@ namespace LastWar
                     // in the plane the whole screen turns the view; falling, only the bottom-left corner steers
                     else if (joyFinger < 0 && (airMode <= 0 ? t.position.x < Screen.width * 0.42f : airMode > 1 && t.position.x < Screen.width * 0.25f && t.position.y < Screen.height * 0.5f)) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
                     else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
+                }
+                if (t.fingerId == eyeFinger)
+                {
+                    FreeLookDelta += t.position - eyeLast; eyeLast = t.position;
+                    if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) eyeFinger = -1;
+                    continue;
                 }
                 // sniper: slide the FIRE finger onto the X to call the shot off (no second hand needed)
                 if (t.fingerId == fireFinger && SniperAiming && cancelShot.gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(cancelShot, t.position, null)) CancelShot = true;
@@ -289,7 +302,9 @@ namespace LastWar
             Move = m.sqrMagnitude > 1 ? m.normalized : m;
             if (Input.GetKeyDown(KeyCode.Space)) JumpPressed = true;
             if (Input.GetKeyDown(KeyCode.LeftShift)) Sprint = !Sprint;
-            if (Input.GetMouseButton(1)) LookDelta = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * 12f;
+            FreeLook = Input.GetKey(KeyCode.V) && !ScopedUi && !Spectating; // (keyboard: hold V and move the mouse to look around)
+            if (FreeLook) FreeLookDelta = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * 12f;
+            else if (Input.GetMouseButton(1)) LookDelta = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * 12f;
             Vector2 mp = Input.mousePosition;
             bool onFire = Over(fireBtn, mp) || Over(fireLeft, mp);
             bool onUi = OverBlocker(mp) && !onFire;

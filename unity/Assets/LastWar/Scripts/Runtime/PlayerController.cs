@@ -316,7 +316,7 @@ namespace LastWar
         /// </summary>
         Ray ViewRay()
         {
-            Ray r = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+            Ray r = freeLooking ? new Ray(aimViewPos, aimViewRot * Vector3.forward) : cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0)); // (free look: the view without it)
             Vector3 head = transform.position + Vector3.up * (cc.height - 0.25f);
             float skip = Mathf.Max(0f, Vector3.Dot(head - r.origin, r.direction) - 0.3f);
             return new Ray(r.origin + r.direction * skip, r.direction);
@@ -561,6 +561,7 @@ namespace LastWar
         void LateUpdate()
         {
             if (cam == null) return;
+            freeLooking = false; // (set again below on foot)
             if (!fighter.Alive && SpectateTarget != null)
             {
                 if (!SpectateTarget.Alive) SpectateTarget = NextAlive();
@@ -591,6 +592,16 @@ namespace LastWar
             else camY = Mathf.Lerp(camY, pivot.y, Mathf.Min(1f, Time.deltaTime * 14f));
             pivot.y = camY;
             Quaternion look = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0);
+            // free look (eye button): the camera circles the soldier by its own offset; the aim keeps using `aimView`
+            // (where the camera would be without it), so the crosshair's shots still go where the soldier looks
+            float fs = lookSensitivity * Profile.Sensitivity;
+            if (input.FreeLook && !Scoped) { freeYaw = Mathf.Repeat(freeYaw + input.FreeLookDelta.x * fs + 180f, 360f) - 180f; freePitch = Mathf.Clamp(freePitch + input.FreeLookDelta.y * fs, -55f, 60f); }
+            else { freeYaw = Mathf.LerpAngle(freeYaw, 0f, Time.deltaTime * 9f); freePitch = Mathf.Lerp(freePitch, 0f, Time.deltaTime * 9f); if (Mathf.Abs(freeYaw) < 0.2f && Mathf.Abs(freePitch) < 0.2f) freeYaw = freePitch = 0f; }
+            if (Scoped) freeYaw = freePitch = 0f; // (through the optic the view is the aim)
+            bool free = freeYaw != 0f || freePitch != 0f;
+            freeLooking = free;
+            Quaternion aimLook = look;
+            if (free) look = Quaternion.Euler(Mathf.Clamp(-pitch * Mathf.Rad2Deg - freePitch, -75f, 80f), yaw + freeYaw, 0);
             body.SetVisible(!Scoped && fighter.air != 1);
             if (Scoped)
             {
@@ -611,6 +622,14 @@ namespace LastWar
             if (fighter.air == 3 && cam.transform.position.y > pivot.y + 1.6f) cam.transform.position = new Vector3(cam.transform.position.x, pivot.y + 1.6f, cam.transform.position.z);
             cam.transform.rotation = look;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 70f, Time.deltaTime * 14f);
+            // the view the aim uses: the camera as it would be without free look
+            if (free)
+            {
+                Vector3 ab = aimLook * new Vector3(fighter.air != 0 ? 0.6f : 0.9f, 0.4f, -camDist);
+                aimViewPos = pivot + ab; aimViewRot = aimLook;
+            }
         }
+        float freeYaw, freePitch; bool freeLooking; Vector3 aimViewPos; Quaternion aimViewRot;
+        public bool FreeLooking => freeLooking;
     }
 }
