@@ -11,12 +11,12 @@ namespace LastWar
     /// </summary>
     public static class WeaponGrips
     {
-        [Serializable] class Entry { public string name, look, category, leftHandStyle; public bool oneHanded; public float frameYaw; public float[] rightHandGrip, leftHandGrip, muzzle, aimPoint; }
+        [Serializable] class Entry { public string name, look, category, leftHandStyle; public bool oneHanded; public float frameYaw, holdBack; public float[] rightHandGrip, leftHandGrip, muzzle, aimPoint; }
         [Serializable] class Doc { public Entry[] categories, weapons; }
 
         public class Profile
         {
-            public string look, category, leftHandStyle = "under"; public bool oneHanded; public float frameYaw;
+            public string look, category, leftHandStyle = "under"; public bool oneHanded; public float frameYaw, holdBack;
             public Vector3 rightHandGrip, leftHandGrip, muzzle, aimPoint;
             public override string ToString() => $"{look} [{category}{(oneHanded ? ", one-handed" : "")}{(frameYaw != 0 ? $", frame turned {frameYaw:0}" : "")}] R {rightHandGrip:F3} L {leftHandGrip:F3} M {muzzle:F3} A {aimPoint:F3}";
         }
@@ -46,6 +46,7 @@ namespace LastWar
             string cat = w != null && !string.IsNullOrEmpty(w.category) ? w.category : CategoryOf(look);
             cats.TryGetValue(cat, out Entry c);
             p = new Profile { look = look, category = cat, oneHanded = c != null && c.oneHanded, frameYaw = w != null ? w.frameYaw : 0f,
+                holdBack = w != null && w.holdBack > 0f ? w.holdBack : c != null ? c.holdBack : 0f,
                 leftHandStyle = !string.IsNullOrEmpty(w?.leftHandStyle) ? w.leftHandStyle : !string.IsNullOrEmpty(c?.leftHandStyle) ? c.leftHandStyle : (c != null && c.oneHanded ? "cup" : "under") };
             p.rightHandGrip = V(w?.rightHandGrip, V(c?.rightHandGrip, Vector3.zero));
             p.leftHandGrip = V(w?.leftHandGrip, V(c?.leftHandGrip, new Vector3(0, 0.03f, -0.3f)));

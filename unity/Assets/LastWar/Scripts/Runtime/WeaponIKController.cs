@@ -26,6 +26,8 @@ namespace LastWar
             readonly Dictionary<string, Cal> cal = new Dictionary<string, Cal>();
             float leftW; string look;
             public const float FadeSeconds = 0.15f, FadeFrames = 8f;
+            public const float ShoulderMax = 20f, ShoulderRate = 90f; // deg, deg/s
+            float shoulderNow, lastShoulder, lastHoldBack;
             public float SlideMax = 0.12f;      // how far back along the handguard a short arm may take the left hand (m)
             public float ReachLimit = 0.96f;    // of the arm's full length: beyond it the target slides back
             float nextLog;
@@ -112,12 +114,47 @@ namespace LastWar
                 float w = leftW * leftW * (3f - 2f * leftW); // smoothstep: eases in and out
                 Transform la = b.PoseBone("LeftArm"), lf = b.PoseBone("LeftForeArm"), hl = b.PoseBone("LeftHand");
                 if (w <= 0.001f || la == null || lf == null || hl == null) { SetGunShown(true); Log(p, c, 0, 0, la, lf, hl, Vector3.zero); FrameLog(true, p, c, w, 0, la, lf, hl, Vector3.zero); return; }
-                Vector3 target = gun.TransformPoint(p.leftHandGrip);
                 Vector3 back = gun.TransformDirection(Vector3.forward); // toward the stock
-                float slide = 0f;
+                // B. holdBack (weapon_grips.json, long-span guns only): the gun drawn back along its barrel by bending the right
+                //    arm; the right hand keeps its rotation, so the gun stays on it (right palm on RightHandGrip)
+                float hb = UseHoldBack ? p.holdBack * w : 0f;
+                if (hb > 0.0005f)
+                {
+                    Transform ra = b.PoseBone("RightArm"), rf = b.PoseBone("RightForeArm");
+                    if (ra != null && rf != null)
+                    {
+                        Quaternion keep = handR.rotation;
+                        b.TwoBone(ra, rf, handR, handR.position + back * hb);
+                        handR.rotation = keep;
+                        gun.rotation = handR.rotation * c.gunInHand;
+                        gun.position = handR.position + handR.rotation * c.gunAtHand;
+                        back = gun.TransformDirection(Vector3.forward);
+                    }
+                }
+                Vector3 target = gun.TransformPoint(p.leftHandGrip);
+                float slide = 0f, shoulderWant = 0f;
+                Transform clav = b.PoseBone("LeftShoulder");
                 if (c.armLen > 0.1f)
                 {
                     float over = (target - la.position).magnitude - ReachLimit * c.armLen;
+                    // A. shoulder reach: beyond the arm's reach the support collarbone turns toward the target (as a person
+                    //    reaching forward does), at most 20 deg, eased over time; generic for every character and gun
+                    if (UseShoulderReach && over > 0f && clav != null)
+                    {
+                        Vector3 cl = la.position - clav.position, ct = target - clav.position;
+                        float full = Vector3.Angle(cl, ct), clavLen = cl.magnitude;
+                        // the turn that brings the shoulder joint 'over' metres nearer (small-angle: arc = length x angle)
+                        shoulderWant = Mathf.Min(ShoulderMax, full, clavLen > 0.01f ? over / clavLen * Mathf.Rad2Deg : 0f);
+                    }
+                    shoulderNow = Mathf.MoveTowards(shoulderNow, shoulderWant, ShoulderRate * Time.deltaTime);
+                    float sdeg = shoulderNow * w;
+                    if (sdeg > 0.05f && clav != null)
+                    {
+                        Vector3 ax = Vector3.Cross(la.position - clav.position, target - clav.position);
+                        if (ax.sqrMagnitude > 1e-8f) clav.rotation = Quaternion.AngleAxis(sdeg, ax.normalized) * clav.rotation;
+                    }
+                    lastShoulder = sdeg; lastHoldBack = hb;
+                    over = (target - la.position).magnitude - ReachLimit * c.armLen;
                     if (over > 0f) { slide = Mathf.Min(SlideMax, over * 1.15f); target += back * slide; }
                 }
                 // the palm turned onto the grip: under the handguard palm up (fingers round its right side); a vertical
@@ -165,7 +202,7 @@ namespace LastWar
                 float reachPre = c.armLen > 0 ? (preTarget - preShoulder).magnitude / c.armLen : 0f;
                 float reachPost = c.armLen > 0 ? (target + b.gun.TransformDirection(Vector3.forward) * -slide - la.position).magnitude / c.armLen : 0f; // (before the slide)
                 string who = b.outfitRoot != null ? b.outfitRoot.name.Replace("(Clone)", "") : "?";
-                Debug.Log($"[LastWar] wikfail {b.name} {who} {look} {b.playing}: palm off {err * 100f:0.0} cm | L shoulder {la.position:F3} R shoulder {(ra != null ? ra.position : Vector3.zero):F3} | LeftHandGrip {target:F3} (slid {slide * 100f:0} cm) palm {lp:F3} | chest turn applied {turn:0} deg, chest rotation changed {(chest != null ? Quaternion.Angle(preChest, chest.rotation) : 0):0} deg | reach (target-shoulder / arm) BEFORE turn {reachPre:0.00} AFTER turn {reachPost:0.00} | elbow {elbow:0} ext {(lp - la.position).magnitude / c.armLen:0.00} | arm {c.armLen:0.00} m");
+                Debug.Log($"[LastWar] wikfail {b.name} {who} {look} {b.playing}: palm off {err * 100f:0.0} cm | L shoulder {la.position:F3} R shoulder {(ra != null ? ra.position : Vector3.zero):F3} | LeftHandGrip {target:F3} (slid {slide * 100f:0} cm) palm {lp:F3} | chest turn applied {turn:0} deg, chest rotation changed {(chest != null ? Quaternion.Angle(preChest, chest.rotation) : 0):0} deg | reach (target-shoulder / arm) BEFORE turn {reachPre:0.00} AFTER turn {reachPost:0.00} | elbow {elbow:0} ext {(lp - la.position).magnitude / c.armLen:0.00} | arm {c.armLen:0.00} m | shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm");
             }
 
             /// <summary>?wikframes=N : every frame of the first N after the body was built, one line each</summary>
@@ -224,7 +261,7 @@ namespace LastWar
                     Debug.Log($"[LastWar] wik5 {b.name}: lossyScale root {root.lossyScale.x:0.000} gun {gun.lossyScale.x:0.000} LeftArm {la.lossyScale.x:0.000} LeftHand {hl.lossyScale.x:0.000} RightHand {b.handR.lossyScale.x:0.000} outfit {(b.outfitRoot != null ? b.outfitRoot.lossyScale.x : 0):0.000} base {(b.model != null ? b.model.lossyScale.x : 0):0.000} | renderers on LeftArm's skeleton visible {(la.GetComponentInParent<Animator>() == null ? "(no animator)" : "")} {VisibleSkin(la)}");
                 }
                 if (la != null && w > 0) Debug.Log($"[LastWar] wik2 {b.name} {look}: target-shoulder {(target - la.position).magnitude:0.00} m armLen {c.armLen:0.00} | target-gun origin {(target - gun.position).magnitude:0.00} | LHG {p.leftHandGrip:F2} | left arm in outfit {(b.outfitRoot != null && la.IsChildOf(b.outfitRoot))} | hand in outfit {(b.outfitRoot != null && b.handR.IsChildOf(b.outfitRoot))} | gun lossyScale {gun.lossyScale.x:0.000} | palm-hand {(b.Palm("Left") - hl.position).magnitude:0.00}");
-                Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0}");
+                Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0}");
             }
         }
     }

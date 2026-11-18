@@ -1,5 +1,5 @@
 {
- "_about": "Weapon grip profiles (Phase 2 step B). Points in GunFrame space: metres, barrel along -Z (muzzle at the -Z end), up +Y, +X = the shooter's left, origin = the model origin. rightHandGrip = palm centre on the pistol grip / stock wrist; leftHandGrip = support palm (handguard / pump / fore-grip; pistols: cupping the grip from the left); muzzle = barrel centre at the front end; aimPoint = sight line above the right hand. Category defaults come from the base model of each class, measured; a weapon entry overrides what differs from its category. frameYaw: a turn about Y applied under the GunFrame holder for a model stored back to front. Measured from each model's geometry: scripts/unity/grips/ (dump.mjs, manual.py, check.py, draw.py). leftHandStyle: how the support palm meets the gun - \"under\" (handguard / pump, palm up; default for long guns), \"vertical\" (a vertical fore-grip held from behind), \"cup\" (pistols).",
+ "_about": "Weapon grip profiles (Phase 2 step B). Points in GunFrame space: metres, barrel along -Z (muzzle at the -Z end), up +Y, +X = the shooter's left, origin = the model origin. rightHandGrip = palm centre on the pistol grip / stock wrist; leftHandGrip = support palm (handguard / pump / fore-grip; pistols: cupping the grip from the left); muzzle = barrel centre at the front end; aimPoint = sight line above the right hand. Category defaults come from the base model of each class, measured; a weapon entry overrides what differs from its category. frameYaw: a turn about Y applied under the GunFrame holder for a model stored back to front. Measured from each model's geometry: scripts/unity/grips/ (dump.mjs, manual.py, check.py, draw.py). leftHandStyle: how the support palm meets the gun - \"under\" (handguard / pump, palm up; default for long guns), \"vertical\" (a vertical fore-grip held from behind), \"cup\" (pistols). holdBack (metres, long-span guns only): the gun is drawn back along its barrel by bending the right arm, so a support grip far ahead of the pistol grip comes within reach; the right palm stays on rightHandGrip.",
  "categories": [
   {
    "name": "rifle",
@@ -177,7 +177,8 @@
   },
   {
    "look": "shotgun",
-   "category": "shotgun"
+   "category": "shotgun",
+   "holdBack": 0.08
   },
   {
    "look": "shotgun_breacher",
@@ -225,7 +226,8 @@
     0.0,
     0.11,
     -0.1
-   ]
+   ],
+   "holdBack": 0.06
   },
   {
    "look": "smg",

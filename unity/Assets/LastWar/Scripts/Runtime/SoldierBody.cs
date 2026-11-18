@@ -1069,7 +1069,7 @@ namespace LastWar
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;
-        public static bool UseWeaponIK = true; WeaponIKController weaponIK;
+        public static bool UseWeaponIK = true, UseShoulderReach = true, UseHoldBack = true; WeaponIKController weaponIK; // (?wikA=0 / ?wikB=0)
         public static int WikFrames { get => WeaponIKController.FramesToLog; set => WeaponIKController.FramesToLog = value; }
         public static bool GunDebug; float nextGunLog; // ?gundbg=1
         /// <summary>where the grip sits relative to the usual shoulder-aim spot (body space); the lobby moves it down to the waist</summary>
