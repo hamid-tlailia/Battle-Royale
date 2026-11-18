@@ -22,7 +22,8 @@ namespace LastWar
         class WeaponIKController
         {
             readonly SoldierBody b;
-            class Cal { public Quaternion gunInHand; public Vector3 gunAtHand; public float armLen; }
+            class Cal { public Quaternion gunInHand; public Vector3 gunAtHand; public float armLen; public bool contact; public Vector3 contactInHand, palmInHand; }
+
             readonly Dictionary<string, Cal> cal = new Dictionary<string, Cal>();
             float leftW; string look;
             public const float FadeSeconds = 0.15f, FadeFrames = 8f;
@@ -61,6 +62,16 @@ namespace LastWar
                 Quaternion hand = sh.rotation * b.boneMap[hi];      // the outfit's right hand in that pose
                 c.gunInHand = Quaternion.Inverse(hand) * R;
                 c.gunAtHand = Quaternion.Inverse(hand) * (origin - sh.position);
+                // grip contact (per character, from its own hand): the gun's RightHandGrip goes where this outfit's curled
+                // fingers close - halfway between its palm point and its middle fingertip in the aiming pose - instead of the
+                // palm point inside the hand. Worked out in the hand's own space (the outfit's finger bones turned as the
+                // clip turns them, at the outfit's own bone lengths); only the gun's position in the hand changes
+                // (gunInHand, the grip data and GunFrame stay as they are)
+                if (UseGripContact && b.TryGripContact(hi, out Vector3 contactInHand, out c.palmInHand))
+                {
+                    c.gunAtHand = contactInHand - c.gunInHand * p.rightHandGrip;
+                    c.contactInHand = contactInHand; c.contact = true;
+                }
                 // the outfit's own left arm length (upper arm + forearm + to the palm)
                 Transform la = b.PoseBone("LeftArm"), lf = b.PoseBone("LeftForeArm"), hl = b.PoseBone("LeftHand"), lm = b.PoseBone("LeftHandMiddle1");
                 if (la != null && lf != null && hl != null)
@@ -254,7 +265,8 @@ namespace LastWar
                 nextLog = Time.time + (b.playing == "mx_jump" || b.playing == "mx_crawl" || b.playing == "mx_prone" ? 0.1f : 1.5f); // (short moves: read often)
                 Transform gun = b.gun;
                 Vector3 rp = b.Palm("Right"), lp = b.Palm("Left");
-                float rErr = (gun.TransformPoint(p.rightHandGrip) - rp).magnitude;
+                Vector3 rc = c.contact ? b.handR.position + b.handR.rotation * c.contactInHand : rp; // (the anchor: contact point or palm point)
+                float rErr = (gun.TransformPoint(p.rightHandGrip) - rc).magnitude;
                 float lErr = w > 0 ? (lp - target).magnitude : -1f;
                 float elbow = la != null && lf != null && hl != null ? Vector3.Angle(la.position - lf.position, hl.position - lf.position) : 0f;
                 float wrist = lf != null && hl != null ? Vector3.Angle(hl.position - lf.position, b.HandDir(hl, "Left")) : 0f;
@@ -275,9 +287,9 @@ namespace LastWar
                     string G(Vector3 wpos) { Vector3 v = (gun.InverseTransformPoint(wpos) - p.rightHandGrip) * 100f; return $"({v.x:0.0},{v.y:0.0},{v.z:0.0})"; }
                     Transform rw = b.handR, mi = b.PoseBone("RightHandMiddle4") ?? b.PoseBone("RightHandMiddle3"), ix = b.PoseBone("RightHandIndex4") ?? b.PoseBone("RightHandIndex3"), th = b.PoseBone("RightHandThumb4") ?? b.PoseBone("RightHandThumb3");
                     Vector3 pn = gun.InverseTransformDirection(b.PalmNormal(rw, "Right"));
-                    Debug.Log($"[LastWar] wikr {b.name} {look} {b.playing}: wrist {G(rw.position)} palm point {G(rp)} index tip {(ix != null ? G(ix.position) : "-")} middle tip {(mi != null ? G(mi.position) : "-")} thumb tip {(th != null ? G(th.position) : "-")} | palm faces ({pn.x:0.00},{pn.y:0.00},{pn.z:0.00}) | outfit {(b.outfitRoot != null ? b.outfitRoot.name : "-")}");
+                    Debug.Log($"[LastWar] wikr {b.name} {look} {b.playing}: anchor {(c.contact ? "contact" : "palm")} {G(rc)} wrist {G(rw.position)} palm point {G(rp)} index tip {(ix != null ? G(ix.position) : "-")} middle tip {(mi != null ? G(mi.position) : "-")} thumb tip {(th != null ? G(th.position) : "-")} | palm faces ({pn.x:0.00},{pn.y:0.00},{pn.z:0.00}) | outfit {(b.outfitRoot != null ? b.outfitRoot.name : "-")}");
                 }
-                Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0} | barrel vs aim {Vector3.Angle(gun.rotation * Vector3.back, lastAim):0} deg upper aim layer {b.UpperAimWeight:0.00} clip {b.playing}");
+                Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right anchor to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0} | barrel vs aim {Vector3.Angle(gun.rotation * Vector3.back, lastAim):0} deg upper aim layer {b.UpperAimWeight:0.00} clip {b.playing}");
             }
         }
     }

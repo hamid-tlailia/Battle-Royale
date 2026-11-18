@@ -452,6 +452,11 @@ namespace LastWar
             { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
             { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
+        /// <summary>false (?grip=palm): the gun's RightHandGrip on the palm point as before, for comparison</summary>
+        public static bool UseGripContact = true;
+        /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
+        /// slower by 6 / their own speed so the feet keep pace (Rifle Run 4.13 m/s, Running 5.63 m/s, measured from their hips)</summary>
+        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "run", 1f } };
         /// <summary>reloading: standing still (or aiming / firing / walking) the rifle reload clip plays, timed to the reload</summary>
         public bool Reloading; public float ReloadTime = 2f;
         static readonly HashSet<string> ReloadOver = new HashSet<string> { "mx_idle", "mx_aim", "mx_fire", "mx_walk" };
@@ -463,6 +468,8 @@ namespace LastWar
             if (!clipIndex.ContainsKey(clip)) return;
             string key = clip;
             if (UseRifleClips && Armed && gun != null && !gunId.StartsWith("pistol") && RifleClips.TryGetValue(clip, out string mx) && clipIndex.ContainsKey(mx)) key = mx;
+            // running with a long gun: the Mixamo Rifle Run (lw_extra.glb: gun low across the chest) when present
+            if (key == "mx_sprint" && clipIndex.ContainsKey("mx_rifle_run")) key = "mx_rifle_run";
             // lying down with a rifle: the Mixamo prone clips (still / crawling forward; backward = the crawl stepped back)
             if (key == "mx_prone" && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("mx_crawl")) key = "mx_crawl";
             if (Reloading && ReloadOver.Contains(key) && clipIndex.ContainsKey("mx_reload")) key = "mx_reload";
@@ -608,7 +615,7 @@ namespace LastWar
                 // locomotion follows the real speed; backwards (retreating) the clip is stepped by hand
                 var cp = (AnimationClipPlayable)mixer.GetInput(target);
                 if (playing == "mx_reload") cp.SetSpeed(clips[target].length / Mathf.Max(0.3f, ReloadTime));
-                else if (Rate >= 0) cp.SetSpeed(Rate);
+                else if (Rate >= 0) cp.SetSpeed(Rate * (ClipPace.TryGetValue(playing ?? current, out float pace) ? pace : 1f));
                 else
                 {
                     cp.SetSpeed(0);
@@ -1057,6 +1064,36 @@ namespace LastWar
         // the left hand is then put on the handguard. While aiming, the chest turns so the barrel meets the crosshair.
         bool rifleCal; Quaternion gunInHand = Quaternion.identity; Vector3 gunAtHand = Vector3.zero;
         Transform SrcBone(string key) { foreach (Transform t in srcBones) if (BoneKey(t.name) == key) return t; return null; }
+
+        /// <summary>
+        /// The right hand's grip contact in the current source pose, in the outfit right hand's own space: the outfit's middle
+        /// finger chain (Middle1..Middle4) laid out from the hand with the source pose's bone rotations (as the transfer turns
+        /// them) and the outfit's own bone lengths - nothing is moved. Contact = halfway between the palm point (80% of the
+        /// way to the middle knuckle) and the middle fingertip.
+        /// </summary>
+        internal bool TryGripContact(int handIndex, out Vector3 contact, out Vector3 palm)
+        {
+            contact = palm = Vector3.zero;
+            if (handIndex < 0 || handIndex >= boneMap.Count || handR == null) return false;
+            Quaternion hand = srcBones[handIndex].rotation * boneMap[handIndex], rot = hand;
+            Vector3 pos = Vector3.zero, knuckle = Vector3.zero; int n = 0;
+            Transform parent = handR;
+            foreach (string f in new[] { "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandMiddle4" })
+            {
+                Transform d = PoseBone(f);
+                if (d == null || d.parent != parent) break;                        // (the chain must be the outfit's own)
+                pos += rot * (d.localPosition * parent.lossyScale.x);
+                if (n == 0) knuckle = pos;
+                Transform src = SrcBone(f); int si = src != null ? srcBones.IndexOf(src) : -1;
+                rot = si >= 0 && si < boneMap.Count ? src.rotation * boneMap[si] : rot * d.localRotation;
+                parent = d; n++;
+            }
+            if (n < 3) return false;                                               // (no usable finger chain: keep the palm point)
+            Quaternion inv = Quaternion.Inverse(hand);
+            palm = inv * (knuckle * 0.8f);
+            contact = inv * ((knuckle * 0.8f + pos) * 0.5f);
+            return true;
+        }
 
         void CalibrateRifle()
         {
