@@ -126,6 +126,13 @@ namespace LastWar
                 Log(p, c, w, slide, la, lf, hl, target);
             }
 
+            static string VisibleSkin(Transform bone)
+            {
+                // which SkinnedMeshRenderer uses this bone, and is it drawn
+                foreach (var r in bone.root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                    if (System.Array.IndexOf(r.bones, bone) >= 0) return $"skinned by '{r.name}' enabled {r.enabled}";
+                return "skinned by nothing";
+            }
             struct Saved { public Transform t; public Quaternion r; }
             readonly List<Saved> saved = new List<Saved>();
             List<Saved> SaveFingers(string sd)
@@ -150,6 +157,14 @@ namespace LastWar
                 float elbow = la != null && lf != null && hl != null ? Vector3.Angle(la.position - lf.position, hl.position - lf.position) : 0f;
                 float wrist = lf != null && hl != null ? Vector3.Angle(hl.position - lf.position, b.HandDir(hl, "Left")) : 0f;
                 float ext = c.armLen > 0 && la != null ? (lp - la.position).magnitude / c.armLen : 0f;
+                if (la != null && w > 0)
+                {
+                    string Path(Transform t) { string r = t.name; for (Transform q = t.parent; q != null && q != b.transform.parent; q = q.parent) r = q.name + "/" + r; return r; }
+                    Transform root = b.transform;
+                    Debug.Log($"[LastWar] wik3 {b.name} {look}: LHG world {target:F3} | LHG in character space {root.InverseTransformPoint(target):F3} | shoulder {la.position:F3} elbow {lf.position:F3} wrist {hl.position:F3} | upper arm {(lf.position - la.position).magnitude:0.000} forearm {(hl.position - lf.position).magnitude:0.000} | gun origin {gun.position:F3} right palm {b.Palm("Right"):F3}");
+                    Debug.Log($"[LastWar] wik4 {b.name}: LeftArm path {Path(la)} | LeftForeArm path {Path(lf)} | LeftHand path {Path(hl)} | RightHand path {Path(b.handR)} | gun path {Path(gun)}");
+                    Debug.Log($"[LastWar] wik5 {b.name}: lossyScale root {root.lossyScale.x:0.000} gun {gun.lossyScale.x:0.000} LeftArm {la.lossyScale.x:0.000} LeftHand {hl.lossyScale.x:0.000} RightHand {b.handR.lossyScale.x:0.000} outfit {(b.outfitRoot != null ? b.outfitRoot.lossyScale.x : 0):0.000} base {(b.model != null ? b.model.lossyScale.x : 0):0.000} | renderers on LeftArm's skeleton visible {(la.GetComponentInParent<Animator>() == null ? "(no animator)" : "")} {VisibleSkin(la)}");
+                }
                 if (la != null && w > 0) Debug.Log($"[LastWar] wik2 {b.name} {look}: target-shoulder {(target - la.position).magnitude:0.00} m armLen {c.armLen:0.00} | target-gun origin {(target - gun.position).magnitude:0.00} | LHG {p.leftHandGrip:F2} | left arm in outfit {(b.outfitRoot != null && la.IsChildOf(b.outfitRoot))} | hand in outfit {(b.outfitRoot != null && b.handR.IsChildOf(b.outfitRoot))} | gun lossyScale {gun.lossyScale.x:0.000} | palm-hand {(b.Palm("Left") - hl.position).magnitude:0.00}");
                 Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0}");
             }
