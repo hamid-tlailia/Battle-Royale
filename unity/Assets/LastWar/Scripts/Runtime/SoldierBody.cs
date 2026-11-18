@@ -233,6 +233,7 @@ namespace LastWar
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             if (dst.TryGetValue("RightHand", out Transform rh)) handR = rh;
             CacheFingerRest();
+            SnapshotRest();
             { float m = SoleY(); if (m != float.MaxValue) restSole = m - transform.position.y; }
         }
 
@@ -268,6 +269,23 @@ namespace LastWar
         }
 
         int builtFrame = -1; // (weapon IK waits until the animation has posed the body at least once)
+        // ---- "has the animation posed this body yet?": the arms' local rotations as built (the rest pose) against now.
+        // Latched: once posed, a clip change never turns it back off.
+        Quaternion[] restArm; Transform[] restArmBones; public bool AnimPosed { get; private set; }
+        void SnapshotRest()
+        {
+            restArmBones = new[] { PoseBone("LeftArm"), PoseBone("LeftForeArm"), PoseBone("RightArm"), PoseBone("RightForeArm") };
+            restArm = new Quaternion[restArmBones.Length];
+            for (int i = 0; i < restArmBones.Length; i++) if (restArmBones[i] != null) restArm[i] = restArmBones[i].localRotation;
+        }
+        public bool CheckPosed()
+        {
+            if (AnimPosed) return true;
+            if (restArmBones == null) return false;
+            for (int i = 0; i < restArmBones.Length; i++)
+                if (restArmBones[i] != null && Quaternion.Angle(restArm[i], restArmBones[i].localRotation) > 3f) { AnimPosed = true; break; }
+            return AnimPosed;
+        }
         void Build(int skin)
         {
             builtFrame = Time.frameCount;
@@ -1019,6 +1037,7 @@ namespace LastWar
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;
         public static bool UseWeaponIK = true; WeaponIKController weaponIK;
+        public static int WikFrames { get => WeaponIKController.FramesToLog; set => WeaponIKController.FramesToLog = value; }
         public static bool GunDebug; float nextGunLog; // ?gundbg=1
         /// <summary>where the grip sits relative to the usual shoulder-aim spot (body space); the lobby moves it down to the waist</summary>
         public Vector3 GripOffset;
