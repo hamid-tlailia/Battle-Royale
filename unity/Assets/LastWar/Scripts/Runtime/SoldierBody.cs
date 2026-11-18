@@ -278,12 +278,22 @@ namespace LastWar
             restArm = new Quaternion[restArmBones.Length];
             for (int i = 0; i < restArmBones.Length; i++) if (restArmBones[i] != null) restArm[i] = restArmBones[i].localRotation;
         }
+        public static float PoseThreshold = 3f; // degrees (test switch ?posethresh=)
+        public string PosedBy { get; private set; } = "";
+        /// <summary>
+        /// Two independent pieces of evidence, either one is enough: (1) the playable graph has evaluated - the playing
+        /// clip's time has moved past 0 (true for any valid clip, whatever pose it holds, even arms almost in a T);
+        /// (2) the arms have left their rest rotation by more than PoseThreshold. Latched.
+        /// </summary>
         public bool CheckPosed()
         {
             if (AnimPosed) return true;
+            string key = playing ?? current;
+            if (graph.IsValid() && graph.IsPlaying() && key != null && clipIndex.TryGetValue(key, out int ci) && ((AnimationClipPlayable)mixer.GetInput(ci)).GetTime() > 1e-4)
+            { AnimPosed = true; PosedBy = "graph evaluated (clip time > 0)"; return true; }
             if (restArmBones == null) return false;
             for (int i = 0; i < restArmBones.Length; i++)
-                if (restArmBones[i] != null && Quaternion.Angle(restArm[i], restArmBones[i].localRotation) > 3f) { AnimPosed = true; break; }
+                if (restArmBones[i] != null && Quaternion.Angle(restArm[i], restArmBones[i].localRotation) > PoseThreshold) { AnimPosed = true; PosedBy = "arms left the rest pose"; break; }
             return AnimPosed;
         }
         void Build(int skin)

@@ -146,14 +146,14 @@ namespace LastWar
             {
                 int f = Time.frameCount - b.builtFrame;
                 if (FramesToLog <= 0 || f > FramesToLog) return;
-                if (!posed) { Debug.Log($"[LastWar] wikf {b.name} f{f}: animation posed NO -> IK off, gun hidden, left weight {leftW:0.00}"); return; }
+                if (!posed) { Debug.Log($"[LastWar] wikf {b.name} f{f}: animation posed NO -> IK off, gun hidden ({(b.gun != null ? "drawn " + b.gun.GetComponentInChildren<Renderer>()?.enabled : "no gun")}), left weight {leftW:0.00}"); return; }
                 Transform gun = b.gun;
                 float rErr = (gun.TransformPoint(p.rightHandGrip) - b.Palm("Right")).magnitude;
                 float lErr = w > 0.001f ? (b.Palm("Left") - target).magnitude : -1f;
                 float elbow = la != null && lf != null && hl != null ? Vector3.Angle(la.position - lf.position, hl.position - lf.position) : 0f;
                 float wrist = lf != null && hl != null ? Vector3.Angle(hl.position - lf.position, b.HandDir(hl, "Left")) : 0f;
                 float ext = c != null && c.armLen > 0 && la != null ? (b.Palm("Left") - la.position).magnitude / c.armLen : 0f;
-                Debug.Log($"[LastWar] wikf {b.name} f{f}: posed yes clip {b.playing} | IK {(w > 0.001f ? "on" : "fading in")} weight {w:0.00} | right {rErr * 100f:0.0} cm left {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} | elbow {elbow:0} ext {ext:0.00} wrist {wrist:0} | gun {gun.position:F3}");
+                Debug.Log($"[LastWar] wikf {b.name} f{f}: posed yes ({b.PosedBy}) clip {b.playing} | IK {(w > 0.001f ? "on" : "fading in")} weight {w:0.00} | right {rErr * 100f:0.0} cm left {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} | elbow {elbow:0} ext {ext:0.00} wrist {wrist:0} | gun {gun.position:F3} drawn {gun.GetComponentInChildren<Renderer>()?.enabled}");
             }
 
             static string VisibleSkin(Transform bone)
