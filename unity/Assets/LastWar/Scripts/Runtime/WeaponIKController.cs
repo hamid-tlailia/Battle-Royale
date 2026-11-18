@@ -25,6 +25,7 @@ namespace LastWar
             class Cal { public Quaternion gunInHand; public Vector3 gunAtHand; public float armLen; }
             readonly Dictionary<string, Cal> cal = new Dictionary<string, Cal>();
             float leftW; string look;
+            public const float FadeSeconds = 0.15f, FadeFrames = 8f;
             public float SlideMax = 0.12f;      // how far back along the handguard a short arm may take the left hand (m)
             public float ReachLimit = 0.96f;    // of the arm's full length: beyond it the target slides back
             float nextLog;
@@ -75,8 +76,7 @@ namespace LastWar
                 // evaluation - and later than one frame if loading is slow) nothing is solved and the gun is not drawn, so it
                 // never shows detached; posed once = latched, a clip change does not reset it
                 bool posed = b.CheckPosed();
-                SetGunShown(posed);
-                if (!posed) { leftW = 0f; FrameLog(false, null, null, 0, 0, null, null, null, Vector3.zero); return; }
+                if (!posed) { SetGunShown(false); leftW = 0f; FrameLog(false, null, null, 0, 0, null, null, null, Vector3.zero); return; }
                 look = b.gunId;
                 var p = WeaponGrips.Get(look);
                 if (!cal.TryGetValue(look, out Cal c)) c = Calibrate(look, p);
@@ -101,10 +101,10 @@ namespace LastWar
 
                 // 4-5. the left hand onto the LeftHandGrip
                 bool want = b.playing != "mx_reload" && !b.current.StartsWith("death");
-                leftW = Mathf.MoveTowards(leftW, want ? 1f : 0f, Mathf.Min(Time.deltaTime * 5f, 1f / 8f)); // >= 8 frames even when frames are slow
+                leftW = Mathf.MoveTowards(leftW, want ? 1f : 0f, Mathf.Min(Time.deltaTime / FadeSeconds, 1f / FadeFrames)); // at least 8 frames AND 0.15 s
                 float w = leftW * leftW * (3f - 2f * leftW); // smoothstep: eases in and out
                 Transform la = b.PoseBone("LeftArm"), lf = b.PoseBone("LeftForeArm"), hl = b.PoseBone("LeftHand");
-                if (w <= 0.001f || la == null || lf == null || hl == null) { Log(p, c, 0, 0, la, lf, hl, Vector3.zero); FrameLog(true, p, c, w, 0, la, lf, hl, Vector3.zero); return; }
+                if (w <= 0.001f || la == null || lf == null || hl == null) { SetGunShown(true); Log(p, c, 0, 0, la, lf, hl, Vector3.zero); FrameLog(true, p, c, w, 0, la, lf, hl, Vector3.zero); return; }
                 Vector3 target = gun.TransformPoint(p.leftHandGrip);
                 Vector3 back = gun.TransformDirection(Vector3.forward); // toward the stock
                 float slide = 0f;
@@ -136,6 +136,7 @@ namespace LastWar
                     hl.rotation = Quaternion.Slerp(animHand, hl.rotation, w);
                     BlendFingers(fingers, w);
                 }
+                SetGunShown(true); // (placed and solved: drawn from this frame)
                 Log(p, c, w, slide, la, lf, hl, target);
                 FrameLog(true, p, c, w, slide, la, lf, hl, target);
             }
@@ -146,14 +147,14 @@ namespace LastWar
             {
                 int f = Time.frameCount - b.builtFrame;
                 if (FramesToLog <= 0 || f > FramesToLog) return;
-                if (!posed) { Debug.Log($"[LastWar] wikf {b.name} f{f}: animation posed NO -> IK off, gun hidden ({(b.gun != null ? "drawn " + b.gun.GetComponentInChildren<Renderer>()?.enabled : "no gun")}), left weight {leftW:0.00}"); return; }
+                if (!posed) { Debug.Log($"[LastWar] wikf {b.name} f{f}: source skeleton max {b.SrcMaxAngle:0.000} deg from bind, clip ticks {b.ClipAdvances} -> posed NO -> IK off, gun hidden ({(b.gun != null ? "drawn " + b.gun.GetComponentInChildren<Renderer>()?.enabled : "no gun")}), left weight {leftW:0.00}"); return; }
                 Transform gun = b.gun;
                 float rErr = (gun.TransformPoint(p.rightHandGrip) - b.Palm("Right")).magnitude;
                 float lErr = w > 0.001f ? (b.Palm("Left") - target).magnitude : -1f;
                 float elbow = la != null && lf != null && hl != null ? Vector3.Angle(la.position - lf.position, hl.position - lf.position) : 0f;
                 float wrist = lf != null && hl != null ? Vector3.Angle(hl.position - lf.position, b.HandDir(hl, "Left")) : 0f;
                 float ext = c != null && c.armLen > 0 && la != null ? (b.Palm("Left") - la.position).magnitude / c.armLen : 0f;
-                Debug.Log($"[LastWar] wikf {b.name} f{f}: posed yes ({b.PosedBy}) clip {b.playing} | IK {(w > 0.001f ? "on" : "fading in")} weight {w:0.00} | right {rErr * 100f:0.0} cm left {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} | elbow {elbow:0} ext {ext:0.00} wrist {wrist:0} | gun {gun.position:F3} drawn {gun.GetComponentInChildren<Renderer>()?.enabled}");
+                Debug.Log($"[LastWar] wikf {b.name} f{f} dt {Time.deltaTime * 1000f:0}ms: posed yes ({b.PosedBy}) clip {b.playing} | IK {(w > 0.001f ? "on" : "fading in")} weight {w:0.00} | right {rErr * 100f:0.0} cm left {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} | elbow {elbow:0} ext {ext:0.00} wrist {wrist:0} | gun {gun.position:F3} drawn {gun.GetComponentInChildren<Renderer>()?.enabled}");
             }
 
             static string VisibleSkin(Transform bone)

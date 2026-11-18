@@ -274,7 +274,9 @@ namespace LastWar
         Quaternion[] restSrc; public bool AnimPosed { get; private set; }
         public static float PoseThreshold = 0.05f; // degrees, any one bone (test switch ?posethresh=)
         public string PosedBy { get; private set; } = "";
-        double lastClipTime = -1; int clipAdvances;
+        double lastClipTime = -1; int clipAdvances, lastClipFrame = -1;
+        /// <summary>readout: the largest bind-to-now angle on the source skeleton at the last check, and the time ticks seen</summary>
+        public float SrcMaxAngle { get; private set; } public int ClipAdvances => clipAdvances;
         void SnapshotRest()
         {
             restSrc = new Quaternion[srcBones.Count];
@@ -291,16 +293,25 @@ namespace LastWar
         public bool CheckPosed()
         {
             if (AnimPosed) return true;
+            // (called from LateUpdate: the Animator has already written this frame's pose into lw_base's transforms)
+            float maxA = 0f; int maxI = -1;
             if (restSrc != null)
                 for (int i = 0; i < restSrc.Length && i < srcBones.Count; i++)
-                    if (Quaternion.Angle(restSrc[i], srcBones[i].localRotation) > PoseThreshold) { AnimPosed = true; PosedBy = $"pose: {BoneKey(srcBones[i].name)} left its bind rotation"; return true; }
+                {
+                    float a = Quaternion.Angle(restSrc[i], srcBones[i].localRotation);
+                    if (a > maxA) { maxA = a; maxI = i; }
+                }
+            SrcMaxAngle = maxA;
+            if (maxA > PoseThreshold) { AnimPosed = true; PosedBy = $"pose: {BoneKey(srcBones[maxI].name)} {maxA:0.0} deg off its bind rotation"; return true; }
             string key = playing ?? current;
-            if (graph.IsValid() && graph.IsPlaying() && key != null && clipIndex.TryGetValue(key, out int ci))
+            if (graph.IsValid() && graph.IsPlaying() && key != null && clipIndex.TryGetValue(key, out int ci) && Time.frameCount != lastClipFrame)
             {
+                // one read per rendered frame: two advances = two distinct evaluated frames
+                lastClipFrame = Time.frameCount;
                 double t = ((AnimationClipPlayable)mixer.GetInput(ci)).GetTime();
                 if (t > 1e-4 && lastClipTime >= 0 && t != lastClipTime) clipAdvances++;
                 lastClipTime = t;
-                if (clipAdvances >= 2) { AnimPosed = true; PosedBy = "time: the clip advanced on two frames"; }
+                if (clipAdvances >= 2) { AnimPosed = true; PosedBy = "time: the clip advanced on two distinct frames"; }
             }
             return AnimPosed;
         }
