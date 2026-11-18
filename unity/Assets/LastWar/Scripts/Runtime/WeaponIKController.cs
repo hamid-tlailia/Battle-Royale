@@ -30,7 +30,7 @@ namespace LastWar
             float shoulderNow, lastShoulder, lastHoldBack;
             public float SlideMax = 0.12f;      // how far back along the handguard a short arm may take the left hand (m)
             public float ReachLimit = 0.96f;    // of the arm's full length: beyond it the target slides back
-            float nextLog;
+            float nextLog; string lastLogClip;
 
             public WeaponIKController(SoldierBody body) { b = body; }
             bool gunShown = true;
@@ -249,7 +249,8 @@ namespace LastWar
 
             void Log(WeaponGrips.Profile p, Cal c, float w, float slide, Transform la, Transform lf, Transform hl, Vector3 target)
             {
-                if (!GunDebug || Time.time < nextLog) return;
+                if (!GunDebug || (Time.time < nextLog && b.playing == lastLogClip)) return; // (and at once when the clip changes)
+                lastLogClip = b.playing;
                 nextLog = Time.time + (b.playing == "mx_jump" || b.playing == "mx_crawl" || b.playing == "mx_prone" ? 0.1f : 1.5f); // (short moves: read often)
                 Transform gun = b.gun;
                 Vector3 rp = b.Palm("Right"), lp = b.Palm("Left");

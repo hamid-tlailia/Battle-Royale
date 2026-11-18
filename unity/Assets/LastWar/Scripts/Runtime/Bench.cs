@@ -94,7 +94,7 @@ namespace LastWar
                 Debug.Log("[LastWar] bench " + line.Replace("\n", " "));
             }
             string device = $"{SystemInfo.deviceModel} | {SystemInfo.processorType} x{SystemInfo.processorCount} | {SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsDeviceType})\n" +
-                $"RAM {SystemInfo.systemMemorySize} MB | {Screen.width}x{Screen.height} | quality {QualitySettings.names[QualitySettings.GetQualityLevel()]} | game graphics {(Profile.Quality == 0 ? "Low" : Profile.Quality == 1 ? "Medium" : "High")} (render scale {(Profile.Quality == 0 ? 0.7f : Profile.Quality == 1 ? 0.85f : 1f):0.00})";
+                $"RAM {SystemInfo.systemMemorySize} MB | {Screen.width}x{Screen.height} | game graphics {(Profile.Quality == 0 ? "Low" : Profile.Quality == 1 ? "Medium" : "High")} (render scale {(Profile.Quality == 0 ? 0.7f : Profile.Quality == 1 ? 0.85f : 1f):0.00})";
             Debug.Log("[LastWar] bench device " + device.Replace("\n", " "));
             Show("BENCHMARK DONE - take a screenshot\n" + device + "\n" + string.Join("\n", results));
             for (int i = 0; i < bots.Count; i++) if (bots[i] != null) { bots[i].gameObject.SetActive(true); bots[i].God = false; }
