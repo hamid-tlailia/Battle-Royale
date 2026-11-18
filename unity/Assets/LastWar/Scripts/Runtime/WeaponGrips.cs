@@ -37,6 +37,29 @@ namespace LastWar
         public static string CategoryOf(string look) { int u = string.IsNullOrEmpty(look) ? -1 : look.IndexOf('_'); return u > 0 ? look.Substring(0, u) : look ?? ""; }
 
         /// <summary>the profile for a gun model key (gun_&lt;look&gt;): its class defaults with its own overrides</summary>
+        /// <summary>
+        /// Test switches for a review (WebGL URL; nothing changes without them): ?hb=look:metres,... sets a gun's holdBack,
+        /// ?lhgz=look:metres,... moves its LeftHandGrip back along the barrel (+ = toward the stock). The data file is not touched.
+        /// </summary>
+        static void TestOverride(Profile p)
+        {
+            string url = Application.absoluteURL ?? "";
+            float Find(string key)
+            {
+                int i = url.IndexOf(key + "="); if (i < 0) return float.NaN;
+                string v = url.Substring(i + key.Length + 1); int e = v.IndexOf('&'); if (e >= 0) v = v.Substring(0, e);
+                foreach (string part in v.Split(','))
+                {
+                    int c = part.IndexOf(':'); if (c <= 0 || part.Substring(0, c) != p.look) continue;
+                    if (float.TryParse(part.Substring(c + 1), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f)) return f;
+                }
+                return float.NaN;
+            }
+            float hb = Find("hb"), lz = Find("lhgz");
+            if (!float.IsNaN(hb)) { p.holdBack = hb; Debug.Log($"[LastWar] grip test: {p.look} holdBack {hb:0.000}"); }
+            if (!float.IsNaN(lz)) { p.leftHandGrip += new Vector3(0, 0, lz); Debug.Log($"[LastWar] grip test: {p.look} LeftHandGrip z {p.leftHandGrip.z:0.000}"); }
+        }
+
         public static Profile Get(string look)
         {
             if (cache == null) Load();
@@ -52,6 +75,7 @@ namespace LastWar
             p.leftHandGrip = V(w?.leftHandGrip, V(c?.leftHandGrip, new Vector3(0, 0.03f, -0.3f)));
             p.muzzle = V(w?.muzzle, V(c?.muzzle, new Vector3(0, 0.05f, -0.6f)));
             p.aimPoint = V(w?.aimPoint, V(c?.aimPoint, new Vector3(0, 0.1f, -0.1f)));
+            TestOverride(p);
             cache[look] = p;
             return p;
         }
