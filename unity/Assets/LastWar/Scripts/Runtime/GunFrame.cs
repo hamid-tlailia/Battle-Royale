@@ -97,6 +97,7 @@ namespace LastWar
                 if (h == null) continue;
                 foreach (Renderer r in h.GetComponentsInChildren<Renderer>(true)) { var ms = r.sharedMaterials; for (int k = 0; k < ms.Length; k++) ms[k] = MapBuilder.LitFrom(ms[k]); r.sharedMaterials = ms; }
                 h.position = origin + new Vector3(0, -(i / cols) * 0.55f, -((i % cols) - 1) * 1.7f);
+                Bounds b = LocalBounds(h); // (the gun alone, before the markers are added)
                 var p = WeaponGrips.Get(look);
                 Vector3[] pts = { p.rightHandGrip, p.leftHandGrip, p.muzzle, p.aimPoint };
                 for (int k = 0; k < 4; k++)
@@ -106,8 +107,7 @@ namespace LastWar
                     m.transform.SetParent(h, false); m.transform.localPosition = pts[k]; m.transform.localScale = Vector3.one * 0.028f;
                     m.transform.position += Vector3.left * 0.08f; // just in front of the gun (toward the camera)
                 }
-                Bounds b = LocalBounds(h);
-                bool muzzleFront = Mathf.Abs(p.muzzle.z - b.min.z) < 0.012f;
+                bool muzzleFront = Mathf.Abs(p.muzzle.z - b.min.z) < 0.008f;
                 bool inBox = b.Contains(p.rightHandGrip) && b.Contains(p.aimPoint + Vector3.down * 0.02f);
                 Debug.Log($"[LastWar] gripview {p} | box z {b.min.z:0.000}..{b.max.z:0.000} y {b.min.y:0.000}..{b.max.y:0.000} | muzzle at the front end {muzzleFront} | right hand + sight inside the gun {inBox}");
             }

@@ -5,22 +5,22 @@
    "name": "rifle",
    "oneHanded": false,
    "rightHandGrip": [
-    -0.0,
+    0.0,
     0.0,
     0.01
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.06,
     -0.31
    ],
    "muzzle": [
-    0,
+    0.0,
     0.085,
     -0.59
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.135,
     -0.1
    ]
@@ -29,22 +29,22 @@
    "name": "smg",
    "oneHanded": false,
    "rightHandGrip": [
-    0,
+    0.0,
     -0.035,
     -0.065
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.055,
     -0.33
    ],
    "muzzle": [
-    0,
+    0.0,
     0.07,
     -0.47
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.12,
     -0.12
    ]
@@ -53,22 +53,22 @@
    "name": "shotgun",
    "oneHanded": false,
    "rightHandGrip": [
-    0,
+    0.0,
     -0.035,
     0.235
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.01,
     -0.3
    ],
    "muzzle": [
-    0,
+    0.0,
     0.09,
     -0.67
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.115,
     0.1
    ]
@@ -77,22 +77,22 @@
    "name": "sniper",
    "oneHanded": false,
    "rightHandGrip": [
-    0,
+    0.0,
     -0.05,
     0.11
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     -0.02,
     -0.33
    ],
    "muzzle": [
-    0,
+    0.0,
     -0.005,
     -0.8
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.06,
     0.05
    ]
@@ -101,7 +101,7 @@
    "name": "pistol",
    "oneHanded": true,
    "rightHandGrip": [
-    0,
+    0.0,
     -0.02,
     0.008
    ],
@@ -111,12 +111,12 @@
     0.012
    ],
    "muzzle": [
-    0,
+    0.0,
     0.05,
-    -0.155
+    -0.15
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.072,
     -0.03
    ]
@@ -131,22 +131,22 @@
    "look": "rifle_marksman",
    "category": "rifle",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.04,
     0.01
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.0,
     -0.3
    ],
    "muzzle": [
-    0,
+    0.0,
     0.04,
     -0.67
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.11,
     -0.1
    ]
@@ -155,22 +155,22 @@
    "look": "rifle_storm",
    "category": "rifle",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.035,
     0.0
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.02,
     -0.27
    ],
    "muzzle": [
-    0,
+    0.0,
     0.05,
     -0.56
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.1,
     -0.08
    ]
@@ -183,22 +183,22 @@
    "look": "shotgun_breacher",
    "category": "shotgun",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.035,
     0.0
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     -0.005,
     -0.43
    ],
    "muzzle": [
-    0,
+    0.0,
     0.055,
     -0.67
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.08,
     -0.05
    ]
@@ -207,22 +207,22 @@
    "look": "shotgun_long",
    "category": "shotgun",
    "rightHandGrip": [
-    0,
+    0.0,
     0.025,
     0.075
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.04,
     -0.43
    ],
    "muzzle": [
-    0,
+    0.0,
     0.085,
-    -0.7
+    -0.705
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.11,
     -0.1
    ]
@@ -234,48 +234,48 @@
   {
    "look": "smg_hornet",
    "category": "smg",
+   "frameYaw": 180,
    "rightHandGrip": [
-    0,
+    0.0,
     0.0,
     0.07
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     -0.01,
     -0.1
    ],
    "muzzle": [
-    0,
+    0.0,
     0.06,
     -0.2
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.115,
     0.03
-   ],
-   "frameYaw": 180
+   ]
   },
   {
    "look": "smg_viper",
    "category": "smg",
    "rightHandGrip": [
-    0,
+    0.0,
     0.0,
     -0.04
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.055,
     -0.24
    ],
    "muzzle": [
-    0,
+    0.0,
     0.095,
     -0.4
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.15,
     -0.12
    ]
@@ -288,22 +288,22 @@
    "look": "sniper_long",
    "category": "sniper",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.075,
     0.1
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     -0.025,
     -0.32
    ],
    "muzzle": [
-    0,
+    0.0,
     0.0,
     -0.94
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.09,
     0.0
    ]
@@ -312,22 +312,22 @@
    "look": "sniper_swift",
    "category": "sniper",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.065,
     0.075
    ],
    "leftHandGrip": [
-    0,
+    0.0,
     0.0,
     -0.33
    ],
    "muzzle": [
-    0,
+    0.0,
     0.03,
-    -0.84
+    -0.835
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.1,
     0.0
    ]
@@ -340,7 +340,7 @@
    "look": "pistol_auto",
    "category": "pistol",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.02,
     0.02
    ],
@@ -350,12 +350,12 @@
     0.024
    ],
    "muzzle": [
-    0,
+    0.0,
     0.067,
-    -0.185
+    -0.18
    ],
    "aimPoint": [
-    0,
+    0.0,
     0.08,
     -0.02
    ]
@@ -364,7 +364,7 @@
    "look": "pistol_magnum",
    "category": "pistol",
    "rightHandGrip": [
-    0,
+    0.0,
     -0.025,
     0.0
    ],
@@ -374,9 +374,9 @@
     0.004
    ],
    "muzzle": [
-    0,
+    0.0,
     0.05,
-    -0.208
+    -0.205
    ]
   }
  ]
