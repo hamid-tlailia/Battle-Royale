@@ -64,6 +64,9 @@ namespace LastWar
             {
                 Transform handR = b.handR, gun = b.gun;
                 if (gun == null || handR == null) return;
+                // the spawn frame: the skeleton still stands in its rest pose (arms out) until the animation has been
+                // evaluated once - nothing to place a hand from yet (and no calibration taken from it)
+                if (Time.frameCount - b.builtFrame < 2) { leftW = 0f; return; }
                 look = b.gunId;
                 var p = WeaponGrips.Get(look);
                 if (!cal.TryGetValue(look, out Cal c)) c = Calibrate(look, p);

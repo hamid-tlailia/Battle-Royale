@@ -267,8 +267,10 @@ namespace LastWar
             }
         }
 
+        int builtFrame = -1; // (weapon IK waits until the animation has posed the body at least once)
         void Build(int skin)
         {
+            builtFrame = Time.frameCount;
             // LW_BaseCharacter: the Mixamo SWAT skeleton carrying every clip (scripts/unity/build-base.mjs); the old soldier rig is the fallback
             GameObject src = UseOldBase ? null : MapBuilder.Model(BaseModel);
             if (src == null) src = MapBuilder.Model("soldier");
