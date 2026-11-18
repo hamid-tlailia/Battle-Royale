@@ -113,8 +113,10 @@ namespace LastWar
             Vector2 mv = input.Move;
             if (input.Sprint && mv.y > -0.3f) mv = new Vector2(mv.x * 0.5f, 1f); // locked run keeps going through a quick scope / reload / jump
             bool sprinting = input.Sprint && mv.y > 0.5f && !Scoped; // (FIRE on the ground ends the run in the controls; from a jump it goes on)
-            // crawling is slow and goes in pulls (the body moves with the arms, not as a slide)
-            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? 0.2f * (body.Pose == "crawl" ? body.CrawlPull : 1f) : input.Crouch ? 0.55f : 1f);
+            // crawling is slow and goes in pulls (the body moves with the arms, not as a slide); firing while lying down
+            // stops the crawl - the soldier holds still in the prone aiming pose while the shots go, and crawls on after
+            bool proneFire = input.Prone && armed && fighter.Gun != null && (input.FireHeld || Time.time - fighter.lastShotAt < 0.35f);
+            float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? (proneFire ? 0f : 0.2f * (body.Pose == "crawl" ? body.CrawlPull : 1f)) : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
             Vector3 want = heading * new Vector3(mv.x, 0, mv.y) * speed;
             bool grounded = cc.isGrounded;
@@ -216,7 +218,13 @@ namespace LastWar
                 if (stepAcc > (input.Crouch ? 1.4f : 2.0f)) { stepAcc = 0; Sfx.Step(transform.position, true, input.Crouch, OnFloor(transform.position)); }
             }
             if (!onGround) airTime += dt;
-            else { if (!wasGrounded && airTime > 0.25f) Sfx.Play2D("land", 0.5f); airTime = 0; }
+            else
+            {
+                if (!wasGrounded && airTime > 0.25f) Sfx.Play2D("land", 0.5f);
+                // landing from a jump with FIRE still held: the run ends (as a shot on the ground does); let go in the air = the run goes on
+                if (!wasGrounded && airTime > 0.15f && input.Sprint && input.FireHeld && gun != null) input.Sprint = false;
+                airTime = 0;
+            }
             wasGrounded = onGround;
 
             // animation: the web game's clip rules (empty hands swing free, armed walks in the firing stance)
@@ -228,11 +236,12 @@ namespace LastWar
             else if (!armed) clip = hs > 0.4f ? "walk" : "idle";
             else if (hs > 0.4f) clip = "walk_fire";
             else clip = firing ? "fire" : "idle_rifle";
+            body.Speed = proneFire ? 0f : hs; // (before Play: lying down, it picks the still prone pose or the crawl by it)
             body.Play(clip);
             body.Armed = armed;
-            body.Speed = hs;
+            body.AirAim = clip == "jump" && armed && firing; // firing in the air: the upper body aims (the legs keep the jump)
             // the web game's extra poses: kneeling when crouched and still, arms free when running empty-handed, crawling
-            body.Pose = input.Prone ? (hs > 0.25f ? "crawl" : null)
+            body.Pose = input.Prone ? (hs > 0.25f && !proneFire ? "crawl" : null)
                 : input.Crouch && hs <= 0.4f && onGround ? "kneel"
                 : !armed && clip == "run" ? "runfree" : null;
             Locomotion(body, cc.velocity, yaw, hs, clip, armed, input.Sprint, ref turn, dt);

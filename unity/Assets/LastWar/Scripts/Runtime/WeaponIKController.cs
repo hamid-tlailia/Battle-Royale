@@ -70,8 +70,10 @@ namespace LastWar
 
             static readonly HashSet<string> Aiming = new HashSet<string> { "mx_aim", "mx_fire", "mx_crouch_aim", "mx_crouch_fire", "mx_walk" };
 
+            Vector3 lastAim = Vector3.forward;
             public void Apply(Vector3 aim)
             {
+                lastAim = aim;
                 Transform handR = b.handR, gun = b.gun;
                 if (gun == null || handR == null) return;
                 // until the animation has posed the body (the skeleton stands in its rest pose, arms out, before the first
@@ -91,15 +93,17 @@ namespace LastWar
                 Vector3 preShoulder = laPre != null ? laPre.position : Vector3.zero;
                 Quaternion preChest = chestPre != null ? chestPre.rotation : Quaternion.identity;
                 float turnApplied = 0f;
-                if (b.ShoulderGrip && Aiming.Contains(b.playing))
+                // (aiming clips fully; in the air with the upper-body aiming layer, by that layer's weight)
+                float aimK = Aiming.Contains(b.playing) ? 1f : b.UpperAimWeight;
+                if (b.ShoulderGrip && aimK > 0.001f)
                 {
                     Vector3 barrel = gr * Vector3.back;
                     Quaternion q = Quaternion.FromToRotation(barrel, aim);
                     q.ToAngleAxis(out float ang, out Vector3 ax); if (ang > 180f) ang -= 360f;
                     if (Mathf.Abs(ang) > 0.5f && ax.sqrMagnitude > 0.5f)
                     {
-                        Quaternion part = Quaternion.AngleAxis(Mathf.Clamp(ang, -70f, 70f) / 3f, ax);
-                        turnApplied = Mathf.Clamp(ang, -70f, 70f);
+                        Quaternion part = Quaternion.AngleAxis(Mathf.Clamp(ang, -70f, 70f) * aimK / 3f, ax);
+                        turnApplied = Mathf.Clamp(ang, -70f, 70f) * aimK;
                         foreach (string s in new[] { "Spine", "Spine1", "Spine2" }) { Transform t = b.PoseBone(s); if (t != null) t.rotation = part * t.rotation; }
                         gr = handR.rotation * c.gunInHand;
                     }
@@ -246,7 +250,7 @@ namespace LastWar
             void Log(WeaponGrips.Profile p, Cal c, float w, float slide, Transform la, Transform lf, Transform hl, Vector3 target)
             {
                 if (!GunDebug || Time.time < nextLog) return;
-                nextLog = Time.time + 1.5f;
+                nextLog = Time.time + (b.playing == "mx_jump" || b.playing == "mx_crawl" || b.playing == "mx_prone" ? 0.1f : 1.5f); // (short moves: read often)
                 Transform gun = b.gun;
                 Vector3 rp = b.Palm("Right"), lp = b.Palm("Left");
                 float rErr = (gun.TransformPoint(p.rightHandGrip) - rp).magnitude;
@@ -263,7 +267,7 @@ namespace LastWar
                     Debug.Log($"[LastWar] wik5 {b.name}: lossyScale root {root.lossyScale.x:0.000} gun {gun.lossyScale.x:0.000} LeftArm {la.lossyScale.x:0.000} LeftHand {hl.lossyScale.x:0.000} RightHand {b.handR.lossyScale.x:0.000} outfit {(b.outfitRoot != null ? b.outfitRoot.lossyScale.x : 0):0.000} base {(b.model != null ? b.model.lossyScale.x : 0):0.000} | renderers on LeftArm's skeleton visible {(la.GetComponentInParent<Animator>() == null ? "(no animator)" : "")} {VisibleSkin(la)}");
                 }
                 if (la != null && w > 0) Debug.Log($"[LastWar] wik2 {b.name} {look}: target-shoulder {(target - la.position).magnitude:0.00} m armLen {c.armLen:0.00} | target-gun origin {(target - gun.position).magnitude:0.00} | LHG {p.leftHandGrip:F2} | left arm in outfit {(b.outfitRoot != null && la.IsChildOf(b.outfitRoot))} | hand in outfit {(b.outfitRoot != null && b.handR.IsChildOf(b.outfitRoot))} | gun lossyScale {gun.lossyScale.x:0.000} | palm-hand {(b.Palm("Left") - hl.position).magnitude:0.00}");
-                Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0}");
+                Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0} | barrel vs aim {Vector3.Angle(gun.rotation * Vector3.back, lastAim):0} deg upper aim layer {b.UpperAimWeight:0.00} clip {b.playing}");
             }
         }
     }

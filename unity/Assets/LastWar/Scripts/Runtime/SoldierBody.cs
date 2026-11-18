@@ -389,7 +389,7 @@ namespace LastWar
             if (clipIndex.TryGetValue("walk_ual", out int walkU)) clipIndex["walk"] = walkU;
             // the web game's run_free: the run clip's legs with the walk clip's arms (swinging at the sides),
             // as a second layer that only moves the shoulders, arms and hands
-            layers = AnimationLayerMixerPlayable.Create(graph, 2);
+            layers = AnimationLayerMixerPlayable.Create(graph, 3);
             graph.Connect(mixer, 0, layers, 0); layers.SetInputWeight(0, 1f);
             if (clipIndex.TryGetValue("walk", out int wi))
             {
@@ -409,6 +409,15 @@ namespace LastWar
                     string last = BoneKey(t.name);
                     if (last.Contains("Shoulder") || last.Contains("Arm") || last.Contains("Hand")) armBones.Add(t); else bodyBones.Add(t);
                 }
+            }
+            // layer 2: the rifle aiming pose on the upper body only (spine and everything above it), for firing in the air
+            if (clipIndex.TryGetValue("mx_aim", out int ai))
+            {
+                aimUpper = AnimationClipPlayable.Create(graph, clips[ai]);
+                graph.Connect(aimUpper, 0, layers, 2); layers.SetInputWeight(2, 0f);
+                var um = new AvatarMask(); um.AddTransformPath(animator.transform, true);
+                for (int i = 0; i < um.transformCount; i++) um.SetTransformActive(i, um.GetTransformPath(i).Contains("Spine"));
+                layers.SetLayerMaskFromAvatarMask(2, um);
             }
             AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(layers);
             // test switch ?animdelay=N: the body is built but its animation starts N frames later (a slow-loading device)
@@ -453,6 +462,7 @@ namespace LastWar
             var c = cp.GetAnimationClip(); cp.SetTime(c != null ? c.length * fraction : 0); cp.SetSpeed(0);
         }
 
+        bool dead0() => current != null && current.StartsWith("death");
         static bool OneShot(string clip) => clip.StartsWith("death") || clip == "jump";
 
         public void SetGun(string id)
@@ -469,6 +479,12 @@ namespace LastWar
         }
 
         AnimationLayerMixerPlayable layers; AnimationClipPlayable walkArms; float walkLen, freeW;
+        /// <summary>firing in the air (a long gun): the legs keep the jump, the upper body (spine up) takes the aiming
+        /// pose as a masked layer, so the gun points at the target; set each frame by the controller</summary>
+        public bool AirAim;
+        AnimationClipPlayable aimUpper; float aimUpperW;
+        /// <summary>weight of the upper-body aiming layer (0..1) - the weapon IK turns the chest toward the aim by it</summary>
+        public float UpperAimWeight => aimUpperW;
         AnimationClip walkClip, carryClip; float carryLen; GameObject animRoot;
         readonly List<Transform> armBones = new List<Transform>(), bodyBones = new List<Transform>();
         Vector3[] keepPos; Quaternion[] keepRot, runArm;
@@ -557,6 +573,9 @@ namespace LastWar
             // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
             freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" && !RifleClip ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
             if (walkArms.IsValid()) layers.SetInputWeight(1, 0f); // (the arms are copied from the walk clip in LateUpdate instead)
+            // firing in the air with a long gun: the aiming pose fades in over the upper body (about 0.12 s), and out on landing
+            aimUpperW = Mathf.MoveTowards(aimUpperW, AirAim && playing == "mx_jump" && Armed && gun != null && !dead0() ? 1f : 0f, Time.deltaTime * 8f);
+            if (aimUpper.IsValid()) layers.SetInputWeight(2, aimUpperW);
             int target = clipIndex[playing ?? current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
             if (OneShot(playing ?? current))
