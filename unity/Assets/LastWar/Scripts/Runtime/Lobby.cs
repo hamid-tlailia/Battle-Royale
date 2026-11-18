@@ -50,6 +50,7 @@ namespace LastWar
             if (Arg("qfingers") == "1") SoldierBody.QFingers = true;
             if (Arg("rigcheck") == "1") { LobbyTests.RigCheck(); }
             if (Arg("gunaudit") == "1") { GunFrame.Audit(); }
+            if (Arg("gripview") == "1") { GunFrame.GripView(cam); if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("retcheck") == "1") { int.TryParse(Arg("rcfrom") ?? "0", out int rf); int.TryParse(Arg("rcn") ?? "99", out int rn); LobbyTests.RetCheck(rf, rn); if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("trans") == "1") { LobbyTests.TransCheck(cam); if (l.canvas != null) l.canvas.enabled = false; return l; }
             LobbyTests.SetClips(Arg("clips"));
