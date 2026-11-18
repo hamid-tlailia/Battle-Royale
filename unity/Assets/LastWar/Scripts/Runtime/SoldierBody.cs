@@ -905,7 +905,9 @@ namespace LastWar
             float bh = bagNative.size.y * bagFit, bd = bagNative.size.z * bagFit;
             Vector3 up = bodyRot * Vector3.up, back = bodyRot * Vector3.back;
             Vector3 top = neck != null ? neck.position - up * 0.07f : spine.position + up * 0.12f;   // just under the neck
-            float torsoBack = sl != null && sr != null ? (sl.position - sr.position).magnitude * 0.3f : 0.11f; // the back's distance behind the spine
+            // the back's distance behind the chest bone: the mixamo spine runs close to the back (the old fixed placement
+            // had the pack's front 3 cm behind it and lying on the back); 12 % of the shoulder width = ~4 cm
+            float torsoBack = sl != null && sr != null ? (sl.position - sr.position).magnitude * 0.12f : 0.04f;
             Vector3 centreOff = bagNative.center * bagFit;                                           // (the model's own centre)
             bagLook.rotation = bodyRot * Quaternion.Euler(0, 180f, 0); // pockets out, straps on the back
             bagLook.position = top - up * (bh / 2f) + back * (torsoBack + bd / 2f) - bagLook.rotation * centreOff;
