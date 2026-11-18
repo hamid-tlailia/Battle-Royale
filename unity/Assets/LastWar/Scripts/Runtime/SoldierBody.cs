@@ -392,7 +392,9 @@ namespace LastWar
                 }
             }
             AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(layers);
-            graph.Play();
+            // test switch ?animdelay=N: the body is built but its animation starts N frames later (a slow-loading device)
+            if (AnimDelayFrames > 0) { delayedUntil = Time.frameCount + AnimDelayFrames; Debug.Log($"[LastWar] wikf {name}: animation held back {AnimDelayFrames} frames"); }
+            else graph.Play();
         }
 
         // ---- rifle animations (Mixamo Pro Rifle Pack, retargeted): with a gun in the hands the game's clips are swapped
@@ -527,8 +529,10 @@ namespace LastWar
             float m = SoleY(); if (m == float.MaxValue) return;
             hips.position += Vector3.up * (transform.position.y + restSole - m);
         }
+        public static int AnimDelayFrames; int delayedUntil = -1;
         void Update()
         {
+            if (delayedUntil > 0 && Time.frameCount >= delayedUntil && graph.IsValid()) { delayedUntil = -1; graph.Play(); Debug.Log($"[LastWar] wikf {name}: animation starts now (frame {Time.frameCount - builtFrame} after spawn)"); }
             if (weights == null || current == null) return;
             // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
             freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" && !RifleClip ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
