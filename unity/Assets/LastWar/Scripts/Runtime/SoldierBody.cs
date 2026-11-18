@@ -933,8 +933,8 @@ namespace LastWar
             {
                 long ti = Bench.Now();
                 if (UseWeaponIK) { if (weaponIK == null) weaponIK = new WeaponIKController(this); weaponIK.Apply(dir); }
-                Bench.Add(ref Bench.IKTicks, ti);
                 else RifleHold(dir); // (?wik=0: the previous hold, kept for comparison)
+                Bench.Add(ref Bench.IKTicks, ti);
                 return;
             }
             if (weaponIK != null) weaponIK.Release();
