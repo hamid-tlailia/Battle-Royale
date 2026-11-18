@@ -350,6 +350,7 @@ namespace LastWar
         public Transform BaseBone(string key) => SrcBone(key);
         public Transform OutfitBone(string key) => PoseBone(key);
         public string PlayingClip => playing;
+        public bool HasClip(string clip) => clipIndex.ContainsKey(clip);
         public static bool UseOldBase; // test switch ?base=old
         public static Material Lit(Material src) => MapBuilder.LitFrom(src);
         /// <summary>characters a little brighter than the world (dark suits vanished in shade and against the sand)</summary>
@@ -371,7 +372,18 @@ namespace LastWar
             if (animator == null) animator = m.AddComponent<Animator>();
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate; // keeps driving an outfit even though its own mesh is hidden
-            if (clips == null) { clips = UseOldBase ? new AnimationClip[0] : Resources.LoadAll<AnimationClip>("Models/" + BaseModel); if (clips.Length == 0) clips = Resources.LoadAll<AnimationClip>("Models/soldier"); }
+            if (clips == null)
+            {
+                clips = UseOldBase ? new AnimationClip[0] : Resources.LoadAll<AnimationClip>("Models/" + BaseModel);
+                if (clips.Length == 0) clips = Resources.LoadAll<AnimationClip>("Models/soldier");
+                // the lobby's standing clips (lw_lobby.glb, same skeleton, kept apart from lw_base.glb): mx_lobby = rifle idle,
+                // smooth blend into aiming, aim held, blend back - one seamless loop; mx_lobby_idle / mx_lobby_aim = the parts
+                else if (!UseOldBase)
+                {
+                    var lobby = Resources.LoadAll<AnimationClip>("Models/lw_lobby");
+                    if (lobby.Length > 0) { var all = new AnimationClip[clips.Length + lobby.Length]; clips.CopyTo(all, 0); lobby.CopyTo(all, clips.Length); clips = all; }
+                }
+            }
             if (clips.Length == 0) return;
             graph = PlayableGraph.Create("soldier");
             mixer = AnimationMixerPlayable.Create(graph, clips.Length);

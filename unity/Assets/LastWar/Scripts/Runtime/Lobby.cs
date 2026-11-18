@@ -108,7 +108,7 @@ namespace LastWar
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
             lobbyBody.SetGun(Armory.Equipped("rifle")); lobbyBody.ShoulderGrip = false; lobbyBody.Plant = true;
             lobbyBody.GripOffset = LobbyGrip; // (the armory version you carry)
-            lobbyBody.Play("idle_rifle");
+            lobbyBody.Play(lobbyBody.HasClip("mx_lobby") ? "mx_lobby" : "idle_rifle"); // standing: rifle down, now and then up at a target
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
             string url = Application.absoluteURL ?? ""; int pq = url.IndexOf("pose=");
             if (pq >= 0) { string clip = url.Substring(pq + 5); int amp = clip.IndexOf('&'); if (amp >= 0) clip = clip.Substring(0, amp); lobbyBody.Play(clip); }
