@@ -126,7 +126,7 @@ namespace LastWar
                 if (Result != 0) Profile.AddMatch(Player.fighter.kills, Result > 0, Rank);
             };
 
-            if (url.Contains("icetest=1")) StartCoroutine(IceWall.Test(Player.transform)); // (test: an ice wall in front of you, weakened in steps)
+            if (url.Contains("icetest=1")) { PlayerController.AimAssistOn = false; StartCoroutine(IceWall.Test(Player.transform)); } // (test: an ice wall in front of you, weakened in steps; the view held on it)
             // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30
             if (bench)
             {

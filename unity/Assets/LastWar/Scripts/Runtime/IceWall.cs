@@ -282,13 +282,13 @@ namespace LastWar
             if (sh == null) return;
             var r = sh.GetComponent<MeshRenderer>();
             if (fadeMat == null) fadeMat = Resources.Load<Material>("Materials/IceFade");
-            if (fadeMat == null) return;
-            if (myFade == null) { myFade = new Material(fadeMat); r.sharedMaterial = myFade; }
+            if (fadeMat == null) { if (!fadeMissingLogged) { fadeMissingLogged = true; Debug.Log("[LastWar] ice wall: IceFade material missing - cracks only"); } return; }
+            if (myFade == null) { myFade = new Material(fadeMat); r.sharedMaterial = myFade; Debug.Log($"[LastWar] ice wall: see-through material on ({myFade.shader.name}, supported {myFade.shader.isSupported})"); }
             Color bc = myFade.HasProperty("_BaseColor") ? myFade.GetColor("_BaseColor") : Color.white;
             bc.a = 1f - 0.3f * lost; // (at most 30 % see-through: the cracks do the telling)
             if (myFade.HasProperty("_BaseColor")) myFade.SetColor("_BaseColor", bc);
         }
-        Material myFade;
+        Material myFade; static bool fadeMissingLogged;
         void OnDestroy() { if (myFade != null) Destroy(myFade); }
 
         void Update()
