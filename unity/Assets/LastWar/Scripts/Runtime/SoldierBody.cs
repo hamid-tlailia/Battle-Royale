@@ -9,7 +9,7 @@ namespace LastWar
     /// The soldier model of a player or bot: 1.8 m, URP Lit material, the model's 14 clips cross-faded
     /// through a Playables mixer, and the current gun held in the right hand, pointing where the soldier aims.
     /// </summary>
-    public class SoldierBody : MonoBehaviour
+    public partial class SoldierBody : MonoBehaviour
     {
         Transform model, handR, gun;
         string gunId;
@@ -860,7 +860,13 @@ namespace LastWar
             bool carried = current == "run" || current == "prone" || Pose == "crawl";
             bool dead = current.StartsWith("death"), pistol = gunId.StartsWith("pistol");
             // long guns: held in the right hand as the rifle clips expect (also lying down / crawling)
-            if (!dead && !pistol && clipIndex.ContainsKey("mx_aim") && (RifleClip || current == "prone" || Pose == "crawl")) { RifleHold(dir); return; }
+            if (!dead && !pistol && clipIndex.ContainsKey("mx_aim") && (RifleClip || current == "prone" || Pose == "crawl"))
+            {
+                if (UseWeaponIK) { if (weaponIK == null) weaponIK = new WeaponIKController(this); weaponIK.Apply(dir); }
+                else RifleHold(dir); // (?wik=0: the previous hold, kept for comparison)
+                return;
+            }
+            if (weaponIK != null) weaponIK.Release();
             bool aim = ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !dead;
             Vector3 grip = Vector3.zero; bool hasGrip = false;
             // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim
@@ -1010,6 +1016,7 @@ namespace LastWar
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;
+        public static bool UseWeaponIK = true; WeaponIKController weaponIK;
         public static bool GunDebug; float nextGunLog; // ?gundbg=1
         /// <summary>where the grip sits relative to the usual shoulder-aim spot (body space); the lobby moves it down to the waist</summary>
         public Vector3 GripOffset;

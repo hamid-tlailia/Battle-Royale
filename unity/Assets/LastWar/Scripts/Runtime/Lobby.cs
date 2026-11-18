@@ -55,6 +55,9 @@ namespace LastWar
             if (Arg("trans") == "1") { LobbyTests.TransCheck(cam); if (l.canvas != null) l.canvas.enabled = false; return l; }
             LobbyTests.SetClips(Arg("clips"));
             if (float.TryParse(Arg("gyaw") ?? "x", out float gyaw)) LobbyTests.GridYaw = gyaw;
+            if (Arg("ggun") != null) LobbyTests.GridGun = Arg("ggun");
+            if (Arg("wik") == "0") SoldierBody.UseWeaponIK = false;
+            if (LobbyTests.WGrid(cam, Arg("wgrid"), Arg("wclip"))) { if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
             if (Arg("hgrip") == "0") SoldierBody.HandGrip = false;
             if (float.TryParse(Arg("jumpat") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ja)) LobbyTests.Holds[2] = ja;

@@ -28,6 +28,8 @@ namespace LastWar
         static bool RawClips;
         /// <summary>?gyaw= : which way the grid soldiers face (215 = three-quarter front, 0 = their back to the camera as in the game, 270 = side)</summary>
         public static float GridYaw = 215f;
+        /// <summary>?ggun= : the gun model the grid soldiers hold (default rifle)</summary>
+        public static string GridGun = "rifle";
 
         public static bool Run(Camera cam, Canvas ui, string grid, int from, int n, bool zoom, bool swap)
         {
@@ -66,7 +68,7 @@ namespace LastWar
                     go.transform.rotation = Quaternion.Euler(0, GridYaw, 0); // default: three-quarter view toward the camera
                     var body = SoldierBody.Attach(go, rSkin[r], rParts[r]);
                     bool gunOn = RawClips ? Clips[c].StartsWith("mx_") : c != 0;
-                    body.SetGun(gunOn ? "rifle" : null); body.Armed = gunOn;
+                    body.SetGun(gunOn ? GridGun : null); body.Armed = gunOn;
                     body.Play(Clips[c]); body.Speed = c == 1 ? 6f : 0f;
                     body.AimDir = go.transform.forward;
                     bodies.Add(body); holdAt.Add(Holds[c]);
@@ -234,6 +236,33 @@ namespace LastWar
                 Debug.Log($"[LastWar] trans {clip} -> plays {body.PlayingClip}");
             }
             Debug.Log($"[LastWar] trans done: {bad} bad frames");
+        }
+
+        /// <summary>?wgrid=look1,look2,... : rows = guns, columns = the 8 characters, all in one clip (?wclip=, default fire),
+        /// seen from ?gyaw= ; the weapon IK readout (?gundbg=1) logs each soldier</summary>
+        public static bool WGrid(Camera cam, string looks, string clip)
+        {
+            if (string.IsNullOrEmpty(looks)) return false;
+            var t = new GameObject("WGrid").AddComponent<LobbyTests>();
+            string[] gl = looks.Split(','); int nc = SoldierBody.OutfitFiles.Length;
+            Vector3 origin = new Vector3(0, 300f, 0); float dx = 1.1f, dy = 2.1f;
+            for (int r = 0; r < gl.Length; r++)
+                for (int c = 0; c < nc; c++)
+                {
+                    var go = new GameObject($"w{r}_{c}");
+                    go.transform.position = origin + new Vector3((c - (nc - 1) / 2f) * dx, -r * dy, 0);
+                    go.transform.rotation = Quaternion.Euler(0, GridYaw, 0);
+                    var body = SoldierBody.Attach(go, c);
+                    body.SetGun(gl[r]); body.Armed = true; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
+                    body.AimDir = go.transform.forward;
+                }
+            cam.orthographic = true;
+            cam.orthographicSize = Mathf.Max(gl.Length * dy * 0.55f, (nc * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect));
+            cam.transform.position = origin + new Vector3(0, -(gl.Length - 1) * dy / 2f + 0.9f, -30f);
+            cam.transform.rotation = Quaternion.identity;
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(.78f, .84f, .88f); cam.farClipPlane = 100f;
+            RenderSettings.fog = false;
+            return true;
         }
     }
 }

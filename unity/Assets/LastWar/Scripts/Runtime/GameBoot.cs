@@ -39,6 +39,7 @@ namespace LastWar
             SoldierBody.LogRig = (Application.absoluteURL ?? "").Contains("rig=1");
             PlayerController.DebugAim = (Application.absoluteURL ?? "").Contains("dbgaim=1");
             SoldierBody.GunDebug = (Application.absoluteURL ?? "").Contains("gundbg=1");
+            if ((Application.absoluteURL ?? "").Contains("wik=0")) SoldierBody.UseWeaponIK = false;
             SoldierBody.UseOldBase = (Application.absoluteURL ?? "").Contains("base=old"); // (before any soldier is built: the clips are loaded once)
             // test switch: ?parts=h,t,l,f (outfit per piece: head, torso, legs, feet)
             { string u = Application.absoluteURL ?? ""; int pi = u.IndexOf("parts="); if (pi >= 0) { string[] ps = u.Substring(pi + 6).Split('&')[0].Split(','); for (int i = 0; i < 4 && i < ps.Length; i++) if (int.TryParse(ps[i], out int pv)) Profile.SetPart(i, pv); } }
