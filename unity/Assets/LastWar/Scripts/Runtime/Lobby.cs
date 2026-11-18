@@ -64,6 +64,7 @@ namespace LastWar
             if (float.TryParse(Arg("jumpat") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ja)) LobbyTests.Holds[2] = ja;
             int.TryParse(Arg("from") ?? "0", out int tFrom); int.TryParse(Arg("n") ?? "4", out int tN);
             if (LobbyTests.Run(cam, l.canvas, Arg("grid"), tFrom, tN, Arg("zoom") == "1", Arg("swap") == "1")) return l;
+            if (Arg("icetest") == "1" && l.soldier != null) l.StartCoroutine(IceWall.Test(l.soldier.transform)); // (cracks, stage by stage)
             if (open == "edit") l.CustomizeButtons(); else if (open != null) l.Open(open);
             if (lp != null && l.lobbyBody != null)
             {

@@ -70,6 +70,23 @@ namespace LastWar
             return spot;
         }
 
+        /// <summary>test (?icetest=1 in the lobby): a wall raised in front of the lobby soldier, then hit in steps - each
+        /// crack stage shows for a few seconds (and stays: it lasts long enough for screenshots)</summary>
+        public static System.Collections.IEnumerator Test(Transform who)
+        {
+            yield return new WaitForSeconds(3f);
+            var spot = Spot(who); if (spot.Count == 0) { Debug.Log("[LastWar] icetest: no room"); yield break; }
+            Place(new List<Block>(spot), who.position);
+            IceWall w = FindFirstObjectByType<IceWall>(); if (w == null) yield break;
+            w.until = Time.time + 9999f;
+            foreach (float lost in new[] { 0f, 0.3f, 0.55f, 0.8f })
+            {
+                float want = Hp * (1f - lost); if (w.hp > want) w.Damage(w.hp - want);
+                Debug.Log($"[LastWar] icetest: {lost * 100f:0} % of its strength gone");
+                yield return new WaitForSeconds(12f);
+            }
+        }
+
         public static void Place(List<Block> blocks, Vector3 soundAt)
         {
             if (blocks.Count == 0) return;
