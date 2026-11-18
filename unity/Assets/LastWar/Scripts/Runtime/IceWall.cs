@@ -158,28 +158,38 @@ namespace LastWar
             var crackT = new[] { new List<int>(), new List<int>(), new List<int>() };
             void Crack(int level, Vector3 r0a, Vector3 r0b, Vector3 r1a, Vector3 r1b, Vector3 centre)
             {
+                // a fracture: from a point on the face, thin angular segments running both ways at a slant, with forks
                 Vector3 F(float u, float s) => Vector3.Lerp(Vector3.Lerp(r0a, r0b, u), Vector3.Lerp(r1a, r1b, u), s);
                 Vector3 n = Vector3.Cross(r0b - r0a, r1a - r0a).normalized;
                 if (Vector3.Dot(n, F(.5f, .5f) - centre) < 0) n = -n;
-                var pts = new List<Vector3>();
-                float u0 = 0.3f + R() * 0.4f, s0 = 0.05f + R() * 0.2f, s1 = 0.75f + R() * 0.22f; int segs = 5 + (int)(R() * 3);
-                for (int k = 0; k <= segs; k++) { float t = k / (float)segs; pts.Add(F(Mathf.Clamp01(u0 + (R() - .5f) * 0.32f), Mathf.Lerp(s0, s1, t)) + n * 0.014f); }
+                float fw = Mathf.Max(0.05f, (r0b - r0a).magnitude), fh = Mathf.Max(0.05f, (r1a - r0a).magnitude);
                 void Strip(List<Vector3> p, float wdt)
                 {
                     var lv = crackV[level]; var lt = crackT[level];
                     for (int k = 0; k + 1 < p.Count; k++)
                     {
-                        Vector3 d = (p[k + 1] - p[k]).normalized, side = Vector3.Cross(n, d).normalized * (wdt * (1f - 0.5f * k / p.Count));
+                        Vector3 d = (p[k + 1] - p[k]).normalized, side = Vector3.Cross(n, d).normalized * (wdt * (1f - 0.6f * k / p.Count));
                         int b = lv.Count; lv.Add(p[k] - side); lv.Add(p[k] + side); lv.Add(p[k + 1] - side); lv.Add(p[k + 1] + side);
                         lt.AddRange(new[] { b, b + 1, b + 2, b + 1, b + 3, b + 2, b, b + 2, b + 1, b + 1, b + 2, b + 3 }); // (both sides)
                     }
                 }
-                Strip(pts, 0.016f);
-                // a branch off the middle
-                int at = pts.Count / 2; var br = new List<Vector3> { pts[at] };
-                float bu = (R() < .5f ? -1 : 1) * (0.15f + R() * 0.15f);
-                for (int k = 1; k <= 3; k++) br.Add(F(Mathf.Clamp01(u0 + bu * k / 3f + (R() - .5f) * .1f), Mathf.Lerp(s0, s1, at / (float)segs) + 0.08f * k) + n * 0.014f);
-                Strip(br, 0.011f);
+                void Run(float u, float s, float ang, int steps, float wdt, int forks)
+                {
+                    var pts = new List<Vector3> { F(u, s) + n * 0.012f };
+                    for (int k = 0; k < steps; k++)
+                    {
+                        ang += (R() - .5f) * 1.1f;                                        // (sharp turns: about +-30 deg)
+                        float len = 0.05f + R() * 0.07f;
+                        u = Mathf.Clamp(u + Mathf.Cos(ang) * len / fw, 0.04f, 0.96f); s = Mathf.Clamp(s + Mathf.Sin(ang) * len / fh, 0.04f, 0.96f);
+                        pts.Add(F(u, s) + n * 0.012f);
+                        if (forks > 0 && R() < 0.35f) { forks--; Run(u, s, ang + (R() < .5f ? 1 : -1) * (0.6f + R() * 0.5f), steps - k - 1, wdt * 0.7f, 0); }
+                    }
+                    Strip(pts, wdt);
+                }
+                float u0 = 0.2f + R() * 0.6f, s0 = 0.2f + R() * 0.5f, a0 = (R() < .5f ? 0.6f : 2.5f) + (R() - .5f) * 0.6f; // a slant, either way
+                int st = 3 + level + (int)(R() * 2);
+                Run(u0, s0, a0, st, 0.006f, 1 + level);
+                Run(u0, s0, a0 + Mathf.PI, st - 1, 0.006f, level);                       // and the other way from the same point
             }
             int shards = blocks.Count * 3 + 1;
             var line = new List<Vector3>();
@@ -204,7 +214,7 @@ namespace LastWar
                 Vector3 tip = c + Vector3.up * h + tilt + rot * new Vector3((R() - .5f) * 0.2f, 0, 0);
                 // this shard's cracks: one face cracks at the first stage, more at the next two
                 for (int lv = 0; lv < 3; lv++)
-                    for (int q = 0; q <= lv; q++) { int j = (int)(R() * n) % n; Crack(lv, ring0[j], ring0[(j + 1) % n], ring1[j], ring1[(j + 1) % n], c + Vector3.up * h * 0.4f); }
+                    for (int q = 0; q < (lv == 0 ? (R() < .5f ? 1 : 0) : lv); q++) { int j = (int)(R() * n) % n; Crack(lv, ring0[j], ring0[(j + 1) % n], ring1[j], ring1[(j + 1) % n], c + Vector3.up * h * 0.4f); }
                 for (int j = 0; j < n; j++)
                 {
                     int jn = (j + 1) % n;
@@ -218,7 +228,7 @@ namespace LastWar
             mesh.SetVertices(v); mesh.SetColors(col); mesh.SetTriangles(tri, 0); mesh.RecalculateNormals(); mesh.RecalculateBounds();
             var go = new GameObject("shards", typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(root, false);
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
-            if (crackMat == null) crackMat = new Material(Shader.Find("UI/Default")) { color = new Color(.07f, .16f, .3f, .92f), renderQueue = 3002 };
+            if (crackMat == null) crackMat = new Material(Shader.Find("UI/Default")) { color = new Color(.05f, .12f, .24f, .85f), renderQueue = 3002 };
             for (int lv = 0; lv < 3; lv++)
             {
                 for (int i = 0; i < crackV[lv].Count; i++) crackV[lv][i] = root.InverseTransformPoint(crackV[lv][i]);
