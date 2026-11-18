@@ -951,7 +951,9 @@ namespace LastWar
             Transform sh = SrcBone("RightHand"), sl = SrcBone("LeftHand"), smr = SrcBone("RightHandMiddle1"), sml = SrcBone("LeftHandMiddle1");
             if (sh == null || sl == null) return;
             int hi = srcBones.IndexOf(sh); if (hi < 0 || hi >= boneMap.Count) return;
+            Vector3 before = sh.position;
             clips[ai].SampleAnimation(animRoot, 0.4f);
+            if (GunDebug) Debug.Log($"[LastWar] gundbg calibrate: sample moved the base right hand {(sh.position - before).magnitude:0.000} m (0 = SampleAnimation did nothing), playing {playing}");
             Vector3 rp = smr != null ? Vector3.Lerp(sh.position, smr.position, 0.8f) : sh.position;
             Vector3 lp = sml != null ? Vector3.Lerp(sl.position, sml.position, 0.8f) : sl.position;
             Vector3 d = (lp - rp).normalized;
@@ -982,6 +984,15 @@ namespace LastWar
             }
             gun.rotation = gr;
             gun.position = handR.position + handR.rotation * gunAtHand;
+            if (GunDebug && Time.time > nextGunLog)
+            {
+                nextGunLog = Time.time + 1.5f;
+                Vector3 barrel = gr * Vector3.back, lp = Palm("Left"), rp = Palm("Right");
+                Vector3 f = transform.forward, r = transform.right;
+                Vector3 stock = gun.position - barrel * 0.35f;
+                Transform chest = PoseBone("Spine2");
+                Debug.Log($"[LastWar] gundbg {playing}: barrel vs aim {Vector3.Angle(barrel, aim):0} deg, barrel yaw vs body {Vector3.SignedAngle(Vector3.ProjectOnPlane(f, Vector3.up), Vector3.ProjectOnPlane(barrel, Vector3.up), Vector3.up):0} deg (+ = to the right), pitch {Mathf.Asin(Mathf.Clamp(barrel.y, -1, 1)) * Mathf.Rad2Deg:0}, palm line vs barrel {Vector3.Angle(lp - rp, barrel):0} deg, stock side {(chest != null ? Vector3.Dot(stock - chest.position, r) : 0):0.00} m (+ = right), grip-left palm {(lp - rp).magnitude:0.00} m");
+            }
             // the support hand on the handguard (not while it changes the magazine)
             if (hl != null && playing != "mx_reload")
             {
@@ -995,6 +1006,7 @@ namespace LastWar
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;
+        public static bool GunDebug; float nextGunLog; // ?gundbg=1
         /// <summary>where the grip sits relative to the usual shoulder-aim spot (body space); the lobby moves it down to the waist</summary>
         public Vector3 GripOffset;
         static readonly string[] FingerNames = { "Index", "Middle", "Ring", "Pinky" };
