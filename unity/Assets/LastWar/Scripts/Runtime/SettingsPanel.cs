@@ -156,6 +156,7 @@ namespace LastWar
             y += Toggle(p, x, y, w, fk, "Auto pick-up (ammo, meds, guns...)", Profile.AutoPickup, v => Profile.AutoPickup = v);
             y += Toggle(p, x, y, w, fk, "Music", Profile.MusicOn, v => { Profile.MusicOn = v; if (v) Music.PlayLobbyIfIdle(); else Music.Stop(0f); });
             y += Toggle(p, x, y, w, fk, "Sound", Profile.SoundOn, v => Profile.SoundOn = v);
+            y += Toggle(p, x, y, w, fk, "Benchmark the next match (10 / 20 / 30 bots, results on screen)", GameBoot.BenchNext, v => GameBoot.BenchNext = v);
             return y - y0;
         }
 

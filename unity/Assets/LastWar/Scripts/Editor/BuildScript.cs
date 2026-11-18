@@ -43,6 +43,7 @@ namespace LastWar.EditorTools
             PlayerSettings.colorSpace = ColorSpace.Linear;
             // our own logo only: no "Made with Unity" screen (optional since Unity 6 Personal)
             PlayerSettings.SplashScreen.show = false;
+            PlayerSettings.enableFrameTimingStats = true; // (the benchmark reads CPU / GPU frame times where the device reports them)
             PlayerSettings.SplashScreen.showUnityLogo = false;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToPortrait = false;
@@ -99,7 +100,31 @@ namespace LastWar.EditorTools
                 scenes = new[] { ScenePath }, locationPathName = path, target = target, targetGroup = group, options = BuildOptions.None,
             });
             Debug.Log($"[LastWar] {target} build: {report.summary.result}, {report.summary.totalSize / (1024 * 1024)} MB, errors {report.summary.totalErrors}");
+            SizeReport(report);
             if (Application.isBatchMode) EditorApplication.Exit(report.summary.result == BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>build-size audit in the build log: the largest assets packed into the build and the totals by type</summary>
+        static void SizeReport(BuildReport report)
+        {
+            var bySource = new System.Collections.Generic.Dictionary<string, ulong>();
+            var byType = new System.Collections.Generic.Dictionary<string, ulong>();
+            foreach (PackedAssets pa in report.packedAssets)
+                foreach (PackedAssetInfo c in pa.contents)
+                {
+                    string src = string.IsNullOrEmpty(c.sourceAssetPath) ? "(built-in / generated)" : c.sourceAssetPath;
+                    bySource.TryGetValue(src, out ulong a); bySource[src] = a + c.packedSize;
+                    string ty = c.type != null ? c.type.Name : "?";
+                    byType.TryGetValue(ty, out ulong t); byType[ty] = t + c.packedSize;
+                }
+            var top = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, ulong>>(bySource);
+            top.Sort((x, y) => y.Value.CompareTo(x.Value));
+            var sb = new System.Text.StringBuilder("[LastWar] size by type:");
+            var types = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, ulong>>(byType);
+            types.Sort((x, y) => y.Value.CompareTo(x.Value));
+            foreach (var kv in types) sb.Append($" {kv.Key} {kv.Value / 1048576.0:0.0}MB;");
+            Debug.Log(sb.ToString());
+            for (int i = 0; i < top.Count && i < 60; i++) Debug.Log($"[LastWar] size #{i + 1} {top[i].Value / 1048576.0:0.00} MB  {top[i].Key}");
         }
 
         /// <summary>Mobile URP asset (created once, assigned to every quality level).</summary>

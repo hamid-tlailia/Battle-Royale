@@ -54,23 +54,23 @@
    "oneHanded": false,
    "rightHandGrip": [
     0.0,
-    -0.035,
-    0.235
+    -0.04,
+    0.0
    ],
    "leftHandGrip": [
     0.0,
-    0.01,
+    0.005,
     -0.3
    ],
    "muzzle": [
     0.0,
-    0.09,
-    -0.67
+    0.083,
+    -0.677
    ],
    "aimPoint": [
     0.0,
-    0.115,
-    0.1
+    0.12,
+    -0.08
    ]
   },
   {
@@ -89,7 +89,7 @@
    "muzzle": [
     0.0,
     -0.005,
-    -0.8
+    -0.804
    ],
    "aimPoint": [
     0.0,
@@ -113,7 +113,7 @@
    "muzzle": [
     0.0,
     0.05,
-    -0.15
+    -0.154
    ],
    "aimPoint": [
     0.0,
@@ -167,7 +167,7 @@
    "muzzle": [
     0.0,
     0.05,
-    -0.56
+    -0.563
    ],
    "aimPoint": [
     0.0,
@@ -177,17 +177,11 @@
   },
   {
    "look": "shotgun",
-   "category": "shotgun",
-   "holdBack": 0.08
+   "category": "shotgun"
   },
   {
    "look": "shotgun_breacher",
    "category": "shotgun",
-   "rightHandGrip": [
-    0.0,
-    -0.035,
-    0.0
-   ],
    "leftHandGrip": [
     0.0,
     -0.005,
@@ -207,6 +201,7 @@
   {
    "look": "shotgun_long",
    "category": "shotgun",
+   "holdBack": 0.06,
    "rightHandGrip": [
     0.0,
     0.025,
@@ -226,8 +221,7 @@
     0.0,
     0.11,
     -0.1
-   ],
-   "holdBack": 0.06
+   ]
   },
   {
    "look": "smg",
@@ -237,6 +231,7 @@
    "look": "smg_hornet",
    "category": "smg",
    "frameYaw": 180,
+   "leftHandStyle": "vertical",
    "rightHandGrip": [
     0.0,
     0.0,
@@ -250,14 +245,13 @@
    "muzzle": [
     0.0,
     0.06,
-    -0.2
+    -0.205
    ],
    "aimPoint": [
     0.0,
     0.115,
     0.03
-   ],
-   "leftHandStyle": "vertical"
+   ]
   },
   {
    "look": "smg_viper",
@@ -275,7 +269,7 @@
    "muzzle": [
     0.0,
     0.095,
-    -0.4
+    -0.402
    ],
    "aimPoint": [
     0.0,
@@ -303,7 +297,7 @@
    "muzzle": [
     0.0,
     0.0,
-    -0.94
+    -0.938
    ],
    "aimPoint": [
     0.0,
@@ -327,7 +321,7 @@
    "muzzle": [
     0.0,
     0.03,
-    -0.835
+    -0.838
    ],
    "aimPoint": [
     0.0,
@@ -355,7 +349,7 @@
    "muzzle": [
     0.0,
     0.067,
-    -0.18
+    -0.185
    ],
    "aimPoint": [
     0.0,
@@ -379,7 +373,7 @@
    "muzzle": [
     0.0,
     0.05,
-    -0.205
+    -0.208
    ]
   }
  ]

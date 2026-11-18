@@ -187,6 +187,7 @@ namespace LastWar
             }
 
             float nextFail;
+            public const float FailPalm = 0.03f, FailExt = 0.98f;
             /// <summary>with ?gundbg=1: whenever the left palm ends more than 1.5 cm off its target with the IK fully on, the
             /// whole situation - which character / gun / clip, both shoulders, the target and palm, the chest before and after
             /// the aiming turn, and the reach before and after that turn</summary>
@@ -195,7 +196,8 @@ namespace LastWar
             {
                 if (!GunDebug || w < 0.99f || Time.time < nextFail) return;
                 Vector3 lp = b.Palm("Left"); float err = (lp - target).magnitude;
-                if (err < 0.015f) return;
+                float extNow = c.armLen > 0 ? (lp - la.position).magnitude / c.armLen : 0f;
+                if (err < FailPalm && extNow <= FailExt) return; // (revised acceptance: palm within 3 cm, arm extension up to 0.98)
                 nextFail = Time.time + 1.5f;
                 Transform ra = b.PoseBone("RightArm"), chest = b.PoseBone("Spine2");
                 float elbow = Vector3.Angle(la.position - lf.position, hl.position - lf.position);

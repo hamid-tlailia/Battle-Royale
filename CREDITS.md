@@ -78,7 +78,7 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Low-Poly HK MP5 | gun model `gun_smg` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/80980f757c2c463ebc73460a31611652 |
 | Low-Poly IMI Uzi | gun model `gun_smg_viper` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/d9f0070b3c924caf8fe47e41881389f0 |
 | Low-Poly HK MP7 | gun model `gun_smg_hornet` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/0ebd1e2b7a60408cb3b587b4807635ab |
-| Low-Poly Remington 870 | gun model `gun_shotgun` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/8766498ce778479aa03c3b6078937510 |
+| Low-Poly Benelli M4 Super 90 | gun model `gun_shotgun` (replaced the stockless Remington 870, Phase 2) | TastyTony | CC Attribution | https://sketchfab.com/3d-models/caea90a9470143b69e6042f75b9c59cc |
 | Low-Poly SPAS-12 | gun model `gun_shotgun_breacher` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/c95154ea2348443e9195250a6ad122cb |
 | Low-Poly Mossberg 590 | gun model `gun_shotgun_long` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/c0551a6b841145f7a8e59e9304728f1f |
 | Low-Poly SVD Dragunov | gun model `gun_sniper` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/fe40c5c2696441bc8696ed042056709e |

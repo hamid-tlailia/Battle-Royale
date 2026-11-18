@@ -11,6 +11,8 @@ namespace LastWar
     {
         /// <summary>false = lobby (app start, after a match), true = the next load is a match</summary>
         public static bool InMatch;
+        /// <summary>the next match is the benchmark (set from the settings page)</summary>
+        public static bool BenchNext;
         public static GameBoot Instance { get; private set; }
         public MapData Map { get; private set; }
         public PlayerController Player { get; private set; }
@@ -96,6 +98,8 @@ namespace LastWar
                 foreach (PropData pr in Map.props)
                     if (pr.p.StartsWith("house") && ++seen == hn) { pos = Coords.ToUnity(pr.x + 14f, Map.HeightAt(pr.x + 14f, pr.z) + 0.5f, pr.z); break; }
             }
+            bool bench = BenchNext || url.Contains("bench=1");
+            Bench.Active = bench; // (before any soldier is built: their animation graphs are then evaluated by the bench, timed)
             Player = PlayerController.Spawn(pos, controls, cam);
             if (url.Contains("sniper=1")) Player.fighter.guns[0] = new GunState("sniper"); // test switch: sniper in the long-range slot
             if (url.Contains("god=1")) Player.fighter.God = true;
@@ -121,8 +125,15 @@ namespace LastWar
                 if (Result != 0) Profile.AddMatch(Player.fighter.kills, Result > 0, Rank);
             };
 
+            // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30
+            if (bench)
+            {
+                BenchNext = false; Player.fighter.God = true;
+                var bots = new List<Fighter>(); foreach (Fighter f in Fighters) if (f != Player.fighter) bots.Add(f);
+                Bench.Begin(bots);
+            }
             // everybody boards the drop plane (?nodrop=1 in the URL: start on the ground, for tests)
-            if (!(Application.absoluteURL ?? "").Contains("nodrop=1"))
+            if (!bench && !(Application.absoluteURL ?? "").Contains("nodrop=1"))
             {
                 SkyDrop.Create(Map);
                 Music.Stop(); // the lobby tune ends as the plane appears

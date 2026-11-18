@@ -412,6 +412,7 @@ namespace LastWar
             }
             AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(layers);
             // test switch ?animdelay=N: the body is built but its animation starts N frames later (a slow-loading device)
+            if (Bench.Active) { graph.SetTimeUpdateMode(DirectorUpdateMode.Manual); if (!Bench.Bodies.Contains(this)) Bench.Bodies.Add(this); }
             if (AnimDelayFrames > 0) { delayedUntil = Time.frameCount + AnimDelayFrames; Debug.Log($"[LastWar] wikf {name}: animation held back {AnimDelayFrames} frames"); }
             else graph.Play();
         }
@@ -882,16 +883,31 @@ namespace LastWar
             up.rotation = Quaternion.FromToRotation(end.position - up.position, target - up.position) * up.rotation;
         }
 
+        /// <summary>benchmark mode: the animation graph is evaluated by Bench (timed) instead of by the Animator</summary>
+        public void EvaluateGraph(float dt) { if (graph.IsValid() && graph.IsPlaying()) graph.Evaluate(dt); }
+        void OnEnable() { if (Bench.Active && !Bench.Bodies.Contains(this)) Bench.Bodies.Add(this); }
+
         void LateUpdate()
+        {
+            long t0 = Bench.Now();
+            LateUpdateBody();
+            Bench.Add(ref Bench.BodyTicks, t0);
+        }
+
+        void LateUpdateBody()
         {
             if (model != null) ApplyRoot();
             FreeArms();
+            long tr = Bench.Now();
             Retarget();
+            Bench.Add(ref Bench.TransferTicks, tr);
             FixFeet();
             ApplyPose();
             RunLife();
             PlantFeet();
+            tr = Bench.Now();
             SyncExtras();
+            Bench.Add(ref Bench.TransferTicks, tr);
             PlaceBack();
             // aiming the ice wall: a small snowball in the right hand instead of the gun
             if (Snowball && handR != null)
@@ -915,7 +931,9 @@ namespace LastWar
             // long guns: held in the right hand as the rifle clips expect (also lying down / crawling)
             if (!dead && !pistol && clipIndex.ContainsKey("mx_aim") && (RifleClip || current == "prone" || Pose == "crawl"))
             {
+                long ti = Bench.Now();
                 if (UseWeaponIK) { if (weaponIK == null) weaponIK = new WeaponIKController(this); weaponIK.Apply(dir); }
+                Bench.Add(ref Bench.IKTicks, ti);
                 else RifleHold(dir); // (?wik=0: the previous hold, kept for comparison)
                 return;
             }
