@@ -93,8 +93,9 @@ namespace LastWar
             fireBtn = Button("fire", "btn_fire", 84, BR, new Vector2(-68, 150), null);
             fireLeft = Button("fire", "btn_fire", 60, TL, new Vector2(60, -139), null);
             // sniper: while FIRE is held (aiming the shot), an X beside it cancels the shot
-            cancelShot = UiKit.CloseButton(root, BR, new Vector2(-190, 120), 50, null).rectTransform;
-            cancelShot.pivot = new Vector2(.5f, .5f); cancelShot.anchoredPosition = new Vector2(-190, 120) * UiKit.K;
+            cancelShot = UiKit.CloseButton(root, BR, new Vector2(-292, 108), 50, null).rectTransform; // (well clear of FIRE; movable in the button editor)
+            Editable.Add(("cancel", cancelShot));
+            cancelShot.pivot = new Vector2(.5f, .5f); cancelShot.anchoredPosition = new Vector2(-292, 108) * UiKit.K;
             { var ct = cancelShot.gameObject.AddComponent<EventTrigger>(); var ce = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown }; ce.callback.AddListener(_ => CancelShot = true); ct.triggers.Add(ce); }
             cancelShot.gameObject.SetActive(false);
             blockers.Add(cancelShot);
@@ -216,10 +217,10 @@ namespace LastWar
             bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0 && !Spectating);
             if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn); // no settings in the plane / during the drop / watching
             bool joyOn = Editing || Preview || (!Spectating && airMode != 1); if (joyBase.gameObject.activeSelf != joyOn) joyBase.gameObject.SetActive(joyOn);
+            bool xOn = (SniperAiming && !Spectating) || Editing || Preview; if (cancelShot.gameObject.activeSelf != xOn) cancelShot.gameObject.SetActive(xOn); // (shown in the button editor so it can be placed)
             if (Editing || Preview) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = eyeFinger = -1; FreeLook = false; return; }
             // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
             if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = eyeFinger = -1; FreeLook = false; joyKnob.anchoredPosition = Vector2.zero; return; }
-            bool xOn = SniperAiming && !Spectating; if (cancelShot.gameObject.activeSelf != xOn) cancelShot.gameObject.SetActive(xOn);
             bool wasHeld = FireHeld;
             if (Input.touchCount > 0) Touches();
             else

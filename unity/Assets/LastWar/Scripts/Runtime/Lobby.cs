@@ -57,6 +57,7 @@ namespace LastWar
             if (float.TryParse(Arg("gyaw") ?? "x", out float gyaw)) LobbyTests.GridYaw = gyaw;
             if (Arg("ggun") != null) LobbyTests.GridGun = Arg("ggun");
             if (Arg("wik") == "0") SoldierBody.UseWeaponIK = false;
+            int.TryParse(Arg("wbag") ?? "0", out LobbyTests.GridBag);
             if (LobbyTests.WGrid(cam, Arg("wgrid"), Arg("wclip"))) { if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
             if (Arg("hgrip") == "0") SoldierBody.HandGrip = false;
@@ -512,6 +513,8 @@ namespace LastWar
                 pic.rectTransform.pivot = new Vector2(0, .5f); pic.preserveAspect = true;
                 var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.name;
                 var pk = UiKit.Txt(c, new Vector2(0, 0), new Vector2(14, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerLeft, new Color(1, 1, 1, .7f)); pk.fontStyle = FontStyle.Normal; pk.text = v.perk;
+                // the line stays in the picture's column (it ran under the bars), wrapping onto a second line if it must
+                pk.rectTransform.pivot = new Vector2(0, 0); pk.rectTransform.sizeDelta = new Vector2(160 * s, 28 * s); pk.horizontalOverflow = HorizontalWrapMode.Wrap;
                 // the numbers as bars
                 var st2 = Armory.Stats(v);
                 (string, float, string)[] bars = {

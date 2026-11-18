@@ -247,15 +247,19 @@ namespace LastWar
             {
                 Mark m = shots[i]; float left = m.until - Time.time;
                 if (left <= 0) { Destroy(m.rt.gameObject); shots.RemoveAt(i); continue; }
-                Place(m.rt, m.web, 24); m.img.color = new Color(1, .16f, .16f, Mathf.Min(1, left / m.life));
+                Place(m.rt, m.web, 14); m.img.color = new Color(1, .16f, .16f, Mathf.Min(1, left / m.life)); // (small: never hides your arrow)
             }
             for (int i = hits.Count - 1; i >= 0; i--)
             {
                 Mark m = hits[i]; float left = m.until - Time.time;
                 if (left <= 0) { Destroy(m.rt.gameObject); Destroy(m.line.gameObject); hits.RemoveAt(i); continue; }
                 float a = Mathf.Min(1, left / m.life);
-                Place(m.rt, m.web, 48); m.img.color = new Color(1, .12f, .12f, a);
                 Vector2 from = ToMap(mw), to = ToMap(m.web), d = to - from; float L = Mathf.Max(1, d.magnitude);
+                // whoever shoots you: a small bright dot; close by, it is drawn just outside your arrow in their direction
+                // (it sat on the arrow and hid which way they were)
+                const float clear = 34f;
+                Vector2 dotAt = L < clear ? from + d / L * clear : to;
+                m.rt.anchoredPosition = dotAt * u; m.rt.sizeDelta = Vector2.one * 18 * u; m.img.color = new Color(1, .12f, .12f, a);
                 float len = Mathf.Min(L, 90) - 24;
                 m.line.anchoredPosition = (from + d / L * 24) * u; m.line.sizeDelta = new Vector2(Mathf.Max(0, len) * u, 9 * u);
                 m.line.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);

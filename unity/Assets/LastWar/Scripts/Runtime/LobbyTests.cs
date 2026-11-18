@@ -240,6 +240,7 @@ namespace LastWar
 
         /// <summary>?wgrid=look1,look2,... : rows = guns, columns = the 8 characters, all in one clip (?wclip=, default fire),
         /// seen from ?gyaw= ; the weapon IK readout (?gundbg=1) logs each soldier</summary>
+        public static int GridBag;
         public static bool WGrid(Camera cam, string looks, string clip)
         {
             if (string.IsNullOrEmpty(looks)) return false;
@@ -255,6 +256,7 @@ namespace LastWar
                     var body = SoldierBody.Attach(go, c);
                     body.SetGun(gl[r]); body.Armed = true; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
                     body.AimDir = go.transform.forward;
+                    if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
                 }
             cam.orthographic = true;
             cam.orthographicSize = Mathf.Max(gl.Length * dy * 0.55f, (nc * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect));

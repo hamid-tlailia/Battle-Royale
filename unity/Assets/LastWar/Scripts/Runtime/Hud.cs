@@ -417,8 +417,9 @@ namespace LastWar
             if (victim == player.fighter)
             {
                 flashT = Mathf.Min(0.5f, flashT + dmg / 60f);
-                // damage you take: red number rising from the health bar (web .dmg-taken)
-                var t = UiKit.Txt(input.Canvas.transform, BC, new Vector2(Random.Range(-30f, 30f), 24), new Vector2(60, 24), 20, TextAnchor.MiddleCenter, new Color(1f, .23f, .19f));
+                // damage you take: a small red number rising at your soldier's right side (it sat over the armour icon and
+                // covered the view); the soldier stands a little below the screen centre in the third-person view
+                var t = UiKit.Txt(input.Canvas.transform, C, new Vector2(88 + Random.Range(-6f, 6f), -70 + Random.Range(-8f, 8f)), new Vector2(50, 18), 13, TextAnchor.MiddleLeft, new Color(1f, .23f, .19f));
                 t.rectTransform.pivot = new Vector2(.5f, 0); t.text = "-" + Mathf.RoundToInt(dmg);
                 taken.Add((t, 1.1f));
             }

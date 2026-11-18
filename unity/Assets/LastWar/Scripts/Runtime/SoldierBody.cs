@@ -866,7 +866,7 @@ namespace LastWar
         }
 
         // ---- the backpack worn on the back (its level's model: straps against the body)
-        Transform bagLook; int bagLvShown; Quaternion bagSpineOffset; bool bagOffsetSet;
+        Transform bagLook; int bagLvShown; Quaternion bagSpineOffset; bool bagOffsetSet; float bagFit; Bounds bagNative;
         public void SetBag(int lv)
         {
             if (lv == bagLvShown) return;
@@ -877,7 +877,7 @@ namespace LastWar
             GameObject src = MapBuilder.Model("bag" + lv);
             if (src == null) return;
             bagLook = Instantiate(src, transform, false).transform;
-            bagLook.localScale = Vector3.one * 0.55f; // (a pack, not a wardrobe)
+            bagLook.localScale = Vector3.one; bagFit = 0f; bagNative = GunFrame.LocalBounds(bagLook); // (sized to the wearer in PlaceBag)
             foreach (Renderer r in bagLook.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
         }
 
@@ -889,8 +889,26 @@ namespace LastWar
             // follows the chest in every pose (standing, running, crawling): the chest's turn from the first frame
             if (!bagOffsetSet) { bagOffsetSet = true; bagSpineOffset = Quaternion.Inverse(spine.rotation) * transform.rotation; }
             Quaternion bodyRot = spine.rotation * bagSpineOffset;
-            bagLook.position = spine.position + bodyRot * new Vector3(0f, -0.27f, -0.12f);
+            // sized to the wearer (all eight outfits differ): its height a share of the torso (hips to neck) - Lv1 55 %,
+            // Lv2 63 %, Lv3 71 % - never wider than 85 % of the shoulders nor deeper than 28 cm; worked out once, from the
+            // outfit's own bones
+            Transform hips = PoseBone("Hips"), neck = PoseBone("Neck"), sl = PoseBone("LeftArm"), sr = PoseBone("RightArm");
+            if (bagFit <= 0f)
+            {
+                float torso = hips != null && neck != null ? (neck.position - hips.position).magnitude : 0.5f;
+                float shoulders = sl != null && sr != null ? (sl.position - sr.position).magnitude : 0.35f;
+                Vector3 n = Vector3.Scale(bagNative.size, Vector3.one); // (model size at scale 1, its own axes)
+                float wantH = torso * (0.55f + 0.08f * (Mathf.Clamp(bagLvShown, 1, 3) - 1)), maxW = shoulders * 0.85f;
+                bagFit = Mathf.Min(Mathf.Min(n.y > 1e-3f ? wantH / n.y : 0.55f, n.x > 1e-3f ? maxW / n.x : 0.55f), n.z > 1e-3f ? 0.28f / n.z : 0.55f); // (and at most 28 cm deep)
+                bagLook.localScale = Vector3.one * bagFit / Mathf.Max(1e-4f, transform.lossyScale.x);
+            }
+            float bh = bagNative.size.y * bagFit, bd = bagNative.size.z * bagFit;
+            Vector3 up = bodyRot * Vector3.up, back = bodyRot * Vector3.back;
+            Vector3 top = neck != null ? neck.position - up * 0.07f : spine.position + up * 0.12f;   // just under the neck
+            float torsoBack = sl != null && sr != null ? (sl.position - sr.position).magnitude * 0.3f : 0.11f; // the back's distance behind the spine
+            Vector3 centreOff = bagNative.center * bagFit;                                           // (the model's own centre)
             bagLook.rotation = bodyRot * Quaternion.Euler(0, 180f, 0); // pockets out, straps on the back
+            bagLook.position = top - up * (bh / 2f) + back * (torsoBack + bd / 2f) - bagLook.rotation * centreOff;
         }
 
         void PlaceBack()
