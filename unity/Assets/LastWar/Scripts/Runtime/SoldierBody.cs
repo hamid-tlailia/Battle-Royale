@@ -380,8 +380,12 @@ namespace LastWar
                 // smooth blend into aiming, aim held, blend back - one seamless loop; mx_lobby_idle / mx_lobby_aim = the parts
                 else if (!UseOldBase)
                 {
-                    var lobby = Resources.LoadAll<AnimationClip>("Models/lw_lobby");
-                    if (lobby.Length > 0) { var all = new AnimationClip[clips.Length + lobby.Length]; clips.CopyTo(all, 0); lobby.CopyTo(all, clips.Length); clips = all; }
+                    // (and lw_extra.glb: further Mixamo clips on the same skeleton, on trial - e.g. mx_rifle_run, mx_running)
+                    foreach (string extra in new[] { "lw_lobby", "lw_extra" })
+                    {
+                        var more = Resources.LoadAll<AnimationClip>("Models/" + extra);
+                        if (more.Length > 0) { var all = new AnimationClip[clips.Length + more.Length]; clips.CopyTo(all, 0); more.CopyTo(all, clips.Length); clips = all; }
+                    }
                 }
             }
             if (clips.Length == 0) return;
