@@ -403,6 +403,9 @@ namespace LastWar
             // the sprint, the empty-handed walk the relaxed walk; the old run stays for the arms that carry a gun
             if (clipIndex.TryGetValue("run", out int oldRun) && clipIndex.TryGetValue("sprint_ual", out int sprint)) { carryClip = clips[oldRun]; carryLen = carryClip.length; clipIndex["run"] = sprint; }
             if (clipIndex.TryGetValue("walk_ual", out int walkU)) clipIndex["walk"] = walkU;
+            // running with empty hands: the Mixamo "Running" (lw_extra.glb, arms swinging free; 5.6 m/s as recorded, close
+            // to the 6 m/s the run's playback rate is set for). With a gun the rifle clips stand in as before.
+            if (clipIndex.TryGetValue("mx_running", out int runFree)) clipIndex["run"] = runFree;
             // the web game's run_free: the run clip's legs with the walk clip's arms (swinging at the sides),
             // as a second layer that only moves the shoulders, arms and hands
             layers = AnimationLayerMixerPlayable.Create(graph, 3);
