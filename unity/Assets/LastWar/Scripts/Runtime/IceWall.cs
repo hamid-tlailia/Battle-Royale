@@ -27,19 +27,38 @@ namespace LastWar
 
         static float BlockW => 2f * Radius * Mathf.Sin(Arc / (Blocks - 1) * 0.5f * Mathf.Deg2Rad) + 0.12f; // blocks overlap: no gaps
 
+        /// <summary>how much farther than right in front of you the wall can be raised (aimed with the crosshair)</summary>
+        public const float MaxPush = 3f;
+
         /// <summary>where the blocks would stand around the front of `who` (open behind); empty when there is no room.
-        /// Works in the air: the ground is searched up to 8 m below.</summary>
-        public static List<Block> Spot(Transform who)
+        /// Works in the air: the ground is searched up to 8 m below. With an aim ray (eye, aim) the wall goes where the
+        /// crosshair meets the ground, from right in front of you up to <see cref="MaxPush"/> m farther; never through a
+        /// wall or rock between you and it.</summary>
+        public static List<Block> Spot(Transform who, Vector3 eye = default, Vector3 aim = default)
         {
             spot.Clear();
             int mask = ~(1 << MapBuilder.PlayerLayer);
             Vector3 fwd = who.forward; fwd.y = 0; if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward; fwd.Normalize();
+            Vector3 centre = who.position;
+            if (aim.sqrMagnitude > 0.5f)
+            {
+                // the crosshair's ground point, measured along the way you face; looking level or up = the farthest
+                float far = Radius + MaxPush, reach = far;
+                if (Physics.Raycast(eye, aim, out RaycastHit g, 40f, mask, QueryTriggerInteraction.Ignore))
+                    reach = Vector3.Dot(g.point - who.position, fwd);
+                float push = Mathf.Clamp(reach - Radius, 0f, MaxPush);
+                // not through what stands between you and that spot (house wall, rock): stop half a metre short of it
+                Vector3 from = who.position + Vector3.up * 1f;
+                if (push > 0f && Physics.Raycast(from, fwd, out RaycastHit wall, push + Radius, mask, QueryTriggerInteraction.Ignore) && wall.collider.GetComponentInParent<IceWall>() == null)
+                    push = Mathf.Clamp(wall.distance - Radius - 0.5f, 0f, push);
+                centre += fwd * push;
+            }
             float baseYaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg, step = Arc / (Blocks - 1), w = BlockW;
             for (int i = 0; i < Blocks; i++)
             {
                 float a = baseYaw - Arc / 2f + i * step;
                 Vector3 dir = Quaternion.Euler(0, a, 0) * Vector3.forward;
-                Vector3 p = who.position + dir * Radius + Vector3.up * 1.5f;
+                Vector3 p = centre + dir * Radius + Vector3.up * 1.5f;
                 if (!Physics.Raycast(p, Vector3.down, out RaycastHit h, 9.5f, mask, QueryTriggerInteraction.Ignore)) continue;
                 if (h.collider.GetComponentInParent<IceWall>() != null) continue;
                 Vector3 c = h.point + Vector3.up * (Height / 2f - 0.15f);

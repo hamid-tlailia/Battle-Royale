@@ -162,7 +162,7 @@ namespace LastWar
             if (input.FrostPressed) input.FrostAim = !input.FrostAim && fighter.frost > 0;
             if (input.FrostAim && fighter.frost <= 0) input.FrostAim = false;
             if (frostGhost == null) frostGhost = IceWall.Ghost();
-            var wallSpot = input.FrostAim ? IceWall.Spot(transform) : null;
+            var wallSpot = input.FrostAim ? IceWall.Spot(transform, eye, aim) : null; // (where the crosshair points, up to 3 m farther)
             frostGhost.gameObject.SetActive(input.FrostAim);
             if (input.FrostAim) IceWall.ShowGhost(frostGhost, wallSpot);
             if (input.FrostAim && input.FirePressed)

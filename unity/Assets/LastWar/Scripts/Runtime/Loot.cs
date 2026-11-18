@@ -25,9 +25,14 @@ namespace LastWar
         void OnEnable() { All.Add(this); }
         void OnDisable() { All.Remove(this); }
 
+        /// <summary>a gun on the ground shows the version you get by taking it (your armory's choice for that gun -
+        /// picking it up gives you that version), not the base model</summary>
+        WeaponDef Yours => kind == Kind.Weapon ? Armory.DefFor(item) : null;
+        string GunLook => Yours?.Look ?? item;
+
         public string Label => kind switch
         {
-            Kind.Weapon => Tuning.Weapon(item)?.name ?? item,
+            Kind.Weapon => Yours?.name ?? item,
             Kind.Ammo => (Tuning.Weapon(item)?.name ?? item) + " ammo",
             Kind.Med => "Medkit",
             Kind.Armor => "Armor vest Lv" + (string.IsNullOrEmpty(item) ? "1" : item),
@@ -50,7 +55,7 @@ namespace LastWar
         /// <summary>HUD picture for the list / backpack</summary>
         public Sprite Icon => kind switch
         {
-            Kind.Weapon => Resources.Load<Sprite>("UI/Items/gun_" + item) ?? UiKit.Get("gun_" + item),
+            Kind.Weapon => Resources.Load<Sprite>("UI/Items/gun_" + GunLook) ?? Resources.Load<Sprite>("UI/Items/gun_" + item) ?? UiKit.Get("gun_" + GunLook) ?? UiKit.Get("gun_" + item),
             Kind.Ammo => UiKit.Get("icon_ammo"),
             Kind.Med => UiKit.Get("icon_heal"),
             Kind.Armor => UiKit.Get("icon_vest"),
@@ -135,7 +140,7 @@ namespace LastWar
                 _ => null,
             };
             Transform look;
-            if (kind == Kind.Weapon && (look = GunFrame.Make(item, transform, "look")) != null)
+            if (kind == Kind.Weapon && (look = GunFrame.Make(GunLook, transform, "look") ?? GunFrame.Make(item, transform, "look")) != null)
             {
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
                 // lying on its left side on the ground: barrel level, grip pointing sideways, resting on the box's lower edge
