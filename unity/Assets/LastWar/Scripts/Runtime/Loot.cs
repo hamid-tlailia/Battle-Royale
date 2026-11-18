@@ -126,7 +126,7 @@ namespace LastWar
         {
             GameObject src = kind switch
             {
-                Kind.Weapon => MapBuilder.Model("gun_" + item),
+                Kind.Weapon => null, // (built below through GunFrame)
                 Kind.Ammo => MapBuilder.Model("item_ammo"),
                 Kind.Med => MapBuilder.Model("item_med"),
                 Kind.Armor => MapBuilder.Model("item_vest"),
@@ -135,7 +135,15 @@ namespace LastWar
                 _ => null,
             };
             Transform look;
-            if (src != null)
+            if (kind == Kind.Weapon && (look = GunFrame.Make(item, transform, "look")) != null)
+            {
+                foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
+                // lying on its left side on the ground: barrel level, grip pointing sideways, resting on the box's lower edge
+                look.localRotation = Quaternion.Euler(0, 0, 90f);
+                Bounds lb = GunFrame.LocalBounds(look);
+                look.localPosition = Vector3.up * (lb.extents.x + 0.01f) - look.localRotation * new Vector3(lb.center.x, lb.center.y, 0);
+            }
+            else if (src != null)
             {
                 look = Instantiate(src, transform, false).transform;
                 foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }

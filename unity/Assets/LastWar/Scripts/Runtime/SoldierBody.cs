@@ -410,9 +410,9 @@ namespace LastWar
             if (gun != null) Destroy(gun.gameObject);
             gun = null;
             if (string.IsNullOrEmpty(id)) return;
-            GameObject src = MapBuilder.Model("gun_" + id);
-            if (src == null) return;
-            gun = Instantiate(src, transform, false).transform;
+            // (GunFrame: the holder is moved, never the model's own root - that root carries the import's turn)
+            gun = GunFrame.Make(id, transform, "gun");
+            if (gun == null) return;
             foreach (Renderer r in gun.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
         }
 
@@ -759,9 +759,8 @@ namespace LastWar
             if (ids == null) return;
             for (int i = 0; i < ids.Count && i < 2; i++)
             {
-                GameObject src = MapBuilder.Model("gun_" + ids[i]);
-                if (src == null) continue;
-                Transform g = Instantiate(src, transform, false).transform;
+                Transform g = GunFrame.Make(ids[i], transform, "backgun");
+                if (g == null) continue;
                 foreach (Renderer r in g.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
                 backGuns.Add(g);
             }

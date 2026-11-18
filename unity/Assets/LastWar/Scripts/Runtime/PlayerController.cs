@@ -50,10 +50,25 @@ namespace LastWar
             if (url.Contains("armed=1") || url.Contains("sniper=1") || url.Contains("nodrop=1")) pc.fighter.GiveStartingGuns("rifle", "shotgun");
             else pc.fighter.holstered = true;
             pc.body = SoldierBody.Attach(go, Profile.Skin, Profile.Parts);
+            if (url.Contains("gunshow=1")) pc.StartCoroutine(pc.GunShow());
             return pc;
         }
 
         void Awake() { cc = GetComponent<CharacterController>(); }
+
+        /// <summary>?gunshow=1 (tests): every gun model laid on the ground in a row in front of you</summary>
+        System.Collections.IEnumerator GunShow()
+        {
+            yield return new WaitForSeconds(2f);
+            while (fighter.air != 0) yield return null;
+            Vector3 f = Quaternion.Euler(0, yaw, 0) * Vector3.forward, r = Quaternion.Euler(0, yaw, 0) * Vector3.right;
+            for (int i = 0; i < GunFrame.Looks.Length; i++)
+            {
+                Vector3 at = transform.position + f * (2.2f + (i / 5) * 1.3f) + r * ((i % 5) - 2) * 1.2f;
+                if (Physics.Raycast(at + Vector3.up * 3f, Vector3.down, out RaycastHit h, 8f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) at = h.point;
+                Loot.Spawn(Loot.Kind.Weapon, GunFrame.Looks[i], 1, at);
+            }
+        }
 
         void Update()
         {
