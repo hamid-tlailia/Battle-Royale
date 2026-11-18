@@ -866,7 +866,34 @@ namespace LastWar
         }
 
         // ---- the backpack worn on the back (its level's model: straps against the body)
-        Transform bagLook; int bagLvShown; Quaternion bagSpineOffset; bool bagOffsetSet; float bagFit; Bounds bagNative;
+        Transform bagLook; int bagLvShown; Quaternion bagSpineOffset; bool bagOffsetSet; float bagFit, bagBack = -1f; Bounds bagNative;
+
+        /// <summary>how far behind the chest bone the wearer's back surface reaches, over the pack's own height and width
+        /// (all the outfit's skinned meshes baked in their current pose; falls back to 4 cm)</summary>
+        float MeasureBack(Transform spine, Vector3 up, Vector3 back, Vector3 top, float height, float width)
+        {
+            float far = float.MinValue;
+            Vector3 right = Vector3.Cross(up, back).normalized;
+            Transform root = outfitRoot != null ? outfitRoot : (model != null ? model : transform);
+            var baked = new Mesh();
+            foreach (SkinnedMeshRenderer r in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                r.BakeMesh(baked);
+                var vs = baked.vertices; Matrix4x4 m = r.transform.localToWorldMatrix;
+                for (int i = 0; i < vs.Length; i++)
+                {
+                    Vector3 p = m.MultiplyPoint3x4(vs[i]);
+                    float dy = Vector3.Dot(p - top, up);                  // 0 at the pack's top, -height at its bottom
+                    if (dy > 0.02f || dy < -height) continue;
+                    Vector3 rel = p - spine.position;
+                    if (Mathf.Abs(Vector3.Dot(rel, right)) > width * 0.5f) continue;
+                    float d = Vector3.Dot(rel, back);
+                    if (d > far && d < 0.35f) far = d;                   // (an arm or a weapon well behind is not the back)
+                }
+            }
+            Destroy(baked);
+            return far == float.MinValue ? 0.04f : Mathf.Max(0f, far);
+        }
         public void SetBag(int lv)
         {
             if (lv == bagLvShown) return;
@@ -877,7 +904,7 @@ namespace LastWar
             GameObject src = MapBuilder.Model("bag" + lv);
             if (src == null) return;
             bagLook = Instantiate(src, transform, false).transform;
-            bagLook.localScale = Vector3.one; bagFit = 0f; bagNative = GunFrame.LocalBounds(bagLook); // (sized to the wearer in PlaceBag)
+            bagLook.localScale = Vector3.one; bagFit = 0f; bagBack = -1f; bagNative = GunFrame.LocalBounds(bagLook); // (sized to the wearer in PlaceBag)
             foreach (Renderer r in bagLook.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = Lit(mats[k]); r.sharedMaterials = mats; r.enabled = visible; }
         }
 
@@ -905,9 +932,11 @@ namespace LastWar
             float bh = bagNative.size.y * bagFit, bd = bagNative.size.z * bagFit;
             Vector3 up = bodyRot * Vector3.up, back = bodyRot * Vector3.back;
             Vector3 top = neck != null ? neck.position - up * 0.07f : spine.position + up * 0.12f;   // just under the neck
-            // the back's distance behind the chest bone: the mixamo spine runs close to the back (the old fixed placement
-            // had the pack's front 3 cm behind it and lying on the back); 12 % of the shoulder width = ~4 cm
-            float torsoBack = sl != null && sr != null ? (sl.position - sr.position).magnitude * 0.12f : 0.04f;
+            // the back itself, from the wearer's own mesh: the farthest point behind the chest bone over the area the pack
+            // covers (a tactical vest or a broad back stands out further than a thin suit); measured once, in the pose of the
+            // moment it is first worn
+            if (bagBack < 0f) bagBack = MeasureBack(spine, up, back, top, bh, bagNative.size.x * bagFit);
+            float torsoBack = bagBack + 0.01f;
             Vector3 centreOff = bagNative.center * bagFit;                                           // (the model's own centre)
             // straps against the back, pockets out: the Lv1 / Lv3 models face the other way from Lv2 (their straps showed outside)
             bagLook.rotation = bodyRot * Quaternion.Euler(0, bagLvShown == 2 ? 180f : 0f, 0);
