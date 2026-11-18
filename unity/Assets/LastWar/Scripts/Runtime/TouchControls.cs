@@ -106,7 +106,7 @@ namespace LastWar
             proneBtn = Button("prone", "btn", 50, BR, new Vector2(-201, 45), () => { Prone = !Prone; if (Prone) { Crouch = false; Sprint = false; } });
             healBtn = Button("heal", "btn", 50, BL, new Vector2(215, 95), () => HealPressed = true);
             frostBtn = Button("frost", "btn", 48, BR, new Vector2(-220, 188), () => { FrostPressed = true; Scoped = false; }); // (the ice closes the scope)
-            eyeBtn = Button("eye", "btn", 44, BR, new Vector2(-62, 262), null); // free look: hold and drag
+            eyeBtn = Button("eye", "btn", 44, BR, new Vector2(-222, 252), null); // free look: hold and drag (above the ice button, clear of the minimap)
             healBadge = Badge(healBtn); frostBadge = Badge(frostBtn);
             Button("bag", "btn", 42, TL, new Vector2(125, -27), () => BagPressed = true);
             // settings: small dark square, top-left (web .gear-btn)
