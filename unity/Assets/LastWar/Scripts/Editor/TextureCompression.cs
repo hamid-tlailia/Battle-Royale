@@ -5,8 +5,9 @@ namespace LastWar.EditorTools
 {
     /// <summary>
     /// Per-platform texture compression, in one place (Phase 2 size work):
-    ///   Android: ASTC 6x6 for colour / data textures (characters, buildings, props, map photos),
-    ///            ASTC 4x4 where quality needs it (normal maps, HUD / lobby pictures)
+    ///   Android: ASTC 4x4 for the map photos and ground tiles (large even areas such as grass lost a little colour at
+    ///            6x6), the normal maps and the HUD / lobby pictures; ASTC 5x5 for colour textures (characters, buildings,
+    ///            props); ASTC 6x6 for other data textures (metallic-roughness, occlusion)
     ///   WebGL:   kept uncompressed (RGBA32) as before - the WebGL build is the test build, run on desktop browsers
     ///            and a software renderer, where ASTC is not available
     ///   other platforms: uncompressed, as before
@@ -17,7 +18,7 @@ namespace LastWar.EditorTools
     {
         public static readonly bool Enabled = true;
 
-        public enum Kind { Colour, Data, Normal, Ui }
+        public enum Kind { Colour, Data, Normal, Ui, Terrain }
 
         public static void Apply(TextureImporter ti, Kind kind)
         {
@@ -32,7 +33,8 @@ namespace LastWar.EditorTools
             }
             android.overridden = true;
             android.maxTextureSize = ti.maxTextureSize;
-            android.format = kind == Kind.Normal || kind == Kind.Ui ? TextureImporterFormat.ASTC_4x4 : TextureImporterFormat.ASTC_6x6;
+            android.format = kind == Kind.Normal || kind == Kind.Ui || kind == Kind.Terrain ? TextureImporterFormat.ASTC_4x4
+                : kind == Kind.Colour ? TextureImporterFormat.ASTC_5x5 : TextureImporterFormat.ASTC_6x6;
             android.compressionQuality = 100; // (best encoder effort: slower import, same size)
             ti.SetPlatformTextureSettings(android);
             webgl.overridden = true;

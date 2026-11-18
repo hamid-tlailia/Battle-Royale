@@ -2,7 +2,7 @@ using UnityEditor;
 
 namespace LastWar.EditorTools
 {
-    /// <summary>Map pictures (Resources/Maps): aerial photos and detail grain tiles (Android: ASTC 6x6, see TextureCompression).</summary>
+    /// <summary>Map pictures (Resources/Maps): aerial photos and detail grain tiles (Android: ASTC 4x4, see TextureCompression).</summary>
     public class MapTextureImport : AssetPostprocessor
     {
         void OnPreprocessTexture()
@@ -16,8 +16,7 @@ namespace LastWar.EditorTools
             ti.isReadable = false;
             if (p.Contains("/detail_")) { ti.wrapMode = UnityEngine.TextureWrapMode.Repeat; ti.sRGBTexture = false; }
             else ti.wrapMode = UnityEngine.TextureWrapMode.Clamp;
-            // Android: ASTC 6x6 (the photos and grain tiles); WebGL / others: uncompressed as before
-            TextureCompression.Apply(ti, p.Contains("/detail_") ? TextureCompression.Kind.Data : TextureCompression.Kind.Colour);
+                        TextureCompression.Apply(ti, TextureCompression.Kind.Terrain); // (photos and grain tiles: ASTC 4x4)
         }
     }
 }
