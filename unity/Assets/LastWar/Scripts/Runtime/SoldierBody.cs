@@ -992,6 +992,11 @@ namespace LastWar
                 Vector3 stock = gun.position - barrel * 0.35f;
                 Transform chest = PoseBone("Spine2");
                 Debug.Log($"[LastWar] gundbg {playing}: barrel vs aim {Vector3.Angle(barrel, aim):0} deg, barrel yaw vs body {Vector3.SignedAngle(Vector3.ProjectOnPlane(f, Vector3.up), Vector3.ProjectOnPlane(barrel, Vector3.up), Vector3.up):0} deg (+ = to the right), pitch {Mathf.Asin(Mathf.Clamp(barrel.y, -1, 1)) * Mathf.Rad2Deg:0}, palm line vs barrel {Vector3.Angle(lp - rp, barrel):0} deg, stock side {(chest != null ? Vector3.Dot(stock - chest.position, r) : 0):0.00} m (+ = right), grip-left palm {(lp - rp).magnitude:0.00} m");
+                // what is actually drawn: the gun mesh's world box (its long side = the barrel's axis), the hips' facing
+                Bounds gb = new Bounds(gun.position, Vector3.zero); foreach (Renderer gr2 in gun.GetComponentsInChildren<Renderer>()) gb.Encapsulate(gr2.bounds);
+                Transform hipsB = PoseBone("Hips"), head = PoseBone("Head");
+                Vector3 hl2 = PoseBone("LeftArm") != null && PoseBone("RightArm") != null ? PoseBone("LeftArm").position - PoseBone("RightArm").position : Vector3.zero;
+                Debug.Log($"[LastWar] gundbg2 {name}: transform fwd {transform.forward:F2} right {transform.right:F2} | gun box size {gb.size:F2} centre-from-body {transform.InverseTransformPoint(gb.center):F2} | barrel {barrel:F2} | right->left shoulder {hl2.normalized:F2} | gun child local rot {(gun.childCount > 0 ? gun.GetChild(0).localEulerAngles : Vector3.zero):F0} | head-from-body {(head != null ? transform.InverseTransformPoint(head.position) : Vector3.zero):F2}");
             }
             // the support hand on the handguard (not while it changes the magazine)
             if (hl != null && playing != "mx_reload")
