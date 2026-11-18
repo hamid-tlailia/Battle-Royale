@@ -83,6 +83,12 @@ namespace LastWar
 
                 // 1. upper body aiming
                 Quaternion gr = handR.rotation * c.gunInHand;
+                // (readout: the reach before the chest is turned, to tell the clip's own reach from the turn's effect)
+                Transform laPre = b.PoseBone("LeftArm"), chestPre = b.PoseBone("Spine2");
+                Vector3 preTarget = handR.position + handR.rotation * c.gunAtHand + gr * p.leftHandGrip;
+                Vector3 preShoulder = laPre != null ? laPre.position : Vector3.zero;
+                Quaternion preChest = chestPre != null ? chestPre.rotation : Quaternion.identity;
+                float turnApplied = 0f;
                 if (b.ShoulderGrip && Aiming.Contains(b.playing))
                 {
                     Vector3 barrel = gr * Vector3.back;
@@ -91,6 +97,7 @@ namespace LastWar
                     if (Mathf.Abs(ang) > 0.5f && ax.sqrMagnitude > 0.5f)
                     {
                         Quaternion part = Quaternion.AngleAxis(Mathf.Clamp(ang, -70f, 70f) / 3f, ax);
+                        turnApplied = Mathf.Clamp(ang, -70f, 70f);
                         foreach (string s in new[] { "Spine", "Spine1", "Spine2" }) { Transform t = b.PoseBone(s); if (t != null) t.rotation = part * t.rotation; }
                         gr = handR.rotation * c.gunInHand;
                     }
@@ -137,8 +144,28 @@ namespace LastWar
                     BlendFingers(fingers, w);
                 }
                 SetGunShown(true); // (placed and solved: drawn from this frame)
+                FailLog(p, c, w, slide, la, lf, hl, target, preTarget, preShoulder, preChest, turnApplied);
                 Log(p, c, w, slide, la, lf, hl, target);
                 FrameLog(true, p, c, w, slide, la, lf, hl, target);
+            }
+
+            float nextFail;
+            /// <summary>with ?gundbg=1: whenever the left palm ends more than 1.5 cm off its target with the IK fully on, the
+            /// whole situation - which character / gun / clip, both shoulders, the target and palm, the chest before and after
+            /// the aiming turn, and the reach before and after that turn</summary>
+            void FailLog(WeaponGrips.Profile p, Cal c, float w, float slide, Transform la, Transform lf, Transform hl, Vector3 target,
+                Vector3 preTarget, Vector3 preShoulder, Quaternion preChest, float turn)
+            {
+                if (!GunDebug || w < 0.99f || Time.time < nextFail) return;
+                Vector3 lp = b.Palm("Left"); float err = (lp - target).magnitude;
+                if (err < 0.015f) return;
+                nextFail = Time.time + 1.5f;
+                Transform ra = b.PoseBone("RightArm"), chest = b.PoseBone("Spine2");
+                float elbow = Vector3.Angle(la.position - lf.position, hl.position - lf.position);
+                float reachPre = c.armLen > 0 ? (preTarget - preShoulder).magnitude / c.armLen : 0f;
+                float reachPost = c.armLen > 0 ? (target + b.gun.TransformDirection(Vector3.forward) * -slide - la.position).magnitude / c.armLen : 0f; // (before the slide)
+                string who = b.outfitRoot != null ? b.outfitRoot.name.Replace("(Clone)", "") : "?";
+                Debug.Log($"[LastWar] wikfail {b.name} {who} {look} {b.playing}: palm off {err * 100f:0.0} cm | L shoulder {la.position:F3} R shoulder {(ra != null ? ra.position : Vector3.zero):F3} | LeftHandGrip {target:F3} (slid {slide * 100f:0} cm) palm {lp:F3} | chest turn applied {turn:0} deg, chest rotation changed {(chest != null ? Quaternion.Angle(preChest, chest.rotation) : 0):0} deg | reach (target-shoulder / arm) BEFORE turn {reachPre:0.00} AFTER turn {reachPost:0.00} | elbow {elbow:0} ext {(lp - la.position).magnitude / c.armLen:0.00} | arm {c.armLen:0.00} m");
             }
 
             /// <summary>?wikframes=N : every frame of the first N after the body was built, one line each</summary>
