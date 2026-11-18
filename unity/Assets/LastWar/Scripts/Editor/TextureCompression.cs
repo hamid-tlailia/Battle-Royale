@@ -15,7 +15,7 @@ namespace LastWar.EditorTools
     /// </summary>
     public static class TextureCompression
     {
-        public static readonly bool Enabled = false;
+        public static readonly bool Enabled = true;
 
         public enum Kind { Colour, Data, Normal, Ui }
 
