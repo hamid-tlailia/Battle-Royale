@@ -28,12 +28,29 @@ namespace LastWar.EditorTools
             EnsureUrp();
             EnsureMaterials();
             AssetDatabase.ImportAsset(Root + "/Resources/Models", ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
+            ModelTextureCheck();
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             new GameObject("Game").AddComponent<GameBoot>();
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             Debug.Log("[LastWar] Scene built: " + ScenePath);
+        }
+
+        /// <summary>after the models are re-imported: how many of their textures are the separate texture assets
+        /// (Assets/LastWar/Textures, compressed per platform) and how many are still uncompressed copies inside a model</summary>
+        static void ModelTextureCheck()
+        {
+            int models = 0, external = 0, embedded = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:GameObject", new[] { Root + "/Resources/Models" }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.EndsWith(".glb")) continue;
+                models++;
+                foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(path)) if (o is Texture2D) embedded++;
+                foreach (string dep in AssetDatabase.GetDependencies(path, false)) if (dep.Contains("/LastWar/Textures/")) external++;
+            }
+            Debug.Log($"[LastWar] model textures: {models} models, {external} separate texture assets, {embedded} still embedded (uncompressed)");
         }
 
         static void CommonPlayerSettings()
@@ -76,6 +93,7 @@ namespace LastWar.EditorTools
                 PlayerSettings.Android.keyaliasPass = "lastwardev123";
             }
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.Vulkan, GraphicsDeviceType.OpenGLES3 });
+            EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC; // (textures without their own setting)
             BuildScene();
             Build(BuildTarget.Android, BuildTargetGroup.Android, "build/Android/LastWar.apk");
         }

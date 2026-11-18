@@ -85,11 +85,12 @@ namespace LastWar
                 double ms(long ticks) => ticks * 1000.0 / Stopwatch.Frequency / n;
                 long mem = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() / (1024 * 1024);
                 long mono = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong() / (1024 * 1024);
+                ulong texMem = Texture.currentTextureMemory / (1024 * 1024); // (textures resident on the device; 0 = not reported)
                 string gpuText = gpuFrames > 0 ? $"{gpu / gpuFrames:0.0} ms ({gpuFrames}/{n} frames)" : "N/A (not reported by this device)";
                 string cpuText = timed > 0 ? $"{cpu / timed:0.0} ms ({timed}/{n} frames)" : "N/A";
                 string line = $"{count} bots (alive {alive}/{count}): {n / sum:0.0} fps | frame {sum / n * 1000f:0.0} ms, p95 {p95 * 1000f:0.0} ms\n" +
                     $"    device CPU {cpuText} | GPU {gpuText}\n" +
-                    $"    anim {ms(AnimTicks):0.00} | transfer {ms(TransferTicks):0.00} | IK {ms(IKTicks):0.00} | other body {ms(BodyTicks - TransferTicks - IKTicks):0.00} ms | mem {mem} MB (scripts {mono} MB)";
+                    $"    anim {ms(AnimTicks):0.00} | transfer {ms(TransferTicks):0.00} | IK {ms(IKTicks):0.00} | other body {ms(BodyTicks - TransferTicks - IKTicks):0.00} ms | mem {mem} MB (scripts {mono} MB) | textures {(texMem > 0 ? texMem + " MB" : "N/A")}";
                 results.Add(line);
                 Debug.Log("[LastWar] bench " + line.Replace("\n", " "));
             }

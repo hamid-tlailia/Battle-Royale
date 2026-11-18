@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace LastWar.EditorTools
 {
-    /// <summary>HUD pictures (Resources/UI) import as crisp, uncompressed sprites.</summary>
+    /// <summary>HUD pictures (Resources/UI) import as crisp sprites (Android: ASTC 4x4, see TextureCompression).</summary>
     public class UiTextureImport : AssetPostprocessor
     {
         void OnPreprocessTexture()
@@ -14,9 +14,9 @@ namespace LastWar.EditorTools
             ti.spriteImportMode = SpriteImportMode.Single;
             ti.mipmapEnabled = false;
             ti.alphaIsTransparency = true;
-            ti.textureCompression = TextureImporterCompression.Uncompressed;
             ti.npotScale = TextureImporterNPOTScale.None;
             ti.isReadable = true;
+            TextureCompression.Apply(ti, TextureCompression.Kind.Ui); // Android: ASTC 4x4 (sharp edges); WebGL / others: uncompressed as before
         }
 
         /// <summary>see-through pixels re-weighted for linear-space blending, so the buttons look as dark as in the web</summary>
