@@ -268,6 +268,15 @@ namespace LastWar
                     Debug.Log($"[LastWar] wik5 {b.name}: lossyScale root {root.lossyScale.x:0.000} gun {gun.lossyScale.x:0.000} LeftArm {la.lossyScale.x:0.000} LeftHand {hl.lossyScale.x:0.000} RightHand {b.handR.lossyScale.x:0.000} outfit {(b.outfitRoot != null ? b.outfitRoot.lossyScale.x : 0):0.000} base {(b.model != null ? b.model.lossyScale.x : 0):0.000} | renderers on LeftArm's skeleton visible {(la.GetComponentInParent<Animator>() == null ? "(no animator)" : "")} {VisibleSkin(la)}");
                 }
                 if (la != null && w > 0) Debug.Log($"[LastWar] wik2 {b.name} {look}: target-shoulder {(target - la.position).magnitude:0.00} m armLen {c.armLen:0.00} | target-gun origin {(target - gun.position).magnitude:0.00} | LHG {p.leftHandGrip:F2} | left arm in outfit {(b.outfitRoot != null && la.IsChildOf(b.outfitRoot))} | hand in outfit {(b.outfitRoot != null && b.handR.IsChildOf(b.outfitRoot))} | gun lossyScale {gun.lossyScale.x:0.000} | palm-hand {(b.Palm("Left") - hl.position).magnitude:0.00}");
+                // right hand round the grip (readout only): where the wrist, the palm point the gun is anchored to, and the
+                // index / middle / thumb tips sit in the gun's own frame, cm from RightHandGrip (x + = toward the shooter's
+                // left, y + = up, z - = toward the muzzle); wrapped fingers lie on both sides of the grip and in front of it
+                {
+                    string G(Vector3 wpos) { Vector3 v = (gun.InverseTransformPoint(wpos) - p.rightHandGrip) * 100f; return $"({v.x:0.0},{v.y:0.0},{v.z:0.0})"; }
+                    Transform rw = b.handR, mi = b.PoseBone("RightHandMiddle4") ?? b.PoseBone("RightHandMiddle3"), ix = b.PoseBone("RightHandIndex4") ?? b.PoseBone("RightHandIndex3"), th = b.PoseBone("RightHandThumb4") ?? b.PoseBone("RightHandThumb3");
+                    Vector3 pn = gun.InverseTransformDirection(b.PalmNormal(rw, "Right"));
+                    Debug.Log($"[LastWar] wikr {b.name} {look} {b.playing}: wrist {G(rw.position)} palm point {G(rp)} index tip {(ix != null ? G(ix.position) : "-")} middle tip {(mi != null ? G(mi.position) : "-")} thumb tip {(th != null ? G(th.position) : "-")} | palm faces ({pn.x:0.00},{pn.y:0.00},{pn.z:0.00}) | outfit {(b.outfitRoot != null ? b.outfitRoot.name : "-")}");
+                }
                 Debug.Log($"[LastWar] wik {b.name} {look} {b.playing}: right palm to RightHandGrip {rErr * 100f:0.0} cm | left weight {w:0.00} palm to target {(lErr < 0 ? "-" : (lErr * 100f).ToString("0.0") + " cm")} slide {slide * 100f:0} cm shoulder {lastShoulder:0.0} deg holdBack {lastHoldBack * 100f:0.0} cm | elbow {elbow:0} deg wrist bend {wrist:0} deg arm extension {ext:0.00} | barrel pitch {Mathf.Asin(Mathf.Clamp((gun.rotation * Vector3.back).y, -1, 1)) * Mathf.Rad2Deg:0} | barrel vs aim {Vector3.Angle(gun.rotation * Vector3.back, lastAim):0} deg upper aim layer {b.UpperAimWeight:0.00} clip {b.playing}");
             }
         }
