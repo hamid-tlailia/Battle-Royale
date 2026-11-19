@@ -107,6 +107,20 @@ for (const arg of process.argv.slice(3).filter((a) => a.includes('='))) {
   const a = src.getRoot().listAnimations().find((x) => x.getName() === clip);
   if (!a) { console.log('no clip', clip); continue; }
   const c = carry(a); report(c);
+  const dump = process.argv.find((x) => x.startsWith('--dump='));
+  if (dump) { // (side-view check picture: the carried pose's bone positions, and the KayKit original's, per frame)
+    const out = { base: [], kay: [], ground };
+    const bones = [['Hips','Spine'],['Spine','Spine2'],['Spine2','Head'],['Spine2','LeftArm'],['LeftArm','LeftForeArm'],['LeftForeArm','LeftHand'],['Spine2','RightArm'],['RightArm','RightForeArm'],['RightForeArm','RightHand'],
+      ['Hips','LeftUpLeg'],['LeftUpLeg','LeftLeg'],['LeftLeg','LeftFoot'],['LeftFoot','LeftToeBase'],['Hips','RightUpLeg'],['RightUpLeg','RightLeg'],['RightLeg','RightFoot'],['RightFoot','RightToeBase']];
+    const chans = new Map(); for (const ch of a.listChannels()) { const n = ch.getTargetNode(); if (!chans.has(n)) chans.set(n, {}); chans.get(n)[ch.getTargetPath()] = sampler(ch); }
+    for (let f = 0; f < c.frames; f += 8) {
+      const loc = new Map(); for (const n of order) loc.set(n, { r: c.rot[f].get(n), t: n === hips ? c.hipsT[f] : n.getTranslation(), s: n.getScale() });
+      const W = solve(bRoots, loc); out.base.push(bones.map(([x, y]) => [W.get(bNodes.get(x)).p, W.get(bNodes.get(y)).p]));
+      const ul = new Map(); for (const [n, cc] of chans) ul.set(n, { r: cc.rotation ? cc.rotation(f / FPS) : n.getRotation(), t: cc.translation ? cc.translation(f / FPS) : n.getTranslation(), s: cc.scale ? cc.scale(f / FPS) : n.getScale() });
+      const U = solve(uRoots, ul); out.kay.push(bones.map(([x, y]) => [U.get(uNodes.get(BACK[x] ?? (x === 'Spine2' ? 'chest' : x.endsWith('Arm') && !x.includes('Fore') ? (x.startsWith('Left') ? 'upperarm.l' : 'upperarm.r') : 'hips'))).p, U.get(uNodes.get(BACK[y] ?? 'chest')).p]));
+    }
+    (await import('fs')).writeFileSync(dump.slice(7), JSON.stringify(out));
+  }
   if (dry) continue;
   for (const old of doc.getRoot().listAnimations()) if (old.getName() === name) old.dispose();
   const times = new Float32Array(c.frames); for (let f = 0; f < c.frames; f++) times[f] = f / FPS;

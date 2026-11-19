@@ -54,6 +54,10 @@ namespace LastWar
             if (Arg("retcheck") == "1") { int.TryParse(Arg("rcfrom") ?? "0", out int rf); int.TryParse(Arg("rcn") ?? "99", out int rn); LobbyTests.RetCheck(rf, rn); if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("trans") == "1") { LobbyTests.TransCheck(cam); if (l.canvas != null) l.canvas.enabled = false; return l; }
             LobbyTests.SetClips(Arg("clips"));
+            LobbyTests.SetHolds(Arg("cholds"));
+            float.TryParse(Arg("gpitch") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out LobbyTests.GridPitch);
+            float.TryParse(Arg("gdx") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out LobbyTests.GridDx);
+            LobbyTests.GridGround = Arg("gground") == "1";
             if (float.TryParse(Arg("gyaw") ?? "x", out float gyaw)) LobbyTests.GridYaw = gyaw;
             if (Arg("ggun") != null) LobbyTests.GridGun = Arg("ggun");
             if (Arg("wik") == "0") SoldierBody.UseWeaponIK = false;

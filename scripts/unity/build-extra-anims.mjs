@@ -4,6 +4,11 @@
 // before any of them is given a role in the game.
 // Run: node scripts/unity/build-extra-anims.mjs <dir of FBX2glTF .glb clips> name=file [name=file ...]
 //   e.g. mx_rifle_run=rifle_run mx_running=running
+//   name=file+relax=other : the fingers taken from clip file `other` (its first frame) instead - open, relaxed hands
+//   name=file+sym : made left / right symmetric - each frame is the halfway blend of the pose and its mirror image half
+//                   a cycle later (world rotation changes from the rest, mirrored across the body's middle plane)
+//   --report: also print the carried pose of each clip (as --check)
+//   --check: write nothing; print the carried pose per frame (heights above the ground, left / right symmetry, finger bend)
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { prune } from '@gltf-transform/functions';
@@ -89,7 +94,7 @@ function carry(src) {
     const r = new Map(); for (const n of order) r.set(n, slerp(rot[i].get(n), rot[j].get(n), u));
     return { r, h: lerp(hipsT[i], hipsT[j], u) }; };
   console.log('carried', frames, 'frames', len_.toFixed(2), 's, leg ratio', kLeg.toFixed(3));
-  return { at, len: len_ };
+  return { at, len: len_, frames, rot, hipsT };
 }
 
 const dir = process.argv[2];
@@ -107,10 +112,71 @@ function write(name, length, pose) {
   A.addSampler(ts).addChannel(base.createAnimationChannel().setTargetNode(hips).setTargetPath('translation').setSampler(ts));
   console.log(name.padEnd(14), frames, 'frames', length.toFixed(2), 's');
 }
-for (const arg of process.argv.slice(3)) {
-  const [name, file] = arg.split('=');
-  const c = carry(await io.read(`${dir}/${file}.glb`));
-  write(name, c.len, c.at);
+const check = process.argv.includes('--check');
+// the carried pose on the base skeleton, for a look before anything is written
+function report(c) {
+  const ground = Math.min(...['LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'].map((j) => bRest.get(bNodes.get(j)).p[1]));
+  const J = ['Hips', 'Spine2', 'Head', 'LeftForeArm', 'RightForeArm', 'LeftHand', 'RightHand', 'LeftLeg', 'RightLeg', 'LeftToeBase', 'RightToeBase'];
+  const ser = Object.fromEntries(J.map((j) => [j, []]));
+  const fingers = ['Index', 'Middle', 'Ring', 'Pinky'];
+  const bend = { Left: [], Right: [] }; // mean bend of the finger joints (deg): 0 = straight, ~90 = a fist around a grip
+  const W0 = solve(bRoots, new Map());
+  for (let f = 0; f < c.frames; f++) {
+    const loc = new Map(); for (const n of order) loc.set(n, { r: c.rot[f].get(n), t: n === hips ? c.hipsT[f] : n.getTranslation(), s: n.getScale() });
+    const W = solve(bRoots, loc);
+    for (const j of J) ser[j].push(W.get(bNodes.get(j)).p.map((x, i) => i === 1 ? x - ground : x - W.get(hips).p[i]));
+    for (const sd of ['Left', 'Right']) { let a = 0, k = 0;
+      for (const fg of fingers) for (let q = 1; q <= 2; q++) { const A = bNodes.get(`${sd}Hand${fg}${q}`), B = bNodes.get(`${sd}Hand${fg}${q + 1}`), C = bNodes.get(`${sd}Hand${fg}${q + 2}`) ?? bNodes.get(`${sd}Hand${fg}4`);
+        if (!A || !B || !C || B === C) continue; const u = W.get(B).p.map((x, i) => x - W.get(A).p[i]), v = W.get(C).p.map((x, i) => x - W.get(B).p[i]);
+        a += Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / (Math.hypot(...u) * Math.hypot(...v))))) * 57.3; k++; }
+      bend[sd].push(k ? a / k : NaN); }
+  }
+  const rng = (a, i) => { const v = a.map((x) => x[i]); return `${Math.min(...v).toFixed(2)}..${Math.max(...v).toFixed(2)}`; };
+  console.log('  heights above the ground (m), min..max over the clip:');
+  for (const j of J) console.log('   ', j.padEnd(13), rng(ser[j], 1));
+  // symmetry: the left limb's track against the right limb's, mirrored (x -> -x) and shifted by half a cycle
+  const half = Math.round((c.frames - 1) / 2), n = c.frames - 1;
+  for (const [l, r] of [['LeftHand', 'RightHand'], ['LeftLeg', 'RightLeg'], ['LeftToeBase', 'RightToeBase']]) {
+    let e = 0; for (let f = 0; f < n; f++) { const a = ser[l][f], b = ser[r][(f + half) % n]; e += Math.hypot(a[0] + b[0], a[1] - b[1], a[2] - b[2]); }
+    const sw = (s) => Math.max(...s.map((x) => x[2])) - Math.min(...s.map((x) => x[2]));
+    console.log(`  symmetry ${l.replace('Left', '')}: mean gap left vs mirrored right half a cycle later ${(e / n * 100).toFixed(1)} cm; forward swing left ${(sw(ser[l]) * 100).toFixed(0)} cm, right ${(sw(ser[r]) * 100).toFixed(0)} cm`);
+  }
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  console.log(`  finger bend (mean joint angle): left ${avg(bend.Left).toFixed(0)} deg, right ${avg(bend.Right).toFixed(0)} deg`);
 }
-await io.write(`${M}/lw_extra.glb`, base);
+// ---- variants of a carried clip (made on the baked frames; nothing else changes)
+const parentOf = (n) => n.listParents().find((p) => p.propertyType === 'Node');
+const worlds = (loc) => { const W = new Map(); for (const n of order) { const p = parentOf(n); const pw = W.get(p) ?? bRest.get(p)?.r ?? [0, 0, 0, 1]; W.set(n, qmul(pw, loc.get(n))); } return W; };
+const locals = (W) => { const L = new Map(); for (const n of order) { const p = parentOf(n); const pw = W.get(p) ?? bRest.get(p)?.r ?? [0, 0, 0, 1]; L.set(n, qnorm(qmul(qinv(pw), W.get(n)))); } return L; };
+const mirrorOf = new Map(order.map((n) => { const k = key(n.getName()); const m = k.startsWith('Left') ? 'Right' + k.slice(4) : k.startsWith('Right') ? 'Left' + k.slice(5) : k; return [n, bNodes.get(m) ?? n]; }));
+const mirrorQ = (q) => [q[0], -q[1], -q[2], q[3]]; // a world rotation seen in the mirror (x -> -x)
+function symmetric(c) {
+  const n = c.frames - 1, half = Math.round(n / 2);
+  const D = c.rot.map((loc) => { const W = worlds(loc); return new Map(order.map((b) => [b, qmul(W.get(b), qinv(bRest.get(b).r))])); });
+  const rot = [], hipsT = [];
+  for (let f = 0; f < c.frames; f++) {
+    const g = (f + half) % n, W = new Map();
+    for (const b of order) W.set(b, qmul(slerp(D[f % n].get(b), mirrorQ(D[g].get(mirrorOf.get(b))), 0.5), bRest.get(b).r));
+    rot.push(locals(W)); hipsT.push(lerp(c.hipsT[f % n], c.hipsT[g], 0.5));
+  }
+  return { ...c, rot, hipsT };
+}
+const FINGER = /Hand(Index|Middle|Ring|Pinky|Thumb)/;
+function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.map((b) => [b, FINGER.test(b.getName()) ? ref.rot[0].get(b) : loc.get(b)]))) }; }
+const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);
+  const r = new Map(); for (const n of order) r.set(n, slerp(c.rot[i].get(n), c.rot[j].get(n), u)); return { r, h: lerp(c.hipsT[i], c.hipsT[j], u) }; };
+const done = new Map();
+for (const arg of process.argv.slice(3).filter((a) => a.includes('='))) {
+  const [name, spec] = arg.split(/=(.*)/s);
+  const [file, ...opts] = spec.split('+');
+  let c = done.get(file) ?? carry(await io.read(`${dir}/${file}.glb`)); done.set(file, c);
+  for (const o of opts) {
+    if (o === 'sym') c = symmetric(c);
+    else if (o.startsWith('relax=')) { const rf = o.slice(6); const ref = done.get(rf) ?? carry(await io.read(`${dir}/${rf}.glb`)); done.set(rf, ref); c = relaxed(c, ref); }
+  }
+  if (check || process.argv.includes('--report')) { console.log(name); report(c); }
+  if (check) continue;
+  write(name, c.len, atOf(c));
+}
+if (!check) await io.write(`${M}/lw_extra.glb`, base);
 console.log('lw_extra.glb', base.getRoot().listAnimations().length, 'clips');

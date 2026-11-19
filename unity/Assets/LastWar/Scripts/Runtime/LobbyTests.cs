@@ -26,6 +26,17 @@ namespace LastWar
             var h = new float[Clips.Length]; for (int i = 0; i < h.Length; i++) h[i] = 0.35f; Holds = h;
         }
         static bool RawClips;
+        /// <summary>?cholds=0,0.25,.. : the frame shown of each column (fraction of the clip), with ?clips=</summary>
+        public static void SetHolds(string list)
+        {
+            if (string.IsNullOrEmpty(list) || Clips == null) return;
+            string[] v = list.Split(',');
+            for (int i = 0; i < Holds.Length && i < v.Length; i++)
+                float.TryParse(v[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out Holds[i]);
+        }
+        /// <summary>?gpitch=-90 : soldiers tipped toward the camera (seen from above, head up); ?gdx= column spacing (m);
+        /// ?gground=1 : a thin floor under each soldier (to see what touches the ground)</summary>
+        public static float GridPitch = 0f, GridDx = 0f; public static bool GridGround;
         /// <summary>?gyaw= : which way the grid soldiers face (215 = three-quarter front, 0 = their back to the camera as in the game, 270 = side)</summary>
         public static float GridYaw = 215f;
         /// <summary>?ggun= : the gun model the grid soldiers hold (default rifle)</summary>
@@ -59,14 +70,20 @@ namespace LastWar
                 }
             }
             Vector3 origin = new Vector3(0, 300f, 0); // above everything: an empty sky behind
-            float dx = Clips.Length > 6 ? 1.05f : 1.25f, dy = 2.35f;
+            float dx = GridDx > 0 ? GridDx : Clips.Length > 6 ? 1.05f : 1.25f, dy = 2.35f;
             for (int r = 0; r < rSkin.Count; r++)
                 for (int c = 0; c < Clips.Length; c++)
                 {
                     var go = new GameObject($"t{r}_{c}");
                     go.transform.position = origin + new Vector3((c - (Clips.Length - 1) / 2f) * dx, -r * dy, 0);
-                    go.transform.rotation = Quaternion.Euler(0, GridYaw, 0); // default: three-quarter view toward the camera
+                    go.transform.rotation = Quaternion.Euler(GridPitch, 0, 0) * Quaternion.Euler(0, GridYaw, 0); // default: three-quarter view toward the camera
                     var body = SoldierBody.Attach(go, rSkin[r], rParts[r]);
+                    if (GridGround)
+                    {
+                        var fl = GameObject.CreatePrimitive(PrimitiveType.Cube); Destroy(fl.GetComponent<Collider>());
+                        fl.transform.SetParent(go.transform, false); fl.transform.localPosition = new Vector3(0, -0.006f, 0); fl.transform.localScale = new Vector3(0.9f, 0.012f, 2.2f);
+                        fl.GetComponent<Renderer>().sharedMaterial = MapBuilder.NewLit(new Color(.45f, .5f, .42f));
+                    }
                     bool gunOn = RawClips ? Clips[c].StartsWith("mx_") : c != 0;
                     body.SetGun(gunOn ? GridGun : null); body.Armed = gunOn;
                     body.Play(Clips[c]); body.Speed = c == 1 ? 6f : 0f;
