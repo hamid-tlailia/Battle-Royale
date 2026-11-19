@@ -36,7 +36,7 @@ namespace LastWar
         }
         /// <summary>?gpitch=-90 : soldiers tipped toward the camera (seen from above, head up); ?gdx= column spacing (m);
         /// ?gground=1 : a thin floor under each soldier (to see what touches the ground)</summary>
-        public static float GridPitch = 0f, GridDx = 0f; public static bool GridGround;
+        public static float GridPitch = 0f, GridDx = 0f; public static bool GridGround, GridBack;
         /// <summary>?gyaw= : which way the grid soldiers face (215 = three-quarter front, 0 = their back to the camera as in the game, 270 = side)</summary>
         public static float GridYaw = 215f;
         /// <summary>?ggun= : the gun model the grid soldiers hold (default rifle)</summary>
@@ -274,6 +274,7 @@ namespace LastWar
                     body.SetGun(gl[r]); body.Armed = true; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
                     body.AimDir = go.transform.forward;
                     if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
+                    if (GridBack) body.SetBack(new List<string> { "sniper", "shotgun" }); // (?wback=1: two guns on the back too)
                 }
             cam.orthographic = true;
             cam.orthographicSize = Mathf.Max(gl.Length * dy * 0.55f, (nc * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect));

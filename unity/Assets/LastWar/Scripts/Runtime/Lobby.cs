@@ -58,6 +58,7 @@ namespace LastWar
             float.TryParse(Arg("gpitch") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out LobbyTests.GridPitch);
             float.TryParse(Arg("gdx") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out LobbyTests.GridDx);
             LobbyTests.GridGround = Arg("gground") == "1";
+            LobbyTests.GridBack = Arg("wback") == "1";
             if (float.TryParse(Arg("gyaw") ?? "x", out float gyaw)) LobbyTests.GridYaw = gyaw;
             if (Arg("ggun") != null) LobbyTests.GridGun = Arg("ggun");
             if (Arg("wik") == "0") SoldierBody.UseWeaponIK = false;

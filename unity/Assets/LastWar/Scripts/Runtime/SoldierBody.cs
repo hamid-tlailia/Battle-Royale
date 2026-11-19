@@ -237,6 +237,18 @@ namespace LastWar
             { float m = SoleY(); if (m != float.MaxValue) restSole = m - transform.position.y; }
             // the chest's turn in the rest pose (upright, facing ahead): the back gear follows the chest from it
             { Transform sp = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine"); if (sp != null) { chestRestOff = Quaternion.Inverse(sp.rotation) * transform.rotation; chestRestSet = true; } }
+            // how far the wearer's back stands out behind the chest bone, from the outfit's own mesh in its upright rest pose
+            // (measured once here: measured when a pack was first worn, a crouch / run / pick-up pose could leave the pack -
+            // and the guns behind it - floating off the back for good, seen from the side)
+            {
+                Transform sp = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine"), hp = PoseBone("Hips"), nk = PoseBone("Neck"), sl = PoseBone("LeftArm"), sr = PoseBone("RightArm");
+                if (sp != null && nk != null)
+                {
+                    Vector3 up = transform.up, bk = -transform.forward;
+                    float torso = hp != null ? (nk.position - hp.position).magnitude : 0.5f, shoulders = sl != null && sr != null ? (sl.position - sr.position).magnitude : 0.35f;
+                    restBack = MeasureBack(sp, up, bk, nk.position - up * 0.07f, torso * 0.71f, shoulders * 0.85f); restBackSet = true;
+                }
+            }
         }
 
         Quaternion hipsCorr = Quaternion.identity;
@@ -1029,6 +1041,7 @@ namespace LastWar
         }
 
         // ---- the backpack worn on the back (its level's model: straps against the body)
+        float restBack; bool restBackSet; float bagDepth;
         Transform bagLook; int bagLvShown; Quaternion bagSpineOffset; bool bagOffsetSet; float bagFit, bagBack = -1f; Bounds bagNative;
 
         /// <summary>how far behind the chest bone the wearer's back surface reaches, over the pack's own height and width
@@ -1097,7 +1110,8 @@ namespace LastWar
             // the back itself, from the wearer's own mesh: the farthest point behind the chest bone over the area the pack
             // covers (a tactical vest or a broad back stands out further than a thin suit); measured once, in the pose of the
             // moment it is first worn
-            if (bagBack < 0f) bagBack = MeasureBack(spine, up, back, top, bh, bagNative.size.x * bagFit);
+            if (bagBack < 0f) bagBack = restBackSet ? restBack : MeasureBack(spine, up, back, top, bh, bagNative.size.x * bagFit);
+            bagDepth = bd;
             float torsoBack = bagBack + 0.01f;
             Vector3 centreOff = bagNative.center * bagFit;                                           // (the model's own centre)
             // straps against the back, pockets out: the Lv1 / Lv3 models face the other way from Lv2 (their straps showed outside)
@@ -1125,7 +1139,9 @@ namespace LastWar
             {
                 float side = i == 0 ? 1f : -1f;
                 // diagonal across the back, the two crossed, flat against the body
-                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(0.17f + (bagLook != null ? 0.17f : 0f) + i * 0.05f)); // (behind the backpack when there is one)
+                // against the back (its measured depth) - or just behind the backpack when there is one
+                float behind = restBackSet ? (bagLook != null ? restBack + 0.01f + bagDepth + 0.03f : restBack + 0.04f) : 0.17f + (bagLook != null ? 0.17f : 0f);
+                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(behind + i * 0.05f));
                 Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
                 backGuns[i].rotation = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
             }
