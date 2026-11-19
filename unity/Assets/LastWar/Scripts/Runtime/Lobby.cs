@@ -381,15 +381,17 @@ namespace LastWar
             int cols = Mathf.Clamp(Mathf.FloorToInt((PageW + gap) / (cw + gap)), 3, 6);
             var content = ScrollArea(cols * (cw + gap) - gap);
             // parts: the full outfit (now) and single pieces (coming later)
-            // whole outfits only (single pieces of different bodies never fitted together)
-            float top = 4 * s; outfitTab = 0;
+            // tabs: the full outfit, or one piece (head / top / pants / shoes) of the modular outfits
+            float tabsH = 30 * s, top = tabsH + 12 * s;
+            SettingsPanel.Segments(content, Vector2.zero, new Vector2(content.sizeDelta.x, tabsH), 11 * k, OutfitTabs, outfitTab, t => { outfitTab = t; Open("outfit"); });
             // tab 0: whole outfits; tabs 1-4: one piece (mask, T-shirt, pants, shoes) taken from any outfit
             int part = outfitTab - 1;
             // single pieces only from the modular characters (the military outfits are worn whole)
-            int slot = 0;
+            int slot = 0, wornGroup = SoldierBody.Group(Profile.Skin);
             for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++)
             {
-                if (part >= 0 && SoldierBody.Group(i) != 1) continue;
+                // a piece tab: the pieces that fit the body worn (all modular ones while a military outfit is worn)
+                if (part >= 0 && (SoldierBody.Group(i) == 0 || (wornGroup > 0 && SoldierBody.Group(i) != wornGroup))) continue;
                 int skin = i, at = slot++;
                 int wearing = part < 0 ? Profile.Skin : (Profile.Part(part) >= 0 ? Profile.Part(part) : Profile.Skin);
                 bool on = part < 0 ? (i == Profile.Skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) : i == wearing;
@@ -425,8 +427,8 @@ namespace LastWar
                     else
                     {
                         // a piece goes on a modular character: from a military outfit, start from this character whole
-                        int torso = Profile.Part(1) >= 0 ? Profile.Part(1) : Profile.Skin;
-                        if (SoldierBody.Group(torso) != 1) { Profile.Skin = skin; Profile.ClearParts(); }
+                        // (a piece of another body: that outfit whole)
+                        if (SoldierBody.Group(Profile.Skin) != SoldierBody.Group(skin)) { Profile.Skin = skin; Profile.ClearParts(); }
                         else Profile.SetPart(part, skin);
                     }
                     Open("outfit");
@@ -437,7 +439,7 @@ namespace LastWar
             content.sizeDelta = new Vector2(content.sizeDelta.x, top + Mathf.CeilToInt(slot / (float)cols) * (ch + gap));
         }
 
-        static readonly string[] OutfitTabs = { "FULL OUTFIT", "MASK", "T-SHIRT", "PANTS", "SHOES" };
+        static readonly string[] OutfitTabs = { "FULL OUTFIT", "HEAD", "TOP", "PANTS", "SHOES" };
         int outfitTab;
         System.Collections.IEnumerator SpawnNextFrame() { yield return null; SpawnSoldier(); }
 

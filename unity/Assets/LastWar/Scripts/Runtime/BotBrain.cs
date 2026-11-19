@@ -36,7 +36,14 @@ namespace LastWar
             b.armAfter = 5f + (float)rnd.NextDouble() * 10f;
             if ((Application.absoluteURL ?? "").Contains("nodrop=1")) b.fighter.GiveStartingGuns(b.longGun, b.closeGun);
             b.skill = 0.35f + (float)rnd.NextDouble() * 0.5f;
-            b.body = SoldierBody.Attach(go, rnd.Next(SoldierBody.OutfitFiles.Length));
+            int skin = rnd.Next(SoldierBody.OutfitFiles.Length); int[] parts = null;
+            // a modular outfit: each piece from any outfit of the same body
+            if (SoldierBody.Group(skin) > 0)
+            {
+                var same = new System.Collections.Generic.List<int>(); for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++) if (SoldierBody.Group(i) == SoldierBody.Group(skin)) same.Add(i);
+                parts = new int[4]; for (int i = 0; i < 4; i++) parts[i] = same[rnd.Next(same.Count)];
+            }
+            b.body = SoldierBody.Attach(go, skin, parts);
             return b;
         }
 

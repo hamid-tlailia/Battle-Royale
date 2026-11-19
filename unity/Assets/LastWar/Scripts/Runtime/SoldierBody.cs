@@ -23,9 +23,13 @@ namespace LastWar
         public Vector3? Muzzle => gun != null ? gun.position + AimDir.normalized * 0.55f : (Vector3?)null;
         static AnimationClip[] clips;
 
-        /// <summary>the outfits (index = saved skin): whole Mixamo characters, all animated with the same rifle clips</summary>
-        public static readonly string[] OutfitFiles = { "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer", "tactical" };
-        public static readonly string[] OutfitNames = { "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer", "Agent" };
+        /// <summary>the outfits (index = saved skin): whole Mixamo characters, all animated with the same rifle clips; then the
+        /// modular outfits (Quaternius, import-modular-outfits.mjs): qm_ men, qf_ women - head, top, pants and shoes can each
+        /// come from another outfit of the same body</summary>
+        public static readonly string[] OutfitFiles = { "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer", "tactical",
+            "qm_ranger", "qm_peasant", "qf_ranger", "qf_peasant" };
+        public static readonly string[] OutfitNames = { "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer", "Agent",
+            "Ranger", "Villager", "Huntress", "Wanderer" };
 
         /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
         /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
@@ -53,9 +57,9 @@ namespace LastWar
         public bool Animating => graph.IsValid() && graph.IsPlaying();
         public int VisiblePieces { get { int k = 0; foreach (var r in GetComponentsInChildren<SkinnedMeshRenderer>(true)) if (r.enabled && !hiddenParts.Contains(r) && (model == null || !r.transform.IsChildOf(model))) k++; return k; } }
 
-        /// <summary>0 = the military outfits (each its own mixamo rig), 1 = the Quaternius characters (one shared rig).
-        /// Pieces are only ever mixed inside one group.</summary>
-        public static int Group(int skin) => skin >= 0 && skin < OutfitFiles.Length && OutfitFiles[skin].StartsWith("q_") ? 1 : 0;
+        /// <summary>0 = the military outfits (each its own mixamo rig, worn whole), 1 = the modular men, 2 = the modular women
+        /// (one shared rig each). Pieces are only ever mixed inside one group.</summary>
+        public static int Group(int skin) => skin < 0 || skin >= OutfitFiles.Length ? 0 : OutfitFiles[skin].StartsWith("qm_") ? 1 : OutfitFiles[skin].StartsWith("qf_") ? 2 : 0;
         int[] parts;
         readonly HashSet<Renderer> hiddenParts = new HashSet<Renderer>();
         class Extra { public Transform root; public List<Transform> from = new List<Transform>(), to = new List<Transform>(); public Transform hips; public Vector3 hipsOffset; public List<Quaternion> map; }
@@ -223,8 +227,6 @@ namespace LastWar
                     srcHipsBind = transform.InverseTransformPoint(t.position); dstHipsBind = transform.InverseTransformPoint(d.position);
                     continue;
                 }
-                // Quaternius hands: the fingers keep their own relaxed rest (the soldier's finger rests differ in twist)
-                if (Group(skin) == 1 && !QFingers && IsFinger(t.name)) continue;
                 srcBones.Add(t); dstBones.Add(d);
             }
             boneMap = RestMaps(srcBones, dstBones);
@@ -693,7 +695,31 @@ namespace LastWar
             }
             if (before == float.MaxValue || after == float.MaxValue || dstHips == null) return;
             dstHips.position -= up * (after - before);
+            // the other foot: levelling turns each sole about its own ankle, so on a foot that carried little weight in the
+            // clip (the lobby's right foot on Marine) the toe rises with the heel and the whole sole hangs above the ground
+            // (up to 3 cm) once the body has come down onto the lower foot. That foot is brought down onto the ground by
+            // bending its knee (the leg's two bones, the foot keeping its turn), at most 4 cm; a straight leg stays as it is.
+            // Standing still only, like the levelling; ?heel=0 turns both off.
+            if (!UseSoleDrop) return;
+            float g = Vector3.Dot(transform.position, up);
+            for (int i = 0; i < 2; i++)
+            {
+                Transform f = soleFoot[i]; if (f == null) continue;
+                float low = Mathf.Min(Vector3.Dot(f.TransformPoint(soleHeel[i]), up), Vector3.Dot(f.TransformPoint(soleBall[i]), up)) - g;
+                soleGap[i] = low;
+                if (low < 0.008f) continue;
+                string sd = i == 0 ? "Left" : "Right";
+                Transform thigh = PoseBone(sd + "UpLeg"), shin = PoseBone(sd + "Leg");
+                if (thigh == null || shin == null || !f.IsChildOf(shin)) continue;
+                Quaternion keep = f.rotation;
+                TwoBone(thigh, shin, f, f.position - up * (Mathf.Min(low, 0.04f) * heelW));
+                f.rotation = keep;
+                soleGap[i] = Mathf.Min(Vector3.Dot(f.TransformPoint(soleHeel[i]), up), Vector3.Dot(f.TransformPoint(soleBall[i]), up)) - g;
+            }
         }
+        /// <summary>false (?soledrop=0): the higher foot is left where the levelling put it</summary>
+        public static bool UseSoleDrop = true;
+        readonly float[] soleGap = new float[2];
 
         /// <summary>the lowest point of each heel and of each toe on the outfit's mesh, in the foot bone's space</summary>
         bool MeasureSoles()
@@ -775,6 +801,7 @@ namespace LastWar
             {
                 sb.Append($" level {heelW:0.00} ({heelDeg[0]:0.0} / {heelDeg[1]:0.0} deg)");
                 // (the two measured sole points now, cm above the ground: they should sit level and low)
+                sb.Append($" drop gap L {soleGap[0] * 100f:0.0} R {soleGap[1] * 100f:0.0} cm");
                 for (int i = 0; i < 2; i++) if (soleOk && soleFoot[i] != null)
                     sb.Append($" {(i == 0 ? "L" : "R")} pts heel {(soleFoot[i].TransformPoint(soleHeel[i]).y - ground) * 100f:0.0} ball {(soleFoot[i].TransformPoint(soleBall[i]).y - ground) * 100f:0.0}");
             }
