@@ -155,7 +155,7 @@ namespace LastWar
             }
             else terrainMat = NewLit(Color.white, tex);
             go.AddComponent<MeshRenderer>().sharedMaterial = terrainMat;
-            Ground = go.AddComponent<MeshCollider>(); Ground.sharedMesh = mesh;
+            var groundCol = go.AddComponent<MeshCollider>(); groundCol.sharedMesh = mesh; Ground = groundCol;
         }
         /// <summary>the map's ground (the terrain's collider): checks for room above the ground leave it out</summary>
         public static Collider Ground;
