@@ -48,6 +48,7 @@ namespace LastWar
             if ((Application.absoluteURL ?? "").Contains("footdbg=1")) SoldierBody.FootDebug = true;
             if ((Application.absoluteURL ?? "").Contains("heel=0")) SoldierBody.UseHeelLevel = false;
             if ((Application.absoluteURL ?? "").Contains("fcrawl=0")) SoldierBody.UseFreeCrawl = false;
+            if ((Application.absoluteURL ?? "").Contains("rcrawl=0")) SoldierBody.UseEvenRifleCrawl = false;
             { string u = Application.absoluteURL ?? ""; int di = u.IndexOf("animdelay="); if (di >= 0) { int dn = 0; for (int k = di + 10; k < u.Length && char.IsDigit(u[k]); k++) dn = dn * 10 + (u[k] - '0'); SoldierBody.AnimDelayFrames = dn; } }
             { string u = Application.absoluteURL ?? ""; int pi = u.IndexOf("posethresh="); if (pi >= 0 && float.TryParse(u.Substring(pi + 11).Split('&')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float pt)) SoldierBody.PoseThreshold = pt; }
             { string u = Application.absoluteURL ?? ""; int wi = u.IndexOf("wikframes="); if (wi >= 0) { int wn = 0; for (int k = wi + 10; k < u.Length && char.IsDigit(u[k]); k++) wn = wn * 10 + (u[k] - '0'); SoldierBody.WikFrames = wn; } }

@@ -5,6 +5,7 @@
 // Run: node scripts/unity/build-extra-anims.mjs <dir of FBX2glTF .glb clips> name=file [name=file ...]
 //   e.g. mx_rifle_run=rifle_run mx_running=running
 //   name=file+relax=other : the fingers taken from clip file `other` (its first frame) instead - open, relaxed hands
+//   name=file+legsR : the left leg made the mirror image of the right leg half a cycle later (upper body as recorded)
 //   name=file+sym : made left / right symmetric - each frame is the halfway blend of the pose and its mirror image half
 //                   a cycle later (world rotation changes from the rest, mirrored across the body's middle plane)
 //   --report: also print the carried pose of each clip (as --check)
@@ -161,6 +162,24 @@ function symmetric(c) {
   }
   return { ...c, rot, hipsT };
 }
+// legs only: the left leg made the mirror image of the right leg half a cycle later (a crawl pushed by one leg becomes
+// one pushed by both in turn, with the same stroke); the pelvis roll made even; spine, arms and hands as recorded
+const LEG = /(Up)?Leg$|Foot$|ToeBase$|Toe_End$/;
+function legsFromRight(c) {
+  const n = c.frames - 1, half = Math.round(n / 2);
+  const D = c.rot.map((loc) => { const W = worlds(loc); return new Map(order.map((b) => [b, qmul(W.get(b), qinv(bRest.get(b).r))])); });
+  const rot = [], hipsT = [];
+  for (let f = 0; f < c.frames; f++) {
+    const g = (f + half) % n, W = new Map();
+    for (const b of order) { const k = key(b.getName()); const left = k.startsWith('Left') && LEG.test(k);
+      // the pelvis: its sideways roll made even (the halfway blend with its mirror image half a cycle later), so both
+      // hip joints sit alike over the ground; everything above keeps its recorded turn in the world
+      const d = k === 'Hips' ? slerp(D[f % n].get(b), mirrorQ(D[g].get(b)), 0.5) : left ? mirrorQ(D[g].get(mirrorOf.get(b))) : D[f % n].get(b);
+      W.set(b, qmul(d, bRest.get(b).r)); }
+    rot.push(locals(W)); hipsT.push(lerp(c.hipsT[f % n], c.hipsT[g], 0.5));
+  }
+  return { ...c, rot, hipsT };
+}
 const FINGER = /Hand(Index|Middle|Ring|Pinky|Thumb)/;
 function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.map((b) => [b, FINGER.test(b.getName()) ? ref.rot[0].get(b) : loc.get(b)]))) }; }
 const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);
@@ -172,6 +191,7 @@ for (const arg of process.argv.slice(3).filter((a) => a.includes('='))) {
   let c = done.get(file) ?? carry(await io.read(`${dir}/${file}.glb`)); done.set(file, c);
   for (const o of opts) {
     if (o === 'sym') c = symmetric(c);
+    else if (o === 'legsR') c = legsFromRight(c);
     else if (o.startsWith('relax=')) { const rf = o.slice(6); const ref = done.get(rf) ?? carry(await io.read(`${dir}/${rf}.glb`)); done.set(rf, ref); c = relaxed(c, ref); }
   }
   if (check || process.argv.includes('--report')) { console.log(name); report(c); }

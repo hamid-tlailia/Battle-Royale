@@ -455,7 +455,7 @@ namespace LastWar
             { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
         /// <summary>false (?fcrawl=0): crawling / crouching with empty hands use the earlier hand-made crawl / kneel</summary>
-        public static bool UseFreeCrawl = true;
+        public static bool UseFreeCrawl = true, UseEvenRifleCrawl = true;
         /// <summary>false (?grip=palm): the gun's RightHandGrip on the palm point as before, for comparison</summary>
         public static bool UseGripContact = true;
         /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
@@ -476,6 +476,9 @@ namespace LastWar
             if (key == "mx_sprint" && clipIndex.ContainsKey("mx_rifle_run")) key = "mx_rifle_run";
             // lying down with a rifle: the Mixamo prone clips (still / crawling forward; backward = the crawl stepped back)
             if (key == "mx_prone" && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("mx_crawl")) key = "mx_crawl";
+            // ... made even (lw_extra.glb mx_crawl_sym): both legs push in turn - the recorded crawl pushed with the right leg
+            // only; the pelvis roll evened out; the arms and the gun hold as recorded (?rcrawl=0: the recorded crawl)
+            if (key == "mx_crawl" && UseEvenRifleCrawl && clipIndex.ContainsKey("mx_crawl_sym")) key = "mx_crawl_sym";
             // crawling with empty hands: Mixamo's Crawl Forward (lw_extra.glb fc_sym - low on elbows and knees, made
             // left / right symmetric, fingers open) instead of the hand-made crawl; with a pistol the hand-made one stays
             if (key == "prone" && UseFreeCrawl && (gun == null || !Armed) && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("fc_sym")) key = "fc_sym";
@@ -912,7 +915,7 @@ namespace LastWar
         void ApplyPose()
         {
             // the rifle's prone clips crawl by themselves: no hand-made crawl on top
-            if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl")) { poseW = 0; CrawlPull = 1f; return; }
+            if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl" || playing == "mx_crawl_sym")) { poseW = 0; CrawlPull = 1f; return; }
             if (playing == "fc_sym") { poseW = 0; CrawlPull = 1f; return; } // (the empty-handed crawl clip: no hand-made crawl on top)
             if (playing == "kn_free") { poseW = 0; return; } // (the empty-handed crouch pose: no hand-made kneel on top)
             if (Pose != null) poseKind = Pose;
