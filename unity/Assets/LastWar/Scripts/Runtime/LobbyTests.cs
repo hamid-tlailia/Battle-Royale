@@ -78,6 +78,7 @@ namespace LastWar
                     go.transform.position = origin + new Vector3((c - (Clips.Length - 1) / 2f) * dx, -r * dy, 0);
                     go.transform.rotation = Quaternion.Euler(GridPitch, 0, 0) * Quaternion.Euler(0, GridYaw, 0); // default: three-quarter view toward the camera
                     var body = SoldierBody.Attach(go, rSkin[r], rParts[r]);
+                    if (GridRamp != 0f) Ramp(go.transform);
                     if (GridGround)
                     {
                         var fl = GameObject.CreatePrimitive(PrimitiveType.Cube); Destroy(fl.GetComponent<Collider>());
@@ -258,6 +259,16 @@ namespace LastWar
         /// <summary>?wgrid=look1,look2,... : rows = guns, columns = the 8 characters, all in one clip (?wclip=, default fire),
         /// seen from ?gyaw= ; the weapon IK readout (?gundbg=1) logs each soldier</summary>
         public static int GridBag;
+        /// <summary>?wramp=deg: a slope under the soldier, rising ahead of it (for the lying-down tilt)</summary>
+        static void Ramp(Transform t)
+        {
+            var ramp = GameObject.CreatePrimitive(PrimitiveType.Cube); ramp.name = "ramp";
+            ramp.transform.position = t.position - Vector3.up * 0.05f;
+            ramp.transform.rotation = t.rotation * Quaternion.Euler(-GridRamp, 0, 0);
+            ramp.transform.localScale = new Vector3(0.9f, 0.1f, 2.2f);
+            ramp.GetComponent<Renderer>().sharedMaterial = MapBuilder.NewLit(new Color(.45f, .5f, .42f));
+        }
+
         public static bool WGrid(Camera cam, string looks, string clip)
         {
             if (string.IsNullOrEmpty(looks)) return false;
@@ -276,15 +287,7 @@ namespace LastWar
                     body.AimDir = go.transform.forward;
                     if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
                     if (GridBack) body.SetBack(new List<string> { "sniper", "shotgun" }); // (?wback=1: two guns on the back too)
-                    if (GridRamp != 0f)
-                    {
-                        // (?wramp=deg: a slope under the soldier, rising ahead of it - for the lying-down tilt)
-                        var ramp = GameObject.CreatePrimitive(PrimitiveType.Cube); ramp.name = "ramp";
-                        ramp.transform.position = go.transform.position - Vector3.up * 0.05f;
-                        ramp.transform.rotation = go.transform.rotation * Quaternion.Euler(-GridRamp, 0, 0);
-                        ramp.transform.localScale = new Vector3(0.9f, 0.1f, 3f);
-                        ramp.GetComponent<Renderer>().sharedMaterial = MapBuilder.NewLit(new Color(.45f, .5f, .42f));
-                    }
+                    if (GridRamp != 0f) Ramp(go.transform);
                 }
             cam.orthographic = true;
             cam.orthographicSize = Mathf.Max(gl.Length * dy * 0.55f, (nc * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect));

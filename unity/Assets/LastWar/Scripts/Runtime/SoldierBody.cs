@@ -1246,7 +1246,11 @@ namespace LastWar
                 Transform ra = PoseBone("RightArm");
                 if (ra != null)
                 {
-                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? 0.42f : 0.26f) - transform.up * 0.07f + transform.TransformVector(GripOffset), 0.85f);
+                    // (pistol: held out with the arm nearly straight - 92 % of the arm's length - as a two-hand pistol stance;
+                    // at 0.42 m the elbow folded and the forearm pointed up, bending the wrist)
+                    Transform rfa = PoseBone("RightForeArm");
+                    float armLen = rfa != null ? (rfa.position - ra.position).magnitude + (handR.position - rfa.position).magnitude : 0.5f;
+                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? Mathf.Clamp(armLen * 0.92f, 0.4f, 0.62f) : 0.26f) - transform.up * 0.07f + transform.TransformVector(GripOffset), 0.85f);
                     hasGrip = true;
                 }
             }
@@ -1283,6 +1287,8 @@ namespace LastWar
                 float palm = PalmLen(handR, "Right");
                 Transform rf = PoseBone("RightForeArm"), ra = PoseBone("RightArm");
                 if (hasGrip && ra != null && rf != null) TwoBone(ra, rf, handR, grip - n * 0.022f - k * palm);
+                // (pistol: the hand never bends more than 25 degrees off its forearm)
+                if (pistol && rf != null) { Vector3 fa = (handR.position - rf.position).normalized; k = Vector3.RotateTowards(fa, k, 25f * Mathf.Deg2Rad, 0f); n = Vector3.ProjectOnPlane(n, k).normalized; }
                 if (rf != null) OrientHand(handR, rf, "Right", k, n);
                 Curl("Right", 78f, 82f, 48f, 30f);
                 // the pistol grip (a little below the gun's origin) sits in the closed hand
@@ -1313,6 +1319,8 @@ namespace LastWar
                         c = gun.position + dir * GripAhead(gunId) - up * 0.015f;
                     }
                     TwoBone(la, lf, handL, c - k * palm * 0.7f);
+                    // (pistol: the supporting hand at most 35 degrees off its forearm)
+                    if (pistol) { Vector3 fa = (handL.position - lf.position).normalized; k = Vector3.RotateTowards(fa, k, 35f * Mathf.Deg2Rad, 0f); n = Vector3.ProjectOnPlane(n, k).normalized; }
                     OrientHand(handL, lf, "Left", k, n);
                     if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 48f, 55f, 32f, 0f, dir);
                 }
@@ -1332,7 +1340,7 @@ namespace LastWar
         // the whole body turns about the point under the hips by the slope's pitch and roll (each at most 35 degrees),
         // eased in and out. Standing poses are not touched. ?slope=0 turns it off.
         public static bool UseSlopeLie = true;
-        float slopeW; Quaternion slopeQ = Quaternion.identity;
+        float slopeW, nextSlopeLog; Quaternion slopeQ = Quaternion.identity;
         static bool Lying(string clip) => clip == "mx_prone" || clip == "mx_crawl" || clip == "mx_crawl_sym" || clip == "fc_sym";
         void SlopeLie()
         {
@@ -1350,6 +1358,7 @@ namespace LastWar
             Vector3 pivot = new Vector3(c.x, GroundY(c, c.y), c.z);
             dstHips.position = pivot + q * (dstHips.position - pivot);
             dstHips.rotation = q * dstHips.rotation;
+            if (GunDebug && Time.time >= nextSlopeLog) { nextSlopeLog = Time.time + 1.5f; Debug.Log($"[LastWar] slope {name} {playing}: ground pitch {pitch:0} roll {roll:0} deg, applied {slopeW:0.00}"); }
         }
         float GroundY(Vector3 p, float fallback)
         {
