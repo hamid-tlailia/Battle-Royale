@@ -129,6 +129,7 @@ namespace LastWar
             if (input.JumpPressed && (grounded || NearGround())) velocity.y = JumpVelocity;
             velocity.y += Gravity * dt;
             cc.Move(velocity * dt);
+            AirMove.KeepOnMap(transform, cc); // (never off the map's edge)
 
             Separate(transform, cc, dt);
             AimAssist(dt);

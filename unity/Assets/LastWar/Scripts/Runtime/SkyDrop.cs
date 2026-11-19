@@ -174,6 +174,32 @@ namespace LastWar
             t.position = p;
         }
 
+        /// <summary>on foot: never past the map's edge (the ground ends a little beyond the play circle - walking off it the
+        /// soldier fell into the void and hung there). Kept within the play circle + 12 m; and anyone already below the
+        /// ground (fallen through) is put back on top of it.</summary>
+        public static void KeepOnMap(Transform t, CharacterController cc)
+        {
+            MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;
+            if (m == null || t == null) return;
+            Vector3 p = t.position; bool moved = false;
+            float lim = Mathf.Min(m.playRadius + 12f, m.size / 2f - 8f);
+            Vector2 flat = new Vector2(p.x, p.z);
+            if (flat.magnitude > lim) { flat = flat.normalized * lim; p.x = flat.x; p.z = flat.y; moved = true; }
+            float g = m.HeightAt(-p.x, p.z);
+            if (p.y < g - 3f) { p.y = GroundBelowFrom(new Vector3(p.x, g + 60f, p.z)) + 0.1f; moved = true; }
+            if (!moved) return;
+            bool on = cc != null && cc.enabled; if (on) cc.enabled = false;
+            t.position = p;
+            if (on) cc.enabled = true;
+        }
+        static float GroundBelowFrom(Vector3 p)
+        {
+            int mask = ~(1 << MapBuilder.PlayerLayer);
+            if (Physics.Raycast(p, Vector3.down, out RaycastHit h, 600f, mask, QueryTriggerInteraction.Ignore)) return h.point.y;
+            MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;
+            return m != null ? m.HeightAt(-p.x, p.z) : 0f;
+        }
+
         static float GroundBelow(Vector3 p)
         {
             int mask = ~(1 << MapBuilder.PlayerLayer);

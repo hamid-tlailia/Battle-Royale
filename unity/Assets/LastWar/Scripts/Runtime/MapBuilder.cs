@@ -155,8 +155,10 @@ namespace LastWar
             }
             else terrainMat = NewLit(Color.white, tex);
             go.AddComponent<MeshRenderer>().sharedMaterial = terrainMat;
-            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            Ground = go.AddComponent<MeshCollider>(); Ground.sharedMesh = mesh;
         }
+        /// <summary>the map's ground (the terrain's collider): checks for room above the ground leave it out</summary>
+        public static Collider Ground;
 
         /// <summary>generated map (no aerial photo): grass / rock / snow by height</summary>
         static Texture2D HeightColours(MapData map)

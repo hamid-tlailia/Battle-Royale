@@ -17,6 +17,7 @@ namespace LastWar
         TouchControls input; PlayerController player;
         RectTransform iceCover;
         readonly Slot[] slots = new Slot[4]; // 3 guns + the fist (empty hands)
+        RectTransform healthRt;
         RectTransform box, hpBgRt, arBgRt, lens; Image lensDot; RawImage glass; readonly Image[] sides = new Image[4]; Image hole; int lensZoom; Transform full;
         static Texture2D lensCross, lensPlain;
         static readonly System.Collections.Generic.Dictionary<int, (Texture2D rim, Texture2D mark)> webLens = new System.Collections.Generic.Dictionary<int, (Texture2D, Texture2D)>();
@@ -98,6 +99,12 @@ namespace LastWar
             hpText.rectTransform.pivot = new Vector2(0, .5f); hpText.rectTransform.anchoredPosition = new Vector2(5 * UiKit.K, 0);
             RectTransform arBg = arBgRt = UiKit.Img(c, "ArBg", UiKit.Round, BC, new Vector2(0, 18), new Vector2(BarW, 7), new Color(0, 0, 0, .45f)).rectTransform;
             armorFill = UiKit.Img(arBg, "Ar", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(BarW, 7), new Color(0.35f, 0.67f, 1f));
+            // the health bar in a holder the layout editor can grab and move (the bar itself is only 6 px tall)
+            var health = new GameObject("Health", typeof(RectTransform)).GetComponent<RectTransform>();
+            health.SetParent(c, false); health.anchorMin = health.anchorMax = BC; health.pivot = new Vector2(.5f, 0);
+            health.anchoredPosition = Vector2.zero; health.sizeDelta = new Vector2(BarW + 46, 24) * UiKit.K;
+            hpBg.SetParent(health, true); arBg.SetParent(health, true);
+            healthRt = health;
             reloadBar = UiKit.Img(c, "Reload", UiKit.Round, BC, new Vector2(0, 28), new Vector2(140, 4), new Color(0, 0, 0, .4f)).rectTransform;
             reloadFill = UiKit.Img(reloadBar, "fill", UiKit.Round, new Vector2(0, .5f), Vector2.zero, new Vector2(0, 4), new Color(1f, 0.83f, 0.3f));
 
@@ -285,6 +292,7 @@ namespace LastWar
             healPlus = UiKit.Txt(healRing, C, Vector2.zero, new Vector2(38, 38), 15, TextAnchor.MiddleCenter, new Color(.42f, .9f, .35f)); healPlus.rectTransform.pivot = C; healPlus.text = "+";
             healRing.gameObject.SetActive(false);
             input.AddEditable("status", status);
+            input.AddEditable("health", healthRt);
         }
         RectTransform feedRoot;
         RectTransform status, lootPanel, healRing; Image vestIcon, healFg, bagRing, bagRingBg; Text vestText, healPlus, bagLvText;
@@ -531,7 +539,7 @@ namespace LastWar
                 if (mn.x < mx.x) { iceCover.anchoredPosition = new Vector2((mn.x + mx.x) / 2f, mn.y); iceCover.sizeDelta = mx - mn; }
                 iceCover.SetAsLastSibling();
             }
-            hpBgRt.gameObject.SetActive(!scoped); arBgRt.gameObject.SetActive(false); // no armour bar: the armour number sits by the vest icon
+            hpBgRt.gameObject.SetActive(!scoped || input.Editing); arBgRt.gameObject.SetActive(false); // no armour bar: the armour number sits by the vest icon
             // plane / sky-dive hints: each shows 2.5 s, then gets out of the way
  string hint = f.air == 1 ? (input.JumpReady ? "Tap <b>JUMP</b> to drop" : "") : f.air >= 2 ? "You glide where you look · tap <b>JUMP</b> to drop straight down · the parachute opens by itself" : "";
             if (hint != hintText) { hintText = hint; hintAt = Time.time; }
@@ -665,7 +673,7 @@ namespace LastWar
             // spectating bar
             specBar.gameObject.SetActive(spectating && player.SpectateTarget != null);
             if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#cfd6da>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
-            status.gameObject.SetActive(!scoped && f.air == 0);
+            status.gameObject.SetActive((!scoped && f.air == 0) || input.Editing); // (shown while arranging the HUD, even in the plane)
 
             // watching and the match ends (or nobody is left to watch): back to the result card with LOBBY
             if (spectating && (player.SpectateTarget == null || !player.SpectateTarget.Alive)) player.StartSpectate(null);

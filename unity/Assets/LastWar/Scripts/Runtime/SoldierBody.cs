@@ -460,7 +460,14 @@ namespace LastWar
         public static bool UseGripContact = true;
         /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
         /// slower by 6 / their own speed so the feet keep pace (Rifle Run 4.13 m/s, Running 5.63 m/s, measured from their hips)</summary>
-        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "run", 1f } };
+        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "run", 1f },
+            // crawling (option A): the body goes CrawlSpeed m/s and each crawl clip plays at the pace its own limbs keep there
+            // (Crawl Forward 0.29 m/s as recorded, the rifle prone crawl 0.23 m/s - measured from their hips)
+            { "fc_sym", CrawlSpeed / 0.292f }, { "mx_crawl_sym", CrawlSpeed / 0.234f }, { "mx_crawl", CrawlSpeed / 0.234f } };
+        /// <summary>crawling speed with the crawl clips (m/s): slow enough for the clips' own strokes (was 0.92)</summary>
+        public const float CrawlSpeed = 0.45f;
+        /// <summary>the player's crawl: walk speed x 0.2 x CrawlPull - with a clip, CrawlPull gives CrawlSpeed</summary>
+        static float ClipCrawlPull => CrawlSpeed / (PlayerController.WalkSpeed * 0.2f);
         /// <summary>reloading: standing still (or aiming / firing / walking) the rifle reload clip plays, timed to the reload</summary>
         public bool Reloading; public float ReloadTime = 2f;
         static readonly HashSet<string> ReloadOver = new HashSet<string> { "mx_idle", "mx_aim", "mx_fire", "mx_walk" };
@@ -773,7 +780,7 @@ namespace LastWar
                 else
                 {
                     cp.SetSpeed(0);
-                    double len = clips[target].length, t = cp.GetTime() + Rate * Time.deltaTime;
+                    double len = clips[target].length, t = cp.GetTime() + Rate * (ClipPace.TryGetValue(playing ?? current, out float bpace) ? bpace : 1f) * Time.deltaTime; // (backwards at the same pace)
                     if (len > 0.01) { t %= len; if (t < 0) t += len; }
                     cp.SetTime(t);
                 }
@@ -915,8 +922,8 @@ namespace LastWar
         void ApplyPose()
         {
             // the rifle's prone clips crawl by themselves: no hand-made crawl on top
-            if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl" || playing == "mx_crawl_sym")) { poseW = 0; CrawlPull = 1f; return; }
-            if (playing == "fc_sym") { poseW = 0; CrawlPull = 1f; return; } // (the empty-handed crawl clip: no hand-made crawl on top)
+            if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl" || playing == "mx_crawl_sym")) { poseW = 0; CrawlPull = ClipCrawlPull; return; }
+            if (playing == "fc_sym") { poseW = 0; CrawlPull = ClipCrawlPull; return; } // (the empty-handed crawl clip: no hand-made crawl on top)
             if (playing == "kn_free") { poseW = 0; return; } // (the empty-handed crouch pose: no hand-made kneel on top)
             if (Pose != null) poseKind = Pose;
             poseW = Mathf.Clamp01(poseW + (Pose != null ? 1 : -1) * Time.deltaTime * 7f);

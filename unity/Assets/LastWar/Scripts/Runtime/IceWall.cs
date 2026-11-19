@@ -64,7 +64,9 @@ namespace LastWar
                 Vector3 c = h.point + Vector3.up * (Height / 2f - 0.15f);
                 Quaternion rot = Quaternion.LookRotation(dir);
                 // a block that would stand inside a house wall / rock is left out (the rest still stands)
-                if (Physics.CheckBox(c + Vector3.up * 0.15f, new Vector3(w / 2f - 0.15f, Height / 2f - 0.3f, Thick / 2f - 0.08f), rot, mask, QueryTriggerInteraction.Ignore)) continue;
+                // (the ground itself does not count: on a slope the block's uphill edge goes into it, and the wall stood
+                // only where the ground was flat)
+                if (Blocked(c + Vector3.up * 0.15f, new Vector3(w / 2f - 0.15f, Height / 2f - 0.3f, Thick / 2f - 0.08f), rot, mask)) continue;
                 spot.Add(new Block { pos = c, rot = rot, w = w, ground = h.point.y });
             }
             return spot;
@@ -85,6 +87,14 @@ namespace LastWar
                 Debug.Log($"[LastWar] icetest: {lost * 100f:0} % of its strength gone");
                 yield return new WaitForSeconds(12f);
             }
+        }
+
+        static readonly Collider[] overlap = new Collider[16];
+        static bool Blocked(Vector3 c, Vector3 half, Quaternion rot, int mask)
+        {
+            int n = Physics.OverlapBoxNonAlloc(c, half, overlap, rot, mask, QueryTriggerInteraction.Ignore);
+            for (int k = 0; k < n; k++) if (overlap[k] != MapBuilder.Ground) return true;
+            return false;
         }
 
         public static void Place(List<Block> blocks, Vector3 soundAt)

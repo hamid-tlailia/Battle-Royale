@@ -163,6 +163,7 @@ namespace LastWar
             if (cc.isGrounded && velocity.y < 0) velocity.y = -2f;
             velocity.y += PlayerController.Gravity * dt;
             cc.Move(velocity * dt);
+            AirMove.KeepOnMap(transform, cc); // (never off the map's edge)
 
             // stuck against something: jump, then pick another way
             if ((stuckTimer += dt) > 1.2f)
