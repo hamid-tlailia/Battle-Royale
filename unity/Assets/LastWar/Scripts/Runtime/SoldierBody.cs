@@ -591,6 +591,40 @@ namespace LastWar
             float m = SoleY(); if (m == float.MaxValue) return;
             hips.position += Vector3.up * (transform.position.y + restSole - m);
         }
+        /// <summary>?footdbg=1 (readout only): every 2 s, how high the lowest point of each heel and of each toe sits above the
+        /// soldier's ground (cm), from the outfit's own mesh baked in the pose of the moment</summary>
+        public static bool FootDebug; float nextFootLog;
+        void LogFeet()
+        {
+            Transform root = outfitRoot != null ? outfitRoot : (model != null ? model : transform);
+            var baked = new Mesh(); var pts = new List<Vector3>();
+            foreach (SkinnedMeshRenderer r in root.GetComponentsInChildren<SkinnedMeshRenderer>(false))
+            {
+                if (!r.enabled) continue;
+                r.BakeMesh(baked); Matrix4x4 m = r.transform.localToWorldMatrix;
+                foreach (Vector3 v in baked.vertices) pts.Add(m.MultiplyPoint3x4(v));
+            }
+            Destroy(baked);
+            float ground = transform.position.y; var sb = new System.Text.StringBuilder($"[LastWar] feet {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}:");
+            foreach (string sd in new[] { "Left", "Right" })
+            {
+                Transform ankle = PoseBone(sd + "Foot"), toe = PoseBone(sd + "ToeBase");
+                if (ankle == null || toe == null) continue;
+                Vector3 f = toe.position - ankle.position; f.y = 0; float len = f.magnitude; if (len < 1e-3f) continue; f /= len;
+                Vector3 side = Vector3.Cross(Vector3.up, f);
+                float heel = float.MaxValue, ball = float.MaxValue;
+                foreach (Vector3 p in pts)
+                {
+                    Vector3 d = p - ankle.position;
+                    if (d.y > 0.03f || Mathf.Abs(Vector3.Dot(d, side)) > 0.06f) continue;
+                    float a = Vector3.Dot(d, f);
+                    if (a < -0.12f || a > len + 0.12f) continue;
+                    if (a < len * 0.25f) heel = Mathf.Min(heel, p.y); else if (a > len * 0.75f) ball = Mathf.Min(ball, p.y);
+                }
+                sb.Append($" {sd} heel {(heel - ground) * 100f:0.0} cm toe {(ball - ground) * 100f:0.0} cm |");
+            }
+            Debug.Log(sb.ToString());
+        }
         public static int AnimDelayFrames; int delayedUntil = -1;
         void Update()
         {
@@ -1000,6 +1034,7 @@ namespace LastWar
             ApplyPose();
             RunLife();
             PlantFeet();
+            if (FootDebug && Time.time >= nextFootLog) { nextFootLog = Time.time + 2f; LogFeet(); }
             tr = Bench.Now();
             SyncExtras();
             Bench.Add(ref Bench.TransferTicks, tr);
