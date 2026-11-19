@@ -469,7 +469,9 @@ namespace LastWar
         /// <summary>the game's clips -> the pistol clips (lw_pistol.glb); the others (jump, crouch walk, lying down) as before</summary>
         static readonly Dictionary<string, string> PistolClips = new Dictionary<string, string> {
             { "idle", "p_idle" }, { "idle_rifle", "p_idle" }, { "fire", "p_idle" }, { "walk", "p_walk" }, { "walk_fire", "p_walk" },
-            { "run", "p_run" }, { "crouch_idle", "p_kneel" }, { "crouch_fire", "p_kneel" } };
+            { "run", "p_run" }, { "crouch_idle", "p_kneel" }, { "crouch_fire", "p_kneel" },
+            // lying down / crawling with a pistol: the rifle's prone clips (the crawl made even), the pistol forward in the right hand
+            { "prone", "mx_prone" } };
         public static bool UsePistolClips = true;
         /// <summary>false (?fcrawl=0): crawling / crouching with empty hands use the earlier hand-made crawl / kneel</summary>
         public static bool UseFreeCrawl = true, UseEvenRifleCrawl = true;
@@ -1247,6 +1249,15 @@ namespace LastWar
                     hasGrip = true;
                 }
             }
+            if (carried && pistol && (playing == "mx_prone" || playing == "mx_crawl" || playing == "mx_crawl_sym"))
+            {
+                // lying down with a pistol: held out ahead in the right hand (the clip's hands are set for a rifle's length)
+                dir = Vector3.RotateTowards(transform.forward, dir, 25f * Mathf.Deg2Rad, 0f);
+                carried = false; // (the left hand stays as the clip has it)
+                hasGrip = false;
+                proneOneHand = true;
+            }
+            else proneOneHand = false;
             if (carried && handL != null)
             {
                 // carried (running / crawling): along the two hands, as the clip holds it, never swung out to the side
@@ -1275,7 +1286,7 @@ namespace LastWar
                 gun.position = g + up * (pistol ? 0.035f : 0.05f);
             }
             // standing / walking / firing: the support hand comes to the gun
-            if (!carried && handL != null && (Pose == null || Pose == "kneel") && !dead)
+            if (!carried && !proneOneHand && handL != null && (Pose == null || Pose == "kneel") && !dead)
             {
                 Transform la = PoseBone("LeftArm"), lf = PoseBone("LeftForeArm");
                 if (la != null && lf != null)
@@ -1303,6 +1314,7 @@ namespace LastWar
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
         }
 
+        bool proneOneHand;
         // ---- the rifle clips hold the hands where a rifle goes: the gun lies from the right palm to the left one
         Vector3 Palm(string sd)
         {

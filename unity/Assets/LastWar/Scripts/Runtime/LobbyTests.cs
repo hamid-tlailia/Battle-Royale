@@ -36,7 +36,7 @@ namespace LastWar
         }
         /// <summary>?gpitch=-90 : soldiers tipped toward the camera (seen from above, head up); ?gdx= column spacing (m);
         /// ?gground=1 : a thin floor under each soldier (to see what touches the ground)</summary>
-        public static float GridPitch = 0f, GridDx = 0f; public static bool GridGround, GridBack;
+        public static float GridPitch = 0f, GridDx = 0f, GridSpeed = 0f; public static bool GridGround, GridBack;
         /// <summary>?gyaw= : which way the grid soldiers face (215 = three-quarter front, 0 = their back to the camera as in the game, 270 = side)</summary>
         public static float GridYaw = 215f;
         /// <summary>?ggun= : the gun model the grid soldiers hold (default rifle)</summary>
@@ -271,7 +271,8 @@ namespace LastWar
                     go.transform.position = origin + new Vector3((c - (nc - 1) / 2f) * dx, -r * dy, 0);
                     go.transform.rotation = Quaternion.Euler(0, GridYaw, 0);
                     var body = SoldierBody.Attach(go, c);
-                    body.SetGun(gl[r]); body.Armed = true; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
+                    body.SetGun(gl[r]); body.Armed = true; body.Speed = GridSpeed; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
+                    if (GridSpeed > 0.25f && clip == "prone") body.Pose = "crawl"; // (?wspeed=1&wclip=prone: crawling)
                     body.AimDir = go.transform.forward;
                     if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
                     if (GridBack) body.SetBack(new List<string> { "sniper", "shotgun" }); // (?wback=1: two guns on the back too)
