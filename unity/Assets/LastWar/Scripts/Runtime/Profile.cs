@@ -46,6 +46,8 @@ namespace LastWar
 
         /// <summary>frames per second: 60 (default), 90 or 120 - a 90 / 120 Hz screen shows a smoother picture and aim at the
         /// cost of battery and heat</summary>
+        /// <summary>profile picture: 0 = a portrait of your own soldier, 1.. = one of the game's icons (AvatarPicker)</summary>
+        public static int Avatar { get => PlayerPrefs.GetInt("lw.avatar", 0); set { PlayerPrefs.SetInt("lw.avatar", value); PlayerPrefs.Save(); } }
         public static int Fps { get => PlayerPrefs.GetInt("lw.fps", 60); set { PlayerPrefs.SetInt("lw.fps", value); PlayerPrefs.Save(); Application.targetFrameRate = value; } }
 
         public static void ApplyQuality()

@@ -51,7 +51,7 @@ namespace LastWar
             gear = Column(12, 120, "GEAR"); guns = Column(142, 250, "WEAPONS"); supply = Column(402, 214, "CAPACITY");
             capText = UiKit.Txt(panel, new Vector2(0, 1), new Vector2(480, -12), new Vector2(130, 18), 11, TextAnchor.UpperRight, Gold);
             var hint = UiKit.Txt(panel, new Vector2(0, 0), new Vector2(14, 6), new Vector2(600, 14), 8.5f, TextAnchor.LowerLeft, new Color(1, 1, 1, .45f));
-            hint.fontStyle = FontStyle.Normal; hint.text = "Drag out of the backpack to drop · drag a weapon up / down to reorder · tap a scope to put it on";
+            hint.fontStyle = FontStyle.Normal; hint.text = "Drag out of the backpack to drop · drag a weapon up / down to reorder · drag a scope onto the rifle's scope (or tap it) to swap";
         }
 
         // ------------------------------------------------------------------ pieces
@@ -103,11 +103,22 @@ namespace LastWar
                 Pic(rt, sp, new Vector2(1, .5f), new Vector2(-8, 4), new Vector2(170, 66), Color.white);
                 Label(rt, new Vector2(0, 1), new Vector2(8, -6), new Vector2(160, 16), 11, TextAnchor.UpperLeft, Color.white, g.def.name);
                 Label(rt, new Vector2(0, 0), new Vector2(8, 6), new Vector2(120, 18), 13, TextAnchor.LowerLeft, Gold, $"{g.mag}<size={Mathf.RoundToInt(9 * UiKit.K)}><color=#ffffffb0> / {g.reserve}</color></size>");
-                if ((g.def.id == "rifle" || g.def.id == "sniper") && (f.scope > 0 || g.def.id == "sniper"))
+                // the scope sits where a scope goes - on top of the gun's picture, over its receiver. The rifle's: drag it out
+                // of the backpack to throw it, drop another scope from the backpack onto it to swap them (an empty rifle
+                // shows the place, ready for one); the sniper keeps its own x8 sight
+                if (g.def.id == "rifle" || g.def.id == "sniper")
                 {
-                    int z = g.def.id == "sniper" ? Mathf.Max(8, f.scope) : f.scope;
-                    var chip = UiKit.Img(rt, "scope", UiKit.Round, new Vector2(0, 0), new Vector2(92, 6), new Vector2(34, 16), new Color(.77f, .55f, 1f, .85f));
-                    Label(chip.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(34, 16), 9, TextAnchor.MiddleCenter, Color.white, "×" + z);
+                    bool own = g.def.id == "sniper";
+                    int z = own ? Mathf.Max(8, f.scope) : f.scope;
+                    bool empty = !own && z == 0;
+                    var chip = UiKit.Img(rt, "scope", UiKit.Round, new Vector2(0, 0), new Vector2(132, 50), new Vector2(48, 20), empty ? new Color(1, 1, 1, .12f) : new Color(.77f, .55f, 1f, .9f), true);
+                    if (!empty) Pic(chip.rectTransform, UiKit.Get("icon_scope"), new Vector2(0, .5f), new Vector2(2, 0), new Vector2(20, 14), Color.white);
+                    Label(chip.rectTransform, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(30, 18), 9, TextAnchor.MiddleRight, Color.white, empty ? "+ scope" : "×" + z);
+                    if (!own)
+                    {
+                        scopeTargets.Add(chip.rectTransform);
+                        int zz = z; if (!empty) Draggable(chip, -1, () => f.DropScope(zz));
+                    }
                 }
                 int ss = s; Draggable(c, pos, () => f.DropWeapon(ss));
             }
@@ -116,7 +127,7 @@ namespace LastWar
 
         // CAPACITY: a 2-column grid of supplies
         int tileN;
-        void Supply(Sprite pic, string name, string count, System.Action drop, System.Action tap = null, bool on = false)
+        void Supply(Sprite pic, string name, string count, System.Action drop, System.Action tap = null, bool on = false, System.Action onScope = null)
         {
             float x = (tileN % 2) * 108, yy = (tileN / 2) * 74; tileN++;
             var c = Tile(supply, new Vector2(x, -yy), new Vector2(104, 70));
@@ -126,12 +137,14 @@ namespace LastWar
             Label(rt, new Vector2(.5f, 1), new Vector2(0, -2), new Vector2(102, 14), 8.5f, TextAnchor.UpperCenter, new Color(1, 1, 1, .85f), name);
             Label(rt, new Vector2(1, 0), new Vector2(-5, 3), new Vector2(60, 14), 10, TextAnchor.LowerRight, Gold, count);
             if (tap != null) SettingsPanel.Tap(c.gameObject, () => { tap(); key = ""; });
-            Draggable(c, -1, drop);
+            Draggable(c, -1, drop, onScope);
         }
+        /// <summary>the rifle's scope place(s) on the weapon cards: a spare scope dropped there goes on the gun</summary>
+        readonly List<RectTransform> scopeTargets = new List<RectTransform>();
 
         bool dragging;
         /// <summary>drag a card: up / down among the weapons to change their order, out of the panel to throw it on the ground</summary>
-        void Draggable(Image bg, int pos, System.Action dropOutside)
+        void Draggable(Image bg, int pos, System.Action dropOutside, System.Action dropOnScope = null)
         {
             bg.raycastTarget = true;
             RectTransform rt = bg.rectTransform; Vector2 start = Vector2.zero;
@@ -142,7 +155,10 @@ namespace LastWar
             On(EventTriggerType.EndDrag, e =>
             {
                 dragging = false;
-                if (!RectTransformUtility.RectangleContainsScreenPoint(panel, e.position)) dropOutside?.Invoke();
+                bool onScope = false;
+                if (dropOnScope != null) foreach (RectTransform t in scopeTargets) if (t != null && RectTransformUtility.RectangleContainsScreenPoint(t, e.position)) onScope = true;
+                if (onScope) dropOnScope();
+                else if (!RectTransformUtility.RectangleContainsScreenPoint(panel, e.position)) dropOutside?.Invoke();
                 else if (pos >= 0)
                 {
                     int to = Mathf.Clamp(Mathf.RoundToInt(-rt.anchoredPosition.y / (90 * UiKit.K)), 0, 2);
@@ -167,6 +183,7 @@ namespace LastWar
             foreach (Transform c in gear) Destroy(c.gameObject);
             foreach (Transform c in guns) Destroy(c.gameObject);
             foreach (Transform c in supply) Destroy(c.gameObject);
+            scopeTargets.Clear();
             float y = 0;
             GearCard(ref y, UiKit.Get("icon_vest"), "Vest", f.armor > 0 ? Mathf.Max(1, f.armorLv) : 0, f.armor > 0 ? $"{Mathf.RoundToInt(f.armor)} / 100" : "none", () => f.DropArmor());
             GearCard(ref y, Item("helmet" + Mathf.Max(1, f.helmetLv)), "Helmet", f.helmetLv, f.helmetLv > 0 ? $"{Mathf.RoundToInt(f.helmet)} / 100" : "none", () => f.DropHelmet());
@@ -182,11 +199,12 @@ namespace LastWar
             }
             if (f.meds > 0) Supply(UiKit.Get("icon_heal"), "Medkit", "×" + f.meds, () => f.DropMed());
             if (f.frost > 0) Supply(UiKit.Get("icon_frost"), "Ice wall", "×" + f.frost, () => f.DropFrost());
+            // spare scopes (the one on the rifle is shown on it): tap - or drag onto the rifle's scope - to put it on
             foreach (int z in new[] { 2, 4, 8 })
             {
-                if ((f.scopes & Fighter.ScopeBit(z)) == 0) continue;
-                int zz = z; bool on = f.scope == z;
-                Supply(UiKit.Get("icon_scope"), $"×{z} scope", on ? "ON" : "", () => f.DropScope(zz), () => f.UseScope(on ? 0 : zz), on);
+                if ((f.scopes & Fighter.ScopeBit(z)) == 0 || f.scope == z) continue;
+                int zz = z;
+                Supply(UiKit.Get("icon_scope"), $"×{z} scope", "", () => f.DropScope(zz), () => f.UseScope(zz), false, () => f.UseScope(zz));
             }
             if (tileN == 0) Label(supply, new Vector2(0, 1), Vector2.zero, new Vector2(200, 20), 11, TextAnchor.UpperLeft, Dim, "No supplies yet");
             capText.text = $"{f.Load} / {f.Capacity}";

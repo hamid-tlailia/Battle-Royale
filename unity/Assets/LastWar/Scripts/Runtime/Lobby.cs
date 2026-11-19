@@ -194,7 +194,7 @@ namespace LastWar
                 {
                     Sprite sp = null;
                     if (sprites.TryGetValue(n.id, out string sn)) sp = UiKit.Get(sn);
-                    if (n.id == "avatar") sp = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[Mathf.Clamp(Profile.Skin, 0, SoldierBody.OutfitFiles.Length - 1)]);
+                    if (n.id == "avatar") sp = AvatarPicker.Current(); // (your soldier's portrait, or the icon chosen)
                     if (sp == null && n.kind != "img") continue;
                     var img = UiKit.Img(root, n.id, sp, Vector2.zero, Vector2.zero, Vector2.one, n.kind == "icon" ? ParseColor(n.color) : Color.white);
                     if (sp == null) img.color = Color.clear;
@@ -202,6 +202,7 @@ namespace LastWar
                     img.type = Image.Type.Simple;
                     Place(img.rectTransform, n);
                     nodes[n.id] = img.rectTransform;
+                    if (n.id == "avatar") { img.raycastTarget = true; var avImg = img; SettingsPanel.Tap(img.gameObject, () => AvatarPicker.Show(s2 => avImg.sprite = s2)); } // (tap: choose the picture)
                     if (n.id == "xpbar" || n.id == "season_bar")
                     {
                         // the bar's own track (the one baked in the card picture was removed: it no longer matched)
@@ -429,7 +430,7 @@ namespace LastWar
                         else Profile.SetPart(part, skin);
                     }
                     Open("outfit");
-                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[Profile.Part(1) >= 0 ? Profile.Part(1) : Profile.Skin]);
+                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = AvatarPicker.Current(); // (the portrait follows the outfit)
                     StartCoroutine(SpawnNextFrame());
                 });
             }

@@ -168,7 +168,8 @@ namespace LastWar
                 {
                     int z = it.Zoom, bit = ScopeBit(z);
                     if (bit == 0 || (scopes & bit) != 0) return false;
-                    scopes |= bit; if (scope == 0) scope = z; // the first scope goes straight on the gun
+                    // a stronger scope than the one on the gun goes straight on it; the weaker one stays in the backpack
+                    scopes |= bit; if (scope == 0 || z > scope) scope = z;
                     Picked(); return true;
                 }
             }
