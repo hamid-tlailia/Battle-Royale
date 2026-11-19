@@ -44,6 +44,10 @@ namespace LastWar
         /// <summary>0 low, 1 medium, 2 high</summary>
         public static int Quality { get => PlayerPrefs.GetInt("lw.quality", 2); set { PlayerPrefs.SetInt("lw.quality", value); PlayerPrefs.Save(); ApplyQuality(); } }
 
+        /// <summary>frames per second: 60 (default), 90 or 120 - a 90 / 120 Hz screen shows a smoother picture and aim at the
+        /// cost of battery and heat</summary>
+        public static int Fps { get => PlayerPrefs.GetInt("lw.fps", 60); set { PlayerPrefs.SetInt("lw.fps", value); PlayerPrefs.Save(); Application.targetFrameRate = value; } }
+
         public static void ApplyQuality()
         {
             if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)

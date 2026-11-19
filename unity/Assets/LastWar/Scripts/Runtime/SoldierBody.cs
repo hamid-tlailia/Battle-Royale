@@ -1238,6 +1238,8 @@ namespace LastWar
                 return;
             }
             if (weaponIK != null) weaponIK.Release();
+            // (the pistol clips hold the pistol up in front in every state, running too: held the same way, elbows a little bent)
+            if (pistol && PistolClip) carried = false;
             bool aim = ShoulderGrip && !carried && (Pose == null || Pose == "kneel") && !dead;
             Vector3 grip = Vector3.zero; bool hasGrip = false;
             // standing / walking / firing: the stock sits at the shoulder and the gun reaches out along the aim
@@ -1246,11 +1248,13 @@ namespace LastWar
                 Transform ra = PoseBone("RightArm");
                 if (ra != null)
                 {
-                    // (pistol: held out with the arm nearly straight - 92 % of the arm's length - as a two-hand pistol stance;
+                    // (pistol: held out with the arm nearly straight - 90 % of the arm's length - as a two-hand pistol stance;
                     // at 0.42 m the elbow folded and the forearm pointed up, bending the wrist)
                     Transform rfa = PoseBone("RightForeArm");
                     float armLen = rfa != null ? (rfa.position - ra.position).magnitude + (handR.position - rfa.position).magnitude : 0.5f;
-                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? Mathf.Clamp(armLen * 0.92f, 0.4f, 0.62f) : 0.26f) - transform.up * 0.07f + transform.TransformVector(GripOffset), 0.85f);
+                    // (running with it: 78 % - the elbows bend a little, as one runs holding a pistol)
+                    float reach = playing == "p_run" ? 0.78f : 0.9f;
+                    grip = Vector3.Lerp(handR.position, ra.position + dir * (pistol ? Mathf.Clamp(armLen * reach, 0.36f, 0.6f) : 0.26f) - transform.up * 0.07f + transform.TransformVector(GripOffset), 0.85f);
                     hasGrip = true;
                 }
             }

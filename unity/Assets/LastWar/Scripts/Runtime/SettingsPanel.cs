@@ -152,6 +152,7 @@ namespace LastWar
         {
             float y = y0;
             y += ChoiceRow(p, x, y, w, fk, "GRAPHICS", new[] { "HIGH", "MEDIUM", "LOW" }, 2 - Profile.Quality, i => Profile.Quality = 2 - i);
+            y += ChoiceRow(p, x, y, w, fk, "FRAME RATE (smoother on 90 / 120 Hz screens)", new[] { "60", "90", "120" }, Profile.Fps >= 120 ? 2 : Profile.Fps >= 90 ? 1 : 0, i => Profile.Fps = i == 2 ? 120 : i == 1 ? 90 : 60);
             y += Range(p, x, y, w, fk, "LOOK SENSITIVITY", 0.3f, 2.5f, Profile.Sensitivity, "%", v => Profile.Sensitivity = v);
             y += Range(p, x, y, w, fk, "SCOPE SENSITIVITY", 0.3f, 2.5f, Profile.ScopeSensitivity, "%", v => Profile.ScopeSensitivity = v);
             y += ChoiceRow(p, x, y, w, fk, "AIM", new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });

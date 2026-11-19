@@ -35,7 +35,7 @@ namespace LastWar
             Instance = this; startTime = Time.time;
             if (!launched) { launched = true; Loader.Show("Loading…"); yield return null; yield return null; }
             Loader.Progress(0.35f);
-            Application.targetFrameRate = 60;
+            Application.targetFrameRate = Profile.Fps; // (60 / 90 / 120: settings)
             QualitySettings.vSyncCount = 0;
             Profile.ApplyQuality();
             SoldierBody.LogRig = (Application.absoluteURL ?? "").Contains("rig=1");

@@ -398,7 +398,8 @@ namespace LastWar
             if (sniperScope) { scopeLock = null; scopeSpent = false; scopeWasOpen = true; lockTarget = null; return; }
             if (scopedNow && !scopeWasOpen)
             {
-                scopeLock = Nearest(8.2f, 360f); scopeSpent = false;
+                // (and an enemy up to 30 m ahead - within 35 degrees of the view: the scope opens straight onto his body)
+                scopeLock = Nearest(8.2f, 360f) ?? Nearest(30f, 35f); scopeSpent = false;
             }
             if (!scopedNow) { scopeLock = null; scopeSpent = false; }
             scopeWasOpen = scopedNow;
