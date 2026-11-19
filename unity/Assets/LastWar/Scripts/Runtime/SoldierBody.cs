@@ -591,6 +591,101 @@ namespace LastWar
             float m = SoleY(); if (m == float.MaxValue) return;
             hips.position += Vector3.up * (transform.position.y + restSole - m);
         }
+        // ---- heels on the ground when standing still. The outfits' feet are carried over from the SWAT skeleton, and on most
+        // outfits the sole sits at an angle to the foot bone different from SWAT's: standing, the toes touch the ground and
+        // the heel floats 1.5-5 cm (measured, ?footdbg=1). Once per outfit, standing, the lowest point of each heel and of
+        // each toe is taken from the outfit's own mesh and kept in the foot bone's space; then, only in the standing clips
+        // (lobby / idle / aim / fire / reload, not moving, no special pose), each foot turns about its ankle until those two
+        // points are level, and the body lowers by what the lowest of them rose (the lowest point stays where it was).
+        // Walking, running, jumping, crouching, lying: untouched. Arms, hands and gun: not touched here (the gun hold runs
+        // after this, on the body as it now stands). ?heel=0 turns it off for comparison.
+        public static bool UseHeelLevel = true;
+        static readonly HashSet<string> StandClips = new HashSet<string> { "mx_lobby", "mx_lobby_idle", "mx_lobby_aim", "mx_idle", "mx_aim", "mx_fire", "mx_reload", "idle", "idle_rifle", "fire" };
+        Transform soleFor; float soleWait; bool soleOk; float heelW;
+        readonly Vector3[] soleHeel = new Vector3[2], soleBall = new Vector3[2];
+        readonly Transform[] soleFoot = new Transform[2];
+        float[] heelDeg = new float[2];
+        bool StandingStill => Pose == null && Tilt == 0 && Mathf.Abs(Speed) < 0.15f && playing != null && StandClips.Contains(playing) && !AirAim;
+
+        void LevelSoles()
+        {
+            if (!UseHeelLevel || outfitRoot == null) return;
+            if (soleFor != outfitRoot) { soleFor = outfitRoot; soleOk = false; soleWait = 0f; heelW = 0f; }
+            bool stand = visible && StandingStill;
+            if (!soleOk)
+            {
+                // measured once the outfit has stood still for a moment (the clip settled), before any levelling
+                soleWait = stand ? soleWait + Time.deltaTime : 0f;
+                if (soleWait < 0.3f) return;
+                soleOk = MeasureSoles();
+                if (!soleOk) { soleFor = null; return; }
+            }
+            heelW = Mathf.MoveTowards(heelW, stand ? 1f : 0f, Time.deltaTime * 5f);
+            if (heelW <= 0f) return;
+            Vector3 up = transform.up;
+            float before = float.MaxValue, after = float.MaxValue;
+            for (int i = 0; i < 2; i++)
+            {
+                Transform f = soleFoot[i]; if (f == null) continue;
+                Vector3 h = f.TransformPoint(soleHeel[i]), b = f.TransformPoint(soleBall[i]);
+                before = Mathf.Min(before, Mathf.Min(Vector3.Dot(h, up), Vector3.Dot(b, up)));
+                Vector3 v = b - h, flat = Vector3.ProjectOnPlane(v, up);
+                if (flat.sqrMagnitude < 1e-6f) continue;
+                // (a pitch about the foot's side axis, at most 12 degrees: the outfit's sole angle, not a pose)
+                float ang = Mathf.Clamp(Vector3.SignedAngle(v, flat, Vector3.Cross(up, flat).normalized), -12f, 12f);
+                heelDeg[i] = ang;
+                f.rotation = Quaternion.AngleAxis(ang * heelW, Vector3.Cross(up, flat).normalized) * f.rotation;
+                h = f.TransformPoint(soleHeel[i]); b = f.TransformPoint(soleBall[i]);
+                after = Mathf.Min(after, Mathf.Min(Vector3.Dot(h, up), Vector3.Dot(b, up)));
+            }
+            if (before == float.MaxValue || after == float.MaxValue || dstHips == null) return;
+            dstHips.position -= up * (after - before);
+        }
+
+        /// <summary>the lowest point of each heel and of each toe on the outfit's mesh, in the foot bone's space</summary>
+        bool MeasureSoles()
+        {
+            var pts = new List<Vector3>(); var baked = new Mesh();
+            foreach (SkinnedMeshRenderer r in outfitRoot.GetComponentsInChildren<SkinnedMeshRenderer>(false))
+            {
+                if (!r.enabled) continue;
+                r.BakeMesh(baked); Matrix4x4 m = r.transform.localToWorldMatrix;
+                foreach (Vector3 v in baked.vertices) pts.Add(m.MultiplyPoint3x4(v));
+            }
+            foreach (Extra x in extras)
+                foreach (SkinnedMeshRenderer r in x.root.GetComponentsInChildren<SkinnedMeshRenderer>(false))
+                {
+                    if (!r.enabled) continue;
+                    r.BakeMesh(baked); Matrix4x4 m = r.transform.localToWorldMatrix;
+                    foreach (Vector3 v in baked.vertices) pts.Add(m.MultiplyPoint3x4(v));
+                }
+            Destroy(baked);
+            Vector3 up = transform.up; bool any = false;
+            for (int i = 0; i < 2; i++)
+            {
+                string sd = i == 0 ? "Left" : "Right";
+                Transform ankle = PoseBone(sd + "Foot"), toe = PoseBone(sd + "ToeBase");
+                soleFoot[i] = null;
+                if (ankle == null || toe == null) continue;
+                Vector3 fw = Vector3.ProjectOnPlane(toe.position - ankle.position, up); float len = fw.magnitude; if (len < 1e-3f) continue; fw /= len;
+                Vector3 side = Vector3.Cross(up, fw);
+                float heel = float.MaxValue, ball = float.MaxValue; Vector3 hp = Vector3.zero, bp = Vector3.zero;
+                foreach (Vector3 p in pts)
+                {
+                    Vector3 d = p - ankle.position; float hy = Vector3.Dot(d, up);
+                    if (hy > 0.03f || Mathf.Abs(Vector3.Dot(d, side)) > 0.06f) continue;
+                    float a = Vector3.Dot(d, fw);
+                    if (a < -0.12f || a > len + 0.12f) continue;
+                    if (a < len * 0.25f) { if (hy < heel) { heel = hy; hp = p; } }
+                    else if (a > len * 0.75f) { if (hy < ball) { ball = hy; bp = p; } }
+                }
+                if (heel == float.MaxValue || ball == float.MaxValue) continue;
+                soleFoot[i] = ankle; soleHeel[i] = ankle.InverseTransformPoint(hp); soleBall[i] = ankle.InverseTransformPoint(bp); any = true;
+            }
+            if (FootDebug) Debug.Log($"[LastWar] soles {name} {outfitRoot.name.Replace("(Clone)", "")}: measured {(any ? "ok" : "no feet found")}");
+            return any;
+        }
+
         /// <summary>?footdbg=1 (readout only): every 2 s, how high the lowest point of each heel and of each toe sits above the
         /// soldier's ground (cm), from the outfit's own mesh baked in the pose of the moment</summary>
         public static bool FootDebug; float nextFootLog;
@@ -623,6 +718,7 @@ namespace LastWar
                 }
                 sb.Append($" {sd} heel {(heel - ground) * 100f:0.0} cm toe {(ball - ground) * 100f:0.0} cm |");
             }
+            if (UseHeelLevel) sb.Append($" level {heelW:0.00} ({heelDeg[0]:0.0} / {heelDeg[1]:0.0} deg)");
             Debug.Log(sb.ToString());
         }
         public static int AnimDelayFrames; int delayedUntil = -1;
@@ -1034,6 +1130,7 @@ namespace LastWar
             ApplyPose();
             RunLife();
             PlantFeet();
+            LevelSoles();
             if (FootDebug && Time.time >= nextFootLog) { nextFootLog = Time.time + 2f; LogFeet(); }
             tr = Bench.Now();
             SyncExtras();
