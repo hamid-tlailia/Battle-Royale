@@ -1199,6 +1199,7 @@ namespace LastWar
             Bench.Add(ref Bench.TransferTicks, tr);
             FixFeet();
             ApplyPose();
+            SlopeLie();
             if (Pose == "kneel" || (current != null && current.StartsWith("crouch"))) FixFeet(true); // (crouching on a slope)
             RunLife();
             RelaxEmptyHands();
@@ -1325,6 +1326,36 @@ namespace LastWar
         }
 
         bool proneOneHand;
+
+        // ---- Step F: lying down / crawling, the body follows the slope it lies on (the clips lie on flat ground: on a hill
+        // the head end dug in or hung in the air). The ground is read ahead of / behind the hips and to their left / right;
+        // the whole body turns about the point under the hips by the slope's pitch and roll (each at most 35 degrees),
+        // eased in and out. Standing poses are not touched. ?slope=0 turns it off.
+        public static bool UseSlopeLie = true;
+        float slopeW; Quaternion slopeQ = Quaternion.identity;
+        static bool Lying(string clip) => clip == "mx_prone" || clip == "mx_crawl" || clip == "mx_crawl_sym" || clip == "fc_sym";
+        void SlopeLie()
+        {
+            bool lying = UseSlopeLie && visible && (Lying(playing) || Pose == "crawl" || current == "prone");
+            slopeW = Mathf.MoveTowards(slopeW, lying ? 1f : 0f, Time.deltaTime * 4f);
+            if (slopeW <= 0f || dstHips == null) return;
+            Quaternion face = transform.rotation * Quaternion.Euler(0, Turn, 0);
+            Vector3 f = face * Vector3.forward, r = face * Vector3.right, c = transform.position;
+            float hF = GroundY(c + f * 0.75f, c.y), hB = GroundY(c - f * 0.75f, c.y), hL = GroundY(c - r * 0.3f, c.y), hR = GroundY(c + r * 0.3f, c.y);
+            float pitch = Mathf.Clamp(Mathf.Atan2(hF - hB, 1.5f) * Mathf.Rad2Deg, -35f, 35f), roll = Mathf.Clamp(Mathf.Atan2(hR - hL, 0.6f) * Mathf.Rad2Deg, -35f, 35f);
+            // (front higher: the head end turns up; right side higher: the body rolls onto it)
+            Quaternion want = Quaternion.AngleAxis(-pitch, r) * Quaternion.AngleAxis(roll, f);
+            slopeQ = Quaternion.Slerp(slopeQ, want, Mathf.Min(1f, Time.deltaTime * 8f));
+            Quaternion q = Quaternion.Slerp(Quaternion.identity, slopeQ, slopeW);
+            Vector3 pivot = new Vector3(c.x, GroundY(c, c.y), c.z);
+            dstHips.position = pivot + q * (dstHips.position - pivot);
+            dstHips.rotation = q * dstHips.rotation;
+        }
+        float GroundY(Vector3 p, float fallback)
+        {
+            int mask = ~(1 << MapBuilder.PlayerLayer);
+            return Physics.Raycast(p + Vector3.up * 1.2f, Vector3.down, out RaycastHit h, 3f, mask, QueryTriggerInteraction.Ignore) ? h.point.y : fallback;
+        }
         /// <summary>pistol: how far (degrees) the back of the right hand points below the aim line (?pwrist= to try others)</summary>
         public static float PistolWrist = 22f;
         /// <summary>readout (?gundbg=1): the wrist's bend, forearm against the back of the hand (degrees)</summary>

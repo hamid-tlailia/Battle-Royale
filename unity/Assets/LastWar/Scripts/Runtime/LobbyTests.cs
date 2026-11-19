@@ -36,7 +36,7 @@ namespace LastWar
         }
         /// <summary>?gpitch=-90 : soldiers tipped toward the camera (seen from above, head up); ?gdx= column spacing (m);
         /// ?gground=1 : a thin floor under each soldier (to see what touches the ground)</summary>
-        public static float GridPitch = 0f, GridDx = 0f, GridSpeed = 0f; public static bool GridGround, GridBack;
+        public static float GridPitch = 0f, GridDx = 0f, GridSpeed = 0f, GridRamp = 0f; public static bool GridGround, GridBack;
         /// <summary>?gyaw= : which way the grid soldiers face (215 = three-quarter front, 0 = their back to the camera as in the game, 270 = side)</summary>
         public static float GridYaw = 215f;
         /// <summary>?ggun= : the gun model the grid soldiers hold (default rifle)</summary>
@@ -276,6 +276,15 @@ namespace LastWar
                     body.AimDir = go.transform.forward;
                     if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
                     if (GridBack) body.SetBack(new List<string> { "sniper", "shotgun" }); // (?wback=1: two guns on the back too)
+                    if (GridRamp != 0f)
+                    {
+                        // (?wramp=deg: a slope under the soldier, rising ahead of it - for the lying-down tilt)
+                        var ramp = GameObject.CreatePrimitive(PrimitiveType.Cube); ramp.name = "ramp";
+                        ramp.transform.position = go.transform.position - Vector3.up * 0.05f;
+                        ramp.transform.rotation = go.transform.rotation * Quaternion.Euler(-GridRamp, 0, 0);
+                        ramp.transform.localScale = new Vector3(0.9f, 0.1f, 3f);
+                        ramp.GetComponent<Renderer>().sharedMaterial = MapBuilder.NewLit(new Color(.45f, .5f, .42f));
+                    }
                 }
             cam.orthographic = true;
             cam.orthographicSize = Mathf.Max(gl.Length * dy * 0.55f, (nc * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect));
