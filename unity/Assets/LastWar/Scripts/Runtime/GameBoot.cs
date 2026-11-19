@@ -48,6 +48,7 @@ namespace LastWar
             if ((Application.absoluteURL ?? "").Contains("footdbg=1")) SoldierBody.FootDebug = true;
             if ((Application.absoluteURL ?? "").Contains("heel=0")) SoldierBody.UseHeelLevel = false;
             if ((Application.absoluteURL ?? "").Contains("soledrop=0")) SoldierBody.UseSoleDrop = false;
+            if ((Application.absoluteURL ?? "").Contains("island=0")) MapBuilder.UseIsland = false;
             if ((Application.absoluteURL ?? "").Contains("fcrawl=0")) SoldierBody.UseFreeCrawl = false;
             if ((Application.absoluteURL ?? "").Contains("rcrawl=0")) SoldierBody.UseEvenRifleCrawl = false;
             if ((Application.absoluteURL ?? "").Contains("pclips=0")) SoldierBody.UsePistolClips = false;

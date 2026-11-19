@@ -185,6 +185,13 @@ namespace LastWar
             float lim = Mathf.Min(m.playRadius + 12f, m.size / 2f - 8f);
             Vector2 flat = new Vector2(p.x, p.z);
             if (flat.magnitude > lim) { flat = flat.normalized * lim; p.x = flat.x; p.z = flat.y; moved = true; }
+            // the island's shore: no wading out deeper than the knees - back toward the middle until the ground is up
+            if (MapBuilder.SeaLevel > -999f && m.HeightAt(-p.x, p.z) < MapBuilder.SeaLevel - 0.45f && flat.magnitude > 1f)
+            {
+                Vector2 d = flat.normalized; float r = flat.magnitude;
+                while (r > 1f && m.HeightAt(-d.x * r, d.y * r) < MapBuilder.SeaLevel - 0.45f) r -= 0.5f;
+                if (Mathf.Abs(r - flat.magnitude) > 0.01f) { flat = d * r; p.x = flat.x; p.z = flat.y; moved = true; }
+            }
             float g = m.HeightAt(-p.x, p.z);
             if (p.y < g - 3f) { p.y = GroundBelowFrom(new Vector3(p.x, g + 60f, p.z)) + 0.1f; moved = true; }
             if (!moved) return;

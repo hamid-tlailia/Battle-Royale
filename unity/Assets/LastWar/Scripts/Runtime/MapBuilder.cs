@@ -33,8 +33,10 @@ namespace LastWar
         {
             currentMap = map; propBounds.Clear();
             var root = new GameObject("Map " + map.id);
+            MakeIsland(map);
             BuildTerrain(map, root.transform);
             BuildSkirt(map, root.transform);
+            BuildSea(map, root.transform);
             LoadShapes();
             var props = new GameObject("Props").transform; props.SetParent(root.transform);
             foreach (PropData p in map.props) PlaceProp(p, props);
@@ -46,19 +48,66 @@ namespace LastWar
             return root;
         }
 
+        // ---- every map an island: the ground inside the play circle is left as it is; from its edge the land runs down
+        // into the sea - the rim's hills and walls that ringed the maps (a crater seen from
+        // the plane) go under water, a sand beach where the land meets it, open sea to the horizon.
+        /// <summary>the sea's surface (world height), below the lowest ground of the play area</summary>
+        public static float SeaLevel { get; private set; } = -1000f;
+        static float coastR, seaFloor;
+        static float[] landHeights; static MapData landFor;
+        /// <summary>the island's coast: from coastR out over W metres (steeper ground: a longer slope, 40-150 m) the
+        /// ground eases down from its height at coastR to the sea floor</summary>
+        static float CoastW(float edge) => Mathf.Clamp((edge - seaFloor) * 1.6f, 40f, 150f);
+        static float CoastY(float edge, float r) { float t = Mathf.Clamp01((r - coastR) / CoastW(edge)); t = t * t * (3f - 2f * t); return Mathf.Lerp(edge, seaFloor, t); }
+        static float Bilinear(float[] h, MapData map, float x, float z)
+        {
+            float cell = map.size / map.cells, half = map.size / 2f;
+            float fx = Mathf.Clamp((x + half) / cell, 0, map.cells - 0.0001f), fz = Mathf.Clamp((z + half) / cell, 0, map.cells - 0.0001f);
+            int ix = (int)fx, iz = (int)fz; float u = fx - ix, v = fz - iz; int n = map.cells + 1;
+            return Mathf.Lerp(Mathf.Lerp(h[iz * n + ix], h[iz * n + ix + 1], u), Mathf.Lerp(h[(iz + 1) * n + ix], h[(iz + 1) * n + ix + 1], u), v);
+        }
+        /// <summary>the ground's height before the coast was cut (web coordinates)</summary>
+        static float LandAt(MapData map, float x, float z) => landHeights != null && landFor == map ? Bilinear(landHeights, map, x, z) : map.HeightAt(x, z);
+        public static bool UseIsland = true;
+        static void MakeIsland(MapData map)
+        {
+            if (!UseIsland) { SeaLevel = -1000f; return; }
+            if (landFor != map) { landHeights = (float[])map.heights.Clone(); landFor = map; }
+            int n = map.cells + 1; float cell = map.size / map.cells, half = map.size / 2f;
+            // the coast starts just inside the play circle's edge: the ring of hills / walls that rose there (from about
+            // 180 m on the 440 m maps) is cut off - from there the ground only ever runs down, to a shore the soldiers can
+            // walk onto (they are kept within the play circle + 12 m)
+            coastR = Mathf.Min(map.playRadius - 6f, half - 4f);
+            float low = float.MaxValue;
+            for (int iz = 0; iz < n; iz++) for (int ix = 0; ix < n; ix++)
+            {
+                float x = -half + ix * cell, z = -half + iz * cell;
+                if (x * x + z * z <= coastR * coastR) low = Mathf.Min(low, landHeights[iz * n + ix]);
+            }
+            SeaLevel = low - 1.2f; seaFloor = SeaLevel - 7f;
+            for (int iz = 0; iz < n; iz++) for (int ix = 0; ix < n; ix++)
+            {
+                float x = -half + ix * cell, z = -half + iz * cell, r = Mathf.Sqrt(x * x + z * z);
+                if (r <= coastR) { map.heights[iz * n + ix] = landHeights[iz * n + ix]; continue; }
+                float edge = Bilinear(landHeights, map, x / r * coastR, z / r * coastR);
+                map.heights[iz * n + ix] = Mathf.Min(landHeights[iz * n + ix], CoastY(edge, r));
+            }
+            Debug.Log($"[LastWar] island {map.id}: coast from {coastR:0} m, sea level {SeaLevel:0.0}, floor {seaFloor:0.0}");
+        }
+
         /// <summary>
-        /// Land beyond the map: the outer slopes of the rim running down and away into the haze, so that from the
-        /// plane the valley does not end in a cut edge over empty sky. No collider - nobody gets there.
+        /// Beyond the map's square: the coast keeps running down to the sea floor, then the floor stays under the water out
+        /// to the haze (no collider - nobody gets there). Sand where the slope meets the water, darker under it.
+        /// (?island=0: the earlier rolling hills around the map)
         /// </summary>
         static void BuildSkirt(MapData map, Transform parent)
         {
-            // land beyond the valley: the rim's hills keep rolling outward (noise), grass-coloured, then fade into the haze;
-            // seen from the plane the map sits in a landscape instead of a crater over an empty plain
             const int seg = 160, rings = 26; float half = map.size / 2f, r0 = half * 0.975f, rMax = Mathf.Max(1700f, map.size * 1.6f);
             float low = float.MaxValue; foreach (float h in map.heights) low = Mathf.Min(low, h);
-            bool desert = map.id == "desert", dvalley = map.id == "valley";
+            bool desert = map.id == "desert", dvalley = map.id == "valley", island = UseIsland && SeaLevel > -999f;
             Color grassA = dvalley ? new Color(.5f, .43f, .33f) : desert ? new Color(.74f, .5f, .35f) : new Color(.33f, .5f, .22f), grassB = dvalley ? new Color(.42f, .36f, .28f) : desert ? new Color(.62f, .38f, .26f) : new Color(.26f, .41f, .18f);
             Color rock = dvalley ? new Color(.38f, .33f, .27f) : desert ? new Color(.55f, .32f, .22f) : new Color(.45f, .45f, .4f), snow = new Color(.9f, .92f, .95f);
+            Color sand = new Color(.86f, .78f, .58f), wet = new Color(.55f, .5f, .38f);
             var verts = new Vector3[seg * rings]; var cols = new Color[seg * rings]; var uvs = new Vector2[seg * rings];
             float seed = map.id.GetHashCode() % 1000;
             for (int r = 0; r < rings; r++)
@@ -67,19 +116,32 @@ namespace LastWar
                 for (int i = 0; i < seg; i++)
                 {
                     float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a);
-                    float edge = map.HeightAt(cx * r0, sz * r0);
-                    float x = cx * rad, z = sz * rad;
+                    float x = cx * rad, z = sz * rad, y; Color c;
                     float n1 = Mathf.PerlinNoise(seed + x * 0.006f, z * 0.006f), n2 = Mathf.PerlinNoise(seed + 50 + x * 0.02f, z * 0.02f);
-                    float hills = low + 6f + n1 * 55f + n2 * 10f;                     // rolling country
-                    float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((rad - r0) / 140f)); // from the rim's own height into the hills
-                    float y = Mathf.Lerp(edge - 0.8f, hills, k) - Mathf.Clamp01((rad - 900f) / 800f) * 40f; // far away it sinks under the haze
+                    if (island)
+                    {
+                        // the coast: the same slope as on the map's own ground, from the land's height at the coast line
+                        float edgeLand = LandAt(map, cx * coastR, sz * coastR), edgeNow = map.HeightAt(cx * r0, sz * r0);
+                        // (0.4 m under the map's own ground where both lie: no flicker at the square's corners)
+                        y = Mathf.Min(edgeNow - 0.3f, CoastY(edgeLand, rad) - 0.4f) - Mathf.Clamp01((rad - r0) / 300f) * n2 * 1.5f;
+                        float above = y - SeaLevel;
+                        c = above > 2.5f ? Color.Lerp(grassA, grassB, n2) : above > -0.6f ? sand : Color.Lerp(wet, new Color(.3f, .32f, .28f), Mathf.Clamp01(-above / 6f));
+                        if (above > 2.5f && above < 5f) c = Color.Lerp(sand, c, (above - 2.5f) / 2.5f);
+                    }
+                    else
+                    {
+                        // (the earlier land beyond the valley: the rim's hills keep rolling outward, then fade into the haze)
+                        float edge = map.HeightAt(cx * r0, sz * r0);
+                        float hills = low + 6f + n1 * 55f + n2 * 10f;
+                        float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((rad - r0) / 140f));
+                        y = Mathf.Lerp(edge - 0.8f, hills, k) - Mathf.Clamp01((rad - 900f) / 800f) * 40f;
+                        c = Color.Lerp(grassA, grassB, n2);
+                        float snowLine = Mathf.Max(map.snowHeight, low + 45f);
+                        if (!desert && y > snowLine) c = Color.Lerp(c, snow, Mathf.Clamp01((y - snowLine) / 10f) * (1f - k * 0.3f));
+                        else if (y > low + 50f) c = Color.Lerp(c, rock, 0.4f);
+                    }
                     verts[r * seg + i] = Coords.ToUnity(x, y, z);
                     uvs[r * seg + i] = new Vector2(x, z) / 6f;
-                    Color c = Color.Lerp(grassA, grassB, n2);
-                    // snow only on the highest tops (and on the rim itself where the map is snowy), the rest green
-                    float snowLine = Mathf.Max(map.snowHeight, low + 45f);
-                    if (!desert && y > snowLine) c = Color.Lerp(c, snow, Mathf.Clamp01((y - snowLine) / 10f) * (1f - k * 0.3f));
-                    else if (y > low + 50f) c = Color.Lerp(c, rock, 0.4f);
                     cols[r * seg + i] = c;
                 }
             }
@@ -101,12 +163,47 @@ namespace LastWar
             if (vbase != null)
             {
                 mat = new Material(vbase);
-                var grain = Resources.Load<Texture2D>("Maps/" + (desert ? "detail_sand" : "detail_grass"));
+                var grain = Resources.Load<Texture2D>("Maps/" + (desert || island ? "detail_sand" : "detail_grass"));
                 if (grain != null) { grain.wrapMode = TextureWrapMode.Repeat; mat.SetTexture("_BaseMap", grain); mat.SetColor("_BaseColor", new Color(1.6f, 1.6f, 1.6f)); }
             }
             else mat = NewLit(grassB);
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
+        }
+
+        /// <summary>the sea: one flat sheet of water at SeaLevel out past the haze, a little see-through near the shore
+        /// (the sand shows under it), glossy so the sun glints on it; gently moving (Sea component)</summary>
+        static void BuildSea(MapData map, Transform parent)
+        {
+            if (!UseIsland || SeaLevel < -999f) return;
+            float R = Mathf.Max(1700f, map.size * 1.6f) * 1.25f;
+            const int seg = 96, rings = 12;
+            var verts = new List<Vector3>(); var uvs = new List<Vector2>(); var tris = new List<int>();
+            verts.Add(new Vector3(0, SeaLevel, 0)); uvs.Add(Vector2.zero);
+            for (int r = 1; r <= rings; r++)
+            {
+                float rad = R * (r / (float)rings) * (r / (float)rings);
+                for (int i = 0; i < seg; i++) { float a = i / (float)seg * Mathf.PI * 2f; var v = new Vector3(Mathf.Cos(a) * rad, SeaLevel, Mathf.Sin(a) * rad); verts.Add(v); uvs.Add(new Vector2(v.x, v.z) / 40f); }
+            }
+            for (int i = 0; i < seg; i++) tris.AddRange(new[] { 0, 1 + (i + 1) % seg, 1 + i });
+            for (int r = 1; r < rings; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    int a0 = 1 + (r - 1) * seg + i, a1 = 1 + (r - 1) * seg + (i + 1) % seg, b0 = a0 + seg, b1 = a1 + seg;
+                    tris.AddRange(new[] { a0, a1, b0, a1, b1, b0 });
+                }
+            var mesh = new Mesh { name = "sea", indexFormat = IndexFormat.UInt32 };
+            mesh.SetVertices(verts); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            if (mesh.normals.Length > 0 && mesh.normals[0].y < 0) { var tr = mesh.triangles; for (int k = 0; k < tr.Length; k += 3) { int x = tr[k + 1]; tr[k + 1] = tr[k + 2]; tr[k + 2] = x; } mesh.triangles = tr; mesh.RecalculateNormals(); }
+            var go = new GameObject("Sea", typeof(MeshFilter), typeof(MeshRenderer));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            var mat = NewLit(new Color(0.11f, 0.38f, 0.52f));
+            mat.SetFloat("_Smoothness", 0.88f); mat.SetFloat("_Metallic", 0f);
+            var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
+            mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true;
+            go.AddComponent<Sea>();
         }
 
         // ------------------------------------------------------------------ terrain
@@ -228,9 +325,15 @@ namespace LastWar
 
         static void PlaceProp(PropData p, Transform parent)
         {
+            float py = p.y;
+            // past the coast the ground was lowered: a prop there goes down with it, or is left out under the sea
+            if (UseIsland && landFor == currentMap && SeaLevel > -999f && p.x * p.x + p.z * p.z > coastR * coastR)
+            {
+                float now = currentMap.HeightAt(p.x, p.z), dh = now - LandAt(currentMap, p.x, p.z);
+                if (dh < -0.05f) { if (now < SeaLevel + 0.4f) return; py += dh; }
+            }
             var root = new GameObject(p.p);
             root.transform.SetParent(parent, false);
-            float py = p.y;
             if (p.p.StartsWith("tpine") || p.p.StartsWith("toak") || p.p == "stump")
             {
                 // trees: bedded below the lowest ground the roots reach (slopes left root flares hanging in the air)
@@ -348,5 +451,13 @@ namespace LastWar
             if (!boxMats.TryGetValue(b.color, out Material mat)) { mat = NewLit(c); boxMats[b.color] = mat; }
             go.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
+    }
+
+    /// <summary>the sea sheet rises and falls a few centimetres, slowly (a still sheet looked like glass)</summary>
+    public class Sea : MonoBehaviour
+    {
+        float y0;
+        void Start() { y0 = transform.localPosition.y; }
+        void Update() { var p = transform.localPosition; p.y = y0 + Mathf.Sin(Time.time * 0.7f) * 0.06f; transform.localPosition = p; }
     }
 }
