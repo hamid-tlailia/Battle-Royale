@@ -452,6 +452,8 @@ namespace LastWar
             { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
             { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
+        /// <summary>false (?fcrawl=0): crawling with empty hands uses the earlier hand-made crawl</summary>
+        public static bool UseFreeCrawl = true;
         /// <summary>false (?grip=palm): the gun's RightHandGrip on the palm point as before, for comparison</summary>
         public static bool UseGripContact = true;
         /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
@@ -472,6 +474,9 @@ namespace LastWar
             if (key == "mx_sprint" && clipIndex.ContainsKey("mx_rifle_run")) key = "mx_rifle_run";
             // lying down with a rifle: the Mixamo prone clips (still / crawling forward; backward = the crawl stepped back)
             if (key == "mx_prone" && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("mx_crawl")) key = "mx_crawl";
+            // crawling with empty hands: Mixamo's Crawl Forward (lw_extra.glb fc_sym - low on elbows and knees, made
+            // left / right symmetric, fingers open) instead of the hand-made crawl; with a pistol the hand-made one stays
+            if (key == "prone" && UseFreeCrawl && (gun == null || !Armed) && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("fc_sym")) key = "fc_sym";
             if (Reloading && ReloadOver.Contains(key) && clipIndex.ContainsKey("mx_reload")) key = "mx_reload";
             if (clip == current && key == playing) return;
             current = clip; playing = key;
@@ -899,6 +904,7 @@ namespace LastWar
         {
             // the rifle's prone clips crawl by themselves: no hand-made crawl on top
             if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl")) { poseW = 0; CrawlPull = 1f; return; }
+            if (playing == "fc_sym") { poseW = 0; CrawlPull = 1f; return; } // (the empty-handed crawl clip: no hand-made crawl on top)
             if (Pose != null) poseKind = Pose;
             poseW = Mathf.Clamp01(poseW + (Pose != null ? 1 : -1) * Time.deltaTime * 7f);
             float w = poseW;
