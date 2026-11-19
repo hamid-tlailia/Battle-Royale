@@ -73,6 +73,8 @@ namespace LastWar
         /// <summary>web range: bold label left, gold value right; an 8px inset groove with a fading gold fill and a
         /// small gold diamond thumb (20px square turned 45deg, like the web). x / y / w in canvas units (top-left of the
         /// parent), fk = canvas units per CSS px. Returns the height used.</summary>
+        /// <summary>a slider's value as shown: fmt "%" = a percentage of the default 1.0 (1.00 -> 100 %), else a number format</summary>
+        static string Show(float val, string fmt) => fmt == "%" ? Mathf.RoundToInt(val * 100f) + "%" : val.ToString(fmt);
         internal static float Range(Transform p, float x, float y, float w, float fk, string label, float min, float max, float val, string fmt, Action<float> on)
         {
             const float K = UiKit.K;
@@ -81,7 +83,7 @@ namespace LastWar
             l.rectTransform.anchoredPosition = new Vector2(x, -y); l.rectTransform.sizeDelta = new Vector2(w, 18 * fk); l.text = label;
             var v = UiKit.Txt(p, new Vector2(0, 1), Vector2.zero, Vector2.one, 12 * fk / K, TextAnchor.MiddleRight, Gold);
             v.fontStyle = FontStyle.Bold;
-            v.rectTransform.anchoredPosition = new Vector2(x, -y); v.rectTransform.sizeDelta = new Vector2(w, 18 * fk); v.text = val.ToString(fmt);
+            v.rectTransform.anchoredPosition = new Vector2(x, -y); v.rectTransform.sizeDelta = new Vector2(w, 18 * fk); v.text = Show(val, fmt);
             y += 20 * fk;
             // the slider's own box: 22px tall, the full width (the thumb's half-width is kept inside)
             var go = new GameObject("slider", typeof(RectTransform), typeof(Image), typeof(ScrollSlider));
@@ -106,7 +108,7 @@ namespace LastWar
             var sl = go.GetComponent<ScrollSlider>(); sl.fillRect = fill.rectTransform; sl.handleRect = handle.rectTransform; sl.targetGraphic = handle;
             sl.transition = Selectable.Transition.None;
             sl.minValue = min; sl.maxValue = max; sl.value = val;
-            sl.onValueChanged.AddListener(nv => { v.text = nv.ToString(fmt); on(nv); });
+            sl.onValueChanged.AddListener(nv => { v.text = Show(nv, fmt); on(nv); });
             return 20 * fk + 24 * fk + 14 * fk;
         }
 
@@ -150,8 +152,8 @@ namespace LastWar
         {
             float y = y0;
             y += ChoiceRow(p, x, y, w, fk, "GRAPHICS", new[] { "HIGH", "MEDIUM", "LOW" }, 2 - Profile.Quality, i => Profile.Quality = 2 - i);
-            y += Range(p, x, y, w, fk, "LOOK SENSITIVITY", 0.3f, 2.5f, Profile.Sensitivity, "0.00", v => Profile.Sensitivity = v);
-            y += Range(p, x, y, w, fk, "SCOPE SENSITIVITY", 0.3f, 2.5f, Profile.ScopeSensitivity, "0.00", v => Profile.ScopeSensitivity = v);
+            y += Range(p, x, y, w, fk, "LOOK SENSITIVITY", 0.3f, 2.5f, Profile.Sensitivity, "%", v => Profile.Sensitivity = v);
+            y += Range(p, x, y, w, fk, "SCOPE SENSITIVITY", 0.3f, 2.5f, Profile.ScopeSensitivity, "%", v => Profile.ScopeSensitivity = v);
             y += ChoiceRow(p, x, y, w, fk, "AIM", new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });
             y += Toggle(p, x, y, w, fk, "Auto pick-up (ammo, meds, guns...)", Profile.AutoPickup, v => Profile.AutoPickup = v);
             y += Toggle(p, x, y, w, fk, "Music", Profile.MusicOn, v => { Profile.MusicOn = v; if (v) Music.PlayLobbyIfIdle(); else Music.Stop(0f); });

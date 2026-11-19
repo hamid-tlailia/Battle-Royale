@@ -62,6 +62,9 @@ namespace LastWar
         Btn fireBtn, fireLeft, scopeBtn, runBtn;
         RectTransform joyBase, joyKnob;
         int joyFinger = -1, lookFinger = -1, fireFinger = -1, eyeFinger = -1; Vector2 eyeLast; Btn eyeBtn;
+        /// <summary>free look left on by a tap on the eye: then any drag on the screen circles the camera (360 degrees)
+        /// round the soldier, who stays as he is; a shot, the scope or another tap on the eye ends it</summary>
+        public bool FreeLookLatched; float eyeDownAt; float eyeTravel;
         Vector2 joyOrigin, lookLast;
         const float JoyRadius = 35f * UiKit.K;
         Canvas canvas;
@@ -229,7 +232,8 @@ namespace LastWar
                 joyFinger = lookFinger = fireFinger = eyeFinger = -1;
                 Desktop();
             }
-            if (Input.touchCount > 0) FreeLook = eyeFinger >= 0 && !ScopedUi && !Spectating;
+            if (FirePressed || ScopedUi || Spectating) FreeLookLatched = false; // (a shot / the scope: the view goes back behind the soldier)
+            if (Input.touchCount > 0 || FreeLookLatched) FreeLook = (eyeFinger >= 0 || FreeLookLatched) && !ScopedUi && !Spectating;
             if (wasHeld && !FireHeld) FireReleased = true;
             // button states like the web: pressed = gold ring, RUN / SCOPE on = green
             Sprite pressed = UiKit.Get("btn_pressed"), active = UiKit.Get("btn_active");
@@ -237,7 +241,7 @@ namespace LastWar
             {
                 bool fire = b == fireBtn || b == fireLeft;
                 bool down = fire ? FireHeld : b.pressed;
-                bool on = (b == runBtn && Sprint) || (b == scopeBtn && Scoped) || (b == frostBtn && FrostAim) || (b == crouchBtn && Crouch) || (b == proneBtn && Prone);
+                bool on = (b == runBtn && Sprint) || (b == eyeBtn && FreeLookLatched) || (b == scopeBtn && Scoped) || (b == frostBtn && FrostAim) || (b == crouchBtn && Crouch) || (b == proneBtn && Prone);
                 b.bg.sprite = on ? active : down && !fire ? pressed : b.normal;
                 // (pressed: the icon dips; the button's own scale belongs to the layout editor)
                 if (b.icon != null) b.icon.localScale = Vector3.one * (down ? 0.86f : 1f);
@@ -254,7 +258,7 @@ namespace LastWar
                 Touch t = Input.GetTouch(k);
                 if (t.phase == TouchPhase.Began)
                 {
-                    if (eyeFinger < 0 && Over(eyeBtn, t.position)) { eyeFinger = t.fingerId; eyeLast = t.position; continue; } // (the eye finger only circles the camera)
+                    if (eyeFinger < 0 && Over(eyeBtn, t.position)) { eyeFinger = t.fingerId; eyeLast = t.position; eyeDownAt = Time.unscaledTime; eyeTravel = 0f; continue; } // (the eye finger only circles the camera)
                     if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
                         fireFinger = t.fingerId; FirePressed = true; if (!InAir) Sprint = false; // a shot ends the run - except from a jump
@@ -267,8 +271,13 @@ namespace LastWar
                 }
                 if (t.fingerId == eyeFinger)
                 {
-                    FreeLookDelta += t.position - eyeLast; eyeLast = t.position;
-                    if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) eyeFinger = -1;
+                    FreeLookDelta += t.position - eyeLast; eyeTravel += (t.position - eyeLast).magnitude; eyeLast = t.position;
+                    if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
+                    {
+                        eyeFinger = -1;
+                        // a tap (short, hardly moved): free look stays on / goes off
+                        if (Time.unscaledTime - eyeDownAt < 0.3f && eyeTravel < 18f * canvas.scaleFactor) FreeLookLatched = !FreeLookLatched;
+                    }
                     continue;
                 }
                 // sniper: slide the FIRE finger onto the X to call the shot off (no second hand needed)
@@ -288,7 +297,8 @@ namespace LastWar
                 }
                 else if (t.fingerId == lookFinger)
                 {
-                    if (!Minimap.BigOpen) LookDelta += t.position - lookLast;
+                    if (FreeLookLatched && fireFinger != t.fingerId) FreeLookDelta += t.position - lookLast; // (latched free look: the drag circles the camera)
+                    else if (!Minimap.BigOpen) LookDelta += t.position - lookLast;
                     lookLast = t.position;
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) lookFinger = -1;
                 }

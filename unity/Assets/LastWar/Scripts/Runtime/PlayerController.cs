@@ -351,6 +351,20 @@ namespace LastWar
             return best;
         }
 
+        /// <summary>how far (m) the aim line from `c` along `fw` passes from the segment lo..hi, and the segment's nearest point</summary>
+        static float AimMiss(Vector3 c, Vector3 fw, Vector3 lo, Vector3 hi, out Vector3 nearest)
+        {
+            float best = float.MaxValue; nearest = lo;
+            for (int i = 0; i <= 12; i++)
+            {
+                Vector3 p = Vector3.Lerp(lo, hi, i / 12f); Vector3 v = p - c; float along = Vector3.Dot(v, fw);
+                if (along <= 0f) continue;
+                float m = (v - fw * along).magnitude;
+                if (m < best) { best = m; nearest = p; }
+            }
+            return best;
+        }
+
         bool Los(Vector3 from, Vector3 to, Fighter q)
         {
             Vector3 d = to - from;
@@ -378,6 +392,9 @@ namespace LastWar
             //     behind a wall / ice) or run far away - and then nothing is caught again until the scope is closed and
             //     opened anew. While it holds, a second enemy never takes it over.
             bool scopedNow = Scoped;
+            // a sniper rifle through its scope is aimed by hand only (no lock, no pull: the player's own shot)
+            bool sniperScope = scopedNow && fighter.Gun != null && fighter.Gun.def.id.StartsWith("sniper");
+            if (sniperScope) { scopeLock = null; scopeSpent = false; scopeWasOpen = true; lockTarget = null; return; }
             if (scopedNow && !scopeWasOpen)
             {
                 scopeLock = Nearest(8.2f, 360f); scopeSpent = false;
@@ -420,20 +437,33 @@ namespace LastWar
             if (lockTarget != null)
             {
                 Angles(lockTarget, out float qy, out float qp, out float dist, out Vector3 t);
-                // still on them? anywhere on / just around the body, head included (moving from chest to head keeps the lock)
-                float off = Vector3.Angle(cam.transform.forward, t - cam.transform.position) * Mathf.Deg2Rad;
-                bool near = off < Mathf.Atan(1.3f / Mathf.Max(1f, dist));
+                // still on them? anywhere on / just around the body, head included (moving from chest to head keeps the
+                // lock): how far the aim line passes from the body's upright line (feet + 0.2 m .. top of the head + 0.25 m)
+                Vector3 c0 = cam.transform.position, fw = cam.transform.forward;
+                Vector3 lo = lockTarget.transform.position + Vector3.up * 0.2f, hi = lockTarget.transform.position + Vector3.up * 1.95f;
+                float miss = AimMiss(c0, fw, lo, hi, out Vector3 onBody);
+                bool near = miss < (Scoped ? 0.9f : 1.3f);
                 lockOff = OnEnemy != null || near ? 0 : lockOff + dt;
                 // (scoped: long range too - the sniper reaches 320 m)
-                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > 0.9f || !Los(cam.transform.position, t, lockTarget)) { lockTarget = null; if (Scoped) scopeSpent = true; }
+                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > (Scoped ? 1.5f : 0.9f) || !Los(cam.transform.position, t, lockTarget)) { lockTarget = null; if (Scoped) scopeSpent = true; }
                 else
                 {
                     yaw += Mathf.DeltaAngle(lockYaw, qy);
                     pitch = Mathf.Clamp(pitch + (qp - lockPitch), -1.2f, 1.2f);
                     lockYaw = qy; lockPitch = qp;
-                    // while shooting or through the scope the aim is drawn onto the body and stays there
-                    // (a drift to the head / edge comes back; letting go of FIRE leaves it free)
-                    if (Scoped || input.FireHeld)
+                    // while shooting or through the scope the aim is drawn onto the body and stays there. Through the scope
+                    // the aim may sit anywhere on the body, the head included: it is only drawn back when it slips off
+                    // the body (onto the nearest point of it), never pulled from the head down to the chest.
+                    if (Scoped)
+                    {
+                        if (OnEnemy == null)
+                        {
+                            Vector3 d2 = onBody - c0; float ty = Mathf.Atan2(d2.x, d2.z) * Mathf.Rad2Deg, tpch = Mathf.Atan2(d2.y, new Vector2(d2.x, d2.z).magnitude);
+                            float kk = Mathf.Min(1f, dt * 7f);
+                            yaw += Mathf.DeltaAngle(yaw, ty) * kk; pitch += (tpch - pitch) * kk * 0.7f;
+                        }
+                    }
+                    else if (input.FireHeld)
                     {
                         float kk = Mathf.Min(1f, dt * (OnEnemy == null ? 7f : 2.5f));
                         yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch += (qp - pitch) * kk * 0.7f;

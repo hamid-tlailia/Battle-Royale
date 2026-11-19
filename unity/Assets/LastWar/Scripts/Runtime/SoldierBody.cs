@@ -235,6 +235,8 @@ namespace LastWar
             CacheFingerRest();
             SnapshotRest();
             { float m = SoleY(); if (m != float.MaxValue) restSole = m - transform.position.y; }
+            // the chest's turn in the rest pose (upright, facing ahead): the back gear follows the chest from it
+            { Transform sp = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine"); if (sp != null) { chestRestOff = Quaternion.Inverse(sp.rotation) * transform.rotation; chestRestSet = true; } }
         }
 
         Quaternion hipsCorr = Quaternion.identity;
@@ -559,8 +561,12 @@ namespace LastWar
         }
         float runW;
 
+        static readonly string[] ToeChecks = { "LeftToeBase", "RightToeBase" }, KneelChecks = { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" };
         /// <summary>no feet inside the ground: lift the body when a toe is below the ground under it (web fixFeet)</summary>
-        void FixFeet()
+        void FixFeet() => FixFeet(false);
+        /// <summary>afterPose: run again once the kneel pose is laid on (on a slope the kneeling legs, set against a flat
+        /// ground, put a foot into the rising side): the ankles count too, kept 4 cm above the ground (the kneeling shin lies about that high on flat ground: no change there)</summary>
+        void FixFeet(bool afterPose)
         {
             if (!visible || Tilt != 0 || Pose == "sky" || Pose == "chute" || Pose == "crawl" || current == null || current == "prone" || current.StartsWith("death") || current == "jump") return;
             Transform hips = outfitRoot != null ? dstHips : null;
@@ -568,12 +574,12 @@ namespace LastWar
             if (hips == null) return;
             int mask = ~(1 << MapBuilder.PlayerLayer);
             float lift = 0f;
-            foreach (string toe in new[] { "LeftToeBase", "RightToeBase" })
+            foreach (string toe in afterPose ? KneelChecks : ToeChecks)
             {
                 Transform t = PoseBone(toe); if (t == null) continue;
-                Vector3 p = t.position;
+                Vector3 p = t.position; float keep = toe.EndsWith("Foot") ? 0.04f : 0.03f;
                 if (Physics.Raycast(p + Vector3.up * 0.6f, Vector3.down, out RaycastHit hit, 1.2f, mask, QueryTriggerInteraction.Ignore))
-                    lift = Mathf.Max(lift, hit.point.y + 0.03f - p.y);
+                    lift = Mathf.Max(lift, hit.point.y + keep - p.y);
             }
             if (lift > 0.005f) hips.position += Vector3.up * Mathf.Min(lift, 0.45f);
         }
@@ -637,8 +643,8 @@ namespace LastWar
                 before = Mathf.Min(before, Mathf.Min(Vector3.Dot(h, up), Vector3.Dot(b, up)));
                 Vector3 v = b - h, flat = Vector3.ProjectOnPlane(v, up);
                 if (flat.sqrMagnitude < 1e-6f) continue;
-                // (a pitch about the foot's side axis, at most 12 degrees: the outfit's sole angle, not a pose)
-                float ang = Mathf.Clamp(Vector3.SignedAngle(v, flat, Vector3.Cross(up, flat).normalized), -12f, 12f);
+                // (a pitch about the foot's side axis, at most 25 degrees - measured need up to about 20 on Marine / Hazmat: the outfit's sole angle, not a pose)
+                float ang = Mathf.Clamp(Vector3.SignedAngle(v, flat, Vector3.Cross(up, flat).normalized), -25f, 25f);
                 heelDeg[i] = ang;
                 f.rotation = Quaternion.AngleAxis(ang * heelW, Vector3.Cross(up, flat).normalized) * f.rotation;
                 h = f.TransformPoint(soleHeel[i]); b = f.TransformPoint(soleBall[i]);
@@ -1056,9 +1062,8 @@ namespace LastWar
             if (bagLook == null) return;
             Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
             if (spine == null) return;
-            // follows the chest in every pose (standing, running, crawling): the chest's turn from the first frame
-            if (!bagOffsetSet) { bagOffsetSet = true; bagSpineOffset = Quaternion.Inverse(spine.rotation) * transform.rotation; }
-            Quaternion bodyRot = spine.rotation * bagSpineOffset;
+            // follows the chest in every pose (standing, running, crawling, the chest turned by the rifle stance / aim)
+            Quaternion bodyRot = ChestRot(spine);
             // sized to the wearer (all eight outfits differ): its height a share of the torso (hips to neck) - Lv1 55 %,
             // Lv2 63 %, Lv3 71 % - never wider than 85 % of the shoulders nor deeper than 28 cm; worked out once, from the
             // outfit's own bones
@@ -1086,13 +1091,22 @@ namespace LastWar
             bagLook.position = top - up * (bh / 2f) + back * (torsoBack + bd / 2f) - bagLook.rotation * centreOff;
         }
 
+        Quaternion chestRestOff = Quaternion.identity; bool chestRestSet;
+        /// <summary>the chest's facing now (up = along the spine, forward = out of the chest), from the chest bone's turn
+        /// since the rest pose - so the backpack and the guns on the back sit on the back however the chest is turned</summary>
+        Quaternion ChestRot(Transform spine)
+        {
+            if (!chestRestSet) { if (!bagOffsetSet) { bagOffsetSet = true; bagSpineOffset = Quaternion.Inverse(spine.rotation) * transform.rotation; } return spine.rotation * bagSpineOffset; }
+            return spine.rotation * chestRestOff;
+        }
+
         void PlaceBack()
         {
             PlaceBag();
             if (backGuns.Count == 0) return;
             Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
             if (spine == null) return;
-            Quaternion bodyRot = transform.rotation * Quaternion.Euler(0, Turn, 0) * Quaternion.Euler(tiltNow, 0, 0);
+            Quaternion bodyRot = ChestRot(spine);
             for (int i = 0; i < backGuns.Count; i++)
             {
                 float side = i == 0 ? 1f : -1f;
@@ -1129,6 +1143,7 @@ namespace LastWar
         {
             long t0 = Bench.Now();
             LateUpdateBody();
+            PlaceBack(); // (last: after the gun hold has turned the chest)
             Bench.Add(ref Bench.BodyTicks, t0);
         }
 
@@ -1141,14 +1156,15 @@ namespace LastWar
             Bench.Add(ref Bench.TransferTicks, tr);
             FixFeet();
             ApplyPose();
+            if (Pose == "kneel" || (current != null && current.StartsWith("crouch"))) FixFeet(true); // (crouching on a slope)
             RunLife();
+            RelaxEmptyHands();
             PlantFeet();
             LevelSoles();
             if (FootDebug && Time.time >= nextFootLog) { nextFootLog = Time.time + 2f; LogFeet(); }
             tr = Bench.Now();
             SyncExtras();
             Bench.Add(ref Bench.TransferTicks, tr);
-            PlaceBack();
             // aiming the ice wall: a small snowball in the right hand instead of the gun
             if (Snowball && handR != null)
             {
@@ -1425,6 +1441,16 @@ namespace LastWar
                 }
             }
             hand.rotation = want;
+        }
+
+        /// <summary>crouching with empty hands: the crouch clips were recorded holding a rifle (fists round a grip) - with
+        /// nothing in the hands the fingers rest open, lightly bent (the snowball hand is left as it is)</summary>
+        void RelaxEmptyHands()
+        {
+            if (!visible || current == null || (gun != null && Armed)) return;
+            if (!(current.StartsWith("crouch") || Pose == "kneel")) return;
+            Curl("Left", 14f, 18f, 10f, 0f);
+            if (!Snowball) Curl("Right", 14f, 18f, 10f, 0f);
         }
 
         /// <summary>closes the fingers toward the palm (base, middle, tip angles) and brings the thumb round</summary>

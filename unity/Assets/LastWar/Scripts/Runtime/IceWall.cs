@@ -228,7 +228,8 @@ namespace LastWar
             mesh.SetVertices(v); mesh.SetColors(col); mesh.SetTriangles(tri, 0); mesh.RecalculateNormals(); mesh.RecalculateBounds();
             var go = new GameObject("shards", typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(root, false);
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
-            if (crackMat == null) crackMat = new Material(Shader.Find("UI/Default")) { color = new Color(.05f, .12f, .24f, .85f), renderQueue = 3002 };
+            // cracks in ice show as white fractures (the broken surfaces scatter the light), not dark lines
+            if (crackMat == null) crackMat = new Material(Shader.Find("UI/Default")) { color = new Color(.93f, .98f, 1f, .92f), renderQueue = 3002 };
             for (int lv = 0; lv < 3; lv++)
             {
                 for (int i = 0; i < crackV[lv].Count; i++) crackV[lv][i] = root.InverseTransformPoint(crackV[lv][i]);
@@ -285,7 +286,8 @@ namespace LastWar
             if (fadeMat == null) { if (!fadeMissingLogged) { fadeMissingLogged = true; Debug.Log("[LastWar] ice wall: IceFade material missing - cracks only"); } return; }
             if (myFade == null) { myFade = new Material(fadeMat); r.sharedMaterial = myFade; Debug.Log($"[LastWar] ice wall: see-through material on ({myFade.shader.name}, supported {myFade.shader.isSupported})"); }
             Color bc = myFade.HasProperty("_BaseColor") ? myFade.GetColor("_BaseColor") : Color.white;
-            bc.a = 1f - 0.3f * lost; // (at most 30 % see-through: the cracks do the telling)
+            // more see-through the more it is hurt: 85 % solid at the first hit, down to 40 % just before it breaks
+            bc.a = Mathf.Lerp(0.85f, 0.4f, Mathf.Clamp01(lost / 0.9f));
             if (myFade.HasProperty("_BaseColor")) myFade.SetColor("_BaseColor", bc);
         }
         Material myFade; static bool fadeMissingLogged;

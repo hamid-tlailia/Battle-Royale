@@ -79,6 +79,21 @@ namespace LastWar
             spare[id] = Mathf.Max(0, (spare.TryGetValue(id, out int s) ? s : 0) + n);
         }
 
+        /// <summary>medkits / ice walls / rounds: no room left for this item (the HUD shows FULL instead of TAKE)</summary>
+        public bool IsFullFor(Loot it)
+        {
+            if (it == null) return false;
+            switch (it.kind)
+            {
+                case Loot.Kind.Med: return meds >= MedsMax;
+                case Loot.Kind.Frost: return frost >= FrostMax;
+                case Loot.Kind.Ammo: return !string.IsNullOrEmpty(it.item) && MaxReserve.ContainsKey(it.item) && AmmoOf(it.item) >= AmmoMax(it.item);
+                default: return false;
+            }
+        }
+        /// <summary>how many of this item the backpack holds now / at most ("4/4"), for medkits and ice walls</summary>
+        public string HeldOf(Loot it) => it == null ? "" : it.kind == Loot.Kind.Med ? $"{meds}/{MedsMax}" : it.kind == Loot.Kind.Frost ? $"{frost}/{FrostMax}" : "";
+
         /// <summary>walk-over / TAKE pickup (the web game's rules). True when the item is used up.</summary>
         public bool TryPickup(Loot it, bool manual)
         {

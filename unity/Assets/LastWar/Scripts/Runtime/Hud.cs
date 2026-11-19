@@ -40,7 +40,10 @@ namespace LastWar
                     else if (d < 2) c = new Color(.05f, .05f, .06f, 1);            // outer dark line
                     else if (d < 16) c = new Color(.14f, .15f, .16f, 1);           // body of the housing
                     else if (d < 20) c = new Color(.29f, .31f, .33f, 1);           // light inner edge
-                    else c = new Color(.62f, .8f, 1f, Mathf.Lerp(.12f, .04f, Mathf.Clamp01((d - 20) / 60f))); // tinted glass
+                    // the glass: clear, a faint shade just inside the housing (the earlier light-blue tint there read as a white
+                    // haze round the edge), a barely-there blue over the rest
+                    else if (d < 44) c = new Color(0, 0, 0, Mathf.Lerp(.22f, 0f, (d - 20) / 24f));
+                    else c = new Color(.62f, .8f, 1f, .025f);
                     px[y * W + x] = c;
                 }
             tex.SetPixels32(px); tex.Apply();
@@ -301,6 +304,7 @@ namespace LastWar
             return thickRing = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
         }
         RectTransform specBar; Text specText; Image spectateBtn; bool spectating; Fighter lastKiller;
+        readonly bool[] rowFull = new bool[6];
         readonly System.Collections.Generic.List<(Image bg, Image icon, Text text, Loot item)> lootRows = new System.Collections.Generic.List<(Image, Image, Text, Loot)>();
 
         /// <summary>scope picture: clear glass, dark rim with an inner shadow; x8 has a fine cross with heavy outer posts</summary>
@@ -640,10 +644,20 @@ namespace LastWar
                     continue;
                 }
                 r.bg.gameObject.SetActive(it != null);
-                if (it != null && it != r.item)
+                // no room left (medkits / ice walls / rounds at the backpack's limit): FULL and the count instead of TAKE
+                bool full = it != null && f.IsFullFor(it);
+                if (it != null && (it != r.item || full != rowFull[i]))
                 {
                     r.icon.sprite = it.Icon; r.icon.enabled = r.icon.sprite != null;
-                    r.text.text = $"{it.Label}\n<size={Mathf.RoundToInt(9 * K)}><color=#ffffffb0>{it.Sub}</color></size>";
+                    string sub = full ? (f.HeldOf(it).Length > 0 ? "full " + f.HeldOf(it) + (f.bagLv < 3 ? " · a bigger bag holds more" : "") : "full") : it.Sub;
+                    r.text.text = $"{it.Label}\n<size={Mathf.RoundToInt(9 * K)}><color=#ffffffb0>{sub}</color></size>";
+                    var take = r.bg.transform.Find("take");
+                    if (take != null)
+                    {
+                        take.GetComponent<Image>().color = full ? new Color(.45f, .48f, .5f, .8f) : new Color(.45f, .78f, .25f);
+                        var tt = take.GetComponentInChildren<Text>(); if (tt != null) tt.text = full ? "FULL" : "TAKE";
+                    }
+                    rowFull[i] = full;
                 }
                 lootRows[i] = (r.bg, r.icon, r.text, it);
             }
