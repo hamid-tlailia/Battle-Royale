@@ -454,7 +454,7 @@ namespace LastWar
             { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
             { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
-        /// <summary>false (?fcrawl=0): crawling with empty hands uses the earlier hand-made crawl</summary>
+        /// <summary>false (?fcrawl=0): crawling / crouching with empty hands use the earlier hand-made crawl / kneel</summary>
         public static bool UseFreeCrawl = true;
         /// <summary>false (?grip=palm): the gun's RightHandGrip on the palm point as before, for comparison</summary>
         public static bool UseGripContact = true;
@@ -479,6 +479,9 @@ namespace LastWar
             // crawling with empty hands: Mixamo's Crawl Forward (lw_extra.glb fc_sym - low on elbows and knees, made
             // left / right symmetric, fingers open) instead of the hand-made crawl; with a pistol the hand-made one stays
             if (key == "prone" && UseFreeCrawl && (gun == null || !Armed) && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("fc_sym")) key = "fc_sym";
+            // crouched and still with empty hands: Mixamo's Male Crouch Pose (lw_extra.glb kn_free - right knee down, left
+            // hand on the left knee, hands open) instead of the rifle-held crouch clip with the hand-made kneel on top
+            if (key == "crouch_idle" && UseFreeCrawl && (gun == null || !Armed) && Mathf.Abs(Speed) < 0.4f && clipIndex.ContainsKey("kn_free")) key = "kn_free";
             if (Reloading && ReloadOver.Contains(key) && clipIndex.ContainsKey("mx_reload")) key = "mx_reload";
             if (clip == current && key == playing) return;
             current = clip; playing = key;
@@ -911,6 +914,7 @@ namespace LastWar
             // the rifle's prone clips crawl by themselves: no hand-made crawl on top
             if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl")) { poseW = 0; CrawlPull = 1f; return; }
             if (playing == "fc_sym") { poseW = 0; CrawlPull = 1f; return; } // (the empty-handed crawl clip: no hand-made crawl on top)
+            if (playing == "kn_free") { poseW = 0; return; } // (the empty-handed crouch pose: no hand-made kneel on top)
             if (Pose != null) poseKind = Pose;
             poseW = Mathf.Clamp01(poseW + (Pose != null ? 1 : -1) * Time.deltaTime * 7f);
             float w = poseW;
@@ -1448,7 +1452,7 @@ namespace LastWar
         void RelaxEmptyHands()
         {
             if (!visible || current == null || (gun != null && Armed)) return;
-            if (!(current.StartsWith("crouch") || Pose == "kneel")) return;
+            if (!(current.StartsWith("crouch") || Pose == "kneel") || playing == "kn_free") return; // (the crouch pose has its own open hands)
             Curl("Left", 14f, 18f, 10f, 0f);
             if (!Snowball) Curl("Right", 14f, 18f, 10f, 0f);
         }
