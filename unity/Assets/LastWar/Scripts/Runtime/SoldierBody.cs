@@ -395,7 +395,7 @@ namespace LastWar
                 else if (!UseOldBase)
                 {
                     // (and lw_extra.glb: further Mixamo clips on the same skeleton, on trial - e.g. mx_rifle_run, mx_running)
-                    foreach (string extra in new[] { "lw_lobby", "lw_extra" })
+                    foreach (string extra in new[] { "lw_lobby", "lw_extra", "lw_pistol" }) // (lw_pistol.glb: Mixamo's Pistol Handgun Locomotion clips, Step E)
                     {
                         var more = Resources.LoadAll<AnimationClip>("Models/" + extra);
                         if (more.Length > 0) { var all = new AnimationClip[clips.Length + more.Length]; clips.CopyTo(all, 0); more.CopyTo(all, clips.Length); clips = all; }
@@ -466,6 +466,11 @@ namespace LastWar
             { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
             { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
+        /// <summary>the game's clips -> the pistol clips (lw_pistol.glb); the others (jump, crouch walk, lying down) as before</summary>
+        static readonly Dictionary<string, string> PistolClips = new Dictionary<string, string> {
+            { "idle", "p_idle" }, { "idle_rifle", "p_idle" }, { "fire", "p_idle" }, { "walk", "p_walk" }, { "walk_fire", "p_walk" },
+            { "run", "p_run" }, { "crouch_idle", "p_kneel" }, { "crouch_fire", "p_kneel" } };
+        public static bool UsePistolClips = true;
         /// <summary>false (?fcrawl=0): crawling / crouching with empty hands use the earlier hand-made crawl / kneel</summary>
         public static bool UseFreeCrawl = true, UseEvenRifleCrawl = true;
         /// <summary>false (?grip=palm): the gun's RightHandGrip on the palm point as before, for comparison</summary>
@@ -475,6 +480,8 @@ namespace LastWar
         static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "run", 1f },
             // crawling (option A): the body goes CrawlSpeed m/s and each crawl clip plays at the pace its own limbs keep there
             // (Crawl Forward 0.29 m/s as recorded, the rifle prone crawl 0.23 m/s - measured from their hips)
+            // the pistol clips at the speeds the walk / run playback rates assume (walk 2.6, run 6 m/s; recorded 2.55 / 4.74)
+            { "p_walk", 2.6f / 2.55f }, { "p_run", 6f / 4.74f },
             { "fc_sym", CrawlSpeed / 0.292f }, { "mx_crawl_sym", CrawlSpeed / 0.234f }, { "mx_crawl", CrawlSpeed / 0.234f } };
         /// <summary>crawling speed with the crawl clips (m/s): slow enough for the clips' own strokes (was 0.92)</summary>
         public const float CrawlSpeed = 0.45f;
@@ -485,12 +492,16 @@ namespace LastWar
         static readonly HashSet<string> ReloadOver = new HashSet<string> { "mx_idle", "mx_aim", "mx_fire", "mx_walk" };
         string playing; // the clip the mixer plays for `current` (a rifle clip when one stands in)
         bool RifleClip => playing != null && playing.StartsWith("mx_");
+        bool PistolClip => playing != null && playing.StartsWith("p_");
 
         public void Play(string clip)
         {
             if (!clipIndex.ContainsKey(clip)) return;
             string key = clip;
             if (UseRifleClips && Armed && gun != null && !gunId.StartsWith("pistol") && RifleClips.TryGetValue(clip, out string mx) && clipIndex.ContainsKey(mx)) key = mx;
+            // a pistol in the hands: Mixamo's pistol clips (lw_pistol.glb - aiming with both hands, walking / running with it
+            // up, kneeling); the hands stay on the pistol as before (?pclips=0: the earlier clips)
+            if (UsePistolClips && Armed && gun != null && gunId.StartsWith("pistol") && PistolClips.TryGetValue(clip, out string pc) && clipIndex.ContainsKey(pc)) key = pc;
             // running with a long gun: the Mixamo Rifle Run (lw_extra.glb: gun low across the chest) when present
             if (key == "mx_sprint" && clipIndex.ContainsKey("mx_rifle_run")) key = "mx_rifle_run";
             // lying down with a rifle: the Mixamo prone clips (still / crawling forward; backward = the crawl stepped back)
@@ -770,7 +781,7 @@ namespace LastWar
             if (delayedUntil > 0 && Time.frameCount >= delayedUntil && graph.IsValid()) { delayedUntil = -1; graph.Play(); Debug.Log($"[LastWar] wikf {name}: animation starts now (frame {Time.frameCount - builtFrame} after spawn)"); }
             if (weights == null || current == null) return;
             // free arms while running empty-handed: walk arms in step with the run (the walk's cycle stretched to the run's)
-            freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" && !RifleClip ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
+            freeW = Mathf.MoveTowards(freeW, Armed && gun != null && current == "run" && !RifleClip && !PistolClip ? 1f : 0f, Time.deltaTime * 6f); // empty hands swing free with the sprint
             if (walkArms.IsValid()) layers.SetInputWeight(1, 0f); // (the arms are copied from the walk clip in LateUpdate instead)
             // firing in the air with a long gun: the aiming pose fades in over the upper body (about 0.12 s), and out on landing
             aimUpperW = Mathf.MoveTowards(aimUpperW, AirAim && playing == "mx_jump" && Armed && gun != null && !dead0() ? 1f : 0f, Time.deltaTime * 8f);
@@ -936,7 +947,7 @@ namespace LastWar
             // the rifle's prone clips crawl by themselves: no hand-made crawl on top
             if (RifleClip && (playing == "mx_prone" || playing == "mx_crawl" || playing == "mx_crawl_sym")) { poseW = 0; CrawlPull = ClipCrawlPull; return; }
             if (playing == "fc_sym") { poseW = 0; CrawlPull = ClipCrawlPull; return; } // (the empty-handed crawl clip: no hand-made crawl on top)
-            if (playing == "kn_free") { poseW = 0; return; } // (the empty-handed crouch pose: no hand-made kneel on top)
+            if (playing == "kn_free" || playing == "p_kneel") { poseW = 0; return; } // (the crouch / pistol kneel clips: no hand-made kneel on top)
             if (Pose != null) poseKind = Pose;
             poseW = Mathf.Clamp01(poseW + (Pose != null ? 1 : -1) * Time.deltaTime * 7f);
             float w = poseW;

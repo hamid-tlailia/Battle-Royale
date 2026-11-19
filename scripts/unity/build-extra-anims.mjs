@@ -8,6 +8,7 @@
 //   name=file+legsR : the left leg made the mirror image of the right leg half a cycle later (upper body as recorded)
 //   name=file+sym : made left / right symmetric - each frame is the halfway blend of the pose and its mirror image half
 //                   a cycle later (world rotation changes from the rest, mirrored across the body's middle plane)
+//   --out=lw_pistol : write that file instead of lw_extra.glb
 //   --report: also print the carried pose of each clip (as --check)
 //   --check: write nothing; print the carried pose per frame (heights above the ground, left / right symmetry, finger bend)
 import { NodeIO } from '@gltf-transform/core';
@@ -185,7 +186,7 @@ function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.
 const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);
   const r = new Map(); for (const n of order) r.set(n, slerp(c.rot[i].get(n), c.rot[j].get(n), u)); return { r, h: lerp(c.hipsT[i], c.hipsT[j], u) }; };
 const done = new Map();
-for (const arg of process.argv.slice(3).filter((a) => a.includes('='))) {
+for (const arg of process.argv.slice(3).filter((a) => a.includes('=') && !a.startsWith('--'))) {
   const [name, spec] = arg.split(/=(.*)/s);
   const [file, ...opts] = spec.split('+');
   let c = done.get(file) ?? carry(await io.read(`${dir}/${file}.glb`)); done.set(file, c);
@@ -198,5 +199,7 @@ for (const arg of process.argv.slice(3).filter((a) => a.includes('='))) {
   if (check) continue;
   write(name, c.len, atOf(c));
 }
-if (!check) await io.write(`${M}/lw_extra.glb`, base);
-console.log('lw_extra.glb', base.getRoot().listAnimations().length, 'clips');
+// --out=name: write Resources/Models/<name>.glb instead of lw_extra.glb (e.g. lw_pistol: the pistol clips, a file apart)
+const outArg = process.argv.find((a) => a.startsWith('--out='));
+if (!check) await io.write(`${M}/${outArg ? outArg.slice(6) : 'lw_extra'}.glb`, base);
+console.log(outArg ? outArg.slice(6) + '.glb' : 'lw_extra.glb', base.getRoot().listAnimations().length, 'clips');
