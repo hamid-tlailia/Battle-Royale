@@ -1274,8 +1274,11 @@ namespace LastWar
             if (!HandGrip || dead) gun.position = handR.position;
             else
             {
-                // right hand: fingers down and forward round the grip, palm against its right side
-                Vector3 k = (dir * 0.45f - up * 0.89f).normalized, n = -side;
+                // right hand: the back of the hand nearly in line with the forearm (a pistol grip is held with a straight wrist:
+                // the knuckles PistolWrist degrees below the aim, was 63 - the wrist looked broken), fingers round the grip,
+                // palm against its right side; long guns as before
+                float wr = pistol ? PistolWrist : 63f;
+                Vector3 k = (dir * Mathf.Cos(wr * Mathf.Deg2Rad) - up * Mathf.Sin(wr * Mathf.Deg2Rad)).normalized, n = -side;
                 float palm = PalmLen(handR, "Right");
                 Transform rf = PoseBone("RightForeArm"), ra = PoseBone("RightArm");
                 if (hasGrip && ra != null && rf != null) TwoBone(ra, rf, handR, grip - n * 0.022f - k * palm);
@@ -1296,8 +1299,10 @@ namespace LastWar
                     Vector3 k, n, c;
                     if (pistol)
                     {
-                        // cupping the right hand: palm against it from the left, fingers wrapped over its fingers
-                        k = (dir * 0.35f - up * 0.94f).normalized; n = side;
+                        // cupping the right hand: palm against it from the left, fingers wrapped over its fingers (the left wrist
+                        // straight too: PistolWrist + 10 degrees below the aim, was 70)
+                        float lw = (PistolWrist + 10f) * Mathf.Deg2Rad;
+                        k = (dir * Mathf.Cos(lw) - up * Mathf.Sin(lw)).normalized; n = side;
                         c = handR.position + HandDir(handR, "Right") * palm * 0.8f - side * 0.05f;
                     }
                     else
@@ -1312,9 +1317,23 @@ namespace LastWar
                 }
             }
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
+            if (GunDebug && pistol && Time.time >= nextWristLog)
+            {
+                nextWristLog = Time.time + 1.5f;
+                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0})");
+            }
         }
 
         bool proneOneHand;
+        /// <summary>pistol: how far (degrees) the back of the right hand points below the aim line (?pwrist= to try others)</summary>
+        public static float PistolWrist = 22f;
+        /// <summary>readout (?gundbg=1): the wrist's bend, forearm against the back of the hand (degrees)</summary>
+        float WristBend(Transform hand, string sd)
+        {
+            Transform fa = PoseBone(sd + "ForeArm"); if (fa == null || hand == null) return float.NaN;
+            return Vector3.Angle(hand.position - fa.position, HandDir(hand, sd));
+        }
+        float nextWristLog;
         // ---- the rifle clips hold the hands where a rifle goes: the gun lies from the right palm to the left one
         Vector3 Palm(string sd)
         {
