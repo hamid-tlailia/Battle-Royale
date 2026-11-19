@@ -111,7 +111,9 @@ namespace LastWar
             // weapon box: one piece the layout editor can move (current gun on top, the others + the fist below)
             box = new GameObject("WeaponBox", typeof(RectTransform)).GetComponent<RectTransform>();
             box.SetParent(c, false); box.anchorMin = box.anchorMax = BC; box.pivot = new Vector2(.5f, 0);
-            box.anchoredPosition = new Vector2(0, 50) * UiKit.K; // clear of the status row box.sizeDelta = new Vector2(209, 85) * UiKit.K;
+            box.anchoredPosition = new Vector2(0, 50) * UiKit.K; // clear of the status row
+            box.sizeDelta = new Vector2(209, 85) * UiKit.K; // (was inside the comment above: the box stayed 100 x 100, so the
+            // layout editor's frame - and the grab area - covered only part of the slots)
             for (int k = 0; k < 4; k++)
             {
                 int slot = k;

@@ -9,6 +9,7 @@
 //   name=file+sym : made left / right symmetric - each frame is the halfway blend of the pose and its mirror image half
 //                   a cycle later (world rotation changes from the rest, mirrored across the body's middle plane)
 //   name=file+air=a-b : only the frames from a to b seconds, the pelvis at its standing height (a jump's time in the air)
+//   name=file+upper=other : legs / hips / lower back from file, chest, head, arms, hands from `other` (stretched to its cycle)
 //   --frames : with --check / --report, the hips and toe heights frame by frame
 //   --out=lw_pistol : write that file instead of lw_extra.glb
 //   --report: also print the carried pose of each clip (as --check)
@@ -193,6 +194,14 @@ function cut(c, a, b) {
   const rot = c.rot.slice(fa, fb + 1), hipsT = rot.map(() => c.hipsT[0].slice());
   return { ...c, frames: rot.length, len: (rot.length - 1) / FPS, rot, hipsT };
 }
+// a run made of two: the legs, hips and lower back of this clip (its stride), the chest, neck, head, arms and hands of
+// clip `other` (its gun hold), that clip stretched to this one's cycle (both loop: the same fraction of each cycle)
+const UPPER = /Spine2|Neck|Head|Shoulder|Arm|Hand/;
+function upperFrom(c, o) {
+  const rot = c.rot.map((loc, f) => { const g = Math.round(f / (c.frames - 1) * (o.frames - 1)) % o.frames;
+    return new Map(order.map((b) => [b, UPPER.test(key(b.getName())) ? o.rot[g].get(b) : loc.get(b)])); });
+  return { ...c, rot };
+}
 const FINGER = /Hand(Index|Middle|Ring|Pinky|Thumb)/;
 function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.map((b) => [b, FINGER.test(b.getName()) ? ref.rot[0].get(b) : loc.get(b)]))) }; }
 const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);
@@ -205,6 +214,7 @@ for (const arg of process.argv.slice(3).filter((a) => a.includes('=') && !a.star
   for (const o of opts) {
     if (o === 'sym') c = symmetric(c);
     else if (o === 'legsR') c = legsFromRight(c);
+    else if (o.startsWith('upper=')) { const uf = o.slice(6); const ref = done.get(uf) ?? carry(await io.read(`${dir}/${uf}.glb`)); done.set(uf, ref); c = upperFrom(c, ref); }
     else if (o.startsWith('air=')) { const [x, y] = o.slice(4).split('-').map(Number); c = cut(c, x, y); }
     else if (o.startsWith('relax=')) { const rf = o.slice(6); const ref = done.get(rf) ?? carry(await io.read(`${dir}/${rf}.glb`)); done.set(rf, ref); c = relaxed(c, ref); }
   }

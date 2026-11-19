@@ -14,6 +14,8 @@ namespace LastWar
         public Camera cam;
         public float yaw, pitch = -0.15f;
         public float lookSensitivity = 0.2f; // degrees per screen pixel
+        /// <summary>the joystick also turns the view (degrees a second at full push to the side; ?joyturn=0 turns it off)</summary>
+        public static bool JoyTurn = true; public static float JoyTurnSpeed = 95f;
         public Fighter fighter;
         public SoldierBody body;
 
@@ -83,6 +85,17 @@ namespace LastWar
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
             if (fighter.air != 0) { sniperHold = false; AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
+            // the joystick turns the soldier too: pushed to a side the view swings that way (faster the further round),
+            // so sweeping it round in a circle turns him all the way round. Straight ahead / back: no turn; not while
+            // shooting, scoped, aiming the ice wall or held on a target
+            {
+                Vector2 jm = input.Move; float jl = jm.magnitude;
+                if (JoyTurn && jl > 0.5f && !Scoped && !input.FireHeld && !input.FrostAim && lockTarget == null && !input.FreeLook)
+                {
+                    float ja = Mathf.Atan2(jm.x, jm.y) * Mathf.Rad2Deg, aa = Mathf.Abs(ja);
+                    if (aa > 15f && aa < 165f) yaw += Mathf.Sign(ja) * Mathf.Sin(Mathf.Clamp(aa, 15f, 165f) * Mathf.Deg2Rad) * JoyTurnSpeed * Mathf.InverseLerp(0.5f, 1f, jl) * dt;
+                }
+            }
 
             // weapons
             // holding the snowball (ice wall aimed): a tap on the weapon box only puts it away - back to the gun / fists
@@ -160,12 +173,20 @@ namespace LastWar
             if (fighter.holstered && fighter.HasGun && input.FirePressed && !input.FrostAim) { fighter.ToggleHolster(); input.FirePressed = false; }
 
             // ice wall: the button shows the half-round wall, FIRE raises it (also mid-jump); the button again cancels
-            if (input.FrostPressed) input.FrostAim = !input.FrostAim && fighter.frost > 0;
+            // a second tap on the ice button raises the wall at once where the preview stands (a quick double tap = a wall
+            // straight away); with nowhere to put it the second tap puts the snowball away
+            bool frostSecond = input.FrostPressed && input.FrostAim;
+            if (input.FrostPressed && !frostSecond) input.FrostAim = fighter.frost > 0;
             if (input.FrostAim && fighter.frost <= 0) input.FrostAim = false;
             if (frostGhost == null) frostGhost = IceWall.Ghost();
             var wallSpot = input.FrostAim ? IceWall.Spot(transform, eye, aim) : null; // (where the crosshair points, up to 3 m farther)
             frostGhost.gameObject.SetActive(input.FrostAim);
             if (input.FrostAim) IceWall.ShowGhost(frostGhost, wallSpot);
+            if (frostSecond)
+            {
+                if (wallSpot != null && wallSpot.Count > 0) { IceWall.Place(wallSpot, transform.position); fighter.frost--; }
+                input.FrostAim = false; frostGhost.gameObject.SetActive(false);
+            }
             if (input.FrostAim && input.FirePressed)
             {
                 if (wallSpot.Count > 0) { IceWall.Place(wallSpot, transform.position); fighter.frost--; input.FrostAim = false; }
@@ -265,7 +286,7 @@ namespace LastWar
                 if (Mathf.Abs(rel) <= 112f) target = Mathf.Clamp(rel, -lim, lim);
                 else { reverse = true; target = Mathf.Clamp(Mathf.DeltaAngle(0, rel - Mathf.Sign(rel) * 180f), -lim, lim); }
             }
-            turn += Mathf.DeltaAngle(turn, target) * Mathf.Min(1f, dt * 10f);
+            turn += Mathf.DeltaAngle(turn, target) * Mathf.Min(1f, dt * 13f);
             body.Turn = turn;
             float reference = clip == "walk" ? 2.0f : clip == "walk_fire" ? 2.6f : clip == "run" ? 6.0f : clip == "crouch_walk" ? 1.6f : 0f;
             float rate = reference > 0 ? Mathf.Clamp((running && clip == "run" ? Mathf.Max(hs, reference) : hs) / reference, 0.6f, clip == "walk" || clip == "walk_fire" ? 2.6f : 1.6f) : 1f;
@@ -467,7 +488,8 @@ namespace LastWar
                     }
                     else if (input.FireHeld)
                     {
-                        float kk = Mathf.Min(1f, dt * (OnEnemy == null ? 7f : 2.5f));
+                        // (shooting on the move or from a jump: the aim keeps up with them better - you and they both move)
+                        float kk = Mathf.Min(1f, dt * (OnEnemy == null ? 7f : 2.5f) * (OnTheMove ? 1.5f : 1f));
                         yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch += (qp - pitch) * kk * 0.7f;
                     }
                     return;
@@ -484,7 +506,7 @@ namespace LastWar
                 if (dist > (Scoped ? 260f : 160f)) continue;
                 float dyaw = Mathf.DeltaAngle(yaw, qy) * Mathf.Deg2Rad, dp = qp - pitch;
                 float ang = Mathf.Sqrt(dyaw * dyaw + dp * dp);
-                float cone = Mathf.Max(0.07f, Mathf.Atan(1f / dist)) * (Scoped ? 1.4f : 3.2f); // (hip fire: a wider catch)
+                float cone = Mathf.Max(0.07f, Mathf.Atan(1f / dist)) * (Scoped ? 1.4f : 3.2f) * (OnTheMove && !Scoped ? 1.3f : 1f); // (hip fire: a wider catch; wider again on the move / jumping)
                 if (ang > cone || ang > bestAng || !Los(cam.transform.position, t, q)) continue;
                 bestAng = ang; by = dyaw; bp = dp;
             }
@@ -493,6 +515,7 @@ namespace LastWar
             yaw += by * k * Mathf.Rad2Deg; pitch += bp * k * 0.6f;
         }
 
+        bool OnTheMove => cc != null && (!cc.isGrounded || new Vector2(cc.velocity.x, cc.velocity.z).magnitude > 1.2f);
         bool dropStraight, planeViewSet;
         /// <summary>in the plane / falling / under the parachute</summary>
         void AirUpdate(float dt)

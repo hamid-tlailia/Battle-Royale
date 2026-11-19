@@ -275,8 +275,7 @@ namespace LastWar
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
                     {
                         eyeFinger = -1;
-                        // a tap (short, hardly moved): free look stays on / goes off
-                        if (Time.unscaledTime - eyeDownAt < 0.3f && eyeTravel < 18f * canvas.scaleFactor) FreeLookLatched = !FreeLookLatched;
+                        // (a tap no longer latches free look on: hold the eye and drag to look around, let go to come back)
                     }
                     continue;
                 }

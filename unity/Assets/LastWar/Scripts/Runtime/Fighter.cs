@@ -103,9 +103,11 @@ namespace LastWar
             {
                 case Loot.Kind.Weapon:
                 {
-                    string id = it.item; int si = SlotOf(id); GunState cur = guns[si];
+                    // (it.item: the gun's version key - "rifle" is the AKM, "rifle_marksman" the SCAR-H ...; id: its kind)
+                    string key = it.item, id = Armory.GunOf(key); int si = SlotOf(id); GunState cur = guns[si];
+                    WeaponDef got = Armory.DefFor(key, isPlayer); // the player's equipped upgrade of that version, or its plain numbers
                     if (cur != null && !manual) return false; // walking over a gun never swaps yours
-                    if (cur != null && cur.def.id == id)
+                    if (cur != null && cur.def.id == id && cur.def.Look == got.Look)
                     {
                         if (cur.reserve >= AmmoMax(id)) return false;
                         cur.reserve = Mathf.Min(AmmoMax(id), cur.reserve + cur.def.mag); // same gun: its magazine as ammo
@@ -114,11 +116,11 @@ namespace LastWar
                     if (cur != null) // another gun of that kind: swap, yours goes on the ground
                     {
                         spare[cur.def.id] = (spare.TryGetValue(cur.def.id, out int sp) ? sp : 0) + cur.reserve + cur.mag;
-                        Loot.Drop(Loot.Kind.Weapon, cur.def.id, 1, it.transform.position + new Vector3(0, 0, 0.4f), this);
+                        Loot.Drop(Loot.Kind.Weapon, cur.def.Look, 1, it.transform.position + new Vector3(0, 0, 0.4f), this);
                         if (slot == si) reloadEnd = 0;
                     }
                     var g = new GunState(id) { reserve = spare.TryGetValue(id, out int have) ? have : 0 };
-                    if (isPlayer) { g.def = Armory.DefFor(id); g.mag = g.def.mag; } // your armory version of it
+                    g.def = got; g.mag = g.def.mag;
                     spare[id] = 0;
                     guns[si] = g;
                     if (guns[slot] == null || holstered && !HadGunBefore(si)) { slot = si; holstered = false; }
@@ -185,7 +187,7 @@ namespace LastWar
             GunState g = guns[s]; if (g == null) return;
             spare[g.def.id] = (spare.TryGetValue(g.def.id, out int sp) ? sp : 0) + g.reserve + g.mag;
             guns[s] = null; if (slot == s) { reloadEnd = 0; BurstPending = false; }
-            Loot.Drop(Loot.Kind.Weapon, g.def.id, 1, DropSpot(), this);
+            Loot.Drop(Loot.Kind.Weapon, g.def.Look, 1, DropSpot(), this);
             if (guns[slot] == null) { for (int k = 0; k < 3; k++) if (guns[k] != null) { slot = k; break; } }
         }
         public void DropAmmo(string id)
@@ -225,7 +227,7 @@ namespace LastWar
             int box = Loot.NewCrate(transform.position + transform.forward * 0.6f);
             Vector3 c = Loot.CratePos(box);
             void Put(Loot.Kind k, string id, int n) => Loot.Spawn(k, id, n, c, box);
-            for (int k = 0; k < 3; k++) if (guns[k] != null) { Put(Loot.Kind.Weapon, guns[k].def.id, 1); AddSpare(guns[k].def.id, guns[k].reserve + guns[k].mag); guns[k] = null; }
+            for (int k = 0; k < 3; k++) if (guns[k] != null) { Put(Loot.Kind.Weapon, guns[k].def.Look, 1); AddSpare(guns[k].def.id, guns[k].reserve + guns[k].mag); guns[k] = null; }
             foreach (var kv in new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, int>>(spare)) if (kv.Value > 0) Put(Loot.Kind.Ammo, kv.Key, kv.Value);
             spare.Clear();
             if (meds > 0) Put(Loot.Kind.Med, null, meds);

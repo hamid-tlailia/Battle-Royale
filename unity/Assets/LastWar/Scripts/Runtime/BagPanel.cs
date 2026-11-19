@@ -111,9 +111,10 @@ namespace LastWar
                     bool own = g.def.id == "sniper";
                     int z = own ? Mathf.Max(8, f.scope) : f.scope;
                     bool empty = !own && z == 0;
-                    var chip = UiKit.Img(rt, "scope", UiKit.Round, new Vector2(0, 0), new Vector2(132, 50), new Vector2(48, 20), empty ? new Color(1, 1, 1, .12f) : new Color(.77f, .55f, 1f, .9f), true);
-                    if (!empty) Pic(chip.rectTransform, UiKit.Get("icon_scope"), new Vector2(0, .5f), new Vector2(2, 0), new Vector2(20, 14), Color.white);
-                    Label(chip.rectTransform, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(30, 18), 9, TextAnchor.MiddleRight, Color.white, empty ? "+ scope" : "×" + z);
+                    // (the card's top right corner, above the barrel: it no longer hides the top of the gun; the number only)
+                    var chip = UiKit.Img(rt, "scope", UiKit.Round, new Vector2(1, 1), new Vector2(-6, -5), new Vector2(empty ? 46 : 30, 17), empty ? new Color(1, 1, 1, .12f) : new Color(.77f, .55f, 1f, .9f), true);
+                    chip.rectTransform.pivot = new Vector2(1, 1);
+                    Label(chip.rectTransform, new Vector2(.5f, .5f), new Vector2(0, 0), new Vector2(empty ? 46 : 30, 17), 9, TextAnchor.MiddleCenter, Color.white, empty ? "+ scope" : "×" + z);
                     if (!own)
                     {
                         scopeTargets.Add(chip.rectTransform);

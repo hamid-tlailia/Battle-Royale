@@ -25,9 +25,9 @@ namespace LastWar
         void OnEnable() { All.Add(this); }
         void OnDisable() { All.Remove(this); }
 
-        /// <summary>a gun on the ground shows the version you get by taking it (your armory's choice for that gun -
-        /// picking it up gives you that version), not the base model</summary>
-        WeaponDef Yours => kind == Kind.Weapon ? Armory.DefFor(item) : null;
+        /// <summary>a gun on the ground: its own version (AKM, SCAR-H ...), named as you would get it (with your upgrade
+        /// when you equipped that version)</summary>
+        WeaponDef Yours => kind == Kind.Weapon ? Armory.DefFor(item, true) : null;
         string GunLook => Yours?.Look ?? item;
 
         public string Label => kind switch
@@ -43,7 +43,7 @@ namespace LastWar
         };
         public string Sub => kind switch
         {
-            Kind.Weapon => Tuning.SlotNames[Fighter.SlotOf(item)],
+            Kind.Weapon => Tuning.SlotNames[Fighter.SlotOf(Armory.GunOf(item))],
             Kind.Ammo => amount + " rounds",
             Kind.Med => (amount > 1 ? "× " + amount + " · " : "") + "+100 HP",
             Kind.Armor => "-" + Mathf.RoundToInt(Fighter.ArmorShare[Mathf.Clamp(int.TryParse(item, out int al) ? al : 1, 1, 3)] * 100) + "% damage",
@@ -197,7 +197,10 @@ namespace LastWar
             void Place(Vector3 p)
             {
                 var e = Pick();
-                Spawn(e.Item1, e.Item2, e.Item1 == Kind.Ammo ? Fighter.AmmoBox[e.Item2] : 1, p);
+                // a gun: any of its versions (the AKM and the SCAR-H, the MP5 and the Uzi ... all lie about the map)
+                string what = e.Item2;
+                if (e.Item1 == Kind.Weapon) { var keys = Armory.KeysOf(e.Item2); if (keys.Count > 0) what = keys[rnd.Next(keys.Count)]; }
+                Spawn(e.Item1, what, e.Item1 == Kind.Ammo ? Fighter.AmmoBox[e.Item2] : 1, p);
                 // a gun usually comes with some ammo next to it
                 if (e.Item1 == Kind.Weapon && rnd.NextDouble() < 0.8) Spawn(Kind.Ammo, e.Item2, Fighter.AmmoBox[e.Item2], p + new Vector3(0.5f, 0, 0.3f));
             }

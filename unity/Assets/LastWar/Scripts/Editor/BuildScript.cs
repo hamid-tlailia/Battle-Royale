@@ -226,6 +226,23 @@ namespace LastWar.EditorTools
                     AssetDatabase.CreateAsset(m, iceFade);
                 }
             }
+            // the sea: URP Lit, see-through (the sand shows under shallow water), glossy, two layers of ripples (the normal
+            // map and the detail normal map, scrolled apart at run time by MapBuilder's Sea)
+            string water = dir + "/Water.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(water) == null)
+            {
+                var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f); m.SetFloat("_ZWrite", 0f);
+                m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetFloat("_SrcBlendAlpha", 1f); m.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); m.SetOverrideTag("RenderType", "Transparent");
+                m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                var ripple = AssetDatabase.LoadAssetAtPath<Texture2D>(Root + "/Resources/Maps/water_normal.png");
+                m.SetTexture("_BumpMap", ripple); m.SetFloat("_BumpScale", 0.45f); m.EnableKeyword("_NORMALMAP");
+                m.SetTexture("_DetailNormalMap", ripple); m.SetFloat("_DetailNormalMapScale", 0.35f); m.EnableKeyword("_DETAIL_MULX2");
+                m.SetColor("_BaseColor", new Color(0.06f, 0.33f, 0.46f, 0.84f)); m.SetFloat("_Smoothness", 0.93f); m.SetFloat("_Metallic", 0f);
+                AssetDatabase.CreateAsset(m, water);
+            }
             // zone wall: see-through blue, both sides; tracer: bright additive streak
             Transparent(dir + "/ZoneWall.mat", new Color(0.25f, 0.55f, 1f, 0.28f), false);
             Transparent(dir + "/Tracer.mat", new Color(1f, 0.85f, 0.5f, 0.9f), true);

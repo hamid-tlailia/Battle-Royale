@@ -484,7 +484,8 @@ namespace LastWar
         public static bool UseGripContact = true;
         /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
         /// slower by 6 / their own speed so the feet keep pace (Rifle Run 4.13 m/s, Running 5.63 m/s, measured from their hips)</summary>
-        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "run", 1f },
+        public static bool UseHumanRun = true;
+        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "mx_rifle_run_h", 6f / 5.63f }, { "run", 1f },
             // crawling (option A): the body goes CrawlSpeed m/s and each crawl clip plays at the pace its own limbs keep there
             // (Crawl Forward 0.29 m/s as recorded, the rifle prone crawl 0.23 m/s - measured from their hips)
             // the pistol clips at the speeds the walk / run playback rates assume (walk 2.6, run 6 m/s; recorded 2.55 / 4.74)
@@ -511,6 +512,9 @@ namespace LastWar
             if (UsePistolClips && Armed && gun != null && gunId.StartsWith("pistol") && PistolClips.TryGetValue(clip, out string pc) && clipIndex.ContainsKey(pc)) key = pc;
             // running with a long gun: the Mixamo Rifle Run (lw_extra.glb: gun low across the chest) when present
             if (key == "mx_sprint" && clipIndex.ContainsKey("mx_rifle_run")) key = "mx_rifle_run";
+            // ... its legs, hips and lower back from Mixamo's "Running" (the free run's long human stride and bounce), the
+            // chest, arms and gun hold as Rifle Run (lw_extra.glb mx_rifle_run_h; ?hrun=0: the Rifle Run as it was)
+            if (key == "mx_rifle_run" && UseHumanRun && clipIndex.ContainsKey("mx_rifle_run_h")) key = "mx_rifle_run_h";
             // lying down with a rifle: the Mixamo prone clips (still / crawling forward; backward = the crawl stepped back)
             if (key == "mx_prone" && Mathf.Abs(Speed) > 0.25f && clipIndex.ContainsKey("mx_crawl")) key = "mx_crawl";
             // ... made even (lw_extra.glb mx_crawl_sym): both legs push in turn - the recorded crawl pushed with the right leg
@@ -1097,6 +1101,9 @@ namespace LastWar
             var baked = new Mesh();
             foreach (SkinnedMeshRenderer r in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
+                // only the pieces worn: a mixed outfit leaves its own hidden ones in place (the Ranger's hood, hanging
+                // down the back, held the pack 25 cm off the back of a Ranger wearing the Villager's head)
+                if (hiddenParts.Contains(r)) continue;
                 r.BakeMesh(baked);
                 var vs = baked.vertices; Matrix4x4 m = r.transform.localToWorldMatrix;
                 for (int i = 0; i < vs.Length; i++)
@@ -1262,6 +1269,7 @@ namespace LastWar
             if (!dead && !pistol && clipIndex.ContainsKey("mx_aim") && (RifleClip || current == "prone" || Pose == "crawl"))
             {
                 long ti = Bench.Now();
+                ProneGunClear();
                 if (UseWeaponIK) { if (weaponIK == null) weaponIK = new WeaponIKController(this); weaponIK.Apply(dir); }
                 else RifleHold(dir); // (?wik=0: the previous hold, kept for comparison)
                 Bench.Add(ref Bench.IKTicks, ti);
@@ -1519,6 +1527,48 @@ namespace LastWar
 
         // ---- hands closed on the gun (works for both rigs: built from the knuckles' positions, not the bone axes)
         public static bool HandGrip = true;
+        // ---- lying down with a long gun: the clips lie on flat ground, so on grass rising ahead (or with a long barrel)
+        // the gun went into the ground. Where the gun lay last frame is checked against the ground under it (three points
+        // along it); when it dips in, the chest is raised (the spine bends back, up to 18 degrees, eased) just enough for
+        // the gun - held from the hands as always - to lie 3 cm above it. Standing / crouching: untouched. ?pronegun=0: off.
+        public static bool UseProneGunClear = true;
+        float proneLift; Renderer[] gunRends; Transform gunRendsOf;
+        void ProneGunClear()
+        {
+            bool lying = UseProneGunClear && visible && gun != null && (Lying(playing) || current == "prone" || Pose == "crawl");
+            float want = 0f;
+            if (lying)
+            {
+                if (gunRendsOf != gun) { gunRends = gun.GetComponentsInChildren<Renderer>(true); gunRendsOf = gun; }
+                Bounds b = default; bool any = false;
+                foreach (Renderer r in gunRends) { if (r == null) continue; if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds); }
+                Transform sp = PoseBone("Spine");
+                if (any && sp != null)
+                {
+                    Vector3 along = gun.rotation * Vector3.back; float len = Vector3.Dot(b.extents, new Vector3(Mathf.Abs(along.x), Mathf.Abs(along.y), Mathf.Abs(along.z)));
+                    int mask = ~(1 << MapBuilder.PlayerLayer); float need = float.MinValue;
+                    for (int i = -1; i <= 1; i++)
+                    {
+                        Vector3 pnt = b.center + along * (len * 0.8f * i);
+                        if (Physics.Raycast(pnt + Vector3.up * 1.5f, Vector3.down, out RaycastHit h, 3f, mask, QueryTriggerInteraction.Ignore))
+                        {
+                            // (the gun's lowest edge near that point: its centre line minus half its height)
+                            float low = pnt.y - Mathf.Min(b.extents.y, 0.06f);
+                            float dist = Mathf.Max(0.3f, Vector3.ProjectOnPlane(pnt - sp.position, transform.up).magnitude);
+                            need = Mathf.Max(need, Mathf.Atan2(h.point.y + 0.03f - low, dist) * Mathf.Rad2Deg);
+                        }
+                    }
+                    // (need < 0: the gun is clear - the chest comes back down toward the clip's own pose)
+                    want = need == float.MinValue ? proneLift : Mathf.Clamp(proneLift + need, 0f, 18f);
+                }
+            }
+            proneLift = Mathf.MoveTowards(proneLift, want, Time.deltaTime * (want > proneLift ? 60f : 25f));
+            if (proneLift < 0.05f) return;
+            Vector3 side = Quaternion.Euler(0, Turn, 0) * transform.right;
+            Transform s0 = PoseBone("Spine"), s1 = PoseBone("Spine1");
+            if (s0 != null) s0.rotation = Quaternion.AngleAxis(-proneLift * 0.6f, side) * s0.rotation;
+            if (s1 != null) s1.rotation = Quaternion.AngleAxis(-proneLift * 0.4f, side) * s1.rotation;
+        }
         public static bool UseWeaponIK = true, UseShoulderReach = true, UseHoldBack = true; WeaponIKController weaponIK; // (?wikA=0 / ?wikB=0)
         public static int WikFrames { get => WeaponIKController.FramesToLog; set => WeaponIKController.FramesToLog = value; }
         public static bool GunDebug; float nextGunLog; // ?gundbg=1

@@ -15,6 +15,9 @@ namespace LastWar.EditorTools
             ti.maxTextureSize = 2048;
             ti.isReadable = false;
             if (p.Contains("/detail_")) { ti.wrapMode = UnityEngine.TextureWrapMode.Repeat; ti.sRGBTexture = false; }
+            // the sea's ripples (a normal map) and the beach sand photo: tiled
+            else if (p.Contains("_normal")) { ti.textureType = TextureImporterType.NormalMap; ti.wrapMode = UnityEngine.TextureWrapMode.Repeat; ti.maxTextureSize = 512; }
+            else if (p.Contains("/beach_")) { ti.wrapMode = UnityEngine.TextureWrapMode.Repeat; ti.maxTextureSize = 512; }
             else ti.wrapMode = UnityEngine.TextureWrapMode.Clamp;
                         TextureCompression.Apply(ti, TextureCompression.Kind.Terrain); // (photos and grain tiles: ASTC 4x4)
         }

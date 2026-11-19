@@ -107,7 +107,6 @@ namespace LastWar
             bool desert = map.id == "desert", dvalley = map.id == "valley", island = UseIsland && SeaLevel > -999f;
             Color grassA = dvalley ? new Color(.5f, .43f, .33f) : desert ? new Color(.74f, .5f, .35f) : new Color(.33f, .5f, .22f), grassB = dvalley ? new Color(.42f, .36f, .28f) : desert ? new Color(.62f, .38f, .26f) : new Color(.26f, .41f, .18f);
             Color rock = dvalley ? new Color(.38f, .33f, .27f) : desert ? new Color(.55f, .32f, .22f) : new Color(.45f, .45f, .4f), snow = new Color(.9f, .92f, .95f);
-            Color sand = new Color(.86f, .78f, .58f), wet = new Color(.55f, .5f, .38f);
             var verts = new Vector3[seg * rings]; var cols = new Color[seg * rings]; var uvs = new Vector2[seg * rings];
             float seed = map.id.GetHashCode() % 1000;
             for (int r = 0; r < rings; r++)
@@ -124,9 +123,10 @@ namespace LastWar
                         float edgeLand = LandAt(map, cx * coastR, sz * coastR), edgeNow = map.HeightAt(cx * r0, sz * r0);
                         // (0.4 m under the map's own ground where both lie: no flicker at the square's corners)
                         y = Mathf.Min(edgeNow - 0.3f, CoastY(edgeLand, rad) - 0.4f) - Mathf.Clamp01((rad - r0) / 300f) * n2 * 1.5f;
+                        // (the beach photo carries the sand's colour: white = the photo as it is; grass tinted over it)
                         float above = y - SeaLevel;
-                        c = above > 2.5f ? Color.Lerp(grassA, grassB, n2) : above > -0.6f ? sand : Color.Lerp(wet, new Color(.3f, .32f, .28f), Mathf.Clamp01(-above / 6f));
-                        if (above > 2.5f && above < 5f) c = Color.Lerp(sand, c, (above - 2.5f) / 2.5f);
+                        Color land = Color.Lerp(grassA, grassB, n2) * 1.25f; land.a = 1f;
+                        c = above > 7.5f ? land : above > 3.5f ? Color.Lerp(Color.white, land, (above - 3.5f) / 4f) : above > 0f ? Color.white : Color.Lerp(new Color(.72f, .72f, .74f), new Color(.45f, .47f, .48f), Mathf.Clamp01(-above / 8f));
                     }
                     else
                     {
@@ -163,8 +163,10 @@ namespace LastWar
             if (vbase != null)
             {
                 mat = new Material(vbase);
-                var grain = Resources.Load<Texture2D>("Maps/" + (desert || island ? "detail_sand" : "detail_grass"));
-                if (grain != null) { grain.wrapMode = TextureWrapMode.Repeat; mat.SetTexture("_BaseMap", grain); mat.SetColor("_BaseColor", new Color(1.6f, 1.6f, 1.6f)); }
+                var beach = island ? Resources.Load<Texture2D>("Maps/beach_sand") : null;
+                var grain = beach != null ? beach : Resources.Load<Texture2D>("Maps/" + (desert ? "detail_sand" : "detail_grass"));
+                if (grain != null) { grain.wrapMode = TextureWrapMode.Repeat; mat.SetTexture("_BaseMap", grain); mat.SetColor("_BaseColor", beach != null ? Color.white : new Color(1.6f, 1.6f, 1.6f)); }
+                if (beach != null) mat.SetTextureScale("_BaseMap", Vector2.one * (6f / 30f)); // (the photo is 30 m a tile; the skirt's uv runs 6 m a unit)
             }
             else mat = NewLit(grassB);
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
@@ -179,11 +181,11 @@ namespace LastWar
             float R = Mathf.Max(1700f, map.size * 1.6f) * 1.25f;
             const int seg = 96, rings = 12;
             var verts = new List<Vector3>(); var uvs = new List<Vector2>(); var tris = new List<int>();
-            verts.Add(new Vector3(0, SeaLevel, 0)); uvs.Add(Vector2.zero);
+            verts.Add(new Vector3(0, SeaLevel, 0)); uvs.Add(new Vector2(.5f, .5f));
             for (int r = 1; r <= rings; r++)
             {
                 float rad = R * (r / (float)rings) * (r / (float)rings);
-                for (int i = 0; i < seg; i++) { float a = i / (float)seg * Mathf.PI * 2f; var v = new Vector3(Mathf.Cos(a) * rad, SeaLevel, Mathf.Sin(a) * rad); verts.Add(v); uvs.Add(new Vector2(v.x, v.z) / 40f); }
+                for (int i = 0; i < seg; i++) { float a = i / (float)seg * Mathf.PI * 2f; var v = new Vector3(Mathf.Cos(a) * rad, SeaLevel, Mathf.Sin(a) * rad); verts.Add(v); uvs.Add(new Vector2(v.x, v.z) / (2f * R) + new Vector2(.5f, .5f)); }
             }
             for (int i = 0; i < seg; i++) tris.AddRange(new[] { 0, 1 + (i + 1) % seg, 1 + i });
             for (int r = 1; r < rings; r++)
@@ -199,11 +201,20 @@ namespace LastWar
             var go = new GameObject("Sea", typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(parent, false);
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
-            var mat = NewLit(new Color(0.11f, 0.38f, 0.52f));
-            mat.SetFloat("_Smoothness", 0.88f); mat.SetFloat("_Metallic", 0f);
+            // (Materials/Water: see-through glossy water with two layers of ripples, made by the build; without it a plain
+            // glossy sheet)
+            var wbase = Resources.Load<Material>("Materials/Water");
+            Material mat;
+            if (wbase != null)
+            {
+                mat = new Material(wbase);
+                mat.SetTextureScale("_BumpMap", Vector2.one * (2f * R / 26f));        // ripples ~26 m across
+                mat.SetTextureScale("_DetailNormalMap", Vector2.one * (2f * R / 7f)); // and ~7 m wavelets on them
+            }
+            else { mat = NewLit(new Color(0.11f, 0.38f, 0.52f)); mat.SetFloat("_Smoothness", 0.88f); mat.SetFloat("_Metallic", 0f); }
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
             mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true;
-            go.AddComponent<Sea>();
+            go.AddComponent<Sea>().mat = wbase != null ? mat : null;
         }
 
         // ------------------------------------------------------------------ terrain
@@ -310,17 +321,25 @@ namespace LastWar
             Bounds lb = GunFrame.LocalBounds(root);
             if (lb.size.sqrMagnitude < 1e-6f) return;
             float low = float.MaxValue;
-            for (int i = 0; i < 3; i++)
-                for (int k = 0; k < 3; k++)
+            // the ground as drawn: the terrain's own triangles (its collider), not the height grid's smooth blend - on a
+            // steep bank by a house the two parted by up to half a metre and a rock was left hanging over the dip
+            for (int i = 0; i < 5; i++)
+                for (int k = 0; k < 5; k++)
                 {
-                    Vector3 lp = new Vector3(Mathf.Lerp(lb.min.x, lb.max.x, 0.1f + 0.4f * i), lb.min.y, Mathf.Lerp(lb.min.z, lb.max.z, 0.1f + 0.4f * k));
+                    Vector3 lp = new Vector3(Mathf.Lerp(lb.min.x, lb.max.x, 0.05f + 0.225f * i), lb.min.y, Mathf.Lerp(lb.min.z, lb.max.z, 0.05f + 0.225f * k));
                     Vector3 w = root.TransformPoint(lp);
-                    Vector3 web = new Vector3(-w.x, w.y, w.z); // (map heights are in the web game's coordinates)
-                    low = Mathf.Min(low, currentMap.HeightAt(web.x, web.z));
+                    low = Mathf.Min(low, GroundAt(w));
                 }
             float bottom = root.TransformPoint(new Vector3(lb.center.x, lb.min.y, lb.center.z)).y;
             float drop = bottom - (low - embed);
             if (drop > 0f) root.position -= Vector3.up * drop;
+        }
+
+        /// <summary>the terrain's surface under a world point (its collider; the height grid where it misses)</summary>
+        static float GroundAt(Vector3 w)
+        {
+            if (Ground != null && Ground.Raycast(new Ray(new Vector3(w.x, 2000f, w.z), Vector3.down), out RaycastHit h, 4000f)) return h.point.y;
+            return currentMap.HeightAt(-w.x, w.z); // (map heights are in the web game's coordinates)
         }
 
         static void PlaceProp(PropData p, Transform parent)
@@ -337,8 +356,8 @@ namespace LastWar
             if (p.p.StartsWith("tpine") || p.p.StartsWith("toak") || p.p == "stump")
             {
                 // trees: bedded below the lowest ground the roots reach (slopes left root flares hanging in the air)
-                float r = 2.2f * p.s, low = currentMap.HeightAt(p.x, p.z);
-                for (int k = 0; k < 12; k++) { float a = k / 12f * Mathf.PI * 2f; low = Mathf.Min(low, currentMap.HeightAt(p.x + Mathf.Cos(a) * r, p.z + Mathf.Sin(a) * r)); }
+                float r = 2.2f * p.s, low = GroundAt(Coords.ToUnity(p.x, 0, p.z));
+                for (int k = 0; k < 12; k++) { float a = k / 12f * Mathf.PI * 2f; low = Mathf.Min(low, GroundAt(Coords.ToUnity(p.x + Mathf.Cos(a) * r, 0, p.z + Mathf.Sin(a) * r))); }
                 py = Mathf.Min(py, low - 0.45f * p.s);
             }
             root.transform.SetPositionAndRotation(Coords.ToUnity(p.x, py, p.z), Coords.Yaw(p.rot));
@@ -456,8 +475,14 @@ namespace LastWar
     /// <summary>the sea sheet rises and falls a few centimetres, slowly (a still sheet looked like glass)</summary>
     public class Sea : MonoBehaviour
     {
+        public Material mat;
         float y0;
         void Start() { y0 = transform.localPosition.y; }
-        void Update() { var p = transform.localPosition; p.y = y0 + Mathf.Sin(Time.time * 0.7f) * 0.06f; transform.localPosition = p; }
+        void Update()
+        {
+            var p = transform.localPosition; p.y = y0 + Mathf.Sin(Time.time * 0.7f) * 0.06f; transform.localPosition = p;
+            // the two layers of ripples drift different ways (the sea moves; not one sheet sliding)
+            if (mat != null) { float t = Time.time; mat.SetTextureOffset("_BumpMap", new Vector2(t * 0.0021f, t * 0.0013f)); mat.SetTextureOffset("_DetailNormalMap", new Vector2(-t * 0.0047f, t * 0.0036f)); }
+        }
     }
 }

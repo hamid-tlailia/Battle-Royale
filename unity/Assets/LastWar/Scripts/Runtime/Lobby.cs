@@ -115,7 +115,7 @@ namespace LastWar
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
-            lobbyBody.SetGun(Armory.Equipped("rifle")); lobbyBody.ShoulderGrip = false; lobbyBody.Plant = true;
+            lobbyBody.SetGun(Armory.LobbyGun); lobbyBody.ShoulderGrip = false; lobbyBody.Plant = true;
             lobbyBody.GripOffset = LobbyGrip; // (the armory version you carry)
             lobbyBody.Play(lobbyBody.HasClip("mx_lobby") ? "mx_lobby" : "idle_rifle"); // standing: rifle down, now and then up at a target
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
@@ -515,14 +515,14 @@ namespace LastWar
             {
                 if (v.gun != gun) continue;
                 var vv = v;
-                bool owned = Armory.Owned(v), on = Armory.Equipped(gun) == v.key;
+                bool owned = Armory.Owned(v), on = v.cost > 0 && Armory.IsEquipped(v), shown = Armory.LobbyGun == v.key;
                 var card = UiKit.Img(content, "card", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, on ? new Color(.3f, .26f, .1f, .95f) : new Color(.13f, .15f, .17f, .95f), true);
                 card.rectTransform.anchoredPosition = new Vector2(0, -y); card.rectTransform.sizeDelta = new Vector2(w, cardH);
                 if (on) card.gameObject.AddComponent<Outline>().effectColor = gold;
                 Transform c = card.transform;
                 var pic = UiKit.Img(c, "gun", Resources.Load<Sprite>("UI/Items/gun_" + v.key) ?? UiKit.Get("gun_" + gun), new Vector2(0, .5f), new Vector2(10, 4) * k, new Vector2(165, 70) * k, Color.white); // its own real model, in colour
                 pic.rectTransform.pivot = new Vector2(0, .5f); pic.preserveAspect = true;
-                var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.name;
+                var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.real + (v.cost > 0 ? "  ·  " + v.name : "");
                 var pk = UiKit.Txt(c, new Vector2(0, 0), new Vector2(14, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerLeft, new Color(1, 1, 1, .7f)); pk.fontStyle = FontStyle.Normal; pk.text = v.perk;
                 // the line stays in the picture's column (it ran under the bars), wrapping onto a second line if it must
                 pk.rectTransform.pivot = new Vector2(0, 0); pk.rectTransform.sizeDelta = new Vector2(160 * s, 28 * s); pk.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -544,18 +544,25 @@ namespace LastWar
                     var val = UiKit.Txt(c, new Vector2(0, 1), Vector2.zero, Vector2.one, 9 * k, TextAnchor.MiddleLeft, Color.white);
                     val.rectTransform.anchoredPosition = new Vector2(bx + 92 * s + bw - 132 * s, by); val.rectTransform.sizeDelta = new Vector2(60 * s, 16 * s); val.text = bars[i].Item3;
                 }
-                // BUY / EQUIP / EQUIPPED
-                string label = on ? "EQUIPPED" : owned ? "EQUIP" : $"BUY  {v.cost}";
-                bool can = !on && (owned || Armory.Coins >= v.cost);
-                var b = UiKit.Img(c, "act", UiKit.GoldPlate, new Vector2(1, .5f), Vector2.zero, Vector2.one, can ? Color.white : new Color(1, 1, 1, .35f), true);
-                b.rectTransform.pivot = new Vector2(1, .5f); b.rectTransform.anchoredPosition = new Vector2(-14 * s, 0); b.rectTransform.sizeDelta = new Vector2(124 * s, 36 * s);
-                var bt = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, 11 * k, TextAnchor.MiddleCenter, ink);
-                bt.rectTransform.pivot = new Vector2(.5f, .5f); bt.rectTransform.sizeDelta = b.rectTransform.sizeDelta; bt.text = label; Destroy(bt.GetComponent<Shadow>());
-                if (can) Clickable.Add(b.gameObject, () => { if (!Armory.Owned(vv)) Armory.Buy(vv); Armory.Equip(vv); Open("armory"); });
+                // BUY / EQUIP / EQUIPPED (several versions can be equipped: each one's numbers when you pick that gun up;
+                // tap EQUIPPED to take it off) and SHOW IN LOBBY (the one gun in your soldier's hands in the lobby)
+                Image Btn(float yOff, string label, bool can, bool lit, System.Action act)
+                {
+                    var bb = UiKit.Img(c, "act", UiKit.GoldPlate, new Vector2(1, .5f), Vector2.zero, Vector2.one, lit ? Color.white : can ? new Color(.78f, .8f, .82f) : new Color(1, 1, 1, .35f), true);
+                    bb.rectTransform.pivot = new Vector2(1, .5f); bb.rectTransform.anchoredPosition = new Vector2(-14 * s, yOff); bb.rectTransform.sizeDelta = new Vector2(124 * s, 32 * s);
+                    var t = UiKit.Txt(bb.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, 10 * k, TextAnchor.MiddleCenter, ink);
+                    t.rectTransform.pivot = new Vector2(.5f, .5f); t.rectTransform.sizeDelta = bb.rectTransform.sizeDelta; t.text = label; Destroy(t.GetComponent<Shadow>());
+                    if (can) Clickable.Add(bb.gameObject, () => { act(); Open("armory"); });
+                    return bb;
+                }
+                if (!owned) Btn(20 * s, $"BUY  {v.cost}", Armory.Coins >= v.cost, true, () => { if (Armory.Buy(vv)) Armory.SetEquipped(vv, true); });
+                else if (v.cost > 0) Btn(20 * s, on ? "EQUIPPED" : "EQUIP", true, on, () => Armory.SetEquipped(vv, !Armory.IsEquipped(vv)));
+                else Btn(20 * s, "STANDARD", false, false, () => { });
+                Btn(-20 * s, shown ? "IN LOBBY" : "SHOW IN LOBBY", owned && !shown, shown, () => { Armory.LobbyGun = vv.key; if (lobbyBody != null) lobbyBody.SetGun(vv.key); });
                 y += cardH + 10 * s;
             }
             var note = UiKit.Txt(content, new Vector2(0, 1), new Vector2(0, -y / UiKit.K), new Vector2(w / UiKit.K, 20 * s / UiKit.K), 10 * k, TextAnchor.UpperLeft, new Color(1, 1, 1, .6f));
-            note.fontStyle = FontStyle.Normal; note.text = "Coins: +20 a match, +15 a kill, +150 for a win. The equipped version is the one you pick up in a match.";
+            note.fontStyle = FontStyle.Normal; note.text = "Coins: +20 a match, +15 a kill, +150 for a win. Every version lies about the map: picking one up gives your equipped upgrade of it, or its standard numbers.";
             content.sizeDelta = new Vector2(content.sizeDelta.x, y + 40 * s);
         }
 
