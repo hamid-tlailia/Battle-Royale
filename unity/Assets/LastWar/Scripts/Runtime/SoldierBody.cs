@@ -601,7 +601,7 @@ namespace LastWar
         // after this, on the body as it now stands). ?heel=0 turns it off for comparison.
         public static bool UseHeelLevel = true;
         static readonly HashSet<string> StandClips = new HashSet<string> { "mx_lobby", "mx_lobby_idle", "mx_lobby_aim", "mx_idle", "mx_aim", "mx_fire", "mx_reload", "idle", "idle_rifle", "fire" };
-        Transform soleFor; float soleWait; bool soleOk; float heelW;
+        Transform soleFor; float soleWait; int soleFrames; bool soleOk; float heelW;
         readonly Vector3[] soleHeel = new Vector3[2], soleBall = new Vector3[2];
         readonly Transform[] soleFoot = new Transform[2];
         float[] heelDeg = new float[2];
@@ -610,13 +610,14 @@ namespace LastWar
         void LevelSoles()
         {
             if (!UseHeelLevel || outfitRoot == null) return;
-            if (soleFor != outfitRoot) { soleFor = outfitRoot; soleOk = false; soleWait = 0f; heelW = 0f; }
+            if (soleFor != outfitRoot) { soleFor = outfitRoot; soleOk = false; soleWait = 0f; soleFrames = 0; heelW = 0f; }
             bool stand = visible && StandingStill;
             if (!soleOk)
             {
-                // measured once the outfit has stood still for a moment (the clip settled), before any levelling
-                soleWait = stand ? soleWait + Time.deltaTime : 0f;
-                if (soleWait < 0.3f) return;
+                // measured once the outfit has stood still for a while (the clip and any crossfade settled: at least 1 s and
+                // 20 frames - on a slow device the first frames come seconds apart), before any levelling
+                if (stand) { soleWait += Time.deltaTime; soleFrames++; } else { soleWait = 0f; soleFrames = 0; }
+                if (soleWait < 1f || soleFrames < 20) return;
                 soleOk = MeasureSoles();
                 if (!soleOk) { soleFor = null; return; }
             }
@@ -682,7 +683,7 @@ namespace LastWar
                 if (heel == float.MaxValue || ball == float.MaxValue) continue;
                 soleFoot[i] = ankle; soleHeel[i] = ankle.InverseTransformPoint(hp); soleBall[i] = ankle.InverseTransformPoint(bp); any = true;
             }
-            if (FootDebug) Debug.Log($"[LastWar] soles {name} {outfitRoot.name.Replace("(Clone)", "")}: measured {(any ? "ok" : "no feet found")}");
+            if (FootDebug) Debug.Log($"[LastWar] soles {name} {outfitRoot.name.Replace("(Clone)", "")} {playing}: measured {(any ? "ok" : "no feet found")} after {soleWait:0.0} s / {soleFrames} frames; same bones as the mesh: {(soleFoot[0] != null && soleFoot[0].IsChildOf(outfitRoot))}");
             return any;
         }
 
@@ -718,7 +719,13 @@ namespace LastWar
                 }
                 sb.Append($" {sd} heel {(heel - ground) * 100f:0.0} cm toe {(ball - ground) * 100f:0.0} cm |");
             }
-            if (UseHeelLevel) sb.Append($" level {heelW:0.00} ({heelDeg[0]:0.0} / {heelDeg[1]:0.0} deg)");
+            if (UseHeelLevel)
+            {
+                sb.Append($" level {heelW:0.00} ({heelDeg[0]:0.0} / {heelDeg[1]:0.0} deg)");
+                // (the two measured sole points now, cm above the ground: they should sit level and low)
+                for (int i = 0; i < 2; i++) if (soleOk && soleFoot[i] != null)
+                    sb.Append($" {(i == 0 ? "L" : "R")} pts heel {(soleFoot[i].TransformPoint(soleHeel[i]).y - ground) * 100f:0.0} ball {(soleFoot[i].TransformPoint(soleBall[i]).y - ground) * 100f:0.0}");
+            }
             Debug.Log(sb.ToString());
         }
         public static int AnimDelayFrames; int delayedUntil = -1;
