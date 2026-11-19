@@ -466,10 +466,13 @@ namespace LastWar
             { "run", "mx_sprint" }, { "jump", "mx_jump" }, { "crouch_idle", "mx_crouch" }, { "crouch_fire", "mx_crouch_fire" },
             { "crouch_walk", "mx_crouch_walk" }, { "prone", "mx_prone" } };
         public static bool UseRifleClips = true;
-        /// <summary>the game's clips -> the pistol clips (lw_pistol.glb); the others (jump, crouch walk, lying down) as before</summary>
+        /// <summary>the game's clips -> the pistol clips (lw_pistol.glb); the others (crouch walk, lying down) as before</summary>
         static readonly Dictionary<string, string> PistolClips = new Dictionary<string, string> {
             { "idle", "p_idle" }, { "idle_rifle", "p_idle" }, { "fire", "p_idle" }, { "walk", "p_walk" }, { "walk_fire", "p_walk" },
             { "run", "p_run" }, { "crouch_idle", "p_kneel" }, { "crouch_fire", "p_kneel" },
+            // jumping: Pistol Jump's time in the air only (0.8-1.43 s of its 2 s: no crouch before, no landing after - about
+            // the game's own 0.65 s in the air), played once and held on its last frame like the other jumps
+            { "jump", "p_jump" },
             // lying down / crawling with a pistol: the rifle's prone clips (the crawl made even), the pistol forward in the right hand
             { "prone", "mx_prone" } };
         public static bool UsePistolClips = true;
@@ -534,7 +537,7 @@ namespace LastWar
         }
 
         bool dead0() => current != null && current.StartsWith("death");
-        static bool OneShot(string clip) => clip.StartsWith("death") || clip == "jump";
+        static bool OneShot(string clip) => clip.StartsWith("death") || clip == "jump" || clip == "p_jump";
 
         public void SetGun(string id)
         {

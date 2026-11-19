@@ -8,6 +8,8 @@
 //   name=file+legsR : the left leg made the mirror image of the right leg half a cycle later (upper body as recorded)
 //   name=file+sym : made left / right symmetric - each frame is the halfway blend of the pose and its mirror image half
 //                   a cycle later (world rotation changes from the rest, mirrored across the body's middle plane)
+//   name=file+air=a-b : only the frames from a to b seconds, the pelvis at its standing height (a jump's time in the air)
+//   --frames : with --check / --report, the hips and toe heights frame by frame
 //   --out=lw_pistol : write that file instead of lw_extra.glb
 //   --report: also print the carried pose of each clip (as --check)
 //   --check: write nothing; print the carried pose per frame (heights above the ground, left / right symmetry, finger bend)
@@ -143,6 +145,9 @@ function report(c) {
     const sw = (s) => Math.max(...s.map((x) => x[2])) - Math.min(...s.map((x) => x[2]));
     console.log(`  symmetry ${l.replace('Left', '')}: mean gap left vs mirrored right half a cycle later ${(e / n * 100).toFixed(1)} cm; forward swing left ${(sw(ser[l]) * 100).toFixed(0)} cm, right ${(sw(ser[r]) * 100).toFixed(0)} cm`);
   }
+  // --frames: hips / toe heights frame by frame (where a jump leaves and meets the ground)
+  if (process.argv.includes('--frames')) for (let f = 0; f < c.frames; f++)
+    console.log(`  ${(f / FPS).toFixed(2)} s  hips ${ser.Hips[f][1].toFixed(2)}  toes L ${ser.LeftToeBase[f][1].toFixed(2)} R ${ser.RightToeBase[f][1].toFixed(2)}`);
   const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
   console.log(`  finger bend (mean joint angle): left ${avg(bend.Left).toFixed(0)} deg, right ${avg(bend.Right).toFixed(0)} deg`);
 }
@@ -181,6 +186,13 @@ function legsFromRight(c) {
   }
   return { ...c, rot, hipsT };
 }
+// a one-shot cut: only the frames from a to b seconds (a jump's time in the air, without the crouch before it and the
+// landing after it), the pelvis held at its standing height of the first frame - the game lifts the body itself
+function cut(c, a, b) {
+  const fa = Math.max(0, Math.round(a * FPS)), fb = Math.min(c.frames - 1, Math.round(b * FPS));
+  const rot = c.rot.slice(fa, fb + 1), hipsT = rot.map(() => c.hipsT[0].slice());
+  return { ...c, frames: rot.length, len: (rot.length - 1) / FPS, rot, hipsT };
+}
 const FINGER = /Hand(Index|Middle|Ring|Pinky|Thumb)/;
 function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.map((b) => [b, FINGER.test(b.getName()) ? ref.rot[0].get(b) : loc.get(b)]))) }; }
 const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);
@@ -193,6 +205,7 @@ for (const arg of process.argv.slice(3).filter((a) => a.includes('=') && !a.star
   for (const o of opts) {
     if (o === 'sym') c = symmetric(c);
     else if (o === 'legsR') c = legsFromRight(c);
+    else if (o.startsWith('air=')) { const [x, y] = o.slice(4).split('-').map(Number); c = cut(c, x, y); }
     else if (o.startsWith('relax=')) { const rf = o.slice(6); const ref = done.get(rf) ?? carry(await io.read(`${dir}/${rf}.glb`)); done.set(rf, ref); c = relaxed(c, ref); }
   }
   if (check || process.argv.includes('--report')) { console.log(name); report(c); }
