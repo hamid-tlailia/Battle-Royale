@@ -422,6 +422,8 @@ namespace LastWar
             // running with empty hands: the Mixamo "Running" (lw_extra.glb, arms swinging free; 5.6 m/s as recorded, close
             // to the 6 m/s the run's playback rate is set for). With a gun the rifle clips stand in as before.
             if (clipIndex.TryGetValue("mx_running", out int runFree)) clipIndex["run"] = runFree;
+            // jogging with empty hands (a full push of the stick): Mixamo's Jog Forward (lw_extra.glb mx_jog)
+            if (clipIndex.TryGetValue("mx_jog", out int jogI)) { clipIndex["jog"] = jogI; HasJog = UseJog; }
             // the web game's run_free: the run clip's legs with the walk clip's arms (swinging at the sides),
             // as a second layer that only moves the shoulders, arms and hands
             layers = AnimationLayerMixerPlayable.Create(graph, 3);
@@ -485,6 +487,8 @@ namespace LastWar
         /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
         /// slower by 6 / their own speed so the feet keep pace (Rifle Run 4.13 m/s, Running 5.63 m/s, measured from their hips)</summary>
         public static bool UseHumanRun = true;
+        /// <summary>the jog clip is there (and not turned off with ?jog=0)</summary>
+        public static bool HasJog, UseJog = true;
         static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "mx_rifle_run_h", 6f / 5.63f }, { "run", 1f },
             // crawling (option A): the body goes CrawlSpeed m/s and each crawl clip plays at the pace its own limbs keep there
             // (Crawl Forward 0.29 m/s as recorded, the rifle prone crawl 0.23 m/s - measured from their hips)

@@ -255,7 +255,9 @@ namespace LastWar
             else if (airTime > 0.15f) clip = "jump";
             else if (input.Crouch) clip = firing ? "crouch_fire" : hs > 0.4f ? "crouch_walk" : "crouch_idle";
             else if (hs > 5.2f || (input.Sprint && hs > 0.5f && !Scoped)) clip = firing && armed ? "walk_fire" : "run"; // shooting on the run: the gun up, legs keep running
-            else if (!armed) clip = hs > 0.4f ? "walk" : "idle";
+            // empty hands: a walk when slow, Mixamo's Jog Forward at a full push of the stick (recorded at 2.5 m/s - the
+            // walk clip had been played at twice its speed up to 5 m/s), the run when sprinting
+            else if (!armed) clip = hs > 2.4f && SoldierBody.HasJog ? "jog" : hs > 0.4f ? "walk" : "idle";
             else if (hs > 0.4f) clip = "walk_fire";
             else clip = firing ? "fire" : "idle_rifle";
             body.Speed = proneFire ? 0f : hs; // (before Play: lying down, it picks the still prone pose or the crawl by it)
@@ -288,8 +290,9 @@ namespace LastWar
             }
             turn += Mathf.DeltaAngle(turn, target) * Mathf.Min(1f, dt * 13f);
             body.Turn = turn;
-            float reference = clip == "walk" ? 2.0f : clip == "walk_fire" ? 2.6f : clip == "run" ? 6.0f : clip == "crouch_walk" ? 1.6f : 0f;
+            float reference = clip == "walk" ? 2.0f : clip == "walk_fire" ? 2.6f : clip == "run" ? 6.0f : clip == "crouch_walk" ? 1.6f : clip == "jog" ? 2.46f : 0f;
             float rate = reference > 0 ? Mathf.Clamp((running && clip == "run" ? Mathf.Max(hs, reference) : hs) / reference, 0.6f, clip == "walk" || clip == "walk_fire" ? 2.6f : 1.6f) : 1f;
+            if (clip == "jog") rate = Mathf.Clamp(hs / reference, 0.8f, 2.0f);
             body.Rate = rate * (reverse ? -1f : 1f);
         }
 
