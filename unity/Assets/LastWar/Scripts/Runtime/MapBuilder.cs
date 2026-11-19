@@ -126,7 +126,7 @@ namespace LastWar
                         // (the beach photo carries the sand's colour: white = the photo as it is; grass tinted over it)
                         float above = y - SeaLevel;
                         Color land = Color.Lerp(grassA, grassB, n2) * 1.25f; land.a = 1f;
-                        c = above > 7.5f ? land : above > 3.5f ? Color.Lerp(Color.white, land, (above - 3.5f) / 4f) : above > 0f ? Color.white : Color.Lerp(new Color(.72f, .72f, .74f), new Color(.45f, .47f, .48f), Mathf.Clamp01(-above / 8f));
+                        c = above > 7.5f ? land : above > 3.5f ? Color.Lerp(Color.white, land, (above - 3.5f) / 4f) : above > 0f ? Color.white : Color.Lerp(new Color(.72f, .72f, .74f), new Color(.08f, .17f, .22f), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((-above - 1f) / 7f))); // (deeper: dark blue-green - the sea looks deep, not a grey lagoon)
                     }
                     else
                     {

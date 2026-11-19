@@ -522,8 +522,8 @@ namespace LastWar
                 Transform c = card.transform;
                 var pic = UiKit.Img(c, "gun", Resources.Load<Sprite>("UI/Items/gun_" + v.key) ?? UiKit.Get("gun_" + gun), new Vector2(0, .5f), new Vector2(10, 4) * k, new Vector2(165, 70) * k, Color.white); // its own real model, in colour
                 pic.rectTransform.pivot = new Vector2(0, .5f); pic.preserveAspect = true;
-                var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.real + (v.cost > 0 ? "  ·  " + v.name : "");
-                var pk = UiKit.Txt(c, new Vector2(0, 0), new Vector2(14, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerLeft, new Color(1, 1, 1, .7f)); pk.fontStyle = FontStyle.Normal; pk.text = v.perk;
+                var nm = UiKit.Txt(c, new Vector2(0, 1), new Vector2(14, -10) * k, new Vector2(300, 20) * k, 14 * k, TextAnchor.UpperLeft, on ? gold : Color.white); nm.text = v.real; nm.rectTransform.sizeDelta = new Vector2(165, 20) * k;
+                var pk = UiKit.Txt(c, new Vector2(0, 0), new Vector2(14, 10) * k, new Vector2(300, 16) * k, 10 * k, TextAnchor.LowerLeft, new Color(1, 1, 1, .7f)); pk.fontStyle = FontStyle.Normal; pk.text = (v.cost > 0 ? v.name + " · " : "") + v.perk; // (the upgrade's name with its perk, in the picture's column)
                 // the line stays in the picture's column (it ran under the bars), wrapping onto a second line if it must
                 pk.rectTransform.pivot = new Vector2(0, 0); pk.rectTransform.sizeDelta = new Vector2(160 * s, 28 * s); pk.horizontalOverflow = HorizontalWrapMode.Wrap;
                 // the numbers as bars

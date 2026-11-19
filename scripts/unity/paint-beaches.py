@@ -58,8 +58,9 @@ def height_colours(M, h):
 for mid in ['green', 'desert', 'valley', 'classic']:
     M = json.load(open(R + mid + '.json')); n = M['cells'] + 1; H = np.array(M['heights'], dtype=np.float64).reshape(n, n)
     size = M['size']; half = size / 2
-    if M.get('albedo'):
-        src = subprocess.run(['git', 'show', f'{FROM}:{R}{M["albedo"]}.jpg'], capture_output=True, check=True).stdout
+    # the unpainted picture as it was at FROM; a map that had none there (Valley) is coloured by height here
+    src = subprocess.run(['git', 'show', f'{FROM}:{R}{M["albedo"]}.jpg'], capture_output=True).stdout if M.get('albedo') else b''
+    if src:
         img = np.asarray(Image.open(io.BytesIO(src)).convert('RGB'), dtype=np.float32) / 255
         Wpx = img.shape[0]
     else:
@@ -73,10 +74,16 @@ for mid in ['green', 'desert', 'valley', 'classic']:
     sm = lambda a, b, v: (lambda t: t * t * (3 - 2 * t))(np.clip((v - a) / (b - a), 0, 1))
     # sand: from the coast line out, where the ground is within ~4 m of the water (fading out by 7 m above it); a little
     # sand also on low ground just inside the coast line, so the beach does not start on a hard circle
-    w = sm(coast - 10, coast + 4, r) * (1 - sm(3.5, 7.5, above))
+    # (past the coast line the high ground runs down too: from 6 m out all of it is sand - Highlands' photo had a grey
+    # fill there, beyond the scanned land)
+    w = sm(coast - 10, coast + 4, r) * (1 - sm(3.5, 7.5, above) * (1 - sm(coast - 2, coast + 6, r)))
     sand = sand_tile(Wpx / size, Wpx)
     wet = np.clip(-above / 4, 0, 1)[..., None]
     sand = sand * (1 - 0.32 * wet) * np.array([1, 1, 1.03]) ** wet
+    # deeper down the floor fades to a dark blue-green: seen through the water the sea turns deep blue a few metres
+    # out (pale sand under it read as a shallow grey lagoon all the way to the horizon)
+    deep = np.clip((-above - 1.5) / 7, 0, 1)[..., None]; deep = deep * deep * (3 - 2 * deep)
+    sand = sand * (1 - deep) + np.array([0.06, 0.13, 0.16]) * deep
     out = img * (1 - w[..., None]) + sand * w[..., None]
     name = M.get('albedo') or (mid + '_albedo')
     Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8)).save(R + name + '.jpg', quality=90)

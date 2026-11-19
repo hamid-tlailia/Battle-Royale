@@ -8,7 +8,7 @@ namespace LastWar
     public class GunState
     {
         public WeaponDef def; public int mag, reserve;
-        public GunState(string id) { def = Tuning.Weapon(id); mag = def.mag; reserve = def.startReserve; }
+        public GunState(string id) { def = Armory.DefFor(id, false) ?? Tuning.Weapon(id); mag = def.mag; reserve = def.startReserve; } // (standard numbers, its real name: AKM ...)
     }
 
     /// <summary>
