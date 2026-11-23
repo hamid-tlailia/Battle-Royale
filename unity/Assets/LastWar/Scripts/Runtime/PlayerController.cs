@@ -15,7 +15,7 @@ namespace LastWar
         public float yaw, pitch = -0.15f;
         public float lookSensitivity = 0.2f; // degrees per screen pixel
         /// <summary>the joystick also turns the view (degrees a second at full push to the side; ?joyturn=0 turns it off)</summary>
-        public static bool JoyTurn = true; public static float JoyTurnSpeed = 95f; float joyHold;
+        public static bool JoyTurn = false; public static float JoyTurnSpeed = 95f; float joyHold; // (off: the stick only moves him; ?joyturn=1 to try it)
         public Fighter fighter;
         public SoldierBody body;
 
@@ -167,6 +167,8 @@ namespace LastWar
             body.SetBag(fighter.bagLv);
 
             bool onGround = cc.isGrounded || NearGround();
+            // standing still (for the controls: a screen drag then circles the camera round him instead of turning him)
+            input.Standing = onGround && input.Move.sqrMagnitude < 0.0025f && !input.Sprint && !Scoped && !input.FireHeld && !input.FrostAim && !input.Prone;
             input.InAir = !onGround;
             bool moving = flat.sqrMagnitude > 1f;
             bool fired = false;
@@ -681,7 +683,15 @@ namespace LastWar
             // free look (eye button): the camera circles the soldier by its own offset; the aim keeps using `aimView`
             // (where the camera would be without it), so the crosshair's shots still go where the soldier looks
             float fs = lookSensitivity * Profile.Sensitivity;
-            if (input.FreeLook && !Scoped) { freeYaw = Mathf.Repeat(freeYaw + input.FreeLookDelta.x * fs + 180f, 360f) - 180f; freePitch = Mathf.Clamp(freePitch + input.FreeLookDelta.y * fs, -55f, 60f); }
+            if (input.FreeLook && !Scoped) { freeYaw = Mathf.Repeat(freeYaw + input.FreeLookDelta.x * fs + 180f, 360f) - 180f; freePitch = Mathf.Clamp(freePitch + input.FreeLookDelta.y * fs, -55f, 60f); if (input.StandOrbit) standOrbited = true; }
+            // circled round while standing: the camera stays where it was left; the moment he moves, shoots or aims he turns
+            // to face where it looks (it does not swing back behind him)
+            else if (standOrbited && input.Standing && !Scoped) { }
+            else if (standOrbited)
+            {
+                yaw += freeYaw; pitch = Mathf.Clamp(pitch + freePitch * Mathf.Deg2Rad, -1.2f, 1.2f);
+                freeYaw = freePitch = 0f; standOrbited = false;
+            }
             else { freeYaw = Mathf.LerpAngle(freeYaw, 0f, Time.deltaTime * 9f); freePitch = Mathf.Lerp(freePitch, 0f, Time.deltaTime * 9f); if (Mathf.Abs(freeYaw) < 0.2f && Mathf.Abs(freePitch) < 0.2f) freeYaw = freePitch = 0f; }
             if (Scoped) freeYaw = freePitch = 0f; // (through the optic the view is the aim)
             bool free = freeYaw != 0f || freePitch != 0f;
@@ -715,7 +725,7 @@ namespace LastWar
                 aimViewPos = pivot + ab; aimViewRot = aimLook;
             }
         }
-        float freeYaw, freePitch; bool freeLooking; Vector3 aimViewPos; Quaternion aimViewRot;
+        float freeYaw, freePitch; bool freeLooking, standOrbited; Vector3 aimViewPos; Quaternion aimViewRot;
         public bool FreeLooking => freeLooking;
     }
 }

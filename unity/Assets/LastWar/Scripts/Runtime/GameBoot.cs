@@ -52,7 +52,7 @@ namespace LastWar
             if ((Application.absoluteURL ?? "").Contains("jog=0")) SoldierBody.UseJog = false;
             if ((Application.absoluteURL ?? "").Contains("hrun=0")) SoldierBody.UseHumanRun = false;
             if ((Application.absoluteURL ?? "").Contains("pronegun=0")) SoldierBody.UseProneGunClear = false;
-            if ((Application.absoluteURL ?? "").Contains("joyturn=0")) PlayerController.JoyTurn = false;
+            if ((Application.absoluteURL ?? "").Contains("joyturn=1")) PlayerController.JoyTurn = true;
             if ((Application.absoluteURL ?? "").Contains("lobbygun=")) { string u = Application.absoluteURL; int gi = u.IndexOf("lobbygun=") + 9; int ge = u.IndexOf('&', gi); Armory.LobbyGun = ge < 0 ? u.Substring(gi) : u.Substring(gi, ge - gi); }
             if ((Application.absoluteURL ?? "").Contains("island=0")) MapBuilder.UseIsland = false;
             if ((Application.absoluteURL ?? "").Contains("fcrawl=0")) SoldierBody.UseFreeCrawl = false;

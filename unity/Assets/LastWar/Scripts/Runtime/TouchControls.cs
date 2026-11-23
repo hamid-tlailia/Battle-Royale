@@ -19,6 +19,9 @@ namespace LastWar
         /// <summary>free look (the eye button held and dragged, or V on a keyboard): the camera circles the soldier
         /// 360 deg without turning the soldier or moving the aim; let go and it swings back behind</summary>
         public bool FreeLook; public Vector2 FreeLookDelta;
+        /// <summary>set by the player each frame: standing still (no stick, on the ground, not shooting / scoped / aiming the
+        /// ice) - a screen drag then circles the camera instead of turning him. StandOrbit: this frame's drag did that.</summary>
+        public bool Standing, StandOrbit;
         public bool Sprint;         // auto-run toggle
         public bool JumpPressed;    // true for one frame
         public bool FireHeld;       // finger / mouse on FIRE
@@ -217,7 +220,7 @@ namespace LastWar
 
         void Update()
         {
-            LookDelta = Vector2.zero; FreeLookDelta = Vector2.zero;
+            LookDelta = Vector2.zero; FreeLookDelta = Vector2.zero; StandOrbit = false;
             foreach (Btn b in btns) { bool show = Shown(b); if (b.rt.gameObject.activeSelf != show) b.rt.gameObject.SetActive(show); }
             bool gearOn = Editing || Preview || (!ScopedUi && airMode <= 0 && !Spectating);
             if (gearRt.gameObject.activeSelf != gearOn) gearRt.gameObject.SetActive(gearOn); // no settings in the plane / during the drop / watching
@@ -299,6 +302,9 @@ namespace LastWar
                 else if (t.fingerId == lookFinger)
                 {
                     if (FreeLookLatched && fireFinger != t.fingerId) FreeLookDelta += t.position - lookLast; // (latched free look: the drag circles the camera)
+                    // standing still: a drag on the screen circles the camera round the soldier (see him and all around
+                    // from every side) - he does not turn; once he moves, shoots or aims he turns to where the camera looks
+                    else if (Standing && !ScopedUi && !Spectating && !Minimap.BigOpen) { FreeLookDelta += t.position - lookLast; FreeLook = true; StandOrbit = true; }
                     else if (!Minimap.BigOpen) LookDelta += t.position - lookLast;
                     lookLast = t.position;
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) lookFinger = -1;
