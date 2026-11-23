@@ -28,10 +28,10 @@ namespace LastWar
         /// come from another outfit of the same body</summary>
         public static readonly string[] OutfitFiles = { "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer", "tactical",
             "qm_ranger", "qm_peasant", "qf_ranger", "qf_peasant",
-            "mx_striker", "mx_cyber", "mx_recon" }; // (Sketchfab, 1799danly, CC-BY: Mixamo-rigged, worn whole)
+            "mx_cyber", "mx_recon" }; // (Sketchfab, 1799danly, CC-BY: Mixamo-rigged, worn whole; Striker dropped: its gloves, sleeves and skeleton were bound in three different poses)
         public static readonly string[] OutfitNames = { "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer", "Agent",
             "Ranger", "Villager", "Huntress", "Wanderer",
-            "Striker", "Cyber", "Recon" };
+            "Cyber", "Recon" };
 
         /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
         /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);
