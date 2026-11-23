@@ -50,7 +50,7 @@ Hit markers, kill confirm, zone and ice-wall sounds are synthesised in code (ori
 | Pine trees pack / Oak trees pack / Lilac bush pack | realistic trees and bushes (near model + billboard) | LOLIPOP | CC-BY 4.0 | https://sketchfab.com/lolipop |
 | Old wooden house (enterable), Abandoned shop | houses | YadroGames | CC-BY 4.0 | https://sketchfab.com/YadroGames |
 | Abandoned Farm House (scan) | house | Frank McMains | CC-BY 4.0 | https://sketchfab.com/3d-models/a7e2881bd0e143a6aa768c75eae6aae8 |
-| Red Canyon Landscape (scan) | Red Canyon map: terrain, aerial photo, cliffs | Šimon Ustal | CC-BY 4.0 | https://sketchfab.com/3d-models/6c483f7e87d541e5a1fb17bc2154a0be |
+| Red Canyon Landscape (scan) | Red Canyon map (web game): terrain, aerial photo, cliffs | Šimon Ustal | CC-BY 4.0 | https://sketchfab.com/3d-models/6c483f7e87d541e5a1fb17bc2154a0be |
 | Old Ammo Crate | ammo on the ground | SuperMopsek | CC-BY 4.0 | https://sketchfab.com/3d-models/6a834e917e4f4194a29e9f66e6915d8a |
 | Combat Vest | armor on the ground | csheffield | CC-BY 4.0 | https://sketchfab.com/3d-models/ce92c014efd140deb6e918b3c59bf539 |
 | Tactical FIRST AID KIT | medkit on the ground | Ruslan Koschey | CC-BY 4.0 | https://sketchfab.com/3d-models/011c33c121284bc88bb765a85511dae1 |
@@ -70,6 +70,7 @@ Game code, map generation, terrain and UI are original work.
 Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running footsteps on dirt / grass) and `victory_light.wav` (victory tune) are synthesized for this project (original, no third-party audio). The app icon and logo emblem (winged skull) are original artwork made for this project.
 
 | Death Valley - Terrain | Death Valley map: terrain heights and ground colours (baked by `scripts/unity/bake-deathvalley.py`) | artfromheath | CC Attribution 4.0 | https://sketchfab.com/3d-models/9f57bca156e14cff9e4e316a9ccc3e0d |
+| Photogrammetry - 3D scan nature landscape | Oakwood map (replaces Red Canyon in the Unity game): terrain heights (the ground under the trees rebuilt), ground colours, where the trees stand (baked by `scripts/unity/bake-forest.py`) | [Laslo.S](https://sketchfab.com/Laslo.S) | CC Attribution 4.0 | https://sketchfab.com/3d-models/e0050374e75347929017942fe761670f |
 | Universal Animation Library (Standard) | sprint, jog, walk, crouch-walk and idle animations, retargeted onto the soldier (`scripts/unity/retarget-ual.mjs`) | Quaternius | CC0 1.0 | https://quaternius.itch.io/universal-animation-library |
 
 | Low-Poly AKM | gun model `gun_rifle` | TastyTony | CC Attribution | https://sketchfab.com/3d-models/849b7cdf8622487485febc40db89e734 |

@@ -175,7 +175,7 @@ namespace LastWar
             var sprites = new Dictionary<string, string> {
                 { "logo", "Lobby/logo" }, { "banner", "Lobby/banner" }, { "chip0", "Lobby/chip" }, { "chip1", "Lobby/chip" }, { "gear", "Lobby/gear" },
                 { "tab0", "Lobby/tab_on" }, { "tab1", "Lobby/tab" }, { "tab2", "Lobby/tab" }, { "tab3", "Lobby/tab" }, { "tab4", "Lobby/tab" }, { "tab4_icon", "icon_armory" },
-                { "mapcard", "Lobby/mapcard_" + (Profile.Map == "desert" || Profile.Map == "classic" || Profile.Map == "valley" ? Profile.Map : "green") }, { "season", "Lobby/season" }, { "tip", "Lobby/tip" },
+                { "mapcard", "Lobby/mapcard_" + (Profile.Map == "forest" || Profile.Map == "classic" || Profile.Map == "valley" ? Profile.Map : "green") }, { "season", "Lobby/season" }, { "tip", "Lobby/tip" },
                 { "modes", "Lobby/modes" }, { "play", "Lobby/play" },
                 { "rank", "icon_rank" }, { "chip0_icon", "icon_trophy" }, { "chip1_icon", "icon_fire" }, { "gear_icon", "icon_settings" },
                 { "tab0_icon", "icon_home" }, { "tab1_icon", "icon_outfit" }, { "tab2_icon", "icon_map" }, { "tab3_icon", "icon_friends" },
@@ -491,8 +491,8 @@ namespace LastWar
         void MapSheet()
         {
             var content = ScrollArea();
-            string[] ids = { "valley", "green", "desert", "classic" }; string[] names = { "Death Valley", "Highlands", "Red Canyon", "Valley" };
-            string[] desc = { "BIG · real desert scan · 2 villages, a desert town, a city", "Real moorland scan · farm village", "Real desert scan · rock butte", "Pine valley · 25 houses" };
+            string[] ids = { "valley", "green", "forest", "classic" }; string[] names = { "Death Valley", "Highlands", "Oakwood", "Valley" };
+            string[] desc = { "BIG · real desert scan · 2 villages, a desert town, a city", "Real moorland scan · farm village", "Real forest scan · woods, river, farms", "Pine valley · 25 houses" };
             float w = ColW, h = 96 * s;
             // first: the next map is picked by itself after every match, or the one you choose stays
             var lbl = UiKit.Txt(content, new Vector2(.5f, 1), Vector2.zero, Vector2.one, 12 * k, TextAnchor.UpperLeft, new Color(.87f, .9f, .91f));
@@ -675,7 +675,7 @@ namespace LastWar
         }
 
         // ------------------------------------------------------------------ PLAY + turning the soldier
-        public static string MapName(string id) => id == "desert" ? "Red Canyon" : id == "classic" ? "Valley" : id == "valley" ? "Death Valley" : "Highlands";
+        public static string MapName(string id) => id == "forest" ? "Oakwood" : id == "classic" ? "Valley" : id == "valley" ? "Death Valley" : "Highlands";
 
         // ------------------------------------------------------------------ PLAY: a short matchmaking wait (cancellable)
         Coroutine matching; RectTransform spinner, spinArc; Text spinText; float matchStart;

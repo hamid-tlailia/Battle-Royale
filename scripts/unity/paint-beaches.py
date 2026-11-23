@@ -8,6 +8,8 @@ water line; inland stays as it was. Valley (no picture: coloured by height in th
 way (its height colours + the beaches) and the map points at it.
 
     python3 scripts/unity/paint-beaches.py <aerial_beach_01_diff_1k.jpg> [--from=<git commit with the unpainted pictures>]
+        [--only=<map id>] [--raw=<the unpainted picture as a file, instead of from git>]
+    (Oakwood: python3 scripts/unity/paint-beaches.py <sand.jpg> --only=forest --raw=<bake-forest.py's raw picture>)
 """
 import json, math, subprocess, sys, io
 import numpy as np
@@ -16,6 +18,8 @@ from PIL import Image
 R = 'unity/Assets/LastWar/Resources/Maps/'
 SAND = Image.open(sys.argv[1]).convert('RGB')
 FROM = next((a[7:] for a in sys.argv if a.startswith('--from=')), '8249f3d')
+ONLY = next((a[7:] for a in sys.argv if a.startswith('--only=')), None)
+RAWF = next((a[6:] for a in sys.argv if a.startswith('--raw=')), None)
 GOLD = np.array([0.86, 0.78, 0.60])
 
 def coast_params(M, H):
@@ -55,11 +59,11 @@ def height_colours(M, h):
     col = np.where((h > 18)[..., None], lerp((0.45, 0.47, 0.42), (0.6, 0.6, 0.56), il(18, 40, h)), lerp((0.24, 0.42, 0.18), (0.42, 0.5, 0.26), il(-5, 18, h)))
     return np.where((h > M['snowHeight'])[..., None], np.array([0.9, 0.92, 0.94]), col)
 
-for mid in ['green', 'desert', 'valley', 'classic']:
+for mid in [ONLY] if ONLY else ['green', 'valley', 'classic']:  # (forest: only with --raw, its picture is not in git unpainted)
     M = json.load(open(R + mid + '.json')); n = M['cells'] + 1; H = np.array(M['heights'], dtype=np.float64).reshape(n, n)
     size = M['size']; half = size / 2
     # the unpainted picture as it was at FROM; a map that had none there (Valley) is coloured by height here
-    src = subprocess.run(['git', 'show', f'{FROM}:{R}{M["albedo"]}.jpg'], capture_output=True).stdout if M.get('albedo') else b''
+    src = open(RAWF, 'rb').read() if RAWF else subprocess.run(['git', 'show', f'{FROM}:{R}{M["albedo"]}.jpg'], capture_output=True).stdout if M.get('albedo') else b''
     if src:
         img = np.asarray(Image.open(io.BytesIO(src)).convert('RGB'), dtype=np.float32) / 255
         Wpx = img.shape[0]
