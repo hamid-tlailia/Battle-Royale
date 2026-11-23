@@ -1172,7 +1172,10 @@ namespace LastWar
             // moment it is first worn
             if (bagBack < 0f) bagBack = restBackSet ? restBack : MeasureBack(spine, up, back, top, bh, bagNative.size.x * bagFit);
             bagDepth = bd;
-            float torsoBack = bagBack + 0.01f;
+            // the player's own soldier and the lobby's: the back re-read from the mesh as it is now, five times a second -
+            // stooping, slouching or leaning the back is not where it was standing straight (the empty-handed idle's back
+            // is rounded: the pack stood off it), so the pack and the guns on it stay against it in every pose
+            float torsoBack = (LiveBack && liveBackSet ? liveBack : bagBack) + 0.01f;
             Vector3 centreOff = bagNative.center * bagFit;                                           // (the model's own centre)
             // straps against the back, pockets out: the Lv1 / Lv3 models face the other way from Lv2 (their straps showed outside)
             bagLook.rotation = bodyRot * Quaternion.Euler(0, bagLvShown == 2 ? 180f : 0f, 0);
@@ -1206,6 +1209,7 @@ namespace LastWar
 
         void PlaceBack()
         {
+            ReadBackNow();
             PlaceBag();
             if (backGuns.Count == 0) return;
             Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
@@ -1216,7 +1220,8 @@ namespace LastWar
                 float side = i == 0 ? 1f : -1f;
                 // diagonal across the back, the two crossed, flat against the body
                 // against the back (its measured depth) - or just behind the backpack when there is one
-                float behind = restBackSet ? (bagLook != null ? restBack + 0.01f + bagDepth + 0.03f : restBack + 0.04f) : 0.17f + (bagLook != null ? 0.17f : 0f);
+                float rb = LiveBack && liveBackSet ? liveBack : restBack;
+                float behind = restBackSet ? (bagLook != null ? rb + 0.01f + bagDepth + 0.03f : rb + 0.04f) : 0.17f + (bagLook != null ? 0.17f : 0f);
                 backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(behind + i * 0.05f));
                 Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
                 backGuns[i].rotation = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
@@ -1600,6 +1605,23 @@ namespace LastWar
         public static bool GunDebug; float nextGunLog; // ?gundbg=1
         /// <summary>where the grip sits relative to the usual shoulder-aim spot (body space); the lobby moves it down to the waist</summary>
         public Vector3 GripOffset;
+        /// <summary>the back re-read from the mesh as it is now (the player's and the lobby's soldier: see PlaceBag)</summary>
+        public bool LiveBack; float liveBack, nextBackRead; bool liveBackSet;
+        /// <summary>the player's own soldier and the lobby's: how far the back stands out behind the chest bone, re-read from
+        /// the mesh as it is now, five times a second (as the rest measure: under the neck, 71 % of the torso down, 85 % of
+        /// the shoulders across). Stooping or slouching the back is not where it was standing straight - the empty-handed
+        /// idle's back is rounded and the pack and the guns stood off it - so they stay against it in every pose.</summary>
+        void ReadBackNow()
+        {
+            if (!LiveBack || !visible || outfitRoot == null || Time.time < nextBackRead) return;
+            nextBackRead = Time.time + 0.2f;
+            Transform sp = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine"), hp = PoseBone("Hips"), nk = PoseBone("Neck"), sl = PoseBone("LeftArm"), sr = PoseBone("RightArm");
+            if (sp == null || nk == null) return;
+            Quaternion rot = ChestRot(sp); Vector3 up = rot * Vector3.up, bk = rot * Vector3.back;
+            float torso = hp != null ? (nk.position - hp.position).magnitude : 0.5f, shoulders = sl != null && sr != null ? (sl.position - sr.position).magnitude : 0.35f;
+            float m = MeasureBack(sp, up, bk, nk.position - up * 0.07f, torso * 0.71f, shoulders * 0.85f);
+            liveBack = liveBackSet ? Mathf.Lerp(liveBack, m, 0.6f) : m; liveBackSet = true;
+        }
         static readonly string[] FingerNames = { "Index", "Middle", "Ring", "Pinky" };
         Dictionary<Transform, Quaternion> fingerRest;
 

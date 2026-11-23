@@ -131,6 +131,10 @@ namespace LastWar
             if (lobbyBody == null) return;
             bool pistol = Armory.GunOf(key) == "pistol";
             lobbyBody.SetGun(key); lobbyBody.Armed = true; lobbyBody.ShoulderGrip = pistol;
+            // (the lobby's grip offset places a rifle held down across the body: with a pistol it pulled the hands 45 cm
+            // down, the pistol held low against the chest)
+            lobbyBody.GripOffset = pistol ? Vector3.zero : LobbyGrip;
+            lobbyBody.LiveBack = true;
             if (pistol) { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle"); }
             else lobbyBody.Play(lobbyBody.HasClip("mx_lobby") ? "mx_lobby" : "idle_rifle"); // standing: rifle down, now and then up at a target
         }

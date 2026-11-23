@@ -51,7 +51,7 @@ namespace LastWar
             string url = Application.absoluteURL ?? "";
             if (url.Contains("armed=1") || url.Contains("sniper=1") || url.Contains("nodrop=1")) pc.fighter.GiveStartingGuns("rifle", "shotgun");
             else pc.fighter.holstered = true;
-            pc.body = SoldierBody.Attach(go, Profile.Skin, Profile.Parts);
+            pc.body = SoldierBody.Attach(go, Profile.Skin, Profile.Parts); pc.body.LiveBack = true; // (your own soldier: the pack stays against the back in every pose)
             if (url.Contains("gunshow=1")) pc.StartCoroutine(pc.GunShow());
             return pc;
         }

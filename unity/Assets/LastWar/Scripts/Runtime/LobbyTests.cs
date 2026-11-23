@@ -282,7 +282,7 @@ namespace LastWar
                     go.transform.position = origin + new Vector3((c - (nc - 1) / 2f) * dx, -r * dy, 0);
                     go.transform.rotation = Quaternion.Euler(0, GridYaw, 0);
                     var body = SoldierBody.Attach(go, c);
-                    body.SetGun(gl[r]); body.Armed = true; body.Speed = GridSpeed; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
+                    body.SetGun(gl[r]); body.Armed = true; body.LiveBack = true; body.Speed = GridSpeed; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
                     if (GridSpeed > 0.25f && clip == "prone") body.Pose = "crawl"; // (?wspeed=1&wclip=prone: crawling)
                     body.AimDir = go.transform.forward;
                     if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
