@@ -239,6 +239,7 @@ namespace LastWar
             { float m = SoleY(); if (m != float.MaxValue) restSole = m - transform.position.y; }
             // the chest's turn in the rest pose (upright, facing ahead): the back gear follows the chest from it
             { Transform sp = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine"); if (sp != null) { chestRestOff = Quaternion.Inverse(sp.rotation) * transform.rotation; chestRestSet = true; } }
+            { Quaternion? cf = ChestFrame(); if (cf.HasValue) { chestFrameOff = Quaternion.Inverse(cf.Value) * transform.rotation; chestFrameSet = true; } }
             // how far the wearer's back stands out behind the chest bone, from the outfit's own mesh in its upright rest pose
             // (measured once here: measured when a pack was first worn, a crouch / run / pick-up pose could leave the pack -
             // and the guns behind it - floating off the back for good, seen from the side)
@@ -662,7 +663,7 @@ namespace LastWar
         // Walking, running, jumping, crouching, lying: untouched. Arms, hands and gun: not touched here (the gun hold runs
         // after this, on the body as it now stands). ?heel=0 turns it off for comparison.
         public static bool UseHeelLevel = true;
-        static readonly HashSet<string> StandClips = new HashSet<string> { "mx_lobby", "mx_lobby_idle", "mx_lobby_aim", "mx_idle", "mx_aim", "mx_fire", "mx_reload", "idle", "idle_rifle", "fire" };
+        static readonly HashSet<string> StandClips = new HashSet<string> { "mx_lobby", "mx_lobby_idle", "mx_lobby_aim", "mx_idle", "mx_aim", "mx_fire", "mx_reload", "idle", "idle_rifle", "fire", "p_idle" };
         Transform soleFor; float soleWait; int soleFrames; bool soleOk; float heelW;
         readonly Vector3[] soleHeel = new Vector3[2], soleBall = new Vector3[2];
         readonly Transform[] soleFoot = new Transform[2];
@@ -1174,10 +1175,26 @@ namespace LastWar
         }
 
         Quaternion chestRestOff = Quaternion.identity; bool chestRestSet;
+        Quaternion chestFrameOff = Quaternion.identity; bool chestFrameSet;
+        public static bool UseChestFrame = true;
+        Quaternion? ChestFrame()
+        {
+            Transform lo = PoseBone("Spine1") ?? PoseBone("Spine") ?? PoseBone("Hips"), nk = PoseBone("Neck"), la = PoseBone("LeftArm"), ra = PoseBone("RightArm");
+            if (lo == null || nk == null || la == null || ra == null) return null;
+            Vector3 up = nk.position - lo.position, side = ra.position - la.position;
+            if (up.sqrMagnitude < 1e-6f || side.sqrMagnitude < 1e-6f) return null;
+            Vector3 fwd = Vector3.Cross(side, up);
+            if (fwd.sqrMagnitude < 1e-8f) return null;
+            return Quaternion.LookRotation(fwd, up);
+        }
         /// <summary>the chest's facing now (up = along the spine, forward = out of the chest), from the chest bone's turn
         /// since the rest pose - so the backpack and the guns on the back sit on the back however the chest is turned</summary>
         Quaternion ChestRot(Transform spine)
         {
+            // from where the bones are, not how the chest bone is turned: a clip may twist that bone about its own length
+            // without the body moving (the empty-handed idle did, and the pack and the guns on the back swung off behind
+            // the shoulder). Up = lower spine to neck, across = shoulder to shoulder. (?chestbone=1: the bone's turn)
+            if (UseChestFrame && chestFrameSet) { Quaternion? cf = ChestFrame(); if (cf.HasValue) return cf.Value * chestFrameOff; }
             if (!chestRestSet) { if (!bagOffsetSet) { bagOffsetSet = true; bagSpineOffset = Quaternion.Inverse(spine.rotation) * transform.rotation; } return spine.rotation * bagSpineOffset; }
             return spine.rotation * chestRestOff;
         }

@@ -115,12 +115,24 @@ namespace LastWar
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
-            lobbyBody.SetGun(Armory.LobbyGun); lobbyBody.ShoulderGrip = false; lobbyBody.Plant = true;
+            lobbyBody.Plant = true;
             lobbyBody.GripOffset = LobbyGrip; // (the armory version you carry)
-            lobbyBody.Play(lobbyBody.HasClip("mx_lobby") ? "mx_lobby" : "idle_rifle"); // standing: rifle down, now and then up at a target
+            LobbyGunPose(Armory.LobbyGun);
             // test switch: ?pose=prone (or death, run, crouch_idle...) in the WebGL URL
             string url = Application.absoluteURL ?? ""; int pq = url.IndexOf("pose=");
             if (pq >= 0) { string clip = url.Substring(pq + 5); int amp = clip.IndexOf('&'); if (amp >= 0) clip = clip.Substring(0, amp); lobbyBody.Play(clip); }
+        }
+
+        /// <summary>the gun shown in the lobby and the stance for it: a long gun - the rifle stand, down and now and then up at
+        /// a target; a pistol - Mixamo's pistol stand, held up in both hands as in a match (the rifle stand with a pistol
+        /// in it crossed the arms in front of the face)</summary>
+        void LobbyGunPose(string key)
+        {
+            if (lobbyBody == null) return;
+            bool pistol = Armory.GunOf(key) == "pistol";
+            lobbyBody.SetGun(key); lobbyBody.Armed = true; lobbyBody.ShoulderGrip = pistol;
+            if (pistol) { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle"); }
+            else lobbyBody.Play(lobbyBody.HasClip("mx_lobby") ? "mx_lobby" : "idle_rifle"); // standing: rifle down, now and then up at a target
         }
 
         // ------------------------------------------------------------------ UI from the captured web layout
@@ -405,6 +417,14 @@ namespace LastWar
                     pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
                     pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw, ch - 22 * s);
                 }
+                else if (Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i] + "_" + SoldierBody.PartNames[part]) is Sprite ps)
+                {
+                    // that piece alone, its own sharp picture (UI/Outfits/<outfit>_<piece>.png: only the hood / shirt /
+                    // trousers / boots, nothing of the rest of the outfit)
+                    var pic = UiKit.Img(card.rectTransform, "pic", ps, new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
+                    pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
+                    pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw - 6 * s, ch - 24 * s);
+                }
                 else if (sp != null)
                 {
                     // only that piece of the outfit's picture, enlarged (head / chest / legs / boots band)
@@ -448,6 +468,11 @@ namespace LastWar
         {
             float u = cw / 96f; // card picture units (the card is 96 css px wide)
             Vector2 c = new Vector2(-15.5f * u, -14.5f * u);
+            // its own gold disc under the tick, over the picture: the card's printed badge hid behind a piece's picture
+            // (the tick looked different from card to card, some half covered)
+            var disc = UiKit.Img(card, "badge", UiKit.Disc, new Vector2(1, 1), c, new Vector2(17f * u, 17f * u), new Color(1f, .83f, .3f));
+            disc.rectTransform.pivot = new Vector2(.5f, .5f); disc.rectTransform.anchoredPosition = c;
+            disc.gameObject.AddComponent<Outline>().effectColor = new Color(27 / 255f, 20 / 255f, 4 / 255f, .5f);
             void Bar(Vector2 from, Vector2 to)
             {
                 var b = UiKit.Img(card, "tick", null, new Vector2(1, 1), Vector2.zero, Vector2.one, new Color(27 / 255f, 20 / 255f, 4 / 255f));
@@ -558,7 +583,7 @@ namespace LastWar
                 if (!owned) Btn(20 * s, $"BUY  {v.cost}", Armory.Coins >= v.cost, true, () => { if (Armory.Buy(vv)) Armory.SetEquipped(vv, true); });
                 else if (v.cost > 0) Btn(20 * s, on ? "EQUIPPED" : "EQUIP", true, on, () => Armory.SetEquipped(vv, !Armory.IsEquipped(vv)));
                 else Btn(20 * s, "STANDARD", false, false, () => { });
-                Btn(-20 * s, shown ? "IN LOBBY" : "SHOW IN LOBBY", owned && !shown, shown, () => { Armory.LobbyGun = vv.key; if (lobbyBody != null) lobbyBody.SetGun(vv.key); });
+                Btn(-20 * s, shown ? "IN LOBBY" : "SHOW IN LOBBY", owned && !shown, shown, () => { Armory.LobbyGun = vv.key; LobbyGunPose(vv.key); });
                 y += cardH + 10 * s;
             }
             var note = UiKit.Txt(content, new Vector2(0, 1), new Vector2(0, -y / UiKit.K), new Vector2(w / UiKit.K, 20 * s / UiKit.K), 10 * k, TextAnchor.UpperLeft, new Color(1, 1, 1, .6f));
@@ -720,6 +745,7 @@ namespace LastWar
         void Update()
         {
             if (spinArc != null) spinArc.localEulerAngles = new Vector3(0, 0, -Time.unscaledTime * 300f);
+            if (lobbyBody != null && soldier != null && lobbyBody.ShoulderGrip) lobbyBody.AimDir = soldier.transform.forward; // (the pistol points where he faces as he is turned)
             // (a sheet or the button editor is open: their drags belong to them, the soldier stays put)
             if (sheet != null || soldier == null || !canvas.enabled) { dragFinger = -1; mouseDrag = false; return; }
             // drag anywhere off the buttons to turn the soldier

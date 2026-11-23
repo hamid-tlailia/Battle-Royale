@@ -13,6 +13,8 @@ namespace LastWar
     public class TouchControls : MonoBehaviour
     {
         public Vector2 Move;        // x = right, y = forward (-1..1)
+        /// <summary>a finger (or the mouse) is turning the view right now</summary>
+        public bool Looking => lookFinger >= 0 || Input.GetMouseButton(1);
         public Vector2 LookDelta;   // pixels this frame
         /// <summary>free look (the eye button held and dragged, or V on a keyboard): the camera circles the soldier
         /// 360 deg without turning the soldier or moving the aim; let go and it swings back behind</summary>

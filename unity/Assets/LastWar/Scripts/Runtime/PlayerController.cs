@@ -15,7 +15,7 @@ namespace LastWar
         public float yaw, pitch = -0.15f;
         public float lookSensitivity = 0.2f; // degrees per screen pixel
         /// <summary>the joystick also turns the view (degrees a second at full push to the side; ?joyturn=0 turns it off)</summary>
-        public static bool JoyTurn = true; public static float JoyTurnSpeed = 95f;
+        public static bool JoyTurn = true; public static float JoyTurnSpeed = 95f; float joyHold;
         public Fighter fighter;
         public SoldierBody body;
 
@@ -90,7 +90,9 @@ namespace LastWar
             // shooting, scoped, aiming the ice wall or held on a target
             {
                 Vector2 jm = input.Move; float jl = jm.magnitude;
-                if (JoyTurn && jl > 0.5f && !Scoped && !input.FireHeld && !input.FrostAim && lockTarget == null && !input.FreeLook)
+                // (never against the hand turning the view: while a finger drags the view, and half a second after)
+                if (input.Looking) joyHold = Time.time + 0.5f;
+                if (JoyTurn && jl > 0.5f && !Scoped && !input.FireHeld && !input.FrostAim && lockTarget == null && !input.FreeLook && Time.time >= joyHold)
                 {
                     float ja = Mathf.Atan2(jm.x, jm.y) * Mathf.Rad2Deg, aa = Mathf.Abs(ja);
                     if (aa > 15f && aa < 165f) yaw += Mathf.Sign(ja) * Mathf.Sin(Mathf.Clamp(aa, 15f, 165f) * Mathf.Deg2Rad) * JoyTurnSpeed * Mathf.InverseLerp(0.5f, 1f, jl) * dt;
@@ -376,6 +378,28 @@ namespace LastWar
             return best;
         }
 
+        /// <summary>the living enemy whose body the crosshair passes nearest (within 1.5 m of it or 7 degrees), up to
+        /// `range` m, in sight</summary>
+        Fighter NearAim(float range)
+        {
+            if (GameBoot.Instance == null || cam == null) return null;
+            Vector3 c0 = cam.transform.position, fw = cam.transform.forward;
+            Fighter best = null; float bm = float.MaxValue;
+            foreach (Fighter q in GameBoot.Instance.Fighters)
+            {
+                if (q == fighter || !q.Alive || q.air != 0) continue;
+                Vector3 lo = q.transform.position + Vector3.up * 0.2f, hi = q.transform.position + Vector3.up * 1.9f;
+                float dist = Vector3.Distance(c0, (lo + hi) * 0.5f);
+                if (dist > range || Vector3.Dot((lo + hi) * 0.5f - c0, fw) <= 0f) continue;
+                float miss = AimMiss(c0, fw, lo, hi, out _);
+                if (miss > Mathf.Max(1.5f, dist * Mathf.Tan(7f * Mathf.Deg2Rad))) continue;
+                float score = miss / Mathf.Max(1f, dist); // (nearest to the crosshair as seen)
+                if (score >= bm || !Los(c0, q.transform.position + Vector3.up * 1.05f, q)) continue;
+                bm = score; best = q;
+            }
+            return best;
+        }
+
         /// <summary>how far (m) the aim line from `c` along `fw` passes from the segment lo..hi, and the segment's nearest point</summary>
         static float AimMiss(Vector3 c, Vector3 fw, Vector3 lo, Vector3 hi, out Vector3 nearest)
         {
@@ -422,15 +446,17 @@ namespace LastWar
             if (sniperScope) { scopeLock = null; scopeSpent = false; scopeWasOpen = true; lockTarget = null; return; }
             if (scopedNow && !scopeWasOpen)
             {
-                // (and an enemy up to 30 m ahead - within 35 degrees of the view: the scope opens straight onto his body)
-                scopeLock = Nearest(8.2f, 360f) ?? Nearest(30f, 35f); scopeSpent = false;
+                // the scope opens onto the enemy whose body is nearest the crosshair - however far, as long as he is in
+                // sight and the crosshair is near him (within 1.5 m of his body or 7 degrees). Never one beside or behind
+                // you: nothing turns you toward an enemy you are not already aiming near.
+                scopeLock = NearAim(fighter.Gun != null ? fighter.Gun.def.range : 250f); scopeSpent = false;
             }
             if (!scopedNow) { scopeLock = null; scopeSpent = false; }
             scopeWasOpen = scopedNow;
             if (scopedNow && scopeLock != null)
             {
                 Vector3 tp = scopeLock.transform.position + Vector3.up * 1.05f;
-                if (!scopeLock.Alive || (scopeLock.transform.position - transform.position).magnitude > 30f || !Los(cam.transform.position, tp, scopeLock))
+                if (!scopeLock.Alive || !Los(cam.transform.position, tp, scopeLock))
                 { scopeLock = null; scopeSpent = true; lockTarget = null; }
                 else
                 {
@@ -441,7 +467,9 @@ namespace LastWar
                     return;
                 }
             }
-            if (scopedNow && scopeSpent) { lockTarget = null; return; } // the lock was lost: free aim until the scope is reopened
+            // nothing else ever turns the soldier: no lock from the hip, no sticky aim, no pull toward an enemy (it turned
+            // you round with a bot that came close, and fought the hand on the screen) - only the scope's own catch above
+            lockTarget = null; return;
             // 1c) from the hip (assist on): the nearest enemy within 8 m in front, the aim on their body while FIRE is held
             bool hip = AimAssistOn && input.FireHeld && !scopedNow && fighter.Gun != null && !fighter.holstered;
             if (hip)
