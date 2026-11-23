@@ -54,7 +54,9 @@ namespace LastWar
         /// cost of battery and heat</summary>
         /// <summary>profile picture: 0 = a portrait of your own soldier, 1.. = one of the game's icons (AvatarPicker)</summary>
         public static int Avatar { get => PlayerPrefs.GetInt("lw.avatar", 0); set { PlayerPrefs.SetInt("lw.avatar", value); PlayerPrefs.Save(); } }
-        public static int Fps { get => PlayerPrefs.GetInt("lw.fps", 60); set { PlayerPrefs.SetInt("lw.fps", value); PlayerPrefs.Save(); Application.targetFrameRate = value; } }
+        /// <summary>frame rate: 120 unless chosen otherwise (the screen's own rate caps it - a 60 Hz phone stays at 60);
+        /// "lw.fps2": the earlier default of 60 was saved for everyone</summary>
+        public static int Fps { get => PlayerPrefs.GetInt("lw.fps2", 120); set { PlayerPrefs.SetInt("lw.fps2", value); PlayerPrefs.Save(); Application.targetFrameRate = value; } }
 
         public static void ApplyQuality()
         {
