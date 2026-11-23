@@ -487,10 +487,10 @@ namespace LastWar
         public static bool UseGripContact = true;
         /// <summary>clips recorded at another ground speed than the 6 m/s the run's playback rate assumes: played faster /
         /// slower by 6 / their own speed so the feet keep pace (Rifle Run 4.13 m/s, Running 5.63 m/s, measured from their hips)</summary>
-        public static bool UseHumanRun = true;
+        public static bool UseHumanRun = true, UseRunForward = true;
         /// <summary>the jog clip is there (and not turned off with ?jog=0)</summary>
         public static bool HasJog, UseJog = true;
-        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "mx_rifle_run_h", 6f / 5.63f }, { "run", 1f },
+        static readonly Dictionary<string, float> ClipPace = new Dictionary<string, float> { { "mx_rifle_run", 6f / 4.13f }, { "mx_rifle_run_h", 6f / 5.63f }, { "mx_run", 6f / 4.61f }, { "run", 1f },
             // crawling (option A): the body goes CrawlSpeed m/s and each crawl clip plays at the pace its own limbs keep there
             // (Crawl Forward 0.29 m/s as recorded, the rifle prone crawl 0.23 m/s - measured from their hips)
             // the pistol clips at the speeds the walk / run playback rates assume (walk 2.6, run 6 m/s; recorded 2.55 / 4.74)
@@ -516,6 +516,9 @@ namespace LastWar
             // up, kneeling); the hands stay on the pistol as before (?pclips=0: the earlier clips)
             if (UsePistolClips && Armed && gun != null && gunId.StartsWith("pistol") && PistolClips.TryGetValue(clip, out string pc) && clipIndex.ContainsKey(pc)) key = pc;
             // running with a long gun: the Mixamo Rifle Run (lw_extra.glb: gun low across the chest) when present
+            // running with a long gun: the Pro Rifle Pack's Run Forward (lw_base.glb mx_run: the gun up at the chest,
+            // chosen by the project owner; ?runfwd=0: the Rifle Run below as before)
+            if (key == "mx_sprint" && UseRunForward && clipIndex.ContainsKey("mx_run")) key = "mx_run";
             if (key == "mx_sprint" && clipIndex.ContainsKey("mx_rifle_run")) key = "mx_rifle_run";
             // ... its legs, hips and lower back from Mixamo's "Running" (the free run's long human stride and bounce), the
             // chest, arms and gun hold as Rifle Run (lw_extra.glb mx_rifle_run_h; ?hrun=0: the Rifle Run as it was)
