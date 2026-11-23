@@ -108,3 +108,6 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Gunshot sounds (sks, mosin, cz, shotty) | rifle / sniper / pistol (+ smg pitched) / shotgun shots | Vincent Sevedge (opengameart "Gunshot sounds") | CC-BY 3.0 (page lists CC0) | https://opengameart.org/content/gunshot-sounds |
 | Aerial Beach 01 (Poly Haven) | beach sand on the islands' shores: painted into the map pictures (`scripts/unity/paint-beaches.py`) and `Maps/beach_sand.jpg` (the sea floor beyond the maps) | Rob Tuytel | CC0 | https://polyhaven.com/a/aerial_beach_01 |
 | water_normal.png | the sea's ripples (`scripts/unity/make-water-normal.py`) | made for this project | CC0 | - |
+| Jumpsuit Low Poly Game Ready (Striker14) | outfit `mx_striker` (Striker) | 1799danly | CC Attribution | https://sketchfab.com/3d-models/da288adbddf949aa85962968732f0999 |
+| LowPoly Anime Character CyberStyle | outfit `mx_cyber` (Cyber) | 1799danly | CC Attribution | https://sketchfab.com/3d-models/9c284506f1e247348acd0de4151974d6 |
+| Game Ready Low Poly Tactical Character | outfit `mx_recon` (Recon) | 1799danly | CC Attribution | https://sketchfab.com/3d-models/68213c7d97a04b1b963599180210f5bd |
