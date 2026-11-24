@@ -44,7 +44,7 @@ namespace LastWar
             public void Release() { leftW = 0f; }
             /// <summary>the hanging rifle: how far the left wrist may bend off the forearm (deg)</summary>
             public static float HangWristMax = 18f;
-            public static Vector3 HangK = new Vector3(0.75f, 0.66f, 0f), HangN = new Vector3(0f, 0f, 1f);
+            public static Vector3 HangK = new Vector3(0.3f, 0.6f, -0.7f), HangN = new Vector3(-1f, 0f, 0.3f); // (chosen by eye from 6 tries: fingers round the front of the handguard, the hand in line with the forearm)
             float hangW;
             /// <summary>the hand's aim k (and palm n) turned toward the forearm's line so they stand at most HangWristMax off it -
             /// fully when the rifle hangs (hangW 1), not at all when it is level</summary>
