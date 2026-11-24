@@ -31,7 +31,7 @@ def piece_prims(i):
         if img is not None and tuple(col[:3]) != (1, 1, 1): img = Image.fromarray((np.asarray(img, np.float32) * np.array(col[:3])).clip(0, 255).astype(np.uint8))
         out.append(dict(P=P, N=N, UV=UV, I=I, img=img, col=col, name=mat.get('name', 'm'), key=(i, p.get('material'))))
     return out
-SleeveOver = 0.025  # a long sleeve's cuff past the wrist (m)
+SleeveOver = 0.035  # a long sleeve's cuff past the wrist (m)
 def rig_piece(i, kind, mirror=False, k=6):
     F = json.load(open(f'{HERE}/fits/fit_{i}.json')); c = np.array(F['c'])
     S = skin_mats(posed(arm=F['arm'], leg=F.get('leg', 0)))
@@ -64,12 +64,7 @@ def rig_piece(i, kind, mirror=False, k=6):
                 if wx - 0.045 < end < wx + 0.01:
                     x = sg * R[:, 0]; a = m & (x > ex); tip = wx + SleeveOver
                     R[a, 0] = sg * (ex + (x[a] - ex) * (tip - ex) / (end - ex))
-                    # its last few centimetres go a third with the hand (a cuff over the wrist: the bent hand no longer
-                    # shows a bare wrist between them)
-                    hj = jidx[f'hand_{sd}']; lj = jidx[f'lowerarm_{sd}']
-                    for v in np.where(a & (sg * R[:, 0] > wx - 0.015))[0]:
-                        h = 0.35 * float(np.clip((sg * R[v, 0] - (wx - 0.015)) / (tip - (wx - 0.015)), 0, 1))
-                        tw[v] *= 1 - h; c0 = int(np.argmin(tw[v])); top[v, c0] = hj; tw[v, c0] = h
+                    # (the cuff stays on the forearm: given a share of the hand it twisted into sharp folds round a grip)
         out.append(dict(pr, P=R, N=Nr, J=top, W=tw, I=I))  # (I: the mirrored copy's faces turned back - it was left out and the right boot was drawn inside out)
     return out
 def split_suit(prims):
