@@ -3,3 +3,4 @@ dist
 .vercel
 *.log
 assets-src
+scripts/unity/static-clothes/out/
