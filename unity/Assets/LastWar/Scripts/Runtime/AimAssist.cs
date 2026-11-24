@@ -30,8 +30,9 @@ namespace LastWar
         public static float Strength = 0.7f;   // 0..1
         public static float Range = 70f;       // m (from the hip; through a scope x ScopeRangeMul, never past the gun's range)
         // ---- tuning
-        // (a generous catch, as mobile shooters have: 2.2 m round his torso, never under 3 degrees, x1.5 through a scope)
-        public static float ConeRadius = 2.2f, ConeMin = 3f, ConeMax = 18f, ScopeConeMul = 1.5f, Hold = 1.6f;
+        // (a generous catch, as mobile shooters have: 3.2 m round his torso, never under 7 degrees - a rough aim at 60 m still
+        // catches - at most 22, x1.5 through a scope)
+        public static float ConeRadius = 3.2f, ConeMin = 7f, ConeMax = 22f, ScopeConeMul = 1.5f, Hold = 1.6f;
         public static float FullDist = 10f, ScopeRangeMul = 1.8f;
         public static float Friction = 0.42f;
         public static float PullRate = 6f, PullMax = 50f, SniperPull = 0f;
@@ -60,7 +61,7 @@ namespace LastWar
             }
             Strength = F("aa_str", Strength); Range = F("aa_range", Range); ConeRadius = F("aa_cone", ConeRadius);
             Friction = F("aa_fric", Friction); PullRate = F("aa_pull", PullRate); PullMax = F("aa_pullmax", PullMax);
-            Track = F("aa_track", Track); FullDist = F("aa_full", FullDist);
+            Track = F("aa_track", Track); FullDist = F("aa_full", FullDist); AimAssistTest.StopShort = F("aa_short", AimAssistTest.StopShort);
             Debug = u.Contains("aadbg=1");
         }
 

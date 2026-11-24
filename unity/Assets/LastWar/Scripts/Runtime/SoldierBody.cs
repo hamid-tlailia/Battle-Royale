@@ -1391,39 +1391,65 @@ namespace LastWar
                 {
                     if (!HandGrip) { TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f); return; }
                     float palm = PalmLen(handL, "Left");
-                    Vector3 k, n, c;
-                    if (pistol)
-                    {
-                        // cupping the right hand: palm against it from the left, fingers wrapped over its fingers (the left wrist
-                        // straight too: PistolWrist + 10 degrees below the aim, was 70)
-                        float lw = (PistolWrist + 10f) * Mathf.Deg2Rad;
-                        k = (dir * Mathf.Cos(lw) - up * Mathf.Sin(lw)).normalized; n = side;
-                        c = handR.position + HandDir(handR, "Right") * palm * 0.8f - side * 0.05f;
-                    }
+                    if (pistol) PistolSupport(la, lf, palm, dir, up, side);
                     else
                     {
                         // under the handguard: palm up, fingers round its right side
-                        k = (side * 0.75f + dir * 0.66f).normalized; n = up;
-                        c = gun.position + dir * GripAhead(gunId) - up * 0.015f;
+                        Vector3 k = (side * 0.75f + dir * 0.66f).normalized, n = up;
+                        Vector3 c = gun.position + dir * GripAhead(gunId) - up * 0.015f;
+                        TwoBone(la, lf, handL, c - k * palm * 0.7f);
+                        OrientHand(handL, lf, "Left", k, n);
+                        Curl("Left", 48f, 55f, 32f, 0f, dir);
                     }
-                    TwoBone(la, lf, handL, c - k * palm * 0.7f);
-                    // (pistol: the supporting hand at most 35 degrees off its forearm)
-                    if (pistol) { Vector3 fa = (handL.position - lf.position).normalized; k = Vector3.RotateTowards(fa, k, 35f * Mathf.Deg2Rad, 0f); n = Vector3.ProjectOnPlane(n, k).normalized; }
-                    OrientHand(handL, lf, "Left", k, n);
-                    if (pistol) Curl("Left", 55f, 60f, 35f, 20f); else Curl("Left", 48f, 55f, 32f, 0f, dir);
                 }
             }
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
             if (GunDebug && pistol && Time.time >= nextWristLog)
             {
                 nextWristLog = Time.time + 1.5f;
-                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0}) trigger gap {lastTriggerGap * 100f:0.0} cm grip gap {GripGap() * 100f:0.0} cm left hand to right {(handL != null && handR != null ? (handL.position - handR.position).magnitude * 100f : -1f):0.0} cm");
+                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0}) trigger gap {lastTriggerGap * 100f:0.0} cm grip gap {GripGap() * 100f:0.0} cm left hand to right {(handL != null && handR != null ? (handL.position - handR.position).magnitude * 100f : -1f):0.0} cm, left palm off the grip {supportErr * 100f:0.0} cm (side {supportSide * 100f:0.0} up {supportUp * 100f:0.0} fwd {supportFwd * 100f:0.0}), left wrist bend {supportBend:0} deg");
             }
         }
 
         bool proneOneHand;
 
         /// <summary>the closed right hand's centre to the pistol's grip (below its origin): 0 = held in the hand</summary>
+        /// <summary>pistol: how far the left palm ended from where it should be, and the left wrist's bend (?gundbg=1 log)</summary>
+        float supportErr, supportSide, supportUp, supportFwd, supportBend;
+        /// <summary>pistol, two hands (thumbs forward): the left palm pressed on the left side of the grip, over the right
+        /// hand's fingers (a little low: it holds the bottom of the grip); its knuckles 40 degrees below the aim, the fingers
+        /// wrapped round the front of the right hand's fingers, the thumb forward along the frame under the slide. The wrist
+        /// bends at most 50 degrees off the forearm; the palm is then put back on its place (the arm reaches again), so the
+        /// limit never pulls the hand off the gun (it did: the hand turned about the wrist and stood off the right hand)</summary>
+        void PistolSupport(Transform la, Transform lf, float palm, Vector3 dir, Vector3 up, Vector3 side)
+        {
+            Vector3 grip = gun.position - up * 0.035f;
+            Vector3 want = grip - side * SupportSide - up * 0.012f + dir * 0.004f;   // the palm's surface
+            float lw = SupportKnuckles * Mathf.Deg2Rad;
+            Vector3 k0 = (dir * Mathf.Cos(lw) - up * Mathf.Sin(lw)).normalized, n0 = side;
+            Vector3 wrist = want - k0 * palm * 0.6f - n0 * 0.012f;
+            Vector3 k = k0, n = n0;
+            for (int it = 0; it < 3; it++)
+            {
+                TwoBone(la, lf, handL, wrist);
+                Vector3 fa = (handL.position - lf.position).normalized;
+                k = Vector3.RotateTowards(fa, k0, SupportBendMax * Mathf.Deg2Rad, 0f);
+                n = Vector3.ProjectOnPlane(n0, k).normalized;
+                OrientHand(handL, lf, "Left", k, n);
+                Vector3 at = handL.position + HandDir(handL, "Left") * palm * 0.6f + PalmNormal(handL, "Left") * 0.012f;
+                Vector3 e = want - at;
+                if (e.sqrMagnitude < 1e-6f) break;
+                wrist = handL.position + e;
+            }
+            Vector3 got = handL.position + HandDir(handL, "Left") * palm * 0.6f + PalmNormal(handL, "Left") * 0.012f, d = got - want;
+            supportErr = d.magnitude; supportSide = Vector3.Dot(d, side); supportUp = Vector3.Dot(d, up); supportFwd = Vector3.Dot(d, dir);
+            supportBend = Vector3.Angle(HandDir(handL, "Left"), (handL.position - lf.position));
+            Curl("Left", SupportCurl, SupportCurl + 25f, SupportCurl, 0f, dir);
+        }
+        /// <summary>?psup=side,knuckles,bend,curl : the left palm's distance left of the grip's middle (m), its knuckles below
+        /// the aim (deg), the wrist's most bend (deg), the finger curl (deg)</summary>
+        public static float SupportSide = 0.04f, SupportKnuckles = 40f, SupportBendMax = 50f, SupportCurl = 45f;
+
         float GripGap()
         {
             if (gun == null || handR == null) return -1f;

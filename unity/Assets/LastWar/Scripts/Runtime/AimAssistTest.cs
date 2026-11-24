@@ -98,9 +98,11 @@ namespace LastWar
         }
 
         class Res { public float onBody, mean, max, jitter, first; }
+        /// <summary>?aa_short= : how far (deg) short of him the finger stops before FIRE / the scope (default 5: a rough aim)</summary>
+        public static float StopShort = 5f;
 
-        /// <summary>one run, as a player does it: the aim starts 8 deg left of him, the finger swipes toward him at 40 deg/s
-        /// and stops 2.5 deg short (near him, not on him), then FIRE goes down (from the hip: held, firing) or the scope
+        /// <summary>one run, as a player does it: the aim starts StopShort + 6 deg left of him, the finger swipes toward him at 40 deg/s
+        /// and stops StopShort deg short (near him, not on him), then FIRE goes down (from the hip: held, firing) or the scope
         /// opens; watched for 1.2 s through the game's own crosshair ray - "on body" = the share of frames a shot would hit
         /// him, "first" = how long after the press the crosshair first lands on him</summary>
         static IEnumerator Swipe(PlayerController pc, Fighter me, Fighter a, Vector3 o, float d, bool moving, bool scoped, bool on, Res r)
@@ -112,7 +114,7 @@ namespace LastWar
             yield return new WaitForSeconds(0.35f);
             Vector3 c = pc.TestCam.transform.position;
             AimAssist.AnglesAt(a, c, out float ty, out float tp);
-            pc.TestYaw = ty - 8f; pc.TestPitch = tp;
+            pc.TestYaw = ty - (StopShort + 6f); pc.TestPitch = tp;
             float t = 0f, phase = 0f, mx = 0f, on1 = 0f, n = 0f, first = -1f, sum = 0f;
             float lastYaw = pc.TestYaw, lastRate = 0f, jit = 0f; int jn = 0; bool pressed = false;
             while (phase < 1.2f)
@@ -123,8 +125,8 @@ namespace LastWar
                 {
                     AimAssist.AnglesAt(a, pc.TestCam.transform.position, out float ny, out _);
                     float left = Mathf.DeltaAngle(pc.TestYaw, ny);
-                    pc.TestLook = left > 2.5f ? new Vector2(40f, 0f) : Vector2.zero;
-                    if (left <= 2.5f || t > 1.5f) { pressed = true; pc.TestLook = Vector2.zero; if (scoped) pc.TestInput.Scoped = true; else { TouchControls.ForcePress = true; TouchControls.ForceFire = true; } }
+                    pc.TestLook = left > StopShort ? new Vector2(40f, 0f) : Vector2.zero;
+                    if (left <= StopShort || t > 1.5f) { pressed = true; pc.TestLook = Vector2.zero; if (scoped) pc.TestInput.Scoped = true; else { TouchControls.ForcePress = true; TouchControls.ForceFire = true; } }
                 }
                 yield return null;
                 if (!pressed) continue;

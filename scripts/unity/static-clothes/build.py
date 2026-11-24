@@ -31,6 +31,7 @@ def piece_prims(i):
         if img is not None and tuple(col[:3]) != (1, 1, 1): img = Image.fromarray((np.asarray(img, np.float32) * np.array(col[:3])).clip(0, 255).astype(np.uint8))
         out.append(dict(P=P, N=N, UV=UV, I=I, img=img, col=col, name=mat.get('name', 'm'), key=(i, p.get('material'))))
     return out
+SleeveOver = 0.025  # a long sleeve's cuff past the wrist (m)
 def rig_piece(i, kind, mirror=False, k=6):
     F = json.load(open(f'{HERE}/fits/fit_{i}.json')); c = np.array(F['c'])
     S = skin_mats(posed(arm=F['arm'], leg=F.get('leg', 0)))
@@ -44,8 +45,31 @@ def rig_piece(i, kind, mirror=False, k=6):
         wd = 1 / (d + 5e-3) ** 2; acc = np.zeros((len(Q), NJ))
         for q in range(k):
             for cc in range(4): np.add.at(acc, (np.arange(len(Q)), bj[:, q, cc]), bw[:, q, cc] * wd[:, q])
+        if kind in ('top', 'chest', 'suit'):
+            # a sleeve never follows the hand: what the hand / finger bones held goes to the forearm (a cuff bound to the
+            # wrist turned with the hand round a gun's grip - dark flaps, the forearm bare)
+            for sd in 'lr':
+                for n in jname:
+                    if n == f'hand_{sd}' or (n.endswith(f'_{sd}') and n.split('_')[0] in ('thumb', 'index', 'middle', 'ring', 'pinky')):
+                        acc[:, jidx[f'lowerarm_{sd}']] += acc[:, jidx[n]]; acc[:, jidx[n]] = 0
         top = np.argsort(-acc, 1)[:, :4]; tw = np.take_along_axis(acc, top, 1); tw /= tw.sum(1, keepdims=True)
         R, Nr = unpose(Q, N, top, tw, S)
+        if kind in ('top', 'chest', 'suit'):
+            # a long sleeve ends at the wrist (a centimetre or two short left the forearm showing as the hand bent)
+            for sd, sg in (('l', 1), ('r', -1)):
+                m = top[:, 0] == jidx[f'lowerarm_{sd}']
+                if not m.any(): continue
+                ex, wx = sg * JW[jidx[f'lowerarm_{sd}']][0, 3], sg * JW[jidx[f'hand_{sd}']][0, 3]
+                end = (sg * R[m, 0]).max()
+                if wx - 0.045 < end < wx + 0.01:
+                    x = sg * R[:, 0]; a = m & (x > ex); tip = wx + SleeveOver
+                    R[a, 0] = sg * (ex + (x[a] - ex) * (tip - ex) / (end - ex))
+                    # its last few centimetres go a third with the hand (a cuff over the wrist: the bent hand no longer
+                    # shows a bare wrist between them)
+                    hj = jidx[f'hand_{sd}']; lj = jidx[f'lowerarm_{sd}']
+                    for v in np.where(a & (sg * R[:, 0] > wx - 0.015))[0]:
+                        h = 0.35 * float(np.clip((sg * R[v, 0] - (wx - 0.015)) / (tip - (wx - 0.015)), 0, 1))
+                        tw[v] *= 1 - h; c0 = int(np.argmin(tw[v])); top[v, c0] = hj; tw[v, c0] = h
         out.append(dict(pr, P=R, N=Nr, J=top, W=tw, I=I))  # (I: the mirrored copy's faces turned back - it was left out and the right boot was drawn inside out)
     return out
 def split_suit(prims):
@@ -68,6 +92,17 @@ def hands():
         J = remap[PG.acc(p['attributes']['JOINTS_0']).astype(int)]; W = PG.acc(p['attributes']['WEIGHTS_0']).astype(float)
         I = PG.acc(p['indices']).astype(np.int64).reshape(-1, 3)
         keep = I[(np.abs(P[I, 0]) > wrist).all(1)].reshape(-1)
+        # the forearm's skin under the sleeve follows the forearm, not the hand (bound to the hand it swung out of the sleeve
+        # as the wrist bent round a grip - a bare forearm between the cuff and the hand); the hand takes over in the last 2 cm
+        wx = RG.W[RG.byname['hand_l']][0, 3]; J = J.copy(); W = W.copy()
+        for v in np.where(np.abs(P[:, 0]) < wx - 0.005)[0]:
+            sd = 'l' if P[v, 0] > 0 else 'r'; la = jidx[f'lowerarm_{sd}']; arm = (la, jidx[f'upperarm_{sd}'])
+            t = float(np.clip((wx - 0.005 - abs(P[v, 0])) / 0.02, 0, 1))
+            if la not in J[v]: c0 = int(np.argmin(W[v])); J[v, c0] = la; W[v, c0] = 0.0
+            moved = 0.0
+            for c in range(4):
+                if J[v, c] not in arm: moved += W[v, c] * t; W[v, c] *= 1 - t
+            W[v, list(J[v]).index(la)] += moved; W[v] /= W[v].sum()
         img = PG.image(PG.J['materials'][1]['pbrMetallicRoughness']['baseColorTexture']['index']).convert('RGB')
         out.append(dict(P=P, N=PG.acc(p['attributes']['NORMAL']).astype(float), UV=PG.acc(p['attributes']['TEXCOORD_0']).astype(float), I=keep, J=J, W=W, img=img, col=[1, 1, 1, 1], name='skin', key=('hands',)))
     return out
