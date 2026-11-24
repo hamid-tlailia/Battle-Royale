@@ -28,10 +28,14 @@ namespace LastWar
         /// come from another outfit of the same body</summary>
         public static readonly string[] OutfitFiles = { "mx_swat", "mx_marine", "mx_exo", "mx_shadow", "mx_hazmat", "mx_knight", "mx_archer", "tactical",
             "qm_ranger", "qm_peasant", "qf_ranger", "qf_peasant",
-            "mx_cyber", "mx_recon" }; // (Sketchfab, 1799danly, CC-BY: Mixamo-rigged, worn whole; Striker dropped: its gloves, sleeves and skeleton were bound in three different poses)
+            "mx_cyber", "mx_recon", // (Sketchfab, 1799danly, CC-BY: Mixamo-rigged, worn whole; Striker dropped: its gloves, sleeves and skeleton were bound in three different poses)
+            // 1799danly's loose clothes (Sketchfab, CC-BY: no skeleton) fitted onto the Quaternius man's rig (scripts/unity/static-clothes):
+            // their head / top / pants / shoes mix with Ranger's and Villager's
+            "qm_gorka", "qm_pilot", "qm_neon", "qm_scout", "qm_street", "qm_biker", "qm_field", "qm_silver", "qm_operator" };
         public static readonly string[] OutfitNames = { "Spec Ops", "Marine", "Exo", "Shadow", "Hazmat", "Knight", "Archer", "Agent",
             "Ranger", "Villager", "Huntress", "Wanderer",
-            "Cyber", "Recon" };
+            "Cyber", "Recon",
+            "Gorka", "Pilot", "Neon", "Scout", "Street", "Biker", "Field", "Silver", "Operator" };
 
         /// <param name="skin">outfit index (OutfitFiles), or -1 for the plain soldier</param>
         /// <summary>parts: the outfit worn for the head (mask / helmet), torso (shirt), legs (pants) and feet (shoes);

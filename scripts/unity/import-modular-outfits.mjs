@@ -13,13 +13,16 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { prune, dedup, mergeDocuments, textureCompress, weld } from '@gltf-transform/functions';
 import sharp from 'sharp';
+import fs from 'node:fs';
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const OUT = 'unity/Assets/LastWar/Resources/Models';
 const Q = process.argv[2];
 
 // ---- outfits: file id, outfit .gltf, the extra head pieces
-const SETS = [
+// (SETS=<file.json>: other sets in the same form instead - the Sketchfab clothes fitted onto this rig by
+// scripts/unity/static-clothes/ have their list in sets.json)
+const SETS = process.env.SETS ? JSON.parse(fs.readFileSync(process.env.SETS, 'utf8')) : [
   ['qm_ranger', 'Male_Ranger.gltf', ['Head_Male.glb', 'hair/Eyebrows_Regular.gltf']],
   ['qm_peasant', 'Male_Peasant.gltf', ['Head_Male.glb', 'hair/Hair_SimpleParted.gltf', 'hair/Eyebrows_Regular.gltf', 'hair/Hair_Beard.gltf']],
   ['qf_ranger', 'Female_Ranger.gltf', ['Head_Female.glb']],
