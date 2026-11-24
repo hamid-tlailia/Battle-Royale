@@ -55,6 +55,33 @@ def rig_piece(i, kind, mirror=False, k=6):
         top = np.argsort(-acc, 1)[:, :4]; tw = np.take_along_axis(acc, top, 1); tw /= tw.sum(1, keepdims=True)
         R, Nr = unpose(Q, N, top, tw, S)
         if kind in ('top', 'chest', 'suit'):
+            # the forearm of a sleeve along the forearm: the models' sleeves were made with the elbows bent, the forearm
+            # turned forward - fitted on a straight arm they stood 4-20 cm in front of it at the wrist (hidden from the
+            # front, plain as soon as the arm moved). The sleeve's own forearm line (through the middles of its slices) is
+            # turned about the elbow onto the bone, each vertex by its share of the forearm, eased in from the elbow
+            for sd in 'lr':
+                lj = jidx[f'lowerarm_{sd}']; a = JW[lj][:3, 3]; b = JW[jidx[f'hand_{sd}']][:3, 3]; ab = b - a; L2 = ab @ ab
+                wf = (tw * (top == lj)).sum(1); core = top[:, 0] == lj
+                if core.sum() < 20: continue
+                t = ((R - a) @ ab) / L2
+                ease = lambda x: np.clip(x, 0, 1) ** 2 * (3 - 2 * np.clip(x, 0, 1))
+                r = wf * ease(t / 0.3)  # (nothing at the elbow, all of it from a third of the way down)
+                mids = [R[core & (np.abs(t - bc) < 0.08)].mean(0) for bc in np.linspace(0.25, 1.0, 7) if (core & (np.abs(t - bc) < 0.08)).sum() >= 6]
+                if len(mids) >= 5 and t[core].max() >= 0.8:
+                    # a long sleeve: turned (a short one's line is not clear - only moved, below)
+                    mids = np.array(mids); u = np.linalg.lstsq(np.c_[np.ones(len(mids)), np.linspace(0, 1, len(mids))], mids - a, rcond=None)[0][1]
+                    u = u / np.linalg.norm(u); v = ab / np.sqrt(L2); axis = np.cross(u, v); sn = np.linalg.norm(axis)
+                    if u @ v > 0 and sn > 1e-4:
+                        axis /= sn; th = np.arctan2(sn, u @ v) * r; p = R - a
+                        cs, s2 = np.cos(th)[:, None], np.sin(th)[:, None]
+                        R = a + p * cs + np.cross(axis, p) * s2 + np.outer(p @ axis, axis) * (1 - cs)
+                        if Nr is not None: Nr = Nr * cs + np.cross(axis, Nr) * s2 + np.outer(Nr @ axis, axis) * (1 - cs)
+                # then the whole forearm part moved by one amount onto the bone (no slicing: that sheared it)
+                t = ((R - a) @ ab) / L2; sel = core & (t > 0.2)
+                if sel.sum() >= 10:
+                    off = (R[sel] - (a + np.outer(t[sel], ab))).mean(0)
+                    R = R - np.outer(r, off)
+        if kind in ('top', 'chest', 'suit'):
             # a long sleeve ends at the wrist (a centimetre or two short left the forearm showing as the hand bent)
             for sd, sg in (('l', 1), ('r', -1)):
                 m = top[:, 0] == jidx[f'lowerarm_{sd}']
@@ -65,6 +92,9 @@ def rig_piece(i, kind, mirror=False, k=6):
                     x = sg * R[:, 0]; a = m & (x > ex); tip = wx + SleeveOver
                     R[a, 0] = sg * (ex + (x[a] - ex) * (tip - ex) / (end - ex))
                     # (the cuff stays on the forearm: given a share of the hand it twisted into sharp folds round a grip)
+        # (stray bits of the downloads far off the body - a 3 cm piece floated 1.5 m away on the arm: dropped)
+        far = d[:, 0] > 0.3
+        if far.any(): tri = I.reshape(-1, 3); I = tri[~far[tri].any(1)].reshape(-1)
         out.append(dict(pr, P=R, N=Nr, J=top, W=tw, I=I))  # (I: the mirrored copy's faces turned back - it was left out and the right boot was drawn inside out)
     return out
 def split_suit(prims):
