@@ -32,7 +32,7 @@ def piece_prims(i):
         out.append(dict(P=P, N=N, UV=UV, I=I, img=img, col=col, name=mat.get('name', 'm'), key=(i, p.get('material'))))
     return out
 SleeveOver = 0.035  # a long sleeve's cuff past the wrist (m)
-WeightSmooth = 6    # passes of weight smoothing over a top's / suit's own mesh
+WeightSmooth = 0    # passes of weight smoothing over the mesh (0: off - split seam vertices took different weights and the seams opened)
 def rig_piece(i, kind, mirror=False, k=6):
     F = json.load(open(f'{HERE}/fits/fit_{i}.json')); c = np.array(F['c'])
     S = skin_mats(posed(arm=F['arm'], leg=F.get('leg', 0)))
@@ -42,9 +42,12 @@ def rig_piece(i, kind, mirror=False, k=6):
     for pr in piece_prims(i):
         Q = (pr['P'] - c) * F['s'] + c + np.array(F['t']); N = pr['N']; I = pr['I']
         if mirror: Q = Q * [-1, 1, 1]; N = None if N is None else N * [-1, 1, 1]; I = I.reshape(-1, 3)[:, ::-1].reshape(-1)
-        d, ii = tree.query(Q, k=k); bj, bw = bj_all[ii], bw_all[ii]
-        wd = 1 / (d + 5e-3) ** 2; acc = np.zeros((len(Q), NJ))
-        for q in range(k):
+        # (tops / suits: more body points, a softer fall-off - smoother weights over loose cloth, the same for the copies
+        # of a vertex along a seam; spikes tore out behind the shoulder with the arm forward)
+        kk, eps = (16, 0.02) if kind in ('top', 'chest', 'suit') else (k, 5e-3)
+        d, ii = tree.query(Q, k=kk); bj, bw = bj_all[ii], bw_all[ii]
+        wd = 1 / (d + eps) ** 2; acc = np.zeros((len(Q), NJ))
+        for q in range(kk):
             for cc in range(4): np.add.at(acc, (np.arange(len(Q)), bj[:, q, cc]), bw[:, q, cc] * wd[:, q])
         if kind in ('top', 'chest', 'suit'):
             # a sleeve never follows the hand: what the hand / finger bones held goes to the forearm (a cuff bound to the
