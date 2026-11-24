@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # (the APK is also published on the release "unity-latest", below)
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -62,3 +64,18 @@ jobs:
           path: ${{ matrix.out }}
           retention-days: 1
           if-no-files-found: error
+
+      # the APK also as a plain file to download (no zip): phones' file managers stopped extracting the ~190 MB zip at
+      # 66 MB and the cut APK would not install. Release "unity-latest" (pre-release), its LastWar.apk replaced every build
+      - name: Publish the APK on the release "unity-latest"
+        if: matrix.platform == 'Android'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f=$(ls unity/build/Android/*.apk | head -1); cp "$f" LastWar.apk
+          tag=unity-latest
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --prerelease --target "${{ github.sha }}" --title "Last War - latest Android build" --notes "The latest APK (replaced on every build)."
+          fi
+          gh release upload "$tag" LastWar.apk --clobber
+          gh release edit "$tag" --notes "Built from ${{ github.sha }} on $(date -u '+%Y-%m-%d %H:%M') UTC. Tap LastWar.apk to download it, then open it to install (no zip to extract)."
