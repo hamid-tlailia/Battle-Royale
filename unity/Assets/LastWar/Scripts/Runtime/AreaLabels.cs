@@ -15,7 +15,7 @@ namespace LastWar
     {
         public static float FadeNear = 40f, FadeFar = 75f;
         /// <summary>the names' size on the screen (x the HUD's); 0.8 covered the map</summary>
-        public static float Size = 0.5f;
+        public static float Size = 0.6f;
 
         class Label { public RectTransform rt; public CanvasGroup g; public Vector3 world; public float a, w, h; }
         readonly List<Label> labels = new List<Label>();
@@ -101,7 +101,7 @@ namespace LastWar
                 float d = Vector3.Distance(me, l.world - Vector3.up * 22f);
                 float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d));
                 float s = Size * Mathf.Lerp(1f, 0.8f, Mathf.InverseLerp(150f, 700f, d));
-                var box = new Rect(sp.x - l.w * ui * s * 0.5f - 8f, sp.y - l.h * ui * s * 0.5f - 6f, l.w * ui * s + 16f, l.h * ui * s + 12f);
+                var box = new Rect(sp.x - l.w * ui * s * 0.5f - 14f, sp.y - l.h * ui * s * 0.5f - 10f, l.w * ui * s + 28f, l.h * ui * s + 20f);
                 if (want > 0f) { foreach (Rect o in placed) if (o.Overlaps(box)) { want = 0f; break; } }
                 if (want > 0f) placed.Add(box);
                 l.a = Mathf.MoveTowards(l.a, want, dt * 3f); // (a gentle fade in / out, never a pop)

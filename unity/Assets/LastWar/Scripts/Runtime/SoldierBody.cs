@@ -1585,7 +1585,7 @@ namespace LastWar
             // legs went into an uphill slope behind), then lifted by what still dips
             {
                 string[] back = { "LeftFoot", "RightFoot", "LeftLeg", "RightLeg", "LeftToeBase", "RightToeBase" }, front = { "Head", "LeftHand", "RightHand" };
-                float Pen(string[] names) { float m = 0f; foreach (string n in names) { Transform b = PoseBone(n); if (b == null) continue; float g = MapBuilder.Ground != null && MapBuilder.Ground.Raycast(new Ray(b.position + Vector3.up * 3f, Vector3.down), out RaycastHit gh, 6f) ? gh.point.y : b.position.y - 9f; /* (the terrain only: never a body's own collider) */ m = Mathf.Max(m, g + 0.05f - b.position.y); } return m; }
+                float Pen(string[] names) { float m = 0f; foreach (string n in names) { Transform b = PoseBone(n); if (b == null) continue; float g = GroundUnder(b.position); m = Mathf.Max(m, g + 0.05f - b.position.y); } return m; }
                 float pb = Pen(back);
                 Vector3 hp = dstHips.position;
                 if (pb > 0.01f)
@@ -1599,6 +1599,17 @@ namespace LastWar
                 if (sinkLift > 0f) dstHips.position = hp + Vector3.up * sinkLift;
             }
             if (GunDebug && Time.time >= nextSlopeLog) { nextSlopeLog = Time.time + 1.5f; Debug.Log($"[LastWar] slope {name} {playing}: ground pitch {pitch:0} roll {roll:0} deg, applied {slopeW:0.00}"); }
+        }
+        /// <summary>the highest solid surface under p (within 3 m above / below) - never a soldier's own capsule or anyone's</summary>
+        float GroundUnder(Vector3 p)
+        {
+            float best = p.y - 9f;
+            foreach (RaycastHit h in Physics.RaycastAll(p + Vector3.up * 3f, Vector3.down, 6f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (h.collider is CharacterController || h.collider.transform.IsChildOf(transform) || h.collider.GetComponentInParent<Fighter>() != null) continue;
+                if (h.point.y > best) best = h.point.y;
+            }
+            return best;
         }
         float GroundY(Vector3 p, float fallback)
         {
