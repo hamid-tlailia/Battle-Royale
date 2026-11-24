@@ -43,6 +43,7 @@ namespace LastWar
             }
             public void Release() { leftW = 0f; }
             /// <summary>the hanging rifle: how far the left wrist may bend off the forearm (deg)</summary>
+            public static bool UseHangGrip = false;
             public static float HangWristMax = 18f;
             public static Vector3 HangK = new Vector3(0.3f, 0.6f, -0.7f), HangN = new Vector3(-1f, 0f, 0.3f); // (chosen by eye from 6 tries: fingers round the front of the handguard, the hand in line with the forearm)
             float hangW;
@@ -198,7 +199,7 @@ namespace LastWar
                     // forearm's line (at most HangWristMax degrees off it), the palm put back on the grip (aiming - barrel near
                     // level - unchanged)
                     float pitch = Mathf.Asin(Mathf.Clamp(barrelDir.y, -1f, 1f)) * Mathf.Rad2Deg;
-                    hangW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-35f, -50f, pitch));
+                    hangW = UseHangGrip ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-35f, -50f, pitch)) : 0f; // (off: the lobby now holds the rifle as in a match)
                     if (hangW > 0f)
                     {
                         // (the hand's own aim and palm on a hanging rifle, in the gun's frame: side, barrel, up - tunable

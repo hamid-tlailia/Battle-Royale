@@ -141,10 +141,10 @@ namespace LastWar
             lobbyBody.SetGun(key); lobbyBody.Armed = true; lobbyBody.ShoulderGrip = pistol;
             // (the lobby's grip offset places a rifle held down across the body: with a pistol it pulled the hands 45 cm
             // down, the pistol held low against the chest)
-            lobbyBody.GripOffset = pistol ? Vector3.zero : LobbyGrip;
+            lobbyBody.GripOffset = Vector3.zero; // (the rifle held as in a match - the lobby's own low carry left the left hand bent off the handguard)
             lobbyBody.LiveBack = true;
             if (pistol) { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle"); }
-            else lobbyBody.Play(lobbyBody.HasClip("mx_lobby") ? "mx_lobby" : "idle_rifle"); // standing: rifle down, now and then up at a target
+            else { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle_rifle"); } // standing as in a match: the rifle across the body, both hands on it
         }
 
         // ------------------------------------------------------------------ UI from the captured web layout
@@ -782,7 +782,7 @@ namespace LastWar
             // rifle held diagonally across the chest (port arms): muzzle up and to the soldier's left, grip at the waist
             // (a long gun only: the pistol is aimed straight ahead above - this ran after that and turned the pistol 55 degrees
             // left and 38 up, the arms folded over the face, the pistol by / behind the head)
-            if (lobbyBody != null && !lobbyBody.ShoulderGrip) lobbyBody.AimDir = Quaternion.AngleAxis(-LobbyGunTurn, soldier.transform.up) * Quaternion.AngleAxis(-LobbyGunUp, soldier.transform.right) * soldier.transform.forward;
+            if (lobbyBody != null && !lobbyBody.ShoulderGrip) lobbyBody.AimDir = soldier.transform.forward; // (the rifle points where he faces, as in a match)
             if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }
 
