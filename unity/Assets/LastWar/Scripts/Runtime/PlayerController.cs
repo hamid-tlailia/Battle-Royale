@@ -97,7 +97,7 @@ namespace LastWar
             input.SniperAiming = false; // (set again below while a sniper shot is held)
             if (vaultT >= 0f) { VaultStep(dt); return; }
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
-            if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
+            if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;

@@ -649,6 +649,37 @@ namespace LastWar
 
         // ---- standing on a flat stage (the lobby): the lower foot rests exactly on the floor, never sinks or floats
         public bool Plant;
+        /// <summary>the lobby: standing straight - knees straightened (the hips raised, the feet kept where they stood) and
+        /// the back upright - on the standing rifle clips (they crouch a little, ready to move)</summary>
+        public bool StandTall;
+        void StandTallPose()
+        {
+            if (!StandTall || Pose != null || playing == null || !StandClips.Contains(playing)) return;
+            Transform hips = PoseBone("Hips"), sp = PoseBone("Spine"), neck = PoseBone("Neck");
+            string[] sd = { "Left", "Right" };
+            var up = new Transform[2]; var lo = new Transform[2]; var ft = new Transform[2]; var fp = new Vector3[2]; var fr = new Quaternion[2];
+            float raise = float.MaxValue;
+            for (int i = 0; i < 2; i++)
+            {
+                up[i] = PoseBone(sd[i] + "UpLeg"); lo[i] = PoseBone(sd[i] + "Leg"); ft[i] = PoseBone(sd[i] + "Foot");
+                if (hips == null || up[i] == null || lo[i] == null || ft[i] == null) return;
+                fp[i] = ft[i].position; fr[i] = ft[i].rotation;
+                float len = (lo[i].position - up[i].position).magnitude + (ft[i].position - lo[i].position).magnitude;
+                Vector3 d = up[i].position - fp[i];
+                // (how far up the hip may go for this leg to be 98.5 % straight, the foot staying put)
+                float h = Vector3.Dot(d, transform.up), flat = (d - transform.up * h).magnitude;
+                float reach = len * 0.985f; if (flat >= reach) { raise = 0f; continue; }
+                raise = Mathf.Min(raise, Mathf.Sqrt(reach * reach - flat * flat) - h);
+            }
+            if (raise > 0f && raise < 0.3f) hips.position += transform.up * raise;
+            // the back upright: the spine turned so hips -> neck stands on the up axis
+            if (sp != null && neck != null)
+            {
+                Vector3 line = neck.position - hips.position;
+                if (line.sqrMagnitude > 1e-6f) sp.rotation = Quaternion.FromToRotation(line, transform.up) * sp.rotation;
+            }
+            for (int i = 0; i < 2; i++) { TwoBone(up[i], lo[i], ft[i], fp[i]); ft[i].rotation = fr[i]; }
+        }
         float restSole = float.NaN;
         static readonly string[] Soles = { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" };
         float SoleY()
@@ -1285,6 +1316,7 @@ namespace LastWar
             RelaxEmptyHands();
             PlantFeet();
             LevelSoles();
+            StandTallPose();
             if (FootDebug && Time.time >= nextFootLog) { nextFootLog = Time.time + 2f; LogFeet(); }
             tr = Bench.Now();
             SyncExtras();
@@ -1531,7 +1563,7 @@ namespace LastWar
         // the whole body turns about the point under the hips by the slope's pitch and roll (each at most 35 degrees),
         // eased in and out. Standing poses are not touched. ?slope=0 turns it off.
         public static bool UseSlopeLie = true;
-        float slopeW, nextSlopeLog; Quaternion slopeQ = Quaternion.identity;
+        float slopeW, nextSlopeLog, sinkLift; Quaternion slopeQ = Quaternion.identity;
         static bool Lying(string clip) => clip == "mx_prone" || clip == "mx_crawl" || clip == "mx_crawl_sym" || clip == "fc_sym";
         void SlopeLie()
         {
@@ -1549,6 +1581,23 @@ namespace LastWar
             Vector3 pivot = new Vector3(c.x, GroundY(c, c.y), c.z);
             dstHips.position = pivot + q * (dstHips.position - pivot);
             dstHips.rotation = q * dstHips.rotation;
+            // the legs / feet / head never under the ground: the body turned about the hips to lift the end that dips in (the
+            // legs went into an uphill slope behind), then lifted by what still dips
+            {
+                string[] back = { "LeftFoot", "RightFoot", "LeftLeg", "RightLeg", "LeftToeBase", "RightToeBase" }, front = { "Head", "LeftHand", "RightHand" };
+                float Pen(string[] names) { float m = 0f; foreach (string n in names) { Transform b = PoseBone(n); if (b == null) continue; float g = MapBuilder.Ground != null && MapBuilder.Ground.Raycast(new Ray(b.position + Vector3.up * 3f, Vector3.down), out RaycastHit gh, 6f) ? gh.point.y : b.position.y - 9f; // (the terrain only: never a body's own collider) m = Mathf.Max(m, g + 0.05f - b.position.y); } return m; }
+                float pb = Pen(back);
+                Vector3 hp = dstHips.position;
+                if (pb > 0.01f)
+                {
+                    float ang = Mathf.Min(Mathf.Atan2(pb, 0.9f) * Mathf.Rad2Deg, 25f) * slopeW;
+                    Quaternion qb = Quaternion.AngleAxis(ang, r); // (feet behind: the back end up)
+                    dstHips.rotation = qb * dstHips.rotation;
+                }
+                float lift = Mathf.Min(0.5f, Mathf.Max(Pen(back), Pen(front))) * slopeW;
+                sinkLift = Mathf.MoveTowards(sinkLift, lift, Time.deltaTime * 2f + Mathf.Max(0f, lift - sinkLift) * 0.5f);
+                if (sinkLift > 0f) dstHips.position = hp + Vector3.up * sinkLift;
+            }
             if (GunDebug && Time.time >= nextSlopeLog) { nextSlopeLog = Time.time + 1.5f; Debug.Log($"[LastWar] slope {name} {playing}: ground pitch {pitch:0} roll {roll:0} deg, applied {slopeW:0.00}"); }
         }
         float GroundY(Vector3 p, float fallback)

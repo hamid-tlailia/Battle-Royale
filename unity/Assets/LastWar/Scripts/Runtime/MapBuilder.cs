@@ -177,6 +177,8 @@ namespace LastWar
 
         /// <summary>the sea: one flat sheet of water at SeaLevel out past the haze, a little see-through near the shore
         /// (the sand shows under it), glossy so the sun glints on it; gently moving (Sea component)</summary>
+        /// <summary>the sea's colour (alpha: how little of the sand shows through) and its wave size (m); ?seacol=r,g,b,a ?seawave=</summary>
+        public static Color SeaColour = new Color(0.07f, 0.36f, 0.5f, 0.93f); public static float SeaWave = 22f;
         static void BuildSea(MapData map, Transform parent)
         {
             if (!UseIsland || SeaLevel < -999f) return;
@@ -210,8 +212,13 @@ namespace LastWar
             if (wbase != null)
             {
                 mat = new Material(wbase);
-                mat.SetTextureScale("_BumpMap", Vector2.one * (2f * R / 9f));         // ripples ~9 m across
-                mat.SetTextureScale("_DetailNormalMap", Vector2.one * (2f * R / 2.6f)); // and ~2.6 m wavelets on them
+                mat.SetTextureScale("_BumpMap", Vector2.one * (2f * R / SeaWave));          // waves ~SeaWave m across
+                mat.SetTextureScale("_DetailNormalMap", Vector2.one * (2f * R / (SeaWave * 0.27f))); // and wavelets on them
+                // a natural sea: blue-green, the waves plain to see; no sky mirrored in it (the reflection of the pale sky made
+                // grey-white sheets - it read as ice / metal), the sun's glint kept
+                mat.SetColor("_BaseColor", SeaColour); mat.SetFloat("_Smoothness", 0.74f);
+                mat.SetFloat("_BumpScale", 0.7f); mat.SetFloat("_DetailNormalMapScale", 0.6f);
+                mat.SetFloat("_EnvironmentReflections", 0f); mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
             }
             else { mat = NewLit(new Color(0.11f, 0.38f, 0.52f)); mat.SetFloat("_Smoothness", 0.88f); mat.SetFloat("_Metallic", 0f); }
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
@@ -525,7 +532,7 @@ namespace LastWar
             var p = transform.localPosition; p.y = y0 + Mathf.Sin(t * 0.7f) * 0.05f; transform.localPosition = p;
             // the two layers of ripples drift different ways (the sea moves; not one sheet sliding) - a little faster than
             // before: wind on the water
-            if (mat != null) { mat.SetTextureOffset("_BumpMap", new Vector2(t * 0.0042f, t * 0.0026f)); mat.SetTextureOffset("_DetailNormalMap", new Vector2(-t * 0.0094f, t * 0.0072f)); }
+            if (mat != null) { mat.SetTextureOffset("_BumpMap", new Vector2(t * 0.011f, t * 0.007f)); mat.SetTextureOffset("_DetailNormalMap", new Vector2(-t * 0.024f, t * 0.017f)); } // (waves rolling in, the wavelets across them)
             // a slow swell running over it (three long waves, ~0.35 m), ten times a second (the mesh is a few hundred points)
             if (mesh == null || Time.time < nextWave) return;
             nextWave = Time.time + 0.1f;

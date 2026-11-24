@@ -139,6 +139,7 @@ namespace LastWar
             if (lobbyBody == null) return;
             bool pistol = Armory.GunOf(key) == "pistol";
             lobbyBody.SetGun(key); lobbyBody.Armed = true; lobbyBody.ShoulderGrip = pistol;
+            lobbyBody.StandTall = !pistol; // (straight knees and back while standing)
             // (the lobby's grip offset places a rifle held down across the body: with a pistol it pulled the hands 45 cm
             // down, the pistol held low against the chest)
             lobbyBody.GripOffset = Vector3.zero; // (the rifle held as in a match - the lobby's own low carry left the left hand bent off the handguard)

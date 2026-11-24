@@ -13,9 +13,11 @@ namespace LastWar
     /// </summary>
     public class AreaLabels : MonoBehaviour
     {
-        public static float FadeNear = 70f, FadeFar = 170f;
+        public static float FadeNear = 40f, FadeFar = 75f;
+        /// <summary>the names' size on the screen (x the HUD's); 0.8 covered the map</summary>
+        public static float Size = 0.5f;
 
-        class Label { public RectTransform rt; public CanvasGroup g; public Vector3 world; public float a; }
+        class Label { public RectTransform rt; public CanvasGroup g; public Vector3 world; public float a, w, h; }
         readonly List<Label> labels = new List<Label>();
         PlayerController pc; RectTransform overlay;
 
@@ -59,13 +61,13 @@ namespace LastWar
             string title = a.name.ToUpperInvariant();
             float w = Mathf.Max(120f, title.Length * 13.5f + 34f), h = string.IsNullOrEmpty(kind) ? 34f : 46f;
             // the soft plate: dark, see-through, rounded; a thin line of the kind's colour under the name
-            var plate = UiKit.Img(rt, "plate", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(w, h), new Color(0.05f, 0.07f, 0.09f, 0.46f));
+            var plate = UiKit.Img(rt, "plate", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(w, h), new Color(0.03f, 0.04f, 0.05f, 0.78f));
             plate.rectTransform.pivot = new Vector2(.5f, .5f);
             var line = UiKit.Img(rt, "line", UiKit.Round, new Vector2(.5f, .5f), new Vector2(0, string.IsNullOrEmpty(kind) ? -12f : -4f), new Vector2(w * 0.55f, 2.2f), new Color(col.r, col.g, col.b, 0.85f));
             line.rectTransform.pivot = new Vector2(.5f, .5f);
             var t = UiKit.Txt(rt, new Vector2(.5f, .5f), new Vector2(0, string.IsNullOrEmpty(kind) ? 2f : 8f), new Vector2(w, 26f), 19f, TextAnchor.MiddleCenter, col);
             t.text = title;
-            var ol = t.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(0, 0, 0, 0.55f); ol.effectDistance = new Vector2(1.6f, -1.6f);
+            var ol = t.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(0, 0, 0, 0.9f); ol.effectDistance = new Vector2(1.6f, -1.6f);
             if (!string.IsNullOrEmpty(kind))
             {
                 var k = UiKit.Txt(rt, new Vector2(.5f, .5f), new Vector2(0, -14f), new Vector2(w, 14f), 9.5f, TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.82f));
@@ -73,7 +75,7 @@ namespace LastWar
             }
             // hung ~22 m above the ground there (over the roofs)
             Vector3 world = Coords.ToUnity(a.x, map.HeightAt(a.x, a.z) + 22f, a.z);
-            labels.Add(new Label { rt = rt, g = g, world = world, a = 0f });
+            labels.Add(new Label { rt = rt, g = g, world = world, a = 0f, w = w, h = h });
         }
 
         void LateUpdate()
@@ -88,19 +90,26 @@ namespace LastWar
             float px1 = 2f * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
             float ui = overlay != null ? overlay.lossyScale.x : 1f;
             float dt = Time.unscaledDeltaTime;
+            // nearest first; a name whose box on the screen would touch one already placed waits its turn (they piled on top
+            // of each other from the plane)
+            Vector3 cp = cam.transform.position; float Key(Label q) => (q.world - cp).sqrMagnitude * (q.a > 0.5f ? 0.3f : 1f); // (one already showing keeps its place: no flicker)
+            labels.Sort((x, y) => Key(x).CompareTo(Key(y)));
+            var placed = new System.Collections.Generic.List<Rect>();
             foreach (Label l in labels)
             {
                 Vector3 sp = cam.WorldToScreenPoint(l.world);
                 float d = Vector3.Distance(me, l.world - Vector3.up * 22f);
                 float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d));
-                l.a = Mathf.MoveTowards(l.a, want, dt * 2.5f); // (a gentle fade in / out, never a pop)
+                float s = Size * Mathf.Lerp(1f, 0.8f, Mathf.InverseLerp(150f, 700f, d));
+                var box = new Rect(sp.x - l.w * ui * s * 0.5f - 8f, sp.y - l.h * ui * s * 0.5f - 6f, l.w * ui * s + 16f, l.h * ui * s + 12f);
+                if (want > 0f) { foreach (Rect o in placed) if (o.Overlaps(box)) { want = 0f; break; } }
+                if (want > 0f) placed.Add(box);
+                l.a = Mathf.MoveTowards(l.a, want, dt * 3f); // (a gentle fade in / out, never a pop)
                 l.g.alpha = l.a;
                 bool on = l.a > 0.01f;
                 if (l.rt.gameObject.activeSelf != on) l.rt.gameObject.SetActive(on);
                 if (!on) continue;
-                // over its area, facing the camera, at a steady size on the screen (a little smaller far off, never tiny)
                 float cd = Vector3.Distance(cam.transform.position, l.world);
-                float s = Mathf.Lerp(0.8f, 0.6f, Mathf.InverseLerp(150f, 700f, d));
                 l.rt.position = l.world; l.rt.rotation = cam.transform.rotation;
                 l.rt.localScale = Vector3.one * (cd * px1 * ui * s);
             }

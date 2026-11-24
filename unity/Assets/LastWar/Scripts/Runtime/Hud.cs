@@ -15,6 +15,8 @@ namespace LastWar
     {
         /// <summary>seconds from the last kill to the victory screen: his fall and the skull banner first</summary>
         public static float WinDelay = 2.6f; float winAt = -1f;
+        /// <summary>the victory screen is up (the player stops then, not the moment the last enemy falls)</summary>
+        public static bool Celebrating;
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
         RectTransform iceCover;
@@ -81,7 +83,7 @@ namespace LastWar
 
         public static Hud Create(TouchControls input, PlayerController player)
         {
-            var h = new GameObject("Hud").AddComponent<Hud>();
+            Celebrating = false; var h = new GameObject("Hud").AddComponent<Hud>();
             h.input = input; h.player = player; h.Build();
             Fighter.OnHit += h.Hit; Fighter.OnKill += h.Kill;
             foreach (int z in new[] { 2, 4, 8 }) WebLens(z); // (read behind the loading screen: no hitch when you first scope)
@@ -696,7 +698,7 @@ namespace LastWar
             // victory: the web's celebration (confetti, music, countdown back to the lobby) instead of the result card
             // (after a moment: the last enemy falls and the kill banner's skull shows first - it came up over his death)
             if (gb.Result > 0 && winAt < 0f) winAt = Time.unscaledTime + WinDelay;
-            if (gb.Result > 0 && !celebrating && Time.unscaledTime >= winAt) { celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
+            if (gb.Result > 0 && !celebrating && Time.unscaledTime >= winAt) { celebrating = true; Celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
             // you are out and the match is over: the celebration for whoever won (a bot), same music, back to the lobby
             if (gb.Result < 0 && !celebrating && gb.AliveCount <= 1)
             {
