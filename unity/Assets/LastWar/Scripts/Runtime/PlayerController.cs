@@ -369,7 +369,7 @@ namespace LastWar
             qYaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; qPitch = Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude);
         }
 
-        Vector2 lookThisFrame;
+        Vector2 lookThisFrame; bool assistScoped;
 
 
 
@@ -412,7 +412,8 @@ namespace LastWar
             // 2) the aim assist (AimAssist.cs): friction, tracking and - scoped / firing - a gentle pull onto the torso
             //    of one enemy held near the crosshair; nothing else turns the soldier
             if (input.FrostAim) { Assist.Release(); lockTarget = null; return; }
-            Assist.Step(fighter, cam, ref yaw, ref pitch, lookThisFrame, Scoped, input.FireHeld, dt);
+            bool scopeNow = Scoped; bool engage = (scopeNow && !assistScoped) || input.FirePressed; assistScoped = scopeNow;
+            Assist.Step(fighter, cam, ref yaw, ref pitch, lookThisFrame, scopeNow, input.FireHeld, dt, engage);
             lockTarget = Assist.Target;
         }
 

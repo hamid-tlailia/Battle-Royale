@@ -471,21 +471,21 @@ namespace LastWar
         void Check(RectTransform card, float cw)
         {
             float u = cw / 96f; // card picture units (the card is 96 css px wide)
-            Vector2 c = new Vector2(-15.5f * u, -14.5f * u);
+            Vector2 c = new Vector2(-9f * u, -9f * u);
             // its own gold disc under the tick, over the picture: the card's printed badge hid behind a piece's picture
             // (the tick looked different from card to card, some half covered)
-            var disc = UiKit.Img(card, "badge", UiKit.Disc, new Vector2(1, 1), c, new Vector2(17f * u, 17f * u), new Color(1f, .83f, .3f));
+            var disc = UiKit.Img(card, "badge", UiKit.Disc, new Vector2(1, 1), c, new Vector2(10f * u, 10f * u), new Color(1f, .83f, .3f)); // (was 17: it covered the card)
             disc.rectTransform.pivot = new Vector2(.5f, .5f); disc.rectTransform.anchoredPosition = c;
             disc.gameObject.AddComponent<Outline>().effectColor = new Color(27 / 255f, 20 / 255f, 4 / 255f, .5f);
             void Bar(Vector2 from, Vector2 to)
             {
                 var b = UiKit.Img(card, "tick", null, new Vector2(1, 1), Vector2.zero, Vector2.one, new Color(27 / 255f, 20 / 255f, 4 / 255f));
                 Vector2 d = to - from; var rt = b.rectTransform;
-                rt.pivot = new Vector2(0, .5f); rt.anchoredPosition = c + from * u; rt.sizeDelta = new Vector2(d.magnitude * u + 1.6f * u, 2.4f * u);
+                rt.pivot = new Vector2(0, .5f); rt.anchoredPosition = c + from * u; rt.sizeDelta = new Vector2(d.magnitude * u + 1.2f * u, 1.7f * u);
                 rt.localEulerAngles = new Vector3(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
             }
-            Bar(new Vector2(-4.5f, 0.5f), new Vector2(-1.3f, -2.8f));
-            Bar(new Vector2(-1.8f, -2.8f), new Vector2(4.8f, 3.6f));
+            Bar(new Vector2(-2.7f, 0.3f), new Vector2(-0.8f, -1.7f));
+            Bar(new Vector2(-1.1f, -1.7f), new Vector2(2.9f, 2.2f));
         }
 
         void MapSheet()

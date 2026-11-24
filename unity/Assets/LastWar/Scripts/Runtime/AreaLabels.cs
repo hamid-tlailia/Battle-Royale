@@ -17,15 +17,15 @@ namespace LastWar
 
         class Label { public RectTransform rt; public CanvasGroup g; public Vector3 world; public float a; }
         readonly List<Label> labels = new List<Label>();
-        PlayerController pc; RectTransform root;
+        PlayerController pc; RectTransform overlay;
 
         public static AreaLabels Create(RectTransform root, MapData map, PlayerController pc)
         {
             if (map == null || map.areas == null || map.areas.Length == 0 || root == null) return null;
-            var go = new GameObject("AreaLabels", typeof(RectTransform));
-            var rt = (RectTransform)go.transform; rt.SetParent(root, false); rt.SetAsFirstSibling();
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
-            var al = go.AddComponent<AreaLabels>(); al.pc = pc; al.root = rt;
+            // (each label is a small canvas in the world, hung over its area and turned to the camera: the plane and the
+            // parachute pass in front of it as they do of the houses - an overlay drew the names over the plane)
+            var go = new GameObject("AreaLabels");
+            var al = go.AddComponent<AreaLabels>(); al.pc = pc; al.overlay = root;
             foreach (AreaData a in map.areas) al.Add(a, map);
             return al;
         }
@@ -51,8 +51,9 @@ namespace LastWar
         {
             string kind = string.IsNullOrEmpty(a.kind) ? "" : a.kind;
             Color col = KindColour(kind);
-            var go = new GameObject("area " + a.name, typeof(RectTransform), typeof(CanvasGroup));
-            var rt = (RectTransform)go.transform; rt.SetParent(root, false);
+            var go = new GameObject("area " + a.name, typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
+            var rt = (RectTransform)go.transform; rt.SetParent(transform, false);
+            var cv = go.GetComponent<Canvas>(); cv.renderMode = RenderMode.WorldSpace; rt.sizeDelta = new Vector2(10f, 10f);
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
             var g = go.GetComponent<CanvasGroup>(); g.blocksRaycasts = false; g.interactable = false; g.alpha = 0f;
             string title = a.name.ToUpperInvariant();
@@ -80,24 +81,28 @@ namespace LastWar
             Camera cam = pc != null ? pc.TestCam : Camera.main;
             if (cam == null) return;
             Vector3 me = pc != null ? pc.transform.position : cam.transform.position;
-            bool hide = (pc != null && pc.Scoped) || Minimap.BigOpen;
+            // only in the air (the plane, the fall, the parachute): once on the ground they fade away - the minimap keeps
+            // the places' names
+            bool hide = (pc != null && pc.Scoped) || Minimap.BigOpen || (pc != null && pc.fighter != null && pc.fighter.air == 0);
+            // world size of one screen pixel at 1 m, and the overlay's pixels per UI unit (the labels keep the HUD's size)
+            float px1 = 2f * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
+            float ui = overlay != null ? overlay.lossyScale.x : 1f;
             float dt = Time.unscaledDeltaTime;
             foreach (Label l in labels)
             {
                 Vector3 sp = cam.WorldToScreenPoint(l.world);
-                float d = Vector3.Distance(me, l.world - Vector3.up * 22f); // (from the plane, high over it, the name stays)
-                // on the ground: smaller and fainter (they crowded the view) - from the plane / falling: full
-                bool onGround = pc != null && pc.fighter != null && pc.fighter.air == 0;
-                float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d)) * (onGround ? 0.8f : 1f);
+                float d = Vector3.Distance(me, l.world - Vector3.up * 22f);
+                float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d));
                 l.a = Mathf.MoveTowards(l.a, want, dt * 2.5f); // (a gentle fade in / out, never a pop)
                 l.g.alpha = l.a;
                 bool on = l.a > 0.01f;
                 if (l.rt.gameObject.activeSelf != on) l.rt.gameObject.SetActive(on);
                 if (!on) continue;
-                if (RectTransformUtility.ScreenPointToLocalPointInRectangle(root, sp, null, out Vector2 lp)) l.rt.anchoredPosition = lp;
-                // far ones a little smaller (the plane sees the whole island), never tiny
-                float s = Mathf.Lerp(1f, 0.72f, Mathf.InverseLerp(150f, 700f, d)) * (onGround ? 0.6f : 1f);
-                l.rt.localScale = Vector3.one * s;
+                // over its area, facing the camera, at a steady size on the screen (a little smaller far off, never tiny)
+                float cd = Vector3.Distance(cam.transform.position, l.world);
+                float s = Mathf.Lerp(0.8f, 0.6f, Mathf.InverseLerp(150f, 700f, d));
+                l.rt.position = l.world; l.rt.rotation = cam.transform.rotation;
+                l.rt.localScale = Vector3.one * (cd * px1 * ui * s);
             }
         }
     }

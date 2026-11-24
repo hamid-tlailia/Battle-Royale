@@ -44,7 +44,9 @@ namespace LastWar
         public float LastError { get; private set; } = -1f;
         public float LastHalfWidth { get; private set; }
 
-        float lostFor, prevYaw, prevPitch, nextLog; bool havePrev; Vector3 prevRoot, vel;
+        float lostFor, prevYaw, prevPitch, nextLog, awayFor; bool havePrev, locked; Vector3 prevRoot, vel;
+        /// <summary>held fast: caught the moment the scope opened / FIRE went down; glued while the scope / FIRE stay</summary>
+        public bool Locked => locked && Target != null;
 
         public static void ReadUrl(string u)
         {
@@ -61,7 +63,7 @@ namespace LastWar
             Debug = u.Contains("aadbg=1");
         }
 
-        public void Release() { Target = null; havePrev = false; lostFor = 0f; SensFactor = 1f; LastError = -1f; }
+        public void Release() { Target = null; havePrev = false; lostFor = 0f; SensFactor = 1f; LastError = -1f; locked = false; awayFor = 0f; }
 
         static Vector3 Dir(float yaw, float pitchDeg)
         {
@@ -133,7 +135,8 @@ namespace LastWar
         }
 
         /// <summary>one frame: turns yaw (deg) / pitch (radians) a little; `look` = the finger's look input this frame</summary>
-        public void Step(Fighter me, Camera cam, ref float yaw, ref float pitch, Vector2 look, bool scoped, bool firing, float dt)
+        /// <param name="engage">this frame the scope opened or FIRE went down: an enemy inside the catch circle is caught at once</param>
+        public void Step(Fighter me, Camera cam, ref float yaw, ref float pitch, Vector2 look, bool scoped, bool firing, float dt, bool engage = false)
         {
             if (!PlayerController.AimAssistOn || Strength <= 0f || cam == null || me == null || me.holstered || me.Gun == null || GameBoot.Instance == null || dt <= 0f)
             { Release(); return; }
@@ -156,7 +159,8 @@ namespace LastWar
                 if (!Target.Alive || lostFor > LoseTime) Release();
             }
             // nobody held (and not firing - a burst never jumps to a new man): the enemy whose torso is nearest the crosshair
-            if (Target == null && !firing)
+            if (engage && Target != null && !locked) Target = null; // (a fresh catch: the one nearest the crosshair now)
+            if (Target == null && (!firing || engage))
             {
                 Fighter best = null; float bs = float.MaxValue;
                 foreach (Fighter q in GameBoot.Instance.Fighters)
@@ -172,7 +176,19 @@ namespace LastWar
                 }
                 if (best != null) { Target = best; havePrev = false; lostFor = 0f; }
             }
-            if (Target == null) { SensFactor = 1f; LastError = -1f; return; }
+            if (Target == null) { SensFactor = 1f; LastError = -1f; locked = false; return; }
+            if (!scoped && !firing) locked = false;
+            // the instant catch: the scope just opened / FIRE just went down with him inside the circle - the aim goes onto
+            // his chest at once (a sniper scope: no, the shot is the player's own)
+            if (engage && !sniper && lostFor <= 0f)
+            {
+                Seen e0 = Look(Target, c, fw, scoped);
+                if (e0.err <= e0.allowed)
+                {
+                    Torso(Target, out Vector3 lo0, out Vector3 hi0); AnglesOf(Vector3.Lerp(lo0, hi0, 0.62f) - c, out float sy, out float sp);
+                    yaw = sy; pitchDeg = sp; fw = Dir(yaw, pitchDeg); locked = true; awayFor = 0f; havePrev = false;
+                }
+            }
             if (lostFor > 0f) { SensFactor = 1f; havePrev = false; return; } // (hidden this moment: nothing pulls toward a wall)
 
             Seen s = Look(Target, c, fw, scoped);
@@ -183,7 +199,9 @@ namespace LastWar
             LastError = s.err; LastHalfWidth = s.halfW;
 
             // friction
-            SensFactor = Mathf.Lerp(1f, Friction, st * close);
+            SensFactor = Mathf.Lerp(1f, Friction, locked ? Mathf.Max(st * close, 0.6f) : st * close);
+            // caught but the finger drags firmly away from him (half a second): let go - the hand always wins
+            if (locked) { awayFor = s.err > s.allowed && look.sqrMagnitude > 1e-6f ? awayFor + dt : 0f; if (awayFor > 0.5f) { Release(); return; } }
 
             // tracking: the torso's middle moved (as seen from here) since the last frame - the aim follows a share of it
             // (from his root, not his bones: the torso bobs with the run cycle and following that shook the aim; his speed
@@ -197,7 +215,7 @@ namespace LastWar
                 vel = Vector3.Lerp(vel, v, 1f - Mathf.Exp(-dt / 0.15f));
                 Vector3 mid = root + Vector3.up * 1.15f, ahead = mid + vel * dt;
                 AnglesOf(mid - c, out float y0, out float p0); AnglesOf(ahead - c, out float y1, out float p1);
-                float k = Track * st * close;
+                float k = locked ? 1f : Track * st * close; // (caught: follows him fully)
                 trackYaw = Mathf.DeltaAngle(y0, y1) * k; trackPitch = (p1 - p0) * k;
             }
             else vel = Vector3.zero;
@@ -208,7 +226,7 @@ namespace LastWar
             float pull = 0f;
             if ((scoped || firing) && s.err > s.halfW * 0.6f)
             {
-                float rate = PullRate * st * (sniper ? SniperPull : 1f);
+                float rate = PullRate * (locked ? 3f : 1f) * st * (sniper ? SniperPull : 1f); // (caught: pulled back onto him quickly)
                 pull = Mathf.Min((s.err - s.halfW * 0.5f) * (1f - Mathf.Exp(-rate * dt)), PullMax * st * dt); // (to the body's edge, not past its middle)
                 if (pull < 0f) pull = 0f;
                 Vector2 e = new Vector2(Mathf.DeltaAngle(yaw, s.pYaw), s.pPitch - pitchDeg);

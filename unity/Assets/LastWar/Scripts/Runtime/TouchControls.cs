@@ -27,6 +27,9 @@ namespace LastWar
         public bool FireHeld;       // finger / mouse on FIRE
         /// <summary>tests (?aatest=): FIRE held down</summary>
         public static bool ForceFire;
+        /// <summary>how much faster the finger on FIRE turns the view than a plain drag</summary>
+        public static float FireDragBoost = 1.6f;
+        Vector2 fireLast;
         public bool FirePressed;    // true for the frame FIRE went down
         public bool FireReleased;   // true for the frame FIRE went up
         public bool HolsterPressed; // the fist slot was tapped
@@ -271,7 +274,7 @@ namespace LastWar
                     if ((Over(fireBtn, t.position) || Over(fireLeft, t.position)) && fireFinger < 0)
                     {
                         fireFinger = t.fingerId; FirePressed = true; if (!InAir) Sprint = false; // a shot ends the run - except from a jump
-                        if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
+                        fireLast = t.position; // (the FIRE finger always turns the view too - below)
                     }
                     else if (OverBlocker(t.position)) continue;
                     // in the plane the whole screen turns the view; falling, only the bottom-left corner steers
@@ -290,6 +293,9 @@ namespace LastWar
                 }
                 // sniper: slide the FIRE finger onto the X to call the shot off (no second hand needed)
                 if (t.fingerId == fireFinger && SniperAiming && cancelShot.gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(cancelShot, t.position, null)) CancelShot = true;
+                // the finger on FIRE turns the soldier and the camera as it slides (up / down / left / right), faster than a plain
+                // drag (x FireDragBoost) - aiming while shooting, without a second finger
+                if (t.fingerId == fireFinger && t.fingerId != lookFinger && !Minimap.BigOpen) { LookDelta += (t.position - fireLast) * FireDragBoost; fireLast = t.position; }
                 if (t.fingerId == fireFinger && (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)) fireFinger = -1;
                 if (t.fingerId == joyFinger)
                 {

@@ -11,6 +11,8 @@ import sharp from 'sharp';
 import { bakeSkins, scenePoints, apply } from './gltf-util.mjs';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const [dir, listFile] = process.argv.slice(2);
+// TEX=1024: the colour maps' largest size (default 512; the enterable buildings use 1024 - at 512 their walls looked smeared)
+const TEX = +(process.env.TEX || 512);
 if (process.argv[1].endsWith("import-props.mjs")) {
 const OUT = 'unity/Assets/LastWar/Resources/Models';
 for (const line of fs.readFileSync(listFile, 'utf8').trim().split('\n')) {
@@ -24,7 +26,7 @@ for (const line of fs.readFileSync(listFile, 'utf8').trim().split('\n')) {
   const holder = doc.createNode('prop').setScale([k, k, k]).setTranslation([-(mn[0] + mx[0]) / 2 * k, -mn[1] * k, -(mn[2] + mx[2]) / 2 * k]);
   for (const n of scene.listChildren()) { scene.removeChild(n); holder.addChild(n); }
   scene.addChild(holder);
-  await doc.transform(metalRough(), dedup(), prune(), textureCompress({ encoder: sharp, resize: [512, 512], targetFormat: 'jpeg', slots: /^(?!normalTexture).*$/ }));
+  await doc.transform(metalRough(), dedup(), prune(), textureCompress({ encoder: sharp, resize: [TEX, TEX], targetFormat: 'jpeg', quality: 90, slots: /^(?!normalTexture).*$/ }));
   for (const m of doc.getRoot().listMaterials()) { m.setNormalTexture(null); m.setOcclusionTexture(null); m.setMetallicRoughnessTexture(null); }
   await doc.transform(prune());
   await io.write(`${OUT}/${key}.glb`, doc);

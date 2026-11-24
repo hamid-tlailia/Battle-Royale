@@ -508,7 +508,9 @@ namespace LastWar
         static float ClipCrawlPull => CrawlSpeed / (PlayerController.WalkSpeed * 0.2f);
         /// <summary>reloading: standing still (or aiming / firing / walking) the rifle reload clip plays, timed to the reload</summary>
         public bool Reloading; public float ReloadTime = 2f;
-        static readonly HashSet<string> ReloadOver = new HashSet<string> { "mx_idle", "mx_aim", "mx_fire", "mx_walk" };
+        // (standing only: walking, the reload clip - feet still - played over the walk and he slid along; on the move the
+        // walk / run goes on and the hands reload on top as the gun IK has them)
+        static readonly HashSet<string> ReloadOver = new HashSet<string> { "mx_idle", "mx_aim", "mx_fire" };
         string playing; // the clip the mixer plays for `current` (a rifle clip when one stands in)
         bool RifleClip => playing != null && playing.StartsWith("mx_");
         bool PistolClip => playing != null && playing.StartsWith("p_");

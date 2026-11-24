@@ -65,7 +65,9 @@ namespace LastWar.EditorTools
             if (role == 'n') { ti.textureType = TextureImporterType.NormalMap; ti.sRGBTexture = false; }
             else { ti.textureType = TextureImporterType.Default; ti.sRGBTexture = role != 'l'; }
             ti.alphaSource = TextureImporterAlphaSource.FromInput;
-            TextureCompression.Apply(ti, role == 'n' ? TextureCompression.Kind.Normal : role == 'l' ? TextureCompression.Kind.Data : TextureCompression.Kind.Colour);
+            // buildings and houses (seen up close, walls fill the screen): their colours at ASTC 4x4 like the ground, not 5x5
+            bool building = p.Contains("/Textures/bld_") || p.Contains("/Textures/house_") || p.Contains("/Textures/farmhouse") || p.Contains("/Textures/ind_") || p.Contains("/Textures/mkt_");
+            TextureCompression.Apply(ti, role == 'n' ? TextureCompression.Kind.Normal : role == 'l' ? TextureCompression.Kind.Data : building ? TextureCompression.Kind.Terrain : TextureCompression.Kind.Colour);
         }
     }
 }
