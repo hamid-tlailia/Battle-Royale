@@ -44,6 +44,7 @@ namespace LastWar
             public void Release() { leftW = 0f; }
             /// <summary>the hanging rifle: how far the left wrist may bend off the forearm (deg)</summary>
             public static float HangWristMax = 18f;
+            public static Vector3 HangK = new Vector3(0.75f, 0.66f, 0f), HangN = new Vector3(0f, 0f, 1f);
             float hangW;
             /// <summary>the hand's aim k (and palm n) turned toward the forearm's line so they stand at most HangWristMax off it -
             /// fully when the rifle hangs (hangW 1), not at all when it is level</summary>
@@ -198,6 +199,14 @@ namespace LastWar
                     // level - unchanged)
                     float pitch = Mathf.Asin(Mathf.Clamp(barrelDir.y, -1f, 1f)) * Mathf.Rad2Deg;
                     hangW = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-35f, -50f, pitch));
+                    if (hangW > 0f)
+                    {
+                        // (the hand's own aim and palm on a hanging rifle, in the gun's frame: side, barrel, up - tunable
+                        // with ?lhk=side,barrel,up&lhn=side,barrel,up)
+                        Vector3 kh = (side * HangK.x + barrelDir * HangK.y + up * HangK.z), nh = (side * HangN.x + barrelDir * HangN.y + up * HangN.z);
+                        if (kh.sqrMagnitude > 1e-6f && nh.sqrMagnitude > 1e-6f)
+                        { k = Vector3.Slerp(k, kh.normalized, hangW).normalized; n = Vector3.Slerp(n, nh.normalized, hangW).normalized; }
+                    }
                 }
                 Quaternion animUpper = la.rotation, animFore = lf.rotation, animHand = hl.rotation;
                 var fingers = SaveFingers("Left");

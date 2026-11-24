@@ -1477,6 +1477,11 @@ namespace LastWar
         /// <summary>?psup=side,knuckles,bend,curl : the left palm's distance left of the grip's middle (m), its knuckles below
         /// the aim (deg), the wrist's most bend (deg), the finger curl (deg)</summary>
         public static float SupportSide = 0.04f, SupportKnuckles = 40f, SupportBendMax = 50f, SupportCurl = 45f;
+        /// <summary>tests (?lhk= ?lhn= ?hwmax=): the left hand on a hanging rifle (WeaponIKController)</summary>
+        public static Vector3 HangGripK => WeaponIKController.HangK;
+        public static Vector3 HangGripN => WeaponIKController.HangN;
+        public static void HangGrip(Vector3 k, Vector3 n) { WeaponIKController.HangK = k; WeaponIKController.HangN = n; }
+        public static float HangWrist { get => WeaponIKController.HangWristMax; set => WeaponIKController.HangWristMax = value; }
 
         float GripGap()
         {
