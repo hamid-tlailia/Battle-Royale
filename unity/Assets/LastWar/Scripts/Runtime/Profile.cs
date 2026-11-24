@@ -48,6 +48,9 @@ namespace LastWar
         public static float Sensitivity { get => PlayerPrefs.GetFloat("lw.sens", 1f); set { PlayerPrefs.SetFloat("lw.sens", value); PlayerPrefs.Save(); } }
         public static float ScopeSensitivity { get => PlayerPrefs.GetFloat("lw.scopeSens", 1f); set { PlayerPrefs.SetFloat("lw.scopeSens", value); PlayerPrefs.Save(); } }
         public static bool AimAssist { get => PlayerPrefs.GetInt("lw.assist", 1) == 1; set { PlayerPrefs.SetInt("lw.assist", value ? 1 : 0); PlayerPrefs.Save(); } }
+        /// <summary>aim assist strength 0..1 and reach in metres (settings page)</summary>
+        public static float AimStrength { get => PlayerPrefs.GetFloat("lw.assistStr", 0.7f); set { PlayerPrefs.SetFloat("lw.assistStr", value); PlayerPrefs.Save(); LastWar.AimAssist.Strength = value; } }
+        public static float AimRange { get => PlayerPrefs.GetFloat("lw.assistRange", 70f); set { PlayerPrefs.SetFloat("lw.assistRange", value); PlayerPrefs.Save(); LastWar.AimAssist.Range = value; } }
         /// <summary>0 low, 1 medium, 2 high</summary>
         public static int Quality { get => PlayerPrefs.GetInt("lw.quality", 2); set { PlayerPrefs.SetInt("lw.quality", value); PlayerPrefs.Save(); ApplyQuality(); } }
 
@@ -68,7 +71,7 @@ namespace LastWar
                 urp.msaaSampleCount = q == 0 ? 1 : q == 1 ? 2 : 4;
                 urp.shadowDistance = q == 0 ? 40f : q == 1 ? 70f : 90f;
             }
-            PlayerController.AimAssistOn = AimAssist;
+            PlayerController.AimAssistOn = AimAssist; LastWar.AimAssist.Strength = AimStrength; LastWar.AimAssist.Range = AimRange;
             AudioListener.volume = SoundOn ? 1f : 0f;
         }
     }

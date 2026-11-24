@@ -1424,6 +1424,16 @@ namespace LastWar
             return (g - (gun.position - gun.up * 0.035f)).magnitude;
         }
 
+        /// <summary>the torso as posed now: hips to the base of the neck (aim assist aims at it); false = no skeleton</summary>
+        public bool TorsoLine(out Vector3 lo, out Vector3 hi)
+        {
+            Transform h = PoseBone("Hips"), n = PoseBone("Neck") ?? PoseBone("Spine2");
+            lo = h != null ? h.position : transform.position; hi = n != null ? n.position : lo;
+            if (h == null || n == null) return false;
+            hi = Vector3.Lerp(lo, hi, 0.92f);
+            return true;
+        }
+
         /// <summary>?trigfinger=0: the index finger curled round the grip with the others, as before</summary>
         public static bool UseTriggerFinger = true;
         /// <summary>the pistol's trigger from its origin: ahead along the barrel and down (m)</summary>

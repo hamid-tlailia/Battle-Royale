@@ -33,7 +33,15 @@ namespace LastWar
         /// <summary>the crosshair is on a living enemy (no wall in between)</summary>
         public Fighter OnEnemy { get; private set; }
         public static bool AimAssistOn = true; // false = full control (settings, phase 3)
-        Fighter lockTarget; float lockYaw, lockPitch, lockOff;
+        Fighter lockTarget; // (the enemy the aim assist holds now: no joystick turning meanwhile)
+        public readonly AimAssist Assist = new AimAssist();
+        /// <summary>tests (?aatest=1): a look turn in degrees a second, fed in like the finger's (friction applies)</summary>
+        public Vector2 TestLook;
+        /// <summary>tests: the aim angles (yaw degrees, pitch radians) and the controls</summary>
+        public float TestYaw { get => yaw; set => yaw = value; }
+        public float TestPitch { get => pitch; set => pitch = Mathf.Clamp(value, -1.2f, 1.2f); }
+        public TouchControls TestInput => input;
+        public Camera TestCam => cam;
 
         public static PlayerController Spawn(Vector3 pos, TouchControls input, Camera cam)
         {
@@ -80,9 +88,11 @@ namespace LastWar
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0) { body.Play("idle_rifle"); return; }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
-            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * (lockTarget != null && AimAssistOn ? 0.6f : 1f);
-            yaw += input.LookDelta.x * sens;
-            pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
+            // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
+            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;
+            yaw += input.LookDelta.x * sens + TestLook.x * dt * Assist.SensFactor;
+            pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad + TestLook.y * dt * Assist.SensFactor * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
+            lookThisFrame = input.LookDelta * sens + TestLook * dt;
             if (fighter.air != 0) { sniperHold = false; AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
             // the joystick turns the soldier too: pushed to a side the view swings that way (faster the further round),
@@ -147,7 +157,7 @@ namespace LastWar
             AirMove.KeepOnMap(transform, cc); // (never off the map's edge)
 
             Separate(transform, cc, dt);
-            AimAssist(dt);
+            RunAimAssist(dt);
             transform.rotation = Quaternion.Euler(0, yaw, 0);
             Vector3 aim = AimDirection(out Vector3 eye);
             body.AimDir = aim;
@@ -359,48 +369,9 @@ namespace LastWar
             qYaw = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; qPitch = Mathf.Atan2(d.y, new Vector2(d.x, d.z).magnitude);
         }
 
-        Fighter scopeLock; bool scopeWasOpen, scopeSpent;
+        Vector2 lookThisFrame;
 
-        /// <summary>the nearest living enemy on the ground within `range` m, inside `cone` degrees of the view, in sight</summary>
-        Fighter Nearest(float range, float cone)
-        {
-            if (GameBoot.Instance == null || cam == null) return null;
-            Fighter best = null; float bd = range;
-            foreach (Fighter q in GameBoot.Instance.Fighters)
-            {
-                if (q == fighter || !q.Alive || q.air != 0) continue;
-                Vector3 d = q.transform.position - transform.position;
-                if (Mathf.Abs(d.y) > 4f) continue;
-                d.y = 0; float m = d.magnitude;
-                if (m >= bd) continue;
-                if (cone < 180f && Mathf.Abs(Mathf.DeltaAngle(yaw, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg)) > cone) continue;
-                if (!Los(cam.transform.position, q.transform.position + Vector3.up * 1.05f, q)) continue;
-                bd = m; best = q;
-            }
-            return best;
-        }
 
-        /// <summary>the living enemy whose body the crosshair passes nearest (within 1.5 m of it or 7 degrees), up to
-        /// `range` m, in sight</summary>
-        Fighter NearAim(float range)
-        {
-            if (GameBoot.Instance == null || cam == null) return null;
-            Vector3 c0 = cam.transform.position, fw = cam.transform.forward;
-            Fighter best = null; float bm = float.MaxValue;
-            foreach (Fighter q in GameBoot.Instance.Fighters)
-            {
-                if (q == fighter || !q.Alive || q.air != 0) continue;
-                Vector3 lo = q.transform.position + Vector3.up * 0.2f, hi = q.transform.position + Vector3.up * 1.9f;
-                float dist = Vector3.Distance(c0, (lo + hi) * 0.5f);
-                if (dist > range || Vector3.Dot((lo + hi) * 0.5f - c0, fw) <= 0f) continue;
-                float miss = AimMiss(c0, fw, lo, hi, out _);
-                if (miss > Mathf.Max(1.5f, dist * Mathf.Tan(7f * Mathf.Deg2Rad))) continue;
-                float score = miss / Mathf.Max(1f, dist); // (nearest to the crosshair as seen)
-                if (score >= bm || !Los(c0, q.transform.position + Vector3.up * 1.05f, q)) continue;
-                bm = score; best = q;
-            }
-            return best;
-        }
 
         /// <summary>how far (m) the aim line from `c` along `fw` passes from the segment lo..hi, and the segment's nearest point</summary>
         static float AimMiss(Vector3 c, Vector3 fw, Vector3 lo, Vector3 hi, out Vector3 nearest)
@@ -424,7 +395,7 @@ namespace LastWar
             return true;
         }
 
-        void AimAssist(float dt)
+        void RunAimAssist(float dt)
         {
             OnEnemy = null;
             if (cam == null) return;
@@ -438,114 +409,11 @@ namespace LastWar
                 Fighter q = h.collider.GetComponentInParent<Fighter>();
                 OnEnemy = q != null && q != fighter && q.Alive ? q : null;
             }
-            // 1b) the scope's own lock. Opening the scope with an enemy within 8 m (any direction, in sight): the aim
-            //     goes onto their body at once and stays there. It only lets go when they are gone from sight (dead,
-            //     behind a wall / ice) or run far away - and then nothing is caught again until the scope is closed and
-            //     opened anew. While it holds, a second enemy never takes it over.
-            bool scopedNow = Scoped;
-            // a sniper rifle through its scope is aimed by hand only (no lock, no pull: the player's own shot)
-            bool sniperScope = scopedNow && fighter.Gun != null && fighter.Gun.def.id.StartsWith("sniper");
-            if (sniperScope) { scopeLock = null; scopeSpent = false; scopeWasOpen = true; lockTarget = null; return; }
-            if (scopedNow && !scopeWasOpen)
-            {
-                // the scope opens onto the enemy whose body is nearest the crosshair - however far, as long as he is in
-                // sight and the crosshair is near him (within 1.5 m of his body or 7 degrees). Never one beside or behind
-                // you: nothing turns you toward an enemy you are not already aiming near.
-                scopeLock = NearAim(fighter.Gun != null ? fighter.Gun.def.range : 250f); scopeSpent = false;
-            }
-            if (!scopedNow) { scopeLock = null; scopeSpent = false; }
-            scopeWasOpen = scopedNow;
-            if (scopedNow && scopeLock != null)
-            {
-                Vector3 tp = scopeLock.transform.position + Vector3.up * 1.05f;
-                if (!scopeLock.Alive || !Los(cam.transform.position, tp, scopeLock))
-                { scopeLock = null; scopeSpent = true; lockTarget = null; }
-                else
-                {
-                    Angles(scopeLock, out float qy, out float qp, out _, out _);
-                    float kk = 1f; // glued to the body at once and every frame after (no catching up)
-                    yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
-                    lockTarget = scopeLock; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = scopeLock;
-                    return;
-                }
-            }
-            // nothing else ever turns the soldier: no lock from the hip, no sticky aim, no pull toward an enemy (it turned
-            // you round with a bot that came close, and fought the hand on the screen) - only the scope's own catch above
-            lockTarget = null; return;
-            // 1c) from the hip (assist on): the nearest enemy within 8 m in front, the aim on their body while FIRE is held
-            bool hip = AimAssistOn && input.FireHeld && !scopedNow && fighter.Gun != null && !fighter.holstered;
-            if (hip)
-            {
-                Fighter close = Nearest(8.2f, 75f);
-                if (close != null)
-                {
-                    Angles(close, out float qy, out float qp, out _, out _);
-                    float kk = close != lockTarget ? 1f : Mathf.Min(1f, dt * 14f);
-                    yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch = Mathf.Clamp(pitch + (qp - pitch) * kk, -1.2f, 1.2f);
-                    lockTarget = close; lockYaw = qy; lockPitch = qp; lockOff = 0; OnEnemy = close;
-                    return;
-                }
-            }
-            if (!AimAssistOn) { lockTarget = null; return; }
-            // 2) sticky aim: lock on when the dot turns red and follow the target's movement
-            // (through the scope a lock is never handed over to another enemy while it holds)
-            if (OnEnemy != null && lockTarget != OnEnemy && !(Scoped && lockTarget != null && lockTarget.Alive)) { Angles(OnEnemy, out lockYaw, out lockPitch, out _, out _); lockTarget = OnEnemy; lockOff = 0; }
-            if (lockTarget != null)
-            {
-                Angles(lockTarget, out float qy, out float qp, out float dist, out Vector3 t);
-                // still on them? anywhere on / just around the body, head included (moving from chest to head keeps the
-                // lock): how far the aim line passes from the body's upright line (feet + 0.2 m .. top of the head + 0.25 m)
-                Vector3 c0 = cam.transform.position, fw = cam.transform.forward;
-                Vector3 lo = lockTarget.transform.position + Vector3.up * 0.2f, hi = lockTarget.transform.position + Vector3.up * 1.95f;
-                float miss = AimMiss(c0, fw, lo, hi, out Vector3 onBody);
-                bool near = miss < (Scoped ? 0.9f : 1.3f);
-                lockOff = OnEnemy != null || near ? 0 : lockOff + dt;
-                // (scoped: long range too - the sniper reaches 320 m)
-                if (!lockTarget.Alive || dist > (Scoped ? 320f : 150f) || lockOff > (Scoped ? 1.5f : 0.9f) || !Los(cam.transform.position, t, lockTarget)) { lockTarget = null; if (Scoped) scopeSpent = true; }
-                else
-                {
-                    yaw += Mathf.DeltaAngle(lockYaw, qy);
-                    pitch = Mathf.Clamp(pitch + (qp - lockPitch), -1.2f, 1.2f);
-                    lockYaw = qy; lockPitch = qp;
-                    // while shooting or through the scope the aim is drawn onto the body and stays there. Through the scope
-                    // the aim may sit anywhere on the body, the head included: it is only drawn back when it slips off
-                    // the body (onto the nearest point of it), never pulled from the head down to the chest.
-                    if (Scoped)
-                    {
-                        if (OnEnemy == null)
-                        {
-                            Vector3 d2 = onBody - c0; float ty = Mathf.Atan2(d2.x, d2.z) * Mathf.Rad2Deg, tpch = Mathf.Atan2(d2.y, new Vector2(d2.x, d2.z).magnitude);
-                            float kk = Mathf.Min(1f, dt * 7f);
-                            yaw += Mathf.DeltaAngle(yaw, ty) * kk; pitch += (tpch - pitch) * kk * 0.7f;
-                        }
-                    }
-                    else if (input.FireHeld)
-                    {
-                        // (shooting on the move or from a jump: the aim keeps up with them better - you and they both move)
-                        float kk = Mathf.Min(1f, dt * (OnEnemy == null ? 7f : 2.5f) * (OnTheMove ? 1.5f : 1f));
-                        yaw += Mathf.DeltaAngle(yaw, qy) * kk; pitch += (qp - pitch) * kk * 0.7f;
-                    }
-                    return;
-                }
-            }
-            // 3) gentle pull toward the closest enemy in a small cone while firing / scoped
-            bool engaged = input.FireHeld || Scoped;
-            if (!engaged || GameBoot.Instance == null) return;
-            float bestAng = float.MaxValue, by = 0, bp = 0;
-            foreach (Fighter q in GameBoot.Instance.Fighters)
-            {
-                if (q == fighter || !q.Alive) continue;
-                Angles(q, out float qy, out float qp, out float dist, out Vector3 t);
-                if (dist > (Scoped ? 260f : 160f)) continue;
-                float dyaw = Mathf.DeltaAngle(yaw, qy) * Mathf.Deg2Rad, dp = qp - pitch;
-                float ang = Mathf.Sqrt(dyaw * dyaw + dp * dp);
-                float cone = Mathf.Max(0.07f, Mathf.Atan(1f / dist)) * (Scoped ? 1.4f : 3.2f) * (OnTheMove && !Scoped ? 1.3f : 1f); // (hip fire: a wider catch; wider again on the move / jumping)
-                if (ang > cone || ang > bestAng || !Los(cam.transform.position, t, q)) continue;
-                bestAng = ang; by = dyaw; bp = dp;
-            }
-            if (bestAng == float.MaxValue) return;
-            float k = Mathf.Min(1f, (input.FireHeld ? 11f : 3.5f) * dt);
-            yaw += by * k * Mathf.Rad2Deg; pitch += bp * k * 0.6f;
+            // 2) the aim assist (AimAssist.cs): friction, tracking and - scoped / firing - a gentle pull onto the torso
+            //    of one enemy held near the crosshair; nothing else turns the soldier
+            if (input.FrostAim) { Assist.Release(); lockTarget = null; return; }
+            Assist.Step(fighter, cam, ref yaw, ref pitch, lookThisFrame, Scoped, input.FireHeld, dt);
+            lockTarget = Assist.Target;
         }
 
         bool OnTheMove => cc != null && (!cc.isGrounded || new Vector2(cc.velocity.x, cc.velocity.z).magnitude > 1.2f);

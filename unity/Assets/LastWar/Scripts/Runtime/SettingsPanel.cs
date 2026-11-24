@@ -156,6 +156,8 @@ namespace LastWar
             y += Range(p, x, y, w, fk, "LOOK SENSITIVITY", 0.3f, 2.5f, Profile.Sensitivity, "%", v => Profile.Sensitivity = v);
             y += Range(p, x, y, w, fk, "SCOPE SENSITIVITY", 0.3f, 2.5f, Profile.ScopeSensitivity, "%", v => Profile.ScopeSensitivity = v);
             y += ChoiceRow(p, x, y, w, fk, "AIM", new[] { "ASSIST", "FULL CONTROL" }, Profile.AimAssist ? 0 : 1, i => { Profile.AimAssist = i == 0; PlayerController.AimAssistOn = i == 0; });
+            y += Range(p, x, y, w, fk, "AIM ASSIST STRENGTH", 0f, 1f, Profile.AimStrength, "%", v => Profile.AimStrength = v);
+            y += Range(p, x, y, w, fk, "AIM ASSIST RANGE (m)", 20f, 120f, Profile.AimRange, "0", v => Profile.AimRange = v);
             y += Toggle(p, x, y, w, fk, "Auto pick-up (ammo, meds, guns...)", Profile.AutoPickup, v => Profile.AutoPickup = v);
             y += Toggle(p, x, y, w, fk, "Music", Profile.MusicOn, v => { Profile.MusicOn = v; if (v) Music.PlayLobbyIfIdle(); else Music.Stop(0f); });
             y += Toggle(p, x, y, w, fk, "Sound", Profile.SoundOn, v => Profile.SoundOn = v);

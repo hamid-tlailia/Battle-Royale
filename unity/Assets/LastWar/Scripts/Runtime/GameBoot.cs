@@ -41,6 +41,7 @@ namespace LastWar
             SoldierBody.LogRig = (Application.absoluteURL ?? "").Contains("rig=1");
             PlayerController.DebugAim = (Application.absoluteURL ?? "").Contains("dbgaim=1");
             SoldierBody.GunDebug = (Application.absoluteURL ?? "").Contains("gundbg=1");
+            AimAssist.ReadUrl(Application.absoluteURL ?? ""); // (?aa_str= ?aa_range= ... ?aadbg=1: tests)
             if ((Application.absoluteURL ?? "").Contains("trigfinger=0")) SoldierBody.UseTriggerFinger = false; // (the index round the grip, as before)
             { string u = Application.absoluteURL ?? ""; int ti = u.IndexOf("trigahead="); if (ti >= 0 && float.TryParse(new string(u.Substring(ti + 10).TakeWhile(ch => char.IsDigit(ch) || ch == '.' || ch == '-').ToArray()), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ta)) SoldierBody.TriggerAhead = ta;
               ti = u.IndexOf("trigdown="); if (ti >= 0 && float.TryParse(new string(u.Substring(ti + 9).TakeWhile(ch => char.IsDigit(ch) || ch == '.' || ch == '-').ToArray()), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float td)) SoldierBody.TriggerDown = td; }
@@ -165,6 +166,7 @@ namespace LastWar
             Tracers.Create();
             Hud.Create(controls, Player);
             Minimap.Create(controls, Player, Map);
+            if (url.Contains("aatest=")) StartCoroutine(AimAssistTest.Run(this, url.Contains("aatest=2") ? 2 : 1)); // (aim assist tests: AimAssistTest.cs)
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
             fps.transform.SetParent(controls.Root, false);

@@ -25,6 +25,8 @@ namespace LastWar
         public bool Sprint;         // auto-run toggle
         public bool JumpPressed;    // true for one frame
         public bool FireHeld;       // finger / mouse on FIRE
+        /// <summary>tests (?aatest=): FIRE held down</summary>
+        public static bool ForceFire;
         public bool FirePressed;    // true for the frame FIRE went down
         public bool FireReleased;   // true for the frame FIRE went up
         public bool HolsterPressed; // the fist slot was tapped
@@ -311,7 +313,7 @@ namespace LastWar
                 }
             }
             Move = move;
-            FireHeld = fireFinger >= 0;
+            FireHeld = fireFinger >= 0 || ForceFire;
         }
 
         void Desktop()
@@ -331,7 +333,7 @@ namespace LastWar
             if (Input.GetKeyDown(KeyCode.Z)) { Prone = !Prone; Crouch = false; }
             if (Input.GetKeyDown(KeyCode.H)) HealPressed = true;
             if (Input.GetKeyDown(KeyCode.Tab)) BagPressed = true;
-            FireHeld = Input.GetMouseButton(0) && !onUi;
+            FireHeld = (Input.GetMouseButton(0) && !onUi) || ForceFire;
             if (Input.GetKeyDown(KeyCode.R)) ReloadPressed = true;
             if (Input.GetKeyDown(KeyCode.Q) && scopeAllowed) Scoped = !Scoped;
             if (Input.GetKeyDown(KeyCode.X)) HolsterPressed = true;
