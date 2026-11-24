@@ -177,7 +177,29 @@ namespace LastWar
                 Vector3 up = gun.up, barrelDir = -back, side = Vector3.Cross(up, barrelDir).normalized; // side: the shooter's right
                 Vector3 k, n;
                 if (p.leftHandStyle == "vertical") { k = (side * 0.8f - up * 0.6f).normalized; n = barrelDir; }
-                else { k = (side * 0.75f + barrelDir * 0.66f).normalized; n = up; }
+                else
+                {
+                    k = (side * 0.75f + barrelDir * 0.66f).normalized; n = up;
+                    // the rifle hanging muzzle-down (the lobby stand, the low ready: barrel 50-65 degrees down): "palm up under
+                    // the handguard" turned the palm out and the fingers to the left. Held as a hanging pole is: the palm on
+                    // the handguard from the side the forearm comes from, the fingers wrapped round it (aiming - barrel near
+                    // level - unchanged)
+                    float pitch = Mathf.Asin(Mathf.Clamp(barrelDir.y, -1f, 1f)) * Mathf.Rad2Deg;
+                    float hang = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-35f, -50f, pitch));
+                    if (hang > 0f)
+                    {
+                        Vector3 fromBar = Vector3.ProjectOnPlane(lf.position - target, barrelDir);
+                        if (fromBar.sqrMagnitude > 1e-6f)
+                        {
+                            Vector3 n2 = -fromBar.normalized;                       // the palm toward the handguard
+                            Vector3 fa = Vector3.ProjectOnPlane(target - lf.position, n2).normalized;
+                            Vector3 k2 = Vector3.Cross(n2, barrelDir).normalized;    // the fingers round it ...
+                            if (Vector3.Dot(k2, fa) < 0f) k2 = -k2;                  // ... on from the forearm
+                            k2 = (k2 * 0.9f + fa * 0.35f).normalized;
+                            k = Vector3.Slerp(k, k2, hang).normalized; n = Vector3.Slerp(n, n2, hang).normalized;
+                        }
+                    }
+                }
                 Quaternion animUpper = la.rotation, animFore = lf.rotation, animHand = hl.rotation;
                 var fingers = SaveFingers("Left");
                 for (int it = 0; it < 2; it++)
