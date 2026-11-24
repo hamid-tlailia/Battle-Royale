@@ -208,8 +208,8 @@ namespace LastWar
             if (wbase != null)
             {
                 mat = new Material(wbase);
-                mat.SetTextureScale("_BumpMap", Vector2.one * (2f * R / 26f));        // ripples ~26 m across
-                mat.SetTextureScale("_DetailNormalMap", Vector2.one * (2f * R / 7f)); // and ~7 m wavelets on them
+                mat.SetTextureScale("_BumpMap", Vector2.one * (2f * R / 9f));         // ripples ~9 m across
+                mat.SetTextureScale("_DetailNormalMap", Vector2.one * (2f * R / 2.6f)); // and ~2.6 m wavelets on them
             }
             else { mat = NewLit(new Color(0.11f, 0.38f, 0.52f)); mat.SetFloat("_Smoothness", 0.88f); mat.SetFloat("_Metallic", 0f); }
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
@@ -476,13 +476,30 @@ namespace LastWar
     public class Sea : MonoBehaviour
     {
         public Material mat;
-        float y0;
-        void Start() { y0 = transform.localPosition.y; }
+        float y0; Mesh mesh; Vector3[] rest, now; float nextWave;
+        void Start()
+        {
+            y0 = transform.localPosition.y;
+            var mf = GetComponent<MeshFilter>(); mesh = mf != null ? mf.mesh : null;
+            if (mesh != null) { rest = mesh.vertices; now = (Vector3[])rest.Clone(); mesh.MarkDynamic(); }
+        }
         void Update()
         {
-            var p = transform.localPosition; p.y = y0 + Mathf.Sin(Time.time * 0.7f) * 0.06f; transform.localPosition = p;
-            // the two layers of ripples drift different ways (the sea moves; not one sheet sliding)
-            if (mat != null) { float t = Time.time; mat.SetTextureOffset("_BumpMap", new Vector2(t * 0.0021f, t * 0.0013f)); mat.SetTextureOffset("_DetailNormalMap", new Vector2(-t * 0.0047f, t * 0.0036f)); }
+            float t = Time.time;
+            var p = transform.localPosition; p.y = y0 + Mathf.Sin(t * 0.7f) * 0.05f; transform.localPosition = p;
+            // the two layers of ripples drift different ways (the sea moves; not one sheet sliding) - a little faster than
+            // before: wind on the water
+            if (mat != null) { mat.SetTextureOffset("_BumpMap", new Vector2(t * 0.0042f, t * 0.0026f)); mat.SetTextureOffset("_DetailNormalMap", new Vector2(-t * 0.0094f, t * 0.0072f)); }
+            // a slow swell running over it (three long waves, ~0.35 m), ten times a second (the mesh is a few hundred points)
+            if (mesh == null || Time.time < nextWave) return;
+            nextWave = Time.time + 0.1f;
+            for (int i = 0; i < rest.Length; i++)
+            {
+                Vector3 v = rest[i];
+                float h = Mathf.Sin(v.x * 0.045f + t * 0.9f) * 0.16f + Mathf.Sin(v.z * 0.038f - t * 0.75f) * 0.13f + Mathf.Sin((v.x + v.z) * 0.021f + t * 0.5f) * 0.09f;
+                now[i] = new Vector3(v.x, v.y + h, v.z);
+            }
+            mesh.vertices = now; mesh.RecalculateNormals();
         }
     }
 }

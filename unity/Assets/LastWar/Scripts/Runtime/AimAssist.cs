@@ -41,7 +41,8 @@ namespace LastWar
         public Fighter Target { get; private set; }
         /// <summary>the look sensitivity factor for the next frame (friction): 1 = none</summary>
         public float SensFactor { get; private set; } = 1f;
-        public float LastError { get; private set; } = -1f, LastHalfWidth { get; private set; }
+        public float LastError { get; private set; } = -1f;
+        public float LastHalfWidth { get; private set; }
 
         float lostFor, prevYaw, prevPitch, nextLog; bool havePrev;
 

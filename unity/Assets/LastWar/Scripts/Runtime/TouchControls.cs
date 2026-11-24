@@ -240,7 +240,9 @@ namespace LastWar
                 Desktop();
             }
             if (FirePressed || ScopedUi || Spectating) FreeLookLatched = false; // (a shot / the scope: the view goes back behind the soldier)
-            if (Input.touchCount > 0 || FreeLookLatched) FreeLook = (eyeFinger >= 0 || FreeLookLatched) && !ScopedUi && !Spectating;
+            // (StandOrbit: the drag of a soldier standing still circles the camera - this line set FreeLook back to false
+            // after it, so the drag went nowhere: neither the camera circled nor did he turn)
+            if (Input.touchCount > 0 || FreeLookLatched) FreeLook = (eyeFinger >= 0 || FreeLookLatched || StandOrbit) && !ScopedUi && !Spectating;
             if (wasHeld && !FireHeld) FireReleased = true;
             // button states like the web: pressed = gold ring, RUN / SCOPE on = green
             Sprite pressed = UiKit.Get("btn_pressed"), active = UiKit.Get("btn_active");

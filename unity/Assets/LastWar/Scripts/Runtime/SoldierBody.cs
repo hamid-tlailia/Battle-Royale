@@ -1445,7 +1445,7 @@ namespace LastWar
         void TriggerFinger(Vector3 t, Vector3 dir)
         {
             Transform i1 = PoseBone("RightHandIndex" + knuckle), i2 = PoseBone("RightHandIndex" + (knuckle + 1)), i3 = knuckle + 2 <= 3 ? PoseBone("RightHandIndex" + (knuckle + 2)) : null;
-            if (i1 == null || i2 == null) return;
+            if (i1 == null || i2 == null || fingerRest == null) return;
             foreach (var kv in fingerRest) if (kv.Key == i1 || kv.Key == i2 || kv.Key == i3) kv.Key.localRotation = kv.Value;
             float seg1 = (i2.position - i1.position).magnitude;
             Vector3 k = HandDir(handR, "Right"), n = PalmNormal(handR, "Right"), axis = Vector3.Cross(k, n).normalized;

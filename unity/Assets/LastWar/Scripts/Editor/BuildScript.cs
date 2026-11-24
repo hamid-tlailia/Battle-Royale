@@ -238,9 +238,13 @@ namespace LastWar.EditorTools
                 m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT"); m.SetOverrideTag("RenderType", "Transparent");
                 m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
                 var ripple = AssetDatabase.LoadAssetAtPath<Texture2D>(Root + "/Resources/Maps/water_normal.png");
-                m.SetTexture("_BumpMap", ripple); m.SetFloat("_BumpScale", 0.45f); m.EnableKeyword("_NORMALMAP");
-                m.SetTexture("_DetailNormalMap", ripple); m.SetFloat("_DetailNormalMapScale", 0.35f); m.EnableKeyword("_DETAIL_MULX2");
-                m.SetColor("_BaseColor", new Color(0.06f, 0.33f, 0.46f, 0.84f)); m.SetFloat("_Smoothness", 0.93f); m.SetFloat("_Metallic", 0f);
+                // (a real sea, not a sheet of ice: deep blue-green, nearly opaque away from the beach, its gloss blurred a
+                // little so the sky does not mirror in big pale patches; small dense ripples - the big ones tiled into
+                // patches that read as ice floes from the plane)
+                m.SetTexture("_BumpMap", ripple); m.SetFloat("_BumpScale", 0.28f); m.EnableKeyword("_NORMALMAP");
+                m.SetTexture("_DetailNormalMap", ripple); m.SetFloat("_DetailNormalMapScale", 0.5f); m.EnableKeyword("_DETAIL_MULX2");
+                m.SetColor("_BaseColor", new Color(0.035f, 0.2f, 0.27f, 0.9f)); m.SetFloat("_Smoothness", 0.8f); m.SetFloat("_Metallic", 0f);
+                m.SetFloat("_SpecularHighlights", 1f); m.SetFloat("_EnvironmentReflections", 1f);
                 AssetDatabase.CreateAsset(m, water);
             }
             // zone wall: see-through blue, both sides; tracer: bright additive streak
