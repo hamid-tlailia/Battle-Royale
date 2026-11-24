@@ -1391,7 +1391,7 @@ namespace LastWar
                 {
                     if (!HandGrip) { TwoBone(la, lf, handL, gun.position + dir * GripAhead(gunId) - gun.up * 0.035f); return; }
                     float palm = PalmLen(handL, "Left");
-                    if (pistol) PistolSupport(la, lf, palm, dir, up, side);
+                    if (pistol) PistolSupport(handL, la, lf, palm, dir, up, side);
                     else
                     {
                         // under the handguard: palm up, fingers round its right side
@@ -1421,7 +1421,7 @@ namespace LastWar
         /// wrapped round the front of the right hand's fingers, the thumb forward along the frame under the slide. The wrist
         /// bends at most 50 degrees off the forearm; the palm is then put back on its place (the arm reaches again), so the
         /// limit never pulls the hand off the gun (it did: the hand turned about the wrist and stood off the right hand)</summary>
-        void PistolSupport(Transform la, Transform lf, float palm, Vector3 dir, Vector3 up, Vector3 side)
+        void PistolSupport(Transform handL, Transform la, Transform lf, float palm, Vector3 dir, Vector3 up, Vector3 side)
         {
             Vector3 grip = gun.position - up * 0.035f;
             Vector3 want = grip - side * SupportSide - up * 0.012f + dir * 0.004f;   // the palm's surface
