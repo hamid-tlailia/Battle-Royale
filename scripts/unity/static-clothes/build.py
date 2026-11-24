@@ -14,7 +14,7 @@ def allowed(kind):
     if kind in ('top', 'chest'): return ~np.isin(dom, list(LEGJ - {'pelvis'})) & ~np.isin(dom, list(HEADJ))
     if kind == 'pants': return np.isin(dom, list(LEGJ | {'spine_01'}))
     if kind == 'suit': return ~np.isin(dom, list(HEADJ))
-    if kind == 'foot': return np.isin(dom, ['foot_l', 'ball_l', 'calf_l'])
+    if kind == 'foot': return np.isin(dom, ['foot_l', 'ball_l', 'calf_l', 'foot_r', 'ball_r', 'calf_r'])  # (the mirrored boot: the right foot)
     return np.isin(dom, list(HEADJ))  # head pieces
 def piece_prims(i):
     g = G(f'{SKF}/{i}/m.bin'); out = []
