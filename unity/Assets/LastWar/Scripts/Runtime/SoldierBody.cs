@@ -1134,8 +1134,14 @@ namespace LastWar
             Destroy(baked);
             return far == float.MinValue ? 0.04f : Mathf.Max(0f, far);
         }
-        public void SetBag(int lv)
+        /// <summary>the backpack worn on the back in a match: hidden (it stood off the back); ?showbag=1 brings it back.
+        /// The bag level itself (room for supplies) is not touched - only its model</summary>
+        public static bool ShowBagInMatch = false;
+        public void SetBag(int lv) => SetBag(lv, false);
+        /// <summary>force: shown even while hidden in matches (the outfit test grid's ?wbag=)</summary>
+        public void SetBag(int lv, bool force)
         {
+            if (!ShowBagInMatch && !force) lv = 0;
             if (lv == bagLvShown) return;
             bagLvShown = lv;
             if (bagLook != null) Destroy(bagLook.gameObject);

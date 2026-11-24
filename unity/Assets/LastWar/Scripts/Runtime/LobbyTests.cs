@@ -285,7 +285,7 @@ namespace LastWar
                     body.SetGun(gl[r]); body.Armed = true; body.LiveBack = true; body.Speed = GridSpeed; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
                     if (GridSpeed > 0.25f && clip == "prone") body.Pose = "crawl"; // (?wspeed=1&wclip=prone: crawling)
                     body.AimDir = go.transform.forward;
-                    if (GridBag > 0) body.SetBag(GridBag); // (?wbag=1..3: the backpack on every outfit)
+                    if (GridBag > 0) body.SetBag(GridBag, true); // (?wbag=1..3: the backpack on every outfit)
                     if (GridBack) body.SetBack(new List<string> { "sniper", "shotgun" }); // (?wback=1: two guns on the back too)
                     if (GridRamp != 0f) Ramp(go.transform);
                 }
