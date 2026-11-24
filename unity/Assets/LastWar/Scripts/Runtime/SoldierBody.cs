@@ -1404,6 +1404,7 @@ namespace LastWar
                 }
             }
             else if (HandGrip && handL != null && !dead) Curl("Left", 50f, 55f, 35f, 20f);
+            if (GunDebug && pistol && Time.time >= nextWristLog) SleeveProbe();
             if (GunDebug && pistol && Time.time >= nextWristLog)
             {
                 nextWristLog = Time.time + 1.5f;
@@ -1414,6 +1415,33 @@ namespace LastWar
         bool proneOneHand;
 
         /// <summary>the closed right hand's centre to the pistol's grip (below its origin): 0 = held in the hand</summary>
+        /// <summary>?gundbg=1: each outfit mesh's vertices bound mostly to the right forearm, baked as drawn now - how far
+        /// they sit from the forearm the hold placed (elbow to wrist), and whether the mesh moves with that very bone</summary>
+        void SleeveProbe()
+        {
+            Transform fa = PoseBone("RightForeArm"), hd = PoseBone("RightHand");
+            if (fa == null || hd == null || outfitRoot == null) return;
+            foreach (var smr in outfitRoot.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                Mesh m = smr.sharedMesh; if (m == null || !m.isReadable) { Debug.Log($"[LastWar] sleeve {smr.name}: mesh not readable"); continue; }
+                int bi = System.Array.IndexOf(smr.bones, fa);
+                string sameName = "";
+                if (bi < 0) for (int i = 0; i < smr.bones.Length; i++) if (smr.bones[i] != null && smr.bones[i].name == fa.name) { bi = i; sameName = $" (a different bone with its name, {(smr.bones[i].position - fa.position).magnitude * 100f:0.0} cm off)"; }
+                if (bi < 0) { Debug.Log($"[LastWar] sleeve {smr.name}: no forearm bone"); continue; }
+                var bw = m.boneWeights; var baked = new Mesh(); smr.BakeMesh(baked, true); var v = baked.vertices;
+                Matrix4x4 w = smr.transform.localToWorldMatrix; double sum = 0; int n = 0; float worst = 0f;
+                Vector3 a = fa.position, b = hd.position, ab = b - a;
+                for (int i = 0; i < bw.Length && i < v.Length; i++)
+                {
+                    if (bw[i].boneIndex0 != bi || bw[i].weight0 < 0.6f) continue;
+                    Vector3 p = w.MultiplyPoint3x4(v[i]); float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / ab.sqrMagnitude);
+                    float d = (p - (a + ab * t)).magnitude; sum += d; n++; if (d > worst) worst = d;
+                }
+                Destroy(baked);
+                Debug.Log($"[LastWar] sleeve {name} {smr.name}: {n} forearm vertices, mean {(n > 0 ? sum / n * 100 : -1):0.0} cm max {worst * 100f:0.0} cm from the forearm{sameName}; quality {smr.quality}, {QualitySettings.skinWeights}");
+            }
+        }
+
         /// <summary>pistol: how far the left palm ended from where it should be, and the left wrist's bend (?gundbg=1 log)</summary>
         float supportErr, supportSide, supportUp, supportFwd, supportBend;
         /// <summary>pistol, two hands (thumbs forward): the left palm pressed on the left side of the grip, over the right
