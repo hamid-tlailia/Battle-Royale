@@ -772,7 +772,9 @@ namespace LastWar
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             // rifle held diagonally across the chest (port arms): muzzle up and to the soldier's left, grip at the waist
-            if (lobbyBody != null) lobbyBody.AimDir = Quaternion.AngleAxis(-LobbyGunTurn, soldier.transform.up) * Quaternion.AngleAxis(-LobbyGunUp, soldier.transform.right) * soldier.transform.forward;
+            // (a long gun only: the pistol is aimed straight ahead above - this ran after that and turned the pistol 55 degrees
+            // left and 38 up, the arms folded over the face, the pistol by / behind the head)
+            if (lobbyBody != null && !lobbyBody.ShoulderGrip) lobbyBody.AimDir = Quaternion.AngleAxis(-LobbyGunTurn, soldier.transform.up) * Quaternion.AngleAxis(-LobbyGunUp, soldier.transform.right) * soldier.transform.forward;
             if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }
 

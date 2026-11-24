@@ -41,6 +41,9 @@ namespace LastWar
             SoldierBody.LogRig = (Application.absoluteURL ?? "").Contains("rig=1");
             PlayerController.DebugAim = (Application.absoluteURL ?? "").Contains("dbgaim=1");
             SoldierBody.GunDebug = (Application.absoluteURL ?? "").Contains("gundbg=1");
+            if ((Application.absoluteURL ?? "").Contains("trigfinger=0")) SoldierBody.UseTriggerFinger = false; // (the index round the grip, as before)
+            { string u = Application.absoluteURL ?? ""; int ti = u.IndexOf("trigahead="); if (ti >= 0 && float.TryParse(new string(u.Substring(ti + 10).TakeWhile(ch => char.IsDigit(ch) || ch == '.' || ch == '-').ToArray()), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ta)) SoldierBody.TriggerAhead = ta;
+              ti = u.IndexOf("trigdown="); if (ti >= 0 && float.TryParse(new string(u.Substring(ti + 9).TakeWhile(ch => char.IsDigit(ch) || ch == '.' || ch == '-').ToArray()), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float td)) SoldierBody.TriggerDown = td; }
             if ((Application.absoluteURL ?? "").Contains("wik=0")) SoldierBody.UseWeaponIK = false;
             if ((Application.absoluteURL ?? "").Contains("wikA=0")) SoldierBody.UseShoulderReach = false;
             if ((Application.absoluteURL ?? "").Contains("wikB=0")) SoldierBody.UseHoldBack = false;

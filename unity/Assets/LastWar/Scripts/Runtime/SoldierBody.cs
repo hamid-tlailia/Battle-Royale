@@ -1371,6 +1371,9 @@ namespace LastWar
                 // the pistol grip (a little below the gun's origin) sits in the closed hand
                 Vector3 g = handR.position + HandDir(handR, "Right") * palm + PalmNormal(handR, "Right") * 0.022f;
                 gun.position = g + up * (pistol ? 0.035f : 0.05f);
+                // pistol: the index finger out of the fist, on the trigger (ahead of the grip, just below the slide); the
+                // middle, ring and little fingers stay round the grip
+                if (pistol && UseTriggerFinger) TriggerFinger(gun.position + dir * TriggerAhead - up * TriggerDown, dir);
             }
             // standing / walking / firing: the support hand comes to the gun
             if (!carried && !proneOneHand && handL != null && (Pose == null || Pose == "kneel") && !dead)
@@ -1406,11 +1409,45 @@ namespace LastWar
             if (GunDebug && pistol && Time.time >= nextWristLog)
             {
                 nextWristLog = Time.time + 1.5f;
-                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0})");
+                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0}) trigger gap {lastTriggerGap * 100f:0.0} cm grip gap {GripGap() * 100f:0.0} cm");
             }
         }
 
         bool proneOneHand;
+
+        /// <summary>the closed right hand's centre to the pistol's grip (below its origin): 0 = held in the hand</summary>
+        float GripGap()
+        {
+            if (gun == null || handR == null) return -1f;
+            float palm = PalmLen(handR, "Right");
+            Vector3 g = handR.position + HandDir(handR, "Right") * palm + PalmNormal(handR, "Right") * 0.022f;
+            return (g - (gun.position - gun.up * 0.035f)).magnitude;
+        }
+
+        /// <summary>?trigfinger=0: the index finger curled round the grip with the others, as before</summary>
+        public static bool UseTriggerFinger = true;
+        /// <summary>the pistol's trigger from its origin: ahead along the barrel and down (m)</summary>
+        public static float TriggerAhead = 0.028f, TriggerDown = 0.022f;
+        float lastTriggerGap = -1f;
+
+        /// <summary>the right index finger laid on the trigger at `t`: its first bone turned from the knuckle toward a point a
+        /// little short of the trigger, the two outer bones bent round it (a finger hooked on a trigger)</summary>
+        void TriggerFinger(Vector3 t, Vector3 dir)
+        {
+            Transform i1 = PoseBone("RightHandIndex" + knuckle), i2 = PoseBone("RightHandIndex" + (knuckle + 1)), i3 = knuckle + 2 <= 3 ? PoseBone("RightHandIndex" + (knuckle + 2)) : null;
+            if (i1 == null || i2 == null) return;
+            foreach (var kv in fingerRest) if (kv.Key == i1 || kv.Key == i2 || kv.Key == i3) kv.Key.localRotation = kv.Value;
+            float seg1 = (i2.position - i1.position).magnitude;
+            Vector3 k = HandDir(handR, "Right"), n = PalmNormal(handR, "Right"), axis = Vector3.Cross(k, n).normalized;
+            // the first bone toward the trigger (it reaches the trigger with its middle joint, then hooks round it)
+            Vector3 want = t - i1.position; if (want.magnitude < 1e-4f) return;
+            Vector3 cur = i2.position - i1.position;
+            i1.rotation = Quaternion.FromToRotation(cur, want.normalized * seg1) * i1.rotation;
+            i2.rotation = Quaternion.AngleAxis(48f, axis) * i2.rotation;
+            if (i3 != null) i3.rotation = Quaternion.AngleAxis(30f, axis) * i3.rotation;
+            // (measure: how far the finger's middle joint sits from the trigger)
+            lastTriggerGap = (i2.position - t).magnitude;
+        }
 
         // ---- Step F: lying down / crawling, the body follows the slope it lies on (the clips lie on flat ground: on a hill
         // the head end dug in or hung in the air). The ground is read ahead of / behind the hips and to their left / right;
