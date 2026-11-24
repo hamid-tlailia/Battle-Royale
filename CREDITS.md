@@ -98,6 +98,11 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | Shanty / Mansion / Wooden | enterable building `bld_mansion` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/cf93dfd6da1640f08ebe051ba280426d |
 | Abandoned / Building / Shop / Old / House | enterable building `bld_shop` (Death Valley) | yadrogames | CC Attribution | https://sketchfab.com/3d-models/0ed14367314946b298d9a58db66da040 |
 | Enterable Panel House | enterable building `bld_panel` (Death Valley) | c01l3d | CC Attribution | https://sketchfab.com/3d-models/22a08dc43c1c4888ad8d33b7d2e69e81 |
+| Old | House | Wooden | Enterable | Rusty | enterable building `bld_woodhouse` (Oakwood): two-storey wooden house, balcony, stairs | yadrogames | CC Attribution | https://sketchfab.com/3d-models/7f496b3002d24341a618408cb8221e8c |
+| Old Abandoned House with minor interior | enterable building `bld_oldhouse` (Oakwood): old two-storey house, rooms, stairs | davidfalke | CC Attribution | https://sketchfab.com/3d-models/393574fbcab4422cae9549f7d5af70b5 |
+| House: "Dawson" (Design 36) | enterable building `bld_dawson` (Oakwood): 1950s bungalow with rooms | AleixoAlonso | CC Attribution | https://sketchfab.com/3d-models/36e4e93baf464c94ae6c447bb67f12c7 |
+| Watch tower | enterable building `bld_tower` (Oakwood): watch tower (climb up) | _SeF_ | CC Attribution | https://sketchfab.com/3d-models/042f327a0f4c4fc9bf458903666bb257 |
+| Old Wooden Barn (House 4) | enterable building `bld_barn` (Oakwood): barn (x1.5) | narighillya | CC Attribution | https://sketchfab.com/3d-models/3366ee69c2dd4908a99f386e07faa1d6 |
 | Ultimate Modular Characters | outfits `q_*` (11 characters, mix-and-match pieces; scripts/unity/split-quaternius.mjs) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularcharacters.html |
 | Modular Character Outfits - Fantasy | outfits `qm_ranger`, `qm_peasant`, `qf_ranger`, `qf_peasant` (Ranger, Villager, Huntress, Wanderer: mix-and-match head / top / pants / shoes; scripts/unity/import-modular-outfits.mjs) | Quaternius | CC0 1.0 | https://quaternius.com/packs/modularcharacteroutfitsfantasy.html |
 | Universal Base Characters | heads, hair, brows and beard of the modular outfits | Quaternius | CC0 1.0 | https://quaternius.com/packs/universalbasecharacters.html |

@@ -73,7 +73,7 @@ namespace LastWar
 
             // houses: 8-unit squares, cream
             foreach (PropData p in map.props)
-                if (p.p.StartsWith("house") || p.p == "farmhouse") Dot(null, new Vector2(p.x, p.z), 8, new Color(232 / 255f, 217 / 255f, 192 / 255f));
+                if (p.p.StartsWith("house") || p.p == "farmhouse" || (p.p.StartsWith("bld_") && p.p != "bld_tower")) Dot(null, new Vector2(p.x, p.z), 8, new Color(232 / 255f, 217 / 255f, 192 / 255f)); // (the enterable buildings too)
             // place names
             if (map.areas != null)
                 foreach (AreaData a in map.areas)

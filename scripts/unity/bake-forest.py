@@ -155,16 +155,19 @@ def free(x, z, need): return all(math.hypot(x - tx, z - tz) > tr + need for tx, 
 used = {}
 for (score, sx, sz), kind in zip(sites, kinds):
     nm = names[kind][used.get(kind, 0)]; used[kind] = used.get(kind, 0) + 1
-    rad = {'village': 48, 'farm': 34, 'lodge': 26}[kind]
+    rad = {'village': 54, 'farm': 38, 'lodge': 28}[kind]
     flatten(sx, sz, rad, hat(sx, sz)); areas.append({'name': nm, 'x': sx, 'z': sz})
     road = rnd.random() * math.pi
-    houses = {'village': ['house_a', 'house_b', 'house_c', 'house_d', 'farmhouse'], 'farm': ['farmhouse', 'house_b'], 'lodge': ['bld_shanty', 'bld_mansion']}[kind]
+    # Oakwood's own buildings, all enterable (Sketchfab, CC-BY - CREDITS.md): a two-storey wooden house with a balcony
+    # (yadrogames), an old two-storey house with rooms and stairs (davidfalke), a 1950s bungalow with rooms
+    # (AleixoAlonso), a barn (narighillya), a watch tower (_SeF_) - none of the other maps' houses
+    houses = {'village': ['bld_woodhouse', 'bld_oldhouse', 'bld_dawson'], 'farm': ['bld_dawson', 'bld_barn', 'bld_oldhouse'], 'lodge': ['bld_woodhouse', 'bld_tower']}[kind]
     count = {'village': 8, 'farm': 3, 'lodge': 2}[kind]
     for q in range(count):  # two rows along a street
-        side = 1 if q % 2 else -1; along = (q // 2 - (count - 1) / 4) * 22
-        x = sx + math.cos(road) * along - math.sin(road) * side * 15; z = sz + math.sin(road) * along + math.cos(road) * side * 15
-        prop(houses[q % len(houses)] if kind != 'village' else rnd.choice(houses), x, z, road + (math.pi if side > 0 else 0) + rnd.uniform(-.08, .08))
-        taken.append((x, z, 10 if kind == 'lodge' else 9))
+        side = 1 if q % 2 else -1; along = (q // 2 - (count - 1) / 4) * 26
+        x = sx + math.cos(road) * along - math.sin(road) * side * 17; z = sz + math.sin(road) * along + math.cos(road) * side * 17
+        prop(houses[q % len(houses)], x, z, road + (math.pi if side > 0 else 0) + rnd.uniform(-.08, .08))
+        taken.append((x, z, 11))
     extras = {'village': ['well', 'wagon', 'haybale', 'car1', 'car3'], 'farm': ['windmill', 'haybale', 'haybale', 'haybale', 'wagon', 'scarecrow', 'well', 'car2'], 'lodge': ['car4', 'wagon', 'haybale']}[kind]
     for extra in extras:
         need = 13 if extra == 'windmill' else 5
@@ -177,6 +180,14 @@ for (score, sx, sz), kind in zip(sites, kinds):
         a = q / 6 * 2 * math.pi + rnd.uniform(-.2, .2); x, z = sx + math.cos(a) * (rad + 6), sz + math.sin(a) * (rad + 6)
         if free(x, z, 2): prop(rnd.choice(['fence', 'fence', 'yardwall']) if kind != 'lodge' else 'fence', x, z, a + math.pi / 2)
 def near_site(x, z, extra=0): return any(math.hypot(x - a['x'], z - a['z']) < 55 + extra for a in areas)
+# watch towers on the open ground at the woods' edges (a look-out over the meadow), away from the places and each other
+towers = []
+for _ in range(4000):
+    if len(towers) == 4: break
+    a = rnd.random() * 2 * math.pi; r = math.sqrt(rnd.random()) * (PLAY - 30); x, z = r * math.cos(a), r * math.sin(a)
+    if near_site(x, z, 10) or at(trees, x, z) or not free(x, z, 6) or rough(x, z, 4) > 1.0: continue
+    if at(openness, x, z) > 0.75 or any(math.hypot(x - tx, z - tz) < 80 for tx, tz in towers): continue  # (by the trees, not mid-meadow)
+    towers.append((x, z)); taken.append((x, z, 6)); prop('bld_tower', x, z, rnd.random() * 6.28)
 
 # ---------------------------------------------------------------- the woods: a tree on each of the scan's crowns
 can = nd.gaussian_filter(np.where(trees, canopy, 0), 2)

@@ -35,7 +35,7 @@ for (const line of fs.readFileSync(listFile, 'utf8').trim().split('\n')) {
 }
 
 // window glass is no wall: see-through / glass parts stay out of the collision shape (you can jump through windows)
-export const seeThrough = (p) => { const m = p.getMaterial(); return !!m && (/glass|window/i.test(m.getName()) || m.getAlphaMode() === 'BLEND'); };
+export function seeThrough(p) { const m = p.getMaterial(); return !!m && (/glass|window/i.test(m.getName()) || m.getAlphaMode() === 'BLEND'); } // (a function: the list above runs before a const here exists)
 
 // the model's triangles (scene space, welded to 1 cm) as a 'trimesh' collision shape for MapBuilder
 export function writeShape(key, scene) {
