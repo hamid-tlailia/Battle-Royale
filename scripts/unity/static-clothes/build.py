@@ -32,6 +32,7 @@ def piece_prims(i):
         out.append(dict(P=P, N=N, UV=UV, I=I, img=img, col=col, name=mat.get('name', 'm'), key=(i, p.get('material'))))
     return out
 SleeveOver = 0.035  # a long sleeve's cuff past the wrist (m)
+WeightSmooth = 6    # passes of weight smoothing over a top's / suit's own mesh
 def rig_piece(i, kind, mirror=False, k=6):
     F = json.load(open(f'{HERE}/fits/fit_{i}.json')); c = np.array(F['c'])
     S = skin_mats(posed(arm=F['arm'], leg=F.get('leg', 0)))
@@ -52,6 +53,20 @@ def rig_piece(i, kind, mirror=False, k=6):
                 for n in jname:
                     if n == f'hand_{sd}' or (n.endswith(f'_{sd}') and n.split('_')[0] in ('thumb', 'index', 'middle', 'ring', 'pinky')):
                         acc[:, jidx[f'lowerarm_{sd}']] += acc[:, jidx[n]]; acc[:, jidx[n]] = 0
+        if kind in ('top', 'chest', 'suit') and WeightSmooth > 0:
+            # the weights smoothed over the cloth's own neighbours (each vertex half toward its neighbours' mean, a few
+            # times): next to each other two vertices took far apart bones and the cloth tore into spikes behind the
+            # shoulder as the arm came forward
+            acc = acc / acc.sum(1, keepdims=True)
+            tri = I.reshape(-1, 3); nb = len(Q)
+            rows = np.concatenate([tri[:, 0], tri[:, 1], tri[:, 2], tri[:, 1], tri[:, 2], tri[:, 0]])
+            cols = np.concatenate([tri[:, 1], tri[:, 2], tri[:, 0], tri[:, 0], tri[:, 1], tri[:, 2]])
+            from scipy.sparse import coo_matrix
+            A = coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(nb, nb)).tocsr(); A.data[:] = 1.0
+            deg = np.asarray(A.sum(1)).ravel(); has = deg > 0
+            for _ in range(WeightSmooth):
+                m = A @ acc; m[has] /= deg[has, None]
+                acc[has] = acc[has] * 0.5 + m[has] * 0.5
         top = np.argsort(-acc, 1)[:, :4]; tw = np.take_along_axis(acc, top, 1); tw /= tw.sum(1, keepdims=True)
         R, Nr = unpose(Q, N, top, tw, S)
         if kind in ('top', 'chest', 'suit'):
