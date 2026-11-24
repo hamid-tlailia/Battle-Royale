@@ -259,6 +259,8 @@ namespace LastWar
         /// <summary>?wgrid=look1,look2,... : rows = guns, columns = the 8 characters, all in one clip (?wclip=, default fire),
         /// seen from ?gyaw= ; the weapon IK readout (?gundbg=1) logs each soldier</summary>
         public static int GridBag;
+        /// <summary>?wonly=12,13,...: only these outfits in the grid (seen bigger); ?wzoom=0.5: the view's height in grid rows (upper bodies)</summary>
+        public static int[] GridOnly; public static float GridZoom = 0f;
         /// <summary>?wramp=deg: a slope under the soldier, rising ahead of it (for the lying-down tilt)</summary>
         static void Ramp(Transform t)
         {
@@ -273,7 +275,7 @@ namespace LastWar
         {
             if (string.IsNullOrEmpty(looks)) return false;
             var t = new GameObject("WGrid").AddComponent<LobbyTests>();
-            string[] gl = looks.Split(','); int nc = SoldierBody.OutfitFiles.Length;
+            string[] gl = looks.Split(','); int[] cols = GridOnly ?? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Range(0, SoldierBody.OutfitFiles.Length)); int nc = cols.Length;
             Vector3 origin = new Vector3(0, 300f, 0); float dx = 1.1f, dy = 2.1f;
             for (int r = 0; r < gl.Length; r++)
                 for (int c = 0; c < nc; c++)
@@ -281,7 +283,7 @@ namespace LastWar
                     var go = new GameObject($"w{r}_{c}");
                     go.transform.position = origin + new Vector3((c - (nc - 1) / 2f) * dx, -r * dy, 0);
                     go.transform.rotation = Quaternion.Euler(0, GridYaw, 0);
-                    var body = SoldierBody.Attach(go, c);
+                    var body = SoldierBody.Attach(go, cols[c]);
                     body.SetGun(gl[r]); body.Armed = true; body.LiveBack = true; body.Speed = GridSpeed; body.Play(string.IsNullOrEmpty(clip) ? "fire" : clip);
                     if (GridSpeed > 0.25f && clip == "prone") body.Pose = "crawl"; // (?wspeed=1&wclip=prone: crawling)
                     body.AimDir = go.transform.forward;
@@ -292,6 +294,7 @@ namespace LastWar
             cam.orthographic = true;
             cam.orthographicSize = Mathf.Max(gl.Length * dy * 0.55f, (nc * dx + 0.4f) / 2f / Mathf.Max(0.5f, cam.aspect));
             cam.transform.position = origin + new Vector3(0, -(gl.Length - 1) * dy / 2f + 0.9f, -30f);
+            if (GridZoom > 0f) { cam.orthographicSize = Mathf.Max(GridZoom, (nc * dx + 0.2f) / 2f / Mathf.Max(0.5f, cam.aspect)); cam.transform.position = origin + new Vector3(0, -(gl.Length - 1) * dy / 2f + 1.3f, -30f); } // (close: the arms and the gun)
             cam.transform.rotation = Quaternion.identity;
             cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(.78f, .84f, .88f); cam.farClipPlane = 100f;
             RenderSettings.fog = false;

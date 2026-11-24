@@ -52,7 +52,7 @@ namespace LastWar
                         {
                             Res r = new Res();
                             yield return Swipe(pc, me, a, o, d, moving, scoped, on, r);
-                            string line = $"d={d:0} {(moving ? "moving" : "still ")} {(scoped ? "scope" : "hip  ")} assist={(on ? "on " : "off")} on body {r.onBody * 100f:0}% mean {r.mean:0.00} max {r.max:0.00} deg jitter {r.jitter:0.00}";
+                            string line = $"d={d:0} {(moving ? "moving" : "still ")} {(scoped ? "scope" : "hip  ")} assist={(on ? "on " : "off")} on body {r.onBody * 100f:0}% first {(r.first < 0 ? "never" : (r.first * 1000f).ToString("0") + " ms")} error mean {r.mean:0.00} max {r.max:0.00} deg jitter {r.jitter:0.00}";
                             Debug.Log("[LastWar] aatest " + line); rows.Add(line);
                         }
             // two enemies crossing: A held at 15 m, B walks across in front of him at 11 m
@@ -97,39 +97,49 @@ namespace LastWar
             Debug.Log("[LastWar] aatest done");
         }
 
-        class Res { public float onBody, mean, max, jitter; }
+        class Res { public float onBody, mean, max, jitter, first; }
 
-        /// <summary>one run: start 10 deg left of him, swipe right at 30 deg/s to 2 deg past him, let go, watch 1.5 s</summary>
+        /// <summary>one run, as a player does it: the aim starts 8 deg left of him, the finger swipes toward him at 40 deg/s
+        /// and stops 2.5 deg short (near him, not on him), then FIRE goes down (from the hip: held, firing) or the scope
+        /// opens; watched for 1.2 s through the game's own crosshair ray - "on body" = the share of frames a shot would hit
+        /// him, "first" = how long after the press the crosshair first lands on him</summary>
         static IEnumerator Swipe(PlayerController pc, Fighter me, Fighter a, Vector3 o, float d, bool moving, bool scoped, bool on, Res r)
         {
             PlayerController.AimAssistOn = on; pc.Assist.Release();
-            pc.TestInput.Scoped = scoped; TouchControls.ForceFire = !scoped; // (from the hip: firing - the pull acts while firing)
+            pc.TestInput.Scoped = false; TouchControls.ForceFire = false;
             Vector3 home = o + new Vector3(0, 0, d);
-            Place(a, home); Run(a, false);
-            pc.TestLook = Vector2.zero;
-            yield return new WaitForSeconds(0.35f); // (the scope opens, the camera settles)
+            Place(a, home); Run(a, false); pc.TestLook = Vector2.zero;
+            yield return new WaitForSeconds(0.35f);
             Vector3 c = pc.TestCam.transform.position;
             AimAssist.AnglesAt(a, c, out float ty, out float tp);
-            pc.TestYaw = ty - 10f; pc.TestPitch = tp;
-            float t = 0f, swipeFor = 12f / 30f, sum = 0f, mx = 0f, on1 = 0f, n = 0f, lastYaw = pc.TestYaw, lastRate = 0f, jit = 0f; int jn = 0;
-            while (t < swipeFor + 1.2f)
+            pc.TestYaw = ty - 8f; pc.TestPitch = tp;
+            float t = 0f, phase = 0f, mx = 0f, on1 = 0f, n = 0f, first = -1f, sum = 0f;
+            float lastYaw = pc.TestYaw, lastRate = 0f, jit = 0f; int jn = 0; bool pressed = false;
+            while (phase < 1.2f)
             {
                 float dt = Time.deltaTime; t += dt;
                 if (moving) { float x = Mathf.Sin(t * Mathf.PI * 2f / 2.4f) * 3.5f * 2.4f / (2f * Mathf.PI); Place(a, home + new Vector3(x, 0, 0)); Run(a, true); }
-                pc.TestLook = t < swipeFor ? new Vector2(30f, 0f) : Vector2.zero;
-                yield return null;
-                float rate = Mathf.DeltaAngle(lastYaw, pc.TestYaw) / Mathf.Max(1e-4f, Time.deltaTime); lastYaw = pc.TestYaw;
-                if (t >= swipeFor)
+                if (!pressed)
                 {
-                    float e = AimAssist.ErrorTo(a, pc.TestCam.transform.position, pc.TestYaw, pc.TestPitch, out float hw);
-                    sum += e; mx = Mathf.Max(mx, e); if (e <= hw) on1++; n++;
-                    if (t > swipeFor + 0.1f) { jit += (rate - lastRate) * (rate - lastRate); jn++; }
+                    AimAssist.AnglesAt(a, pc.TestCam.transform.position, out float ny, out _);
+                    float left = Mathf.DeltaAngle(pc.TestYaw, ny);
+                    pc.TestLook = left > 2.5f ? new Vector2(40f, 0f) : Vector2.zero;
+                    if (left <= 2.5f || t > 1.5f) { pressed = true; pc.TestLook = Vector2.zero; if (scoped) pc.TestInput.Scoped = true; else { TouchControls.ForcePress = true; TouchControls.ForceFire = true; } }
                 }
+                yield return null;
+                if (!pressed) continue;
+                phase += Time.deltaTime;
+                bool hit = pc.CrosshairEnemy() == a;
+                if (hit) { on1++; if (first < 0f) first = phase; }
+                n++;
+                float e = AimAssist.ErrorTo(a, pc.TestCam.transform.position, pc.TestYaw, pc.TestPitch, out _); sum += e; mx = Mathf.Max(mx, e);
+                float rate = Mathf.DeltaAngle(lastYaw, pc.TestYaw) / Mathf.Max(1e-4f, Time.deltaTime); lastYaw = pc.TestYaw;
+                if (phase > 0.25f) { jit += (rate - lastRate) * (rate - lastRate); jn++; }
                 lastRate = rate;
             }
             pc.TestLook = Vector2.zero; TouchControls.ForceFire = false; pc.TestInput.Scoped = false; Run(a, false);
-            r.onBody = n > 0 ? on1 / n : 0f; r.mean = n > 0 ? sum / n : 0f; r.max = mx; r.jitter = jn > 0 ? Mathf.Sqrt(jit / jn) : 0f;
-            yield return new WaitForSeconds(0.25f);
+            r.onBody = n > 0 ? on1 / n : 0f; r.mean = n > 0 ? sum / n : 0f; r.max = mx; r.jitter = jn > 0 ? Mathf.Sqrt(jit / jn) : 0f; r.first = first;
+            yield return new WaitForSeconds(0.3f);
         }
 
         /// <summary>the match's own bots: the nearest in sight within 45 m, the swipe + hold, assist on / off in turn</summary>

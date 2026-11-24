@@ -42,6 +42,17 @@ namespace LastWar
         public float TestPitch { get => pitch; set => pitch = Mathf.Clamp(value, -1.2f, 1.2f); }
         public TouchControls TestInput => input;
         public Camera TestCam => cam;
+        /// <summary>tests: the living enemy the crosshair ray is on right now (what the shot would hit), or null</summary>
+        public Fighter CrosshairEnemy()
+        {
+            Ray r = ViewRay(); float best = float.MaxValue; Fighter on = null;
+            foreach (RaycastHit h in Physics.RaycastAll(r, 320f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (h.collider.transform.IsChildOf(transform) || h.distance >= best) continue;
+                best = h.distance; Fighter q = h.collider.GetComponentInParent<Fighter>(); on = q != null && q != fighter && q.Alive ? q : null;
+            }
+            return on;
+        }
 
         public static PlayerController Spawn(Vector3 pos, TouchControls input, Camera cam)
         {
@@ -413,7 +424,11 @@ namespace LastWar
             //    of one enemy held near the crosshair; nothing else turns the soldier
             if (input.FrostAim) { Assist.Release(); lockTarget = null; return; }
             bool scopeNow = Scoped; bool engage = (scopeNow && !assistScoped) || input.FirePressed; assistScoped = scopeNow;
-            Assist.Step(fighter, cam, ref yaw, ref pitch, lookThisFrame, scopeNow, input.FireHeld, dt, engage);
+            Vector3 origin = scopeNow ? transform.position + Vector3.up * (cc.height - 0.25f) + Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0) * Vector3.forward * 0.25f : cam.transform.position;
+            Assist.Step(fighter, cam, origin, ref yaw, ref pitch, lookThisFrame, scopeNow, input.FireHeld, dt, engage);
+            // the camera turned at once to where the aim now is (it is placed in LateUpdate: this frame's shot went out along
+            // last frame's view - the first shot after a catch missed)
+            if (!freeLooking) { cam.transform.rotation = Quaternion.Euler(-pitch * Mathf.Rad2Deg, yaw, 0); if (scopeNow) cam.transform.position = origin; }
             lockTarget = Assist.Target;
         }
 

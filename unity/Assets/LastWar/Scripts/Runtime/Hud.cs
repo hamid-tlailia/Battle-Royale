@@ -448,8 +448,10 @@ namespace LastWar
             string line = killer != null && killer != victim
                 ? $"{killer.displayName}<color=#ffd38a>  [{how}{(head ? " · HEAD" : "")}]  </color>{victim.displayName}"
                 : $"{victim.displayName}<color=#ffd38a>  [{how}]</color>";
-            feed.Insert(0, (line, mine, Time.time));
-            if (feed.Count > 5) feed.RemoveAt(5);
+            // one line at a time (the lines stacked down the screen and covered it): queued, each shown in turn; your own
+            // first, and with many waiting each is shown for less time
+            if (mine) feed.Insert(0, (line, mine, 0f)); else feed.Add((line, mine, 0f));
+            if (feed.Count > 6) feed.RemoveAt(feed.Count - 1);
             if (killer == player.fighter && victim != killer)
             {
                 bannerT = 2.2f; banner.gameObject.SetActive(true); bannerCount.text = player.fighter.kills.ToString();
@@ -622,17 +624,26 @@ namespace LastWar
                 if (bannerT <= 0) banner.gameObject.SetActive(false);
             }
 
-            // kill feed: 8 s per line
+            // kill feed: one line, the next replacing it (3 s each, 1.5 s while more wait)
+            if (feed.Count > 0)
+            {
+                if (feed[0].t <= 0f) feed[0] = (feed[0].text, feed[0].mine, Time.time);
+                if (Time.time - feed[0].t > (feed.Count > 1 ? 1.5f : 3f)) { feed.RemoveAt(0); if (feed.Count > 0) feed[0] = (feed[0].text, feed[0].mine, Time.time); }
+            }
             for (int k = 0; k < feedBg.Count; k++)
             {
-                // (while the buttons are being arranged: two sample lines so the feed can be placed)
-                bool sample = input.Editing && k < 2;
-                bool show = sample || (k < feed.Count && Time.time - feed[k].t < 8f && !scoped);
+                // (while the buttons are being arranged: a sample line so the feed can be placed)
+                bool sample = input.Editing && k == 0;
+                bool show = k == 0 && (sample || (feed.Count > 0 && !scoped));
                 feedBg[k].gameObject.SetActive(show);
                 if (!show) continue;
-                feedTxt[k].text = sample ? (k == 0 ? "You<color=#ffd38a>  [Assault Rifle · HEAD]  </color>Wolf" : "Titan<color=#ffd38a>  [Shotgun]  </color>Falcon") : feed[k].text;
-                feedBg[k].color = !sample && feed[k].mine ? new Color(200 / 255f, 150 / 255f, 30 / 255f, .55f) : new Color(0, 0, 0, .45f);
+                feedTxt[k].text = sample ? "You<color=#ffd38a>  [Assault Rifle · HEAD]  </color>Wolf" : feed[0].text;
+                feedBg[k].color = !sample && feed[0].mine ? new Color(200 / 255f, 150 / 255f, 30 / 255f, .55f) : new Color(0, 0, 0, .45f);
                 feedBg[k].rectTransform.sizeDelta = new Vector2(feedTxt[k].preferredWidth + 16 * K, 17 * K);
+                // (fades in and out: a soft change from one line to the next)
+                float age = Time.time - (sample ? Time.time - 1f : feed[0].t), life = feed.Count > 1 ? 1.5f : 3f;
+                float a = sample ? 1f : Mathf.Clamp01(Mathf.Min(age / 0.15f, (life - age) / 0.25f));
+                var cg = feedBg[k].GetComponent<CanvasGroup>(); if (cg == null) cg = feedBg[k].gameObject.AddComponent<CanvasGroup>(); cg.alpha = a;
             }
 
             // the loot list (hidden while scoped / in the air / dead / watching)

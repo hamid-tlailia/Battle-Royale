@@ -10,6 +10,8 @@ namespace LastWar
     /// (right, plus a smaller one on the left), joystick on the left, look by dragging (FIRE also drags the camera).
     /// Keyboard + mouse in the editor / WebGL: WASD, right mouse look, left mouse fire, Space, Shift, R, Q, 1-3.
     /// </summary>
+    // (before the player each frame: a press read in the same frame it happens - FIRE's press is the aim assist's catch)
+    [DefaultExecutionOrder(-50)]
     public class TouchControls : MonoBehaviour
     {
         public Vector2 Move;        // x = right, y = forward (-1..1)
@@ -27,6 +29,8 @@ namespace LastWar
         public bool FireHeld;       // finger / mouse on FIRE
         /// <summary>tests (?aatest=): FIRE held down</summary>
         public static bool ForceFire;
+        /// <summary>tests: FIRE goes down this frame (FirePressed)</summary>
+        public static bool ForcePress;
         /// <summary>how much faster the finger on FIRE turns the view than a plain drag</summary>
         public static float FireDragBoost = 1.6f;
         Vector2 fireLast;
@@ -235,6 +239,7 @@ namespace LastWar
             // a panel is open (settings, backpack, big map): its drags and taps stay inside it, nothing moves outside
             if (ModalOpen) { Move = Vector2.zero; FireHeld = false; joyFinger = lookFinger = fireFinger = eyeFinger = -1; FreeLook = false; joyKnob.anchoredPosition = Vector2.zero; return; }
             bool wasHeld = FireHeld;
+            if (ForcePress) { FirePressed = true; ForcePress = false; }
             if (Input.touchCount > 0) Touches();
             else
             {

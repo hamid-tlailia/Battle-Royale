@@ -24,7 +24,19 @@ def R(i, kind, mirror=False):
     if k not in cache: cache[k] = rig_piece(i, kind, mirror)
     return cache[k]
 H = hands()
-boots = lambda: R(18, 'foot') + R(18, 'foot', True)
+# the one boot model, a different leather for each outfit (it was the same sand boot on all nine)
+BOOT_TINT = {'gorka': (0.55, 0.6, 0.42), 'pilot': (0.3, 0.3, 0.32), 'neon': (0.22, 0.22, 0.24), 'scout': (0.62, 0.45, 0.3), 'street': (0.92, 0.92, 0.9),
+             'biker': (0.42, 0.3, 0.22), 'field': (0.5, 0.52, 0.38), 'silver': (0.7, 0.72, 0.75), 'operator': (1.0, 1.0, 1.0)}
+def boots(name='operator'):
+    from PIL import Image
+    t = np.array(BOOT_TINT.get(name, (1, 1, 1)), np.float32); out = []
+    for pr in R(18, 'foot') + R(18, 'foot', True):
+        img = pr['img']
+        if img is not None and (t != 1).any():
+            a = np.asarray(img, np.float32) / 255; g = a.mean(2, keepdims=True)
+            img = Image.fromarray((np.clip((a * 0.35 + g * 0.65) * t * 1.25, 0, 1) * 255).astype(np.uint8))  # (mostly the leather's shading, the new colour on it)
+        out.append(dict(pr, img=img, key=('boot', name, pr.get('key'))))
+    return out
 SETS = {
   'gorka':    dict(suit=10, head=(9, 'headtop', 'Cap')),
   'pilot':    dict(suit=13, head=(11, 'ears', 'Headset')),
@@ -45,8 +57,8 @@ for name in only:
         T = []
         for i, kind in d['top']: T += R(i, kind)
         L = R(d['legs'], 'pants')
-    cl = T + L + boots()
+    cl = T + L + boots(name)
     meshes += [(f'{X}_Body', T + conform(undersuit('torso'), cl)), (f'{X}_Legs', L + conform(undersuit('legs'), T + L))]  # (not trimmed by the boots: the sock shows between them and the hem)
-    meshes += [(f'{X}_Arms_Hands', H), (f'{X}_Feet_Boots', boots())]
+    meshes += [(f'{X}_Arms_Hands', H), (f'{X}_Feet_Boots', boots(name))]
     if 'head' in d: i, kind, nm = d['head']; meshes.append((f'{X}_Head_{nm}', R(i, kind)))
     write(X, meshes, os.environ.get('LW_OUT', 'out'))

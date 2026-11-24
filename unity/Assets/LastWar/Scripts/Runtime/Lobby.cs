@@ -65,6 +65,8 @@ namespace LastWar
             if (Arg("ggun") != null) LobbyTests.GridGun = Arg("ggun");
             if (Arg("wik") == "0") SoldierBody.UseWeaponIK = false;
             int.TryParse(Arg("wbag") ?? "0", out LobbyTests.GridBag);
+            if (!string.IsNullOrEmpty(Arg("wonly"))) LobbyTests.GridOnly = System.Array.ConvertAll(Arg("wonly").Split(','), int.Parse);
+            if (float.TryParse(Arg("wzoom") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float wz)) LobbyTests.GridZoom = wz;
             if (LobbyTests.WGrid(cam, Arg("wgrid"), Arg("wclip"))) { if (l.canvas != null) l.canvas.enabled = false; return l; }
             if (Arg("xpos") == "0") SoldierBody.ExtraPos = false;
             if (Arg("hgrip") == "0") SoldierBody.HandGrip = false;

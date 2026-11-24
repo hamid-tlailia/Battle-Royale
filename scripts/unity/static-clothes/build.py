@@ -46,7 +46,7 @@ def rig_piece(i, kind, mirror=False, k=6):
             for cc in range(4): np.add.at(acc, (np.arange(len(Q)), bj[:, q, cc]), bw[:, q, cc] * wd[:, q])
         top = np.argsort(-acc, 1)[:, :4]; tw = np.take_along_axis(acc, top, 1); tw /= tw.sum(1, keepdims=True)
         R, Nr = unpose(Q, N, top, tw, S)
-        out.append(dict(pr, P=R, N=Nr, J=top, W=tw))
+        out.append(dict(pr, P=R, N=Nr, J=top, W=tw, I=I))  # (I: the mirrored copy's faces turned back - it was left out and the right boot was drawn inside out)
     return out
 def split_suit(prims):
     """a whole suit -> (torso prims, legs prims): a triangle goes to the legs when its vertices hang mostly on the hips / legs"""
@@ -57,14 +57,20 @@ def split_suit(prims):
         T.append(dict(pr, I=tri[~isleg].reshape(-1))); L.append(dict(pr, I=tri[isleg].reshape(-1)))
     return T, L
 def hands():
-    """the bare hands of the base body (past the wrist; its skin matches the base head), on this rig by its own weights"""
+    """the bare hands of the Quaternius Villager (Male_Peasant: made for this very rig, its fingers weighted for it) - the
+    hands carried over from the base body bent wrongly round a gun's grip; past the wrist, on this rig's joint numbers"""
+    PG = G(f'{QO}/Male_Peasant.gltf'); pj = [PG.J['nodes'][j]['name'] for j in PG.J['skins'][0]['joints']]
+    remap = np.array([jidx[n] for n in pj])
     wrist = RG.W[RG.byname['hand_l']][0, 3] - 0.09   # T-pose: the arms along x; the hand and the end of the forearm
-    tri = BI[(np.abs(BP[BI, 0]) > wrist).all(1)]
-    img = SH.image(SH.J['materials'][BMATI]['pbrMetallicRoughness']['baseColorTexture']['index']).convert('RGB')
-    fn = np.cross(BP[tri[:, 1]] - BP[tri[:, 0]], BP[tri[:, 2]] - BP[tri[:, 0]]); vn = np.zeros_like(BP)
-    for c in range(3): np.add.at(vn, tri[:, c], fn)
-    vn /= np.linalg.norm(vn, axis=1, keepdims=True) + 1e-12
-    return [dict(P=BP, N=vn, UV=BUV, I=tri.reshape(-1), J=BJ, W=BW, img=img, col=[1, 1, 1, 1], name='skin', key=('hands',))]
+    out = []
+    for ni, nm, p, P in PG.prims():
+        if nm != 'Male_Peasant_Arms' or p.get('material') != 1: continue
+        J = remap[PG.acc(p['attributes']['JOINTS_0']).astype(int)]; W = PG.acc(p['attributes']['WEIGHTS_0']).astype(float)
+        I = PG.acc(p['indices']).astype(np.int64).reshape(-1, 3)
+        keep = I[(np.abs(P[I, 0]) > wrist).all(1)].reshape(-1)
+        img = PG.image(PG.J['materials'][1]['pbrMetallicRoughness']['baseColorTexture']['index']).convert('RGB')
+        out.append(dict(P=P, N=PG.acc(p['attributes']['NORMAL']).astype(float), UV=PG.acc(p['attributes']['TEXCOORD_0']).astype(float), I=keep, J=J, W=W, img=img, col=[1, 1, 1, 1], name='skin', key=('hands',)))
+    return out
 
 def write(set_name, meshes, outdir):
     """meshes: [(mesh name, [prims])] -> <outdir>/<set_name>.gltf + .bin + textures; skeleton, skin = Male_Ranger's"""

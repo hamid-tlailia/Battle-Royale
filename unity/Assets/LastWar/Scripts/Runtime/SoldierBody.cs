@@ -1417,7 +1417,7 @@ namespace LastWar
             if (GunDebug && pistol && Time.time >= nextWristLog)
             {
                 nextWristLog = Time.time + 1.5f;
-                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0}) trigger gap {lastTriggerGap * 100f:0.0} cm grip gap {GripGap() * 100f:0.0} cm");
+                Debug.Log($"[LastWar] wrist {name} {(outfitRoot != null ? outfitRoot.name.Replace("(Clone)", "") : "-")} {playing}: right {WristBend(handR, "Right"):0} deg left {WristBend(handL, "Left"):0} deg (pistol wrist {PistolWrist:0}) trigger gap {lastTriggerGap * 100f:0.0} cm grip gap {GripGap() * 100f:0.0} cm left hand to right {(handL != null && handR != null ? (handL.position - handR.position).magnitude * 100f : -1f):0.0} cm");
             }
         }
 

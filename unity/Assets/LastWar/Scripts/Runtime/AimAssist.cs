@@ -30,7 +30,8 @@ namespace LastWar
         public static float Strength = 0.7f;   // 0..1
         public static float Range = 70f;       // m (from the hip; through a scope x ScopeRangeMul, never past the gun's range)
         // ---- tuning
-        public static float ConeRadius = 1.3f, ConeMin = 1.6f, ConeMax = 15f, ScopeConeMul = 1.2f, Hold = 1.7f;
+        // (a generous catch, as mobile shooters have: 2.2 m round his torso, never under 3 degrees, x1.5 through a scope)
+        public static float ConeRadius = 2.2f, ConeMin = 3f, ConeMax = 18f, ScopeConeMul = 1.5f, Hold = 1.6f;
         public static float FullDist = 10f, ScopeRangeMul = 1.8f;
         public static float Friction = 0.42f;
         public static float PullRate = 6f, PullMax = 50f, SniperPull = 0f;
@@ -136,12 +137,14 @@ namespace LastWar
 
         /// <summary>one frame: turns yaw (deg) / pitch (radians) a little; `look` = the finger's look input this frame</summary>
         /// <param name="engage">this frame the scope opened or FIRE went down: an enemy inside the catch circle is caught at once</param>
-        public void Step(Fighter me, Camera cam, ref float yaw, ref float pitch, Vector2 look, bool scoped, bool firing, float dt, bool engage = false)
+        /// <param name="origin">where the view is seen from this frame (the eye through the scope - the camera was still behind
+        /// the shoulder the frame the scope opened, and the catch missed by degrees)</param>
+        public void Step(Fighter me, Camera cam, Vector3 origin, ref float yaw, ref float pitch, Vector2 look, bool scoped, bool firing, float dt, bool engage = false)
         {
             if (!PlayerController.AimAssistOn || Strength <= 0f || cam == null || me == null || me.holstered || me.Gun == null || GameBoot.Instance == null || dt <= 0f)
             { Release(); return; }
             bool sniper = scoped && me.Gun.def.id.StartsWith("sniper");
-            Vector3 c = cam.transform.position;
+            Vector3 c = origin;
             float pitchDeg = pitch * Mathf.Rad2Deg;
             Vector3 fw = Dir(yaw, pitchDeg);
             float range = Mathf.Min(Range * (scoped ? ScopeRangeMul : 1f), me.Gun.def.range > 0f ? me.Gun.def.range : 250f);
@@ -202,6 +205,8 @@ namespace LastWar
 
             // friction
             SensFactor = Mathf.Lerp(1f, Friction, locked ? Mathf.Max(st * close, 0.6f) : st * close);
+            // scoped / firing and he comes into the circle: held fast too (pulled in quickly below, no snap)
+            if (!locked && (scoped || firing) && !sniper && s.err <= s.allowed) { locked = true; awayFor = 0f; }
             // caught but the finger drags firmly away from him (half a second): let go - the hand always wins
             if (locked) { awayFor = s.err > s.allowed && look.sqrMagnitude > 1e-6f ? awayFor + dt : 0f; if (awayFor > 0.5f) { Release(); return; } }
 
@@ -228,8 +233,8 @@ namespace LastWar
             float pull = 0f;
             if ((scoped || firing) && s.err > s.halfW * 0.6f)
             {
-                float rate = PullRate * (locked ? 3f : 1f) * st * (sniper ? SniperPull : 1f); // (caught: pulled back onto him quickly)
-                pull = Mathf.Min((s.err - s.halfW * 0.5f) * (1f - Mathf.Exp(-rate * dt)), PullMax * st * dt); // (to the body's edge, not past its middle)
+                float rate = (locked ? 16f : PullRate * st) * (sniper ? SniperPull : 1f); // (caught: onto him within a few frames)
+                pull = Mathf.Min((s.err - s.halfW * 0.5f) * (1f - Mathf.Exp(-rate * dt)), (locked ? 240f : PullMax * st) * dt); // (to the body's edge, not past its middle)
                 if (pull < 0f) pull = 0f;
                 Vector2 e = new Vector2(Mathf.DeltaAngle(yaw, s.pYaw), s.pPitch - pitchDeg);
                 if (e.sqrMagnitude > 1e-8f)
