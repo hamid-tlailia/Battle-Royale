@@ -61,7 +61,7 @@ namespace LastWar
             // background: generated colours + aerial photo
             var photo = new GameObject("photo", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
             photo.transform.SetParent(content, false); UiKit.Fill(photo.rectTransform); photo.raycastTarget = false;
-            Texture2D tex = !string.IsNullOrEmpty(map.albedo) ? Resources.Load<Texture2D>("Maps/" + map.albedo) : null;
+            Texture2D tex = MapBuilder.Albedo(map); // (in the map's look: snow / autumn)
             photo.texture = tex != null ? tex : HeightTexture();
 
             shade = new GameObject("outside", typeof(RectTransform)).GetComponent<RectTransform>();

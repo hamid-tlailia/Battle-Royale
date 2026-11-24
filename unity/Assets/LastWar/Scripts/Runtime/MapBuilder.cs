@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -31,6 +32,7 @@ namespace LastWar
 
         public static GameObject Build(MapData map)
         {
+            Look = LookOf(map);
             currentMap = map; propBounds.Clear();
             var root = new GameObject("Map " + map.id);
             MakeIsland(map);
@@ -243,7 +245,7 @@ namespace LastWar
             mesh.RecalculateNormals(); mesh.RecalculateBounds();
 
             Texture2D tex = null;
-            if (!string.IsNullOrEmpty(map.albedo)) tex = Resources.Load<Texture2D>("Maps/" + map.albedo);
+            tex = Albedo(map);
             if (tex == null) tex = HeightColours(map);
             tex.wrapMode = TextureWrapMode.Clamp; tex.anisoLevel = 8;
 
@@ -257,7 +259,7 @@ namespace LastWar
                 terrainMat = new Material(baseTerrain);
                 terrainMat.SetTexture("_BaseMap", tex);
                 // desert: sand grain instead of grass
-                var detail = Resources.Load<Texture2D>(map.id == "desert" || map.id == "valley" ? "Maps/detail_sand" : "Maps/detail_grass");
+                var detail = Resources.Load<Texture2D>(map.id == "desert" || map.id == "valley" ? "Maps/detail_sand" : Look == "snow" ? "Maps/detail_snow" : Look == "autumn" ? "Maps/detail_grass_autumn" : "Maps/detail_grass");
                 if (detail != null) { detail.wrapMode = TextureWrapMode.Repeat; detail.anisoLevel = 8; terrainMat.SetTexture("_DetailAlbedoMap", detail); }
                 terrainMat.SetTextureScale("_DetailAlbedoMap", Vector2.one * (map.size / 1.6f));
             }
@@ -381,7 +383,7 @@ namespace LastWar
                 foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
                 {
                     var mats = r.sharedMaterials;
-                    for (int k = 0; k < mats.Length; k++) mats[k] = LitFrom(mats[k]);
+                    for (int k = 0; k < mats.Length; k++) mats[k] = LookMat(LitFrom(mats[k]), p.p);
                     r.sharedMaterials = mats;
                 }
             }
@@ -403,6 +405,40 @@ namespace LastWar
 
         static readonly Dictionary<Material, Material> litCache = new Dictionary<Material, Material>();
         /// <summary>glTF material -> URP Lit (opaque or alpha-cutout), shared per source material</summary>
+        /// <summary>each green map its own season (they looked alike): Highlands under snow, Oakwood in autumn, Valley
+        /// green - only in a match (the lobby stands on Highlands as it was). The ground and the trees / bushes take the
+        /// look's own textures (Resources/Looks/&lt;look&gt;/; scripts/unity/map-looks.py); ?look=none|snow|autumn to try</summary>
+        public static string Look = "";
+        public static string LookOf(MapData map)
+        {
+            string u = Application.absoluteURL ?? ""; int li = u.IndexOf("look=");
+            if (li >= 0) { string v = new string(u.Substring(li + 5).TakeWhile(char.IsLetter).ToArray()); return v == "none" ? "" : v; }
+            if (!GameBoot.InMatch) return "";
+            return map.id == "green" ? "snow" : map.id == "forest" ? "autumn" : "";
+        }
+        static readonly Dictionary<(Material, string), Material> lookMats = new Dictionary<(Material, string), Material>();
+        /// <summary>a prop's material in the map's look: its colour texture swapped for Looks/&lt;look&gt;/&lt;model&gt;_&lt;texture&gt;</summary>
+        static Material LookMat(Material m, string model)
+        {
+            if (string.IsNullOrEmpty(Look) || m == null || !m.HasProperty("_BaseMap")) return m;
+            Texture t = m.GetTexture("_BaseMap"); if (t == null) return m;
+            string key = model + "_" + t.name;
+            if (lookMats.TryGetValue((m, Look + key), out Material lm)) return lm;
+            var v = Resources.Load<Texture2D>($"Looks/{Look}/{key}");
+            lm = m;
+            if (v != null) { lm = new Material(m) { name = m.name + " " + Look }; lm.SetTexture("_BaseMap", v); if (lm.HasProperty("_MainTex")) lm.SetTexture("_MainTex", v); }
+            lookMats[(m, Look + key)] = lm;
+            return lm;
+        }
+        /// <summary>the map's ground texture in its look (Maps/&lt;albedo&gt;_&lt;look&gt;), else its own</summary>
+        public static Texture2D Albedo(MapData map)
+        {
+            if (string.IsNullOrEmpty(map.albedo)) return null;
+            string look = LookOf(map);
+            Texture2D t = !string.IsNullOrEmpty(look) ? Resources.Load<Texture2D>($"Maps/{map.albedo}_{look}") : null;
+            return t != null ? t : Resources.Load<Texture2D>("Maps/" + map.albedo);
+        }
+
         public static Material LitFrom(Material src)
         {
             if (src == null) return NewLit(Color.white);
