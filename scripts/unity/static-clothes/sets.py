@@ -59,6 +59,34 @@ for name in only:
         L = R(d['legs'], 'pants')
     cl = T + L + boots(name)
     meshes += [(f'{X}_Body', T + conform(undersuit('torso'), cl)), (f'{X}_Legs', L + conform(undersuit('legs'), T + L))]  # (not trimmed by the boots: the sock shows between them and the hem)
-    meshes += [(f'{X}_Arms_Hands', H), (f'{X}_Feet_Boots', boots(name))]
+    # the arm's skin under a sleeve dropped (it showed through the cloth); bare forearms of short sleeves kept
+    # a short sleeve ending before the hand's skin starts (the Villager's arm skin begins ~13 cm short of the wrist):
+    # stretched along the arm to overlap it by 2 cm - a ring of nothing showed between
+    skin0 = min(np.abs(h['P'][np.unique(h['I']), 0]).min() for h in H)
+    for sd, sg in (('l', 1), ('r', -1)):
+        arm = [jidx[f'lowerarm_{sd}'], jidx[f'upperarm_{sd}']]; x0 = 0.35
+        sel = [np.isin(p['J'][:, 0], arm) & (sg * p['P'][:, 0] > x0) for p in T]
+        xs = np.concatenate([sg * p['P'][m, 0] for p, m in zip(T, sel)])
+        if len(xs) < 10: continue
+        xe = np.percentile(xs, 99)
+        if xe < skin0 + 0.02:
+            for p, m in zip(T, sel):
+                P = p['P'].copy(); x = sg * P[m, 0]; P[m, 0] = sg * (x0 + (x - x0) * (skin0 + 0.02 - x0) / (xe - x0)); p['P'] = P
+    Hs = []
+    for h in H:
+        tri = h['I'].reshape(-1, 3); keep = np.ones(len(tri), bool)
+        for sd, sg in (('l', 1), ('r', -1)):
+            arm = [jidx[f'lowerarm_{sd}'], jidx[f'upperarm_{sd}']]  # (a short sleeve's end hangs on the upper arm)
+            x = np.concatenate([sg * p['P'][np.isin(p['J'][:, 0], arm) & (sg * p['P'][:, 0] > 0.3), 0] for p in T if len(p['P'])])
+            if len(x) < 10: continue
+            wx = JW[jidx[f'hand_{sd}']][0, 3] * sg
+            # (a clean line: a long sleeve - 2 cm short of the wrist, under the cuff; a short one - 6 cm inside it, its
+            # rolled edge reaches past what shows and a ring of nothing showed between)
+            xe = np.percentile(x, 99)  # (the sleeve's end, a stray bit or two aside)
+            cut = wx - 0.02 if xe > wx - 0.03 else xe - 0.06
+            side = sg * h['P'][:, 0] > 0
+            keep &= ~(side[tri].all(1) & (sg * h['P'][tri, 0] < cut).any(1))
+        Hs.append(dict(h, I=tri[keep].reshape(-1)))
+    meshes += [(f'{X}_Arms_Hands', Hs), (f'{X}_Feet_Boots', boots(name))]
     if 'head' in d: i, kind, nm = d['head']; meshes.append((f'{X}_Head_{nm}', R(i, kind)))
     write(X, meshes, os.environ.get('LW_OUT', 'out'))

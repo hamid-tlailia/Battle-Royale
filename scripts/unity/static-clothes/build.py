@@ -31,7 +31,7 @@ def piece_prims(i):
         if img is not None and tuple(col[:3]) != (1, 1, 1): img = Image.fromarray((np.asarray(img, np.float32) * np.array(col[:3])).clip(0, 255).astype(np.uint8))
         out.append(dict(P=P, N=N, UV=UV, I=I, img=img, col=col, name=mat.get('name', 'm'), key=(i, p.get('material'))))
     return out
-SleeveOver = 0.035  # a long sleeve's cuff past the wrist (m)
+SleeveOver = 0.02   # a long sleeve's cuff past the wrist (m) (3.5 cm: the hand's skin, wider there, showed jagged through it)
 WeightSmooth = 0    # passes of weight smoothing over the mesh (0: off - split seam vertices took different weights and the seams opened)
 def rig_piece(i, kind, mirror=False, k=6):
     F = json.load(open(f'{HERE}/fits/fit_{i}.json')); c = np.array(F['c'])
@@ -128,7 +128,7 @@ def hands():
     hands carried over from the base body bent wrongly round a gun's grip; past the wrist, on this rig's joint numbers"""
     PG = G(f'{QO}/Male_Peasant.gltf'); pj = [PG.J['nodes'][j]['name'] for j in PG.J['skins'][0]['joints']]
     remap = np.array([jidx[n] for n in pj])
-    wrist = RG.W[RG.byname['hand_l']][0, 3] - 0.09   # T-pose: the arms along x; the hand and the end of the forearm
+    wrist = RG.W[RG.byname['hand_l']][0, 3] - 0.16   # T-pose: the arms along x; the hand and most of the forearm (a short sleeve ends 10-13 cm short of the wrist: from 9 cm a ring of nothing showed between them)
     out = []
     for ni, nm, p, P in PG.prims():
         if nm != 'Male_Peasant_Arms' or p.get('material') != 1: continue
@@ -209,10 +209,10 @@ def undersuit(part):
     fn = np.cross(BP[tri[:, 1]] - BP[tri[:, 0]], BP[tri[:, 2]] - BP[tri[:, 0]]); vn = np.zeros_like(BP)
     for c in range(3): np.add.at(vn, tri[:, c], fn)
     vn /= np.linalg.norm(vn, axis=1, keepdims=True) + 1e-12
-    P = BP - vn * 0.015
-    return [dict(P=P, N=vn, UV=np.zeros((len(P), 2)), I=tri.reshape(-1), J=BJ, W=BW, img=None, col=[0.11, 0.115, 0.125, 1], name='under', key=('under',))]
+    P = BP - vn * np.where(np.isin(dom, ['spine_01', 'pelvis']), 0.04, 0.015)[:, None]  # (the waist band deeper: kept whole, see conform)
+    return [dict(P=P, N=vn, UV=np.zeros((len(P), 2)), I=tri.reshape(-1), J=BJ, W=BW, img=None, col=[0.035, 0.037, 0.04, 1], name='under', key=('under',))]
 
-def conform(under, cloth, lat_max=0.035, depth=0.08):
+def conform(under, cloth, lat_max=0.035, depth=0.08, waist=True):
     """undersuit / bare-skin triangles with cloth right over them (or through them) are never seen: dropped. What is
     left fills only the gaps the clothes leave (no moving: pushing points under the cloth left spikes)"""
     CP = np.vstack([c['P'][np.unique(c['I'])] for c in cloth if len(c['I'])]); tr = cKDTree(CP)
@@ -221,6 +221,11 @@ def conform(under, cloth, lat_max=0.035, depth=0.08):
         d, ii = tr.query(P[used], k=12)
         rel = CP[ii] - P[used][:, None, :]; along = np.einsum('ikj,ij->ik', rel, n[used])
         lat = np.linalg.norm(rel - along[..., None] * n[used][:, None, :], axis=2)
-        cov = np.zeros(len(P), bool); cov[used] = ((lat < lat_max) & (along > -0.12) & (along < depth)).any(1)
+        hit = (along > -0.12) & (along < depth)
+        cov = np.zeros(len(P), bool); cov[used] = ((lat < lat_max) & hit).any(1)
+        if waist and len(P) == len(dom):
+            # (the waist band - spine / pelvis - always kept, set 4 cm inside the body in undersuit(): a top's hem standing
+            # off a pair of trousers left the background showing between them; that deep it never shows through cloth)
+            cov &= ~np.isin(dom, ['spine_01', 'pelvis'])
         tri = u['I'].reshape(-1, 3); u['I'] = tri[cov[tri].sum(1) < 2].reshape(-1)
     return under

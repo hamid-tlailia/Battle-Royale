@@ -13,6 +13,8 @@ namespace LastWar
     /// </summary>
     public class Hud : MonoBehaviour
     {
+        /// <summary>seconds from the last kill to the victory screen: his fall and the skull banner first</summary>
+        public static float WinDelay = 2.6f; float winAt = -1f;
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
         RectTransform iceCover;
@@ -692,7 +694,9 @@ namespace LastWar
             if (spectating && (player.SpectateTarget == null || !player.SpectateTarget.Alive)) player.StartSpectate(null);
             if (spectating && (gb.AliveCount <= 1 || player.SpectateTarget == null)) spectating = false;
             // victory: the web's celebration (confetti, music, countdown back to the lobby) instead of the result card
-            if (gb.Result > 0 && !celebrating) { celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
+            // (after a moment: the last enemy falls and the kill banner's skull shows first - it came up over his death)
+            if (gb.Result > 0 && winAt < 0f) winAt = Time.unscaledTime + WinDelay;
+            if (gb.Result > 0 && !celebrating && Time.unscaledTime >= winAt) { celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
             // you are out and the match is over: the celebration for whoever won (a bot), same music, back to the lobby
             if (gb.Result < 0 && !celebrating && gb.AliveCount <= 1)
             {

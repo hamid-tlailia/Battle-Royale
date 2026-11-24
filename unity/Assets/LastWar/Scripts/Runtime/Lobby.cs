@@ -37,6 +37,7 @@ namespace LastWar
         {
             var l = new GameObject("Lobby").AddComponent<Lobby>(); Current = l;
             l.cam = cam; l.Build3D(map); l.BuildUi();
+            if (l.lcamTest && l.canvas != null) l.canvas.gameObject.AddComponent<CanvasGroup>().alpha = 0f; // (?lcam=: buttons unseen but working - the lobby's own Update still poses the rifle)
             l.StartCoroutine(MapBuilder.Preload(System.Array.ConvertAll(SoldierBody.OutfitFiles, f => "outfit_" + f)));
             // test switches: ?open=settings|outfit|map|edit opens that panel; ?lpose=kneel|crawl|runfree shows that pose
             string url = Application.absoluteURL ?? "";
@@ -108,7 +109,11 @@ namespace LastWar
             camPos.y = Mathf.Max(camPos.y, map.HeightAt(cw.x, cw.y) + 0.8f);
             cam.transform.position = camPos; cam.transform.LookAt(p + Vector3.up * 1.18f);
             cam.fieldOfView = 30f;
+            // (tests: ?lcam=<fov> - the lobby camera narrowed onto the hands and the gun, the buttons hidden)
+            if (float.TryParse(Arg("lcam") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf > 0f)
+            { cam.fieldOfView = lf; cam.transform.LookAt(p + Vector3.up * 1.05f); lcamTest = true; }
         }
+        bool lcamTest;
 
         void SpawnSoldier()
         {

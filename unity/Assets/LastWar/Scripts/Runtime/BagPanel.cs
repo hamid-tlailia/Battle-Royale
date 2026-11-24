@@ -101,7 +101,7 @@ namespace LastWar
             {
                 Sprite sp = Item("gun_" + g.def.Look) ?? UiKit.Get("gun_" + g.def.id);
                 Pic(rt, sp, new Vector2(1, .5f), new Vector2(-8, 4), new Vector2(170, 66), Color.white);
-                Label(rt, new Vector2(0, 1), new Vector2(8, -6), new Vector2(160, 16), 11, TextAnchor.UpperLeft, Color.white, g.def.name);
+                Label(rt, new Vector2(0, 1), new Vector2(8, -2), new Vector2(236, 15), 11, TextAnchor.UpperLeft, Color.white, g.def.name); // (at the card's top: the scope chip below it no longer covers it)
                 Label(rt, new Vector2(0, 0), new Vector2(8, 6), new Vector2(120, 18), 13, TextAnchor.LowerLeft, Gold, $"{g.mag}<size={Mathf.RoundToInt(9 * UiKit.K)}><color=#ffffffb0> / {g.reserve}</color></size>");
                 // the scope sits where a scope goes - on top of the gun's picture, over its receiver. The rifle's: drag it out
                 // of the backpack to throw it, drop another scope from the backpack onto it to swap them (an empty rifle
@@ -114,7 +114,7 @@ namespace LastWar
                     // (on top of the gun right above its grip - where a scope is mounted - not over the barrel; the number only.
                     // The picture spans x 72..242 of the 250 card, muzzle to the right: the grip is ~42 % along it)
                     float gx = 72f + 170f * (own ? 0.40f : 0.42f);
-                    var chip = UiKit.Img(rt, "scope", UiKit.Round, new Vector2(0, 1), new Vector2(gx, -2), new Vector2(empty ? 46 : 30, 17), empty ? new Color(1, 1, 1, .12f) : new Color(.77f, .55f, 1f, .9f), true);
+                    var chip = UiKit.Img(rt, "scope", UiKit.Round, new Vector2(0, 1), new Vector2(gx, -19), new Vector2(empty ? 46 : 30, 17), empty ? new Color(1, 1, 1, .12f) : new Color(.77f, .55f, 1f, .9f), true);
                     chip.rectTransform.pivot = new Vector2(.5f, 1);
                     Label(chip.rectTransform, new Vector2(.5f, .5f), new Vector2(0, 0), new Vector2(empty ? 46 : 30, 17), 9, TextAnchor.MiddleCenter, Color.white, empty ? "+ scope" : "×" + z);
                     if (!own)
