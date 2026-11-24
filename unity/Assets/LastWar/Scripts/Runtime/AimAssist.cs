@@ -158,9 +158,11 @@ namespace LastWar
                 lostFor = ok ? 0f : lostFor + dt;
                 if (!Target.Alive || lostFor > LoseTime) Release();
             }
-            // nobody held (and not firing - a burst never jumps to a new man): the enemy whose torso is nearest the crosshair
+            // nobody held: the enemy whose torso is nearest the crosshair
             if (engage && Target != null && !locked) Target = null; // (a fresh catch: the one nearest the crosshair now)
-            if (Target == null && (!firing || engage))
+            // (nobody held: picked even while FIRE is held - firing first and then sweeping onto him caught nothing; while one
+            // is held, another never takes over)
+            if (Target == null)
             {
                 Fighter best = null; float bs = float.MaxValue;
                 foreach (Fighter q in GameBoot.Instance.Fighters)
