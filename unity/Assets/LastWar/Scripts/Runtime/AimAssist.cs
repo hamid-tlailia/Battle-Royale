@@ -44,7 +44,7 @@ namespace LastWar
         public float LastError { get; private set; } = -1f;
         public float LastHalfWidth { get; private set; }
 
-        float lostFor, prevYaw, prevPitch, nextLog; bool havePrev;
+        float lostFor, prevYaw, prevPitch, nextLog; bool havePrev; Vector3 prevRoot, vel;
 
         public static void ReadUrl(string u)
         {
@@ -186,15 +186,22 @@ namespace LastWar
             SensFactor = Mathf.Lerp(1f, Friction, st * close);
 
             // tracking: the torso's middle moved (as seen from here) since the last frame - the aim follows a share of it
+            // (from his root, not his bones: the torso bobs with the run cycle and following that shook the aim; his speed
+            // smoothed over ~0.15 s, the aim turned by how much that moves him as seen from here this frame)
             float trackYaw = 0f, trackPitch = 0f;
+            Vector3 root = Target.transform.position;
             if (havePrev)
             {
+                Vector3 v = (root - prevRoot) / dt;
+                if (v.magnitude > 20f) v = Vector3.zero; // (teleported / respawned: not followed)
+                vel = Vector3.Lerp(vel, v, 1f - Mathf.Exp(-dt / 0.15f));
+                Vector3 mid = root + Vector3.up * 1.15f, ahead = mid + vel * dt;
+                AnglesOf(mid - c, out float y0, out float p0); AnglesOf(ahead - c, out float y1, out float p1);
                 float k = Track * st * close;
-                trackYaw = Mathf.DeltaAngle(prevYaw, s.cYaw) * k; trackPitch = (s.cPitch - prevPitch) * k;
-                // (a jump of the target's angles - he was respawned / teleported, or a frame hitch - is not followed)
-                if (Mathf.Abs(trackYaw) > 25f || Mathf.Abs(trackPitch) > 25f) trackYaw = trackPitch = 0f;
+                trackYaw = Mathf.DeltaAngle(y0, y1) * k; trackPitch = (p1 - p0) * k;
             }
-            prevYaw = s.cYaw; prevPitch = s.cPitch; havePrev = true;
+            else vel = Vector3.zero;
+            prevRoot = root; prevYaw = s.cYaw; prevPitch = s.cPitch; havePrev = true;
             yaw += trackYaw; pitchDeg += trackPitch;
 
             // pull: through the scope or while firing, onto the body (not once on it)
@@ -202,7 +209,8 @@ namespace LastWar
             if ((scoped || firing) && s.err > s.halfW * 0.6f)
             {
                 float rate = PullRate * st * (sniper ? SniperPull : 1f);
-                pull = Mathf.Min(s.err * (1f - Mathf.Exp(-rate * dt)), PullMax * st * dt);
+                pull = Mathf.Min((s.err - s.halfW * 0.5f) * (1f - Mathf.Exp(-rate * dt)), PullMax * st * dt); // (to the body's edge, not past its middle)
+                if (pull < 0f) pull = 0f;
                 Vector2 e = new Vector2(Mathf.DeltaAngle(yaw, s.pYaw), s.pPitch - pitchDeg);
                 if (e.sqrMagnitude > 1e-8f)
                 {

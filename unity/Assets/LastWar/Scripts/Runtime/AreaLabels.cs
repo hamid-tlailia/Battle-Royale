@@ -13,7 +13,7 @@ namespace LastWar
     /// </summary>
     public class AreaLabels : MonoBehaviour
     {
-        public static float FadeNear = 45f, FadeFar = 110f;
+        public static float FadeNear = 70f, FadeFar = 170f;
 
         class Label { public RectTransform rt; public CanvasGroup g; public Vector3 world; public float a; }
         readonly List<Label> labels = new List<Label>();
@@ -86,7 +86,9 @@ namespace LastWar
             {
                 Vector3 sp = cam.WorldToScreenPoint(l.world);
                 float d = Vector3.Distance(me, l.world - Vector3.up * 22f); // (from the plane, high over it, the name stays)
-                float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d));
+                // on the ground: smaller and fainter (they crowded the view) - from the plane / falling: full
+                bool onGround = pc != null && pc.fighter != null && pc.fighter.air == 0;
+                float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d)) * (onGround ? 0.8f : 1f);
                 l.a = Mathf.MoveTowards(l.a, want, dt * 2.5f); // (a gentle fade in / out, never a pop)
                 l.g.alpha = l.a;
                 bool on = l.a > 0.01f;
@@ -94,7 +96,7 @@ namespace LastWar
                 if (!on) continue;
                 if (RectTransformUtility.ScreenPointToLocalPointInRectangle(root, sp, null, out Vector2 lp)) l.rt.anchoredPosition = lp;
                 // far ones a little smaller (the plane sees the whole island), never tiny
-                float s = Mathf.Lerp(1f, 0.72f, Mathf.InverseLerp(150f, 700f, d));
+                float s = Mathf.Lerp(1f, 0.72f, Mathf.InverseLerp(150f, 700f, d)) * (onGround ? 0.6f : 1f);
                 l.rt.localScale = Vector3.one * s;
             }
         }

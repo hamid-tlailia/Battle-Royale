@@ -27,6 +27,7 @@ namespace LastWar
         public static IEnumerator Run(GameBoot gb, int mode)
         {
             yield return new WaitForSeconds(3f);
+            Time.captureDeltaTime = 1f / 30f; // (every frame 1/30 s of game time, however slow the machine: the same swipe every run)
             PlayerController pc = gb.Player; Fighter me = pc.fighter;
             me.God = true;
             for (int k = 0; k < 3; k++) if (me.guns[k] != null && me.guns[k].def.id == "rifle") { me.SelectSlot(k); break; }
@@ -92,6 +93,7 @@ namespace LastWar
                 Debug.Log($"[LastWar] aatest wall: held before {hadIt}, hidden at {hiddenAt:0.00} s, let go {(letGo >= 0f ? (letGo - hiddenAt).ToString("0.00") + " s after" : "never")}, view turned {turnedWhileHidden:0.0} deg after he was hidden");
                 Object.Destroy(wall);
             }
+            Time.captureDeltaTime = 0f;
             Debug.Log("[LastWar] aatest done");
         }
 
@@ -110,7 +112,7 @@ namespace LastWar
             AimAssist.AnglesAt(a, c, out float ty, out float tp);
             pc.TestYaw = ty - 10f; pc.TestPitch = tp;
             float t = 0f, swipeFor = 12f / 30f, sum = 0f, mx = 0f, on1 = 0f, n = 0f, lastYaw = pc.TestYaw, lastRate = 0f, jit = 0f; int jn = 0;
-            while (t < swipeFor + 1.5f)
+            while (t < swipeFor + 1.2f)
             {
                 float dt = Time.deltaTime; t += dt;
                 if (moving) { float x = Mathf.Sin(t * Mathf.PI * 2f / 2.4f) * 3.5f * 2.4f / (2f * Mathf.PI); Place(a, home + new Vector3(x, 0, 0)); Run(a, true); }
