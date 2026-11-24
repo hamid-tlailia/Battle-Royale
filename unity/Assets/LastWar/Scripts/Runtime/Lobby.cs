@@ -110,7 +110,8 @@ namespace LastWar
             cam.transform.position = camPos; cam.transform.LookAt(p + Vector3.up * 1.18f);
             cam.fieldOfView = 30f;
             // (tests: ?lcam=<fov> - the lobby camera narrowed onto the hands and the gun, the buttons hidden)
-            if (float.TryParse(Arg("lcam") ?? "x", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf > 0f)
+            string lu = Application.absoluteURL ?? ""; int lci = lu.IndexOf("lcam="); string lcv = lci < 0 ? "x" : lu.Substring(lci + 5).Split('&')[0];
+            if (float.TryParse(lcv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf > 0f)
             { cam.fieldOfView = lf; cam.transform.LookAt(p + Vector3.up * 1.05f); lcamTest = true; }
         }
         bool lcamTest;
