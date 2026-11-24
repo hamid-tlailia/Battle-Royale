@@ -103,6 +103,10 @@ Unity `Resources/Audio/land.wav` (landing boot impact) , `step1-6.wav` (running 
 | House: "Dawson" (Design 36) | enterable building `bld_dawson` (Oakwood): 1950s bungalow with rooms | AleixoAlonso | CC Attribution | https://sketchfab.com/3d-models/36e4e93baf464c94ae6c447bb67f12c7 |
 | Watch tower | enterable building `bld_tower` (Oakwood): watch tower (climb up) | _SeF_ | CC Attribution | https://sketchfab.com/3d-models/042f327a0f4c4fc9bf458903666bb257 |
 | Old Wooden Barn (House 4) | enterable building `bld_barn` (Oakwood): barn (x1.5) | narighillya | CC Attribution | https://sketchfab.com/3d-models/3366ee69c2dd4908a99f386e07faa1d6 |
+| LOW POLY - DERELICT FACTORY | `bld_factory` (Oakwood) - Oak Works: the old brick mill (an enterable hall) and its chimney | Colin.Greenall | CC Attribution | https://sketchfab.com/3d-models/4e033f90eaaa4e68931af60f0309f537 |
+| Warehouses | `ind_warehouses` (Oakwood) - Oak Works: the long sheds (cover) | 99.Miles | CC Attribution | https://sketchfab.com/3d-models/e6e105d35b3f486292c42ffa52f363c0 |
+| Low Poly Market | `mkt_stalls` (Oakwood) - Oakford Market: the striped stalls round a well | Yanez-Designs | CC Attribution | https://sketchfab.com/3d-models/bbe61c6b328e419ead8e1a97492c4a86 |
+| Low-Poly Fruit Box Assets | `mkt_crates` (Oakwood) - crates of produce (market, works) | Bowen154 | CC Attribution | https://sketchfab.com/3d-models/9c66e47273b14057a1c6a646336cffda |
 | Ultimate Modular Characters | outfits `q_*` (11 characters, mix-and-match pieces; scripts/unity/split-quaternius.mjs) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularcharacters.html |
 | Modular Character Outfits - Fantasy | outfits `qm_ranger`, `qm_peasant`, `qf_ranger`, `qf_peasant` (Ranger, Villager, Huntress, Wanderer: mix-and-match head / top / pants / shoes; scripts/unity/import-modular-outfits.mjs) | Quaternius | CC0 1.0 | https://quaternius.com/packs/modularcharacteroutfitsfantasy.html |
 | Universal Base Characters | heads, hair, brows and beard of the modular outfits | Quaternius | CC0 1.0 | https://quaternius.com/packs/universalbasecharacters.html |

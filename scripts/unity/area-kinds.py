@@ -11,7 +11,7 @@ KINDS = {
               'Moorgate': 'village', 'Brookend': 'village', 'Granite Tor': 'hill', 'Low Tor': 'hill'},
     'classic': {n: 'village' for n in ['Moorgate', 'Brookend', 'Larkhill', 'Pine Hollow', 'Redroof', 'Greystone']},
     'valley': {'Furnace Creek': 'village', 'Stovepipe Wells': 'village', 'Badwater Town': 'town', 'Panamint City': 'city', 'Ubehebe Post': 'outpost'},
-    'forest': {'Oakford': 'village', 'Mill Farm': 'farm', 'Hedge Farm': 'farm', 'Ranger Lodge': 'lodge'},
+    'forest': {'Oakford': 'village', 'Oak Works': 'factory', 'Oakford Market': 'market', 'Mill Farm': 'farm', 'Hedge Farm': 'farm', 'Ranger Lodge': 'lodge'},
 }
 for mid, kinds in KINDS.items():
     p = R + mid + '.json'; M = json.load(open(p))

@@ -137,10 +137,11 @@ for _ in range(5000):
 cands.sort()
 sites = []
 for score, x, z in cands:
-    if all(math.hypot(x - sx, z - sz) > 88 for _, sx, sz in sites): sites.append((score, x, z))
-    if len(sites) == 4: break
-kinds = ['village', 'farm', 'farm', 'lodge'][:len(sites)]
-names = {'village': ['Oakford'], 'farm': ['Mill Farm', 'Hedge Farm'], 'lodge': ['Ranger Lodge']}
+    if all(math.hypot(x - sx, z - sz) > 70 for _, sx, sz in sites): sites.append((score, x, z))
+    if len(sites) == 6: break
+# the places by kind (each named over the world in its kind's colour, AreaLabels.cs): the flattest open ground first
+kinds = ['village', 'factory', 'market', 'farm', 'farm', 'lodge'][:len(sites)]
+names = {'village': ['Oakford'], 'factory': ['Oak Works'], 'market': ['Oakford Market'], 'farm': ['Mill Farm', 'Hedge Farm'], 'lodge': ['Ranger Lodge']}
 def flatten(cx, cz, r, h):
     for j in range(n):
         for i in range(n):
@@ -155,20 +156,31 @@ def free(x, z, need): return all(math.hypot(x - tx, z - tz) > tr + need for tx, 
 used = {}
 for (score, sx, sz), kind in zip(sites, kinds):
     nm = names[kind][used.get(kind, 0)]; used[kind] = used.get(kind, 0) + 1
-    rad = {'village': 54, 'farm': 38, 'lodge': 28}[kind]
+    rad = {'village': 54, 'farm': 38, 'lodge': 28, 'factory': 50, 'market': 34}[kind]
     flatten(sx, sz, rad, hat(sx, sz)); areas.append({'name': nm, 'x': sx, 'z': sz, 'kind': kind})
     road = rnd.random() * math.pi
     # Oakwood's own buildings, all enterable (Sketchfab, CC-BY - CREDITS.md): a two-storey wooden house with a balcony
     # (yadrogames), an old two-storey house with rooms and stairs (davidfalke), a 1950s bungalow with rooms
     # (AleixoAlonso), a barn (narighillya), a watch tower (_SeF_) - none of the other maps' houses
-    houses = {'village': ['bld_woodhouse', 'bld_oldhouse', 'bld_dawson'], 'farm': ['bld_dawson', 'bld_barn', 'bld_oldhouse'], 'lodge': ['bld_woodhouse', 'bld_tower']}[kind]
-    count = {'village': 8, 'farm': 3, 'lodge': 2}[kind]
+    houses = {'village': ['bld_woodhouse', 'bld_oldhouse', 'bld_dawson'], 'farm': ['bld_dawson', 'bld_barn', 'bld_oldhouse'], 'lodge': ['bld_woodhouse', 'bld_tower'], 'factory': [], 'market': ['bld_dawson', 'bld_woodhouse']}[kind]
+    count = {'village': 8, 'farm': 3, 'lodge': 2, 'factory': 0, 'market': 2}[kind]
+    off = 24 if kind == 'market' else 17  # (the market's houses stand back from its stalls)
     for q in range(count):  # two rows along a street
         side = 1 if q % 2 else -1; along = (q // 2 - (count - 1) / 4) * 26
-        x = sx + math.cos(road) * along - math.sin(road) * side * 17; z = sz + math.sin(road) * along + math.cos(road) * side * 17
+        x = sx + math.cos(road) * along - math.sin(road) * side * off; z = sz + math.sin(road) * along + math.cos(road) * side * off
         prop(houses[q % len(houses)], x, z, road + (math.pi if side > 0 else 0) + rnd.uniform(-.08, .08))
         taken.append((x, z, 11))
-    extras = {'village': ['well', 'wagon', 'haybale', 'car1', 'car3'], 'farm': ['windmill', 'haybale', 'haybale', 'haybale', 'wagon', 'scarecrow', 'well', 'car2'], 'lodge': ['car4', 'wagon', 'haybale']}[kind]
+    def along_road(a, b): return sx + math.cos(road) * a - math.sin(road) * b, sz + math.sin(road) * a + math.cos(road) * b
+    if kind == 'factory':
+        # the works: the old brick mill (enterable hall, its chimney) between two long sheds (cover), crates and wrecks round
+        prop('bld_factory', sx, sz, road); taken.append((sx, sz, 15))
+        for sd in (-1, 1):
+            wx, wz = along_road(0, sd * 27); prop('ind_warehouses', wx, wz, road); taken.append((wx, wz, 25))
+    if kind == 'market':
+        # the market: a ring of striped stalls round a well on the square, crates of produce, a cart or two
+        prop('mkt_stalls', sx, sz, road); taken.append((sx, sz, 14))
+    extras = {'village': ['well', 'wagon', 'haybale', 'car1', 'car3'], 'farm': ['windmill', 'haybale', 'haybale', 'haybale', 'wagon', 'scarecrow', 'well', 'car2'], 'lodge': ['car4', 'wagon', 'haybale'],
+              'factory': ['mkt_crates', 'mkt_crates', 'mkt_crates', 'car1', 'car2', 'car4', 'haybale'], 'market': ['mkt_crates', 'mkt_crates', 'mkt_crates', 'mkt_crates', 'wagon', 'wagon', 'haybale', 'car3']}[kind]
     for extra in extras:
         need = 13 if extra == 'windmill' else 5
         for _ in range(80):
@@ -178,7 +190,8 @@ for (score, sx, sz), kind in zip(sites, kinds):
         if extra == 'windmill': prop('windmill_blades', x, z, props[-1]['rot'])
     for q in range(6):  # fences round the place
         a = q / 6 * 2 * math.pi + rnd.uniform(-.2, .2); x, z = sx + math.cos(a) * (rad + 6), sz + math.sin(a) * (rad + 6)
-        if free(x, z, 2): prop(rnd.choice(['fence', 'fence', 'yardwall']) if kind != 'lodge' else 'fence', x, z, a + math.pi / 2)
+        if kind == 'market': break
+        if free(x, z, 2): prop('yardwall' if kind == 'factory' else rnd.choice(['fence', 'fence', 'yardwall']) if kind != 'lodge' else 'fence', x, z, a + math.pi / 2)
 def near_site(x, z, extra=0): return any(math.hypot(x - a['x'], z - a['z']) < 55 + extra for a in areas)
 # watch towers on the open ground at the woods' edges (a look-out over the meadow), away from the places and each other
 towers = []
