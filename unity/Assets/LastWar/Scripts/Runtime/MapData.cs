@@ -42,7 +42,7 @@ namespace LastWar
     [Serializable] public class PropData { public string p; public float x, y, z, rot, s; }
     [Serializable] public class BoxData { public float x, y, z, hx, hy, hz, rot; public int color; }
     [Serializable] public class Vec2 { public float x, z; }
-    [Serializable] public class AreaData { public string name; public float x, z; }
+    [Serializable] public class AreaData { public string name; public float x, z; public string kind; } // kind: village / farm / factory / market / lodge / city ... (the name's colour over the map)
 
     /// <summary>
     /// The web game is right-handed (three.js); Unity is left-handed. glTFast imports models by mirroring X,

@@ -166,6 +166,7 @@ namespace LastWar
             Tracers.Create();
             Hud.Create(controls, Player);
             Minimap.Create(controls, Player, Map);
+            AreaLabels.Create(controls.Root, Map, Player); // (the areas' names over the world, fading as you come near)
             if (url.Contains("aatest=")) StartCoroutine(AimAssistTest.Run(this, url.Contains("aatest=2") ? 2 : 1)); // (aim assist tests: AimAssistTest.cs)
 
             fps = new GameObject("fps", typeof(RectTransform), typeof(Text)).GetComponent<Text>();

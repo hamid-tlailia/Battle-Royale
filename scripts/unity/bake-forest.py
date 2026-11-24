@@ -156,7 +156,7 @@ used = {}
 for (score, sx, sz), kind in zip(sites, kinds):
     nm = names[kind][used.get(kind, 0)]; used[kind] = used.get(kind, 0) + 1
     rad = {'village': 54, 'farm': 38, 'lodge': 28}[kind]
-    flatten(sx, sz, rad, hat(sx, sz)); areas.append({'name': nm, 'x': sx, 'z': sz})
+    flatten(sx, sz, rad, hat(sx, sz)); areas.append({'name': nm, 'x': sx, 'z': sz, 'kind': kind})
     road = rnd.random() * math.pi
     # Oakwood's own buildings, all enterable (Sketchfab, CC-BY - CREDITS.md): a two-storey wooden house with a balcony
     # (yadrogames), an old two-storey house with rooms and stairs (davidfalke), a 1950s bungalow with rooms
