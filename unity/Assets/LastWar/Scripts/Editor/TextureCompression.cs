@@ -23,7 +23,7 @@ namespace LastWar.EditorTools
         /// <summary>a lighter app (the APK was 240 MB, the phone's download stuck at the end): on Android the textures
         /// are capped - colours 1024, normal maps / data 512 (they are fine detail; at 2048 they were most of the size) -
         /// and the map photos are ASTC 5x5. The source pictures are never changed; WebGL keeps the full size</summary>
-        public static int AndroidMax(Kind kind) => kind == Kind.Normal || kind == Kind.Data ? 512 : kind == Kind.Ui ? 2048 : 1024;
+        public static int AndroidMax(Kind kind) => kind == Kind.Normal || kind == Kind.Data ? 256 : kind == Kind.Ui ? 2048 : 1024;
 
         public static void Apply(TextureImporter ti, Kind kind, bool mapPhoto = false)
         {
@@ -38,10 +38,11 @@ namespace LastWar.EditorTools
             }
             android.overridden = true;
             android.maxTextureSize = mapPhoto ? ti.maxTextureSize : Mathf.Min(ti.maxTextureSize, AndroidMax(kind));
-            android.format = mapPhoto ? TextureImporterFormat.ASTC_5x5
-                : kind == Kind.Ui ? TextureImporterFormat.ASTC_4x4
-                : kind == Kind.Normal || kind == Kind.Data ? TextureImporterFormat.ASTC_6x6
-                : TextureImporterFormat.ASTC_5x5;
+            // (step 2: 194 MB was still too heavy - the 286 model textures were most of it: colours ASTC 6x6, normal maps /
+            // data 256 px at 8x8, map photos 6x6)
+            android.format = kind == Kind.Ui ? TextureImporterFormat.ASTC_4x4
+                : kind == Kind.Normal || kind == Kind.Data ? TextureImporterFormat.ASTC_8x8
+                : TextureImporterFormat.ASTC_6x6;
             android.compressionQuality = 100; // (best encoder effort: slower import, same size)
             ti.SetPlatformTextureSettings(android);
             webgl.overridden = true;

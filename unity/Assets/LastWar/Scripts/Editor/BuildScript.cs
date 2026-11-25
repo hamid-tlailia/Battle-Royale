@@ -115,7 +115,7 @@ namespace LastWar.EditorTools
             Directory.CreateDirectory(target == BuildTarget.WebGL ? path : Path.GetDirectoryName(path));
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath }, locationPathName = path, target = target, targetGroup = group, options = BuildOptions.None,
+                scenes = new[] { ScenePath }, locationPathName = path, target = target, targetGroup = group, options = target == BuildTarget.Android ? BuildOptions.CompressWithLz4HC : BuildOptions.None, // (Android: the game's data packed with LZ4HC - smaller APK, fast to unpack)
             });
             Debug.Log($"[LastWar] {target} build: {report.summary.result}, {report.summary.totalSize / (1024 * 1024)} MB, errors {report.summary.totalErrors}");
             SizeReport(report);
