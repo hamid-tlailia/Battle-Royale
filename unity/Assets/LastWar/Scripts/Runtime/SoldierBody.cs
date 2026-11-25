@@ -647,6 +647,38 @@ namespace LastWar
             if (lift > 0.005f) hips.position += Vector3.up * Mathf.Min(lift, 0.45f);
         }
 
+        /// <summary>kneeling / crouching on a slope: a foot left hanging over the falling side (the front foot, with the ground
+        /// dropping away ahead) reaches down onto it - the leg bent by two-bone IK, the foot's turn kept. Only a foot more
+        /// than 5 cm above its usual height over the ground moves (flat ground: no change)</summary>
+        public static float AnkleHeight = 0.11f; // (a little high rather than into the ground)
+        void KneelPlant()
+        {
+            if (!visible || Tilt != 0 || dead()) return;
+            // (kneeling: only the front foot - the back one rests on its toes, its ankle raised on purpose)
+            string only = null;
+            if (Pose == "kneel")
+            {
+                Transform fl = PoseBone("LeftFoot"), fr = PoseBone("RightFoot");
+                if (fl == null || fr == null) return;
+                Vector3 fw = transform.rotation * Quaternion.Euler(0, Turn, 0) * Vector3.forward;
+                only = Vector3.Dot(fl.position - fr.position, fw) > 0f ? "Left" : "Right";
+            }
+            foreach (string sd in new[] { "Left", "Right" })
+            {
+                if (only != null && sd != only) continue;
+                Transform up = PoseBone(sd + "UpLeg"), lo = PoseBone(sd + "Leg"), ft = PoseBone(sd + "Foot");
+                if (up == null || lo == null || ft == null) continue;
+                Vector3 p = ft.position; float g = GroundUnder(p);
+                if (g < p.y - 2.5f) continue; // (nothing under it)
+                float gap = p.y - (g + AnkleHeight);
+                if (gap <= 0.06f) continue;
+                Quaternion keep = ft.rotation;
+                TwoBone(up, lo, ft, new Vector3(p.x, g + AnkleHeight, p.z));
+                ft.rotation = keep;
+            }
+            bool dead() => current != null && current.StartsWith("death");
+        }
+
         // ---- standing on a flat stage (the lobby): the lower foot rests exactly on the floor, never sinks or floats
         public bool Plant;
         /// <summary>the lobby: standing straight - knees straightened (the hips raised, the feet kept where they stood) and
@@ -1312,6 +1344,7 @@ namespace LastWar
             ApplyPose();
             SlopeLie();
             if (Pose == "kneel" || (current != null && current.StartsWith("crouch"))) FixFeet(true); // (crouching on a slope)
+            if (Pose == "kneel" || (current != null && current.StartsWith("crouch"))) KneelPlant(); // (a foot left in the air down the slope)
             RunLife();
             RelaxEmptyHands();
             PlantFeet();

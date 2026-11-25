@@ -24,6 +24,7 @@ namespace LastWar
         readonly Dictionary<string, Text> texts = new Dictionary<string, Text>();
         GameObject soldier; float soldierYaw; SoldierBody lobbyBody;
         Transform stage; Camera cam;
+        Vector3 stageAt, camHome; Quaternion camHomeRot; bool wardrobe;
         string forcedPose;
         RectTransform shade, sheet; int dragFinger = -1; Vector2 dragLast; bool mouseDrag;
         static readonly string[] Tips = { "Welcome to Last War!", "Land, loot a gun, stay in the zone.", "Tap a weapon to equip it, tap it again to reload.", "Headshots hit twice as hard.", "The shotgun fires two blasts per press." };
@@ -109,6 +110,7 @@ namespace LastWar
             camPos.y = Mathf.Max(camPos.y, map.HeightAt(cw.x, cw.y) + 0.8f);
             cam.transform.position = camPos; cam.transform.LookAt(p + Vector3.up * 1.18f);
             cam.fieldOfView = 30f;
+            stageAt = p; camHome = cam.transform.position; camHomeRot = cam.transform.rotation;
             // (tests: ?lcam=<fov> - the lobby camera narrowed onto the hands and the gun, the buttons hidden)
             string lu = Application.absoluteURL ?? ""; int lci = lu.IndexOf("lcam="); string lcv = lci < 0 ? "x" : lu.Substring(lci + 5).Split('&')[0];
             if (float.TryParse(lcv, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lf) && lf > 0f)
@@ -348,6 +350,7 @@ namespace LastWar
             if (sheet != null) Destroy(sheet.gameObject);
             if (shade != null) Destroy(shade.gameObject);
             sheet = shade = null; SetTab(0);
+            if (wardrobe) { wardrobe = false; if (root != null) root.gameObject.SetActive(true); if (cam != null && !lcamTest) { cam.transform.position = camHome; cam.transform.rotation = camHomeRot; } }
         }
 
         void Open(string what)
@@ -361,11 +364,28 @@ namespace LastWar
             sheet = bg.rectTransform;
             sheet.anchorMin = root.anchorMin; sheet.anchorMax = root.anchorMax; sheet.pivot = new Vector2(.5f, .5f);
             sheet.offsetMin = new Vector2(0, 8 * s); sheet.offsetMax = new Vector2(0, -8 * s);
+            if (what == "outfit")
+            {
+                // the wardrobe: the page on the left 60 %, the soldier large on the right over the stage (drag him to turn
+                // him), the lobby's own buttons put away meanwhile
+                wardrobe = true;
+                var si = shade.GetComponent<Image>(); si.color = new Color(0.04f, 0.03f, 0.08f, 0.35f); si.raycastTarget = false;
+                root.gameObject.SetActive(false);
+                float wpx = root.rect.width > 10 ? root.rect.width : 1700f;
+                sheet.offsetMax = new Vector2(-wpx * 0.4f, -8 * s);
+                bg.color = new Color(1f, 1f, 1f, 0.97f);
+                if (cam != null && !lcamTest)
+                {
+                    Vector3 fwd = camHomeRot * Vector3.forward, right = camHomeRot * Vector3.right;
+                    Vector3 aim = stageAt + Vector3.up * 1.0f - right * 1.15f;
+                    cam.transform.position = aim - fwd * 4.3f; cam.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
+                }
+            }
             var back = UiKit.Img(sheet, "back", UiKit.Round, new Vector2(0, 1), new Vector2(12, -10) * k, new Vector2(96, 30) * k, new Color(1f, .83f, .3f), true);
             var bt = UiKit.Txt(back.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(96, 30) * k, 13 * k, TextAnchor.MiddleCenter, new Color(.1f, .08f, .02f));
             bt.rectTransform.pivot = new Vector2(.5f, .5f); bt.text = "< BACK"; Destroy(bt.GetComponent<Shadow>());
             Clickable.Add(back.gameObject, () => Close());
-            string title = what == "friends" ? "PLAY WITH FRIENDS" : what.ToUpper();
+            string title = what == "friends" ? "PLAY WITH FRIENDS" : what == "outfit" ? "WARDROBE" : what.ToUpper();
             var tt = UiKit.Txt(sheet, new Vector2(0, 1), new Vector2(124, -15) * k, new Vector2(400, 22) * k, 17 * k, TextAnchor.UpperLeft, new Color(1f, .83f, .3f));
             tt.text = title;
             switch (what)
@@ -400,76 +420,112 @@ namespace LastWar
             return content;
         }
 
+        /// <summary>an outfit's rarity: its name and colour (the cards' strip, the label over the soldier)</summary>
+        static (string, Color) Rarity(int i)
+        {
+            if (SoldierBody.Group(i) == 0) return ("LEGENDARY", new Color(1f, .74f, .18f));
+            if (i >= 14) return ("EPIC", new Color(.72f, .38f, 1f));
+            return ("RARE", new Color(.3f, .62f, 1f));
+        }
+
         void OutfitSheet()
         {
-            float cw = L.card.w * s, ch = L.card.h * s, gap = 8 * s;
-            int cols = Mathf.Clamp(Mathf.FloorToInt((PageW + gap) / (cw + gap)), 3, 6);
-            var content = ScrollArea(cols * (cw + gap) - gap);
-            // parts: the full outfit (now) and single pieces (coming later)
-            // tabs: the full outfit, or one piece (head / top / pants / shoes) of the modular outfits
-            float tabsH = 30 * s, top = tabsH + 12 * s;
-            SettingsPanel.Segments(content, Vector2.zero, new Vector2(content.sizeDelta.x, tabsH), 11 * k, OutfitTabs, outfitTab, t => { outfitTab = t; Open("outfit"); });
-            // tab 0: whole outfits; tabs 1-4: one piece (mask, T-shirt, pants, shoes) taken from any outfit
+            // the wardrobe (Free Fire's layout in our own colours): categories down the left, the cards in a grid, the soldier
+            // large on the right with the chosen outfit's name and rarity
+            float W = sheet.rect.width > 10 ? sheet.rect.width : 1000f;
+            float catW = 132 * k, pad = 12 * k, topY = 52 * s;
+            // ---- categories
+            for (int t = 0; t < OutfitTabs.Length; t++)
+            {
+                bool act = t == outfitTab; int tt = t;
+                var b = UiKit.Img(sheet, "cat" + t, UiKit.Round, new Vector2(0, 1), new Vector2(pad, -topY - t * 46 * k), new Vector2(catW, 40 * k),
+                    act ? new Color(1f, .8f, .24f) : new Color(.1f, .11f, .14f, .95f), true);
+                if (act) { var bar = UiKit.Img(b.rectTransform, "bar", null, new Vector2(0, .5f), new Vector2(0, 0), new Vector2(4 * k, 40 * k), new Color(.55f, .32f, .02f)); bar.rectTransform.pivot = new Vector2(0, .5f); }
+                var tx = UiKit.Txt(b.rectTransform, new Vector2(0, .5f), new Vector2(14 * k, 0), new Vector2(catW - 18 * k, 40 * k), 12.5f * k, TextAnchor.MiddleLeft, act ? new Color(.12f, .08f, .01f) : new Color(.9f, .92f, .95f));
+                tx.rectTransform.pivot = new Vector2(0, .5f); tx.text = OutfitTabs[t];
+                Clickable.Add(b.gameObject, () => { outfitTab = tt; Open("outfit"); });
+            }
+            // ---- the grid (scrolls)
+            float gx = pad * 2 + catW, gw = W - gx - pad;
+            var view = new GameObject("view", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect)).GetComponent<RectTransform>();
+            view.SetParent(sheet, false); view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one; view.pivot = new Vector2(0, 1);
+            view.offsetMin = new Vector2(gx, 12 * s); view.offsetMax = new Vector2(-pad, -topY);
+            view.GetComponent<Image>().color = new Color(1, 1, 1, 0f);
+            var content = new GameObject("content", typeof(RectTransform)).GetComponent<RectTransform>();
+            content.SetParent(view, false); content.anchorMin = content.anchorMax = content.pivot = new Vector2(0, 1);
+            var sr = view.GetComponent<ScrollRect>(); sr.content = content; sr.horizontal = false; sr.movementType = ScrollRect.MovementType.Clamped;
+            float gap = 8 * s; int cols = Mathf.Clamp(Mathf.FloorToInt((gw + gap) / (L.card.w * s + gap)), 2, 5);
+            float cw = (gw - gap * (cols - 1)) / cols, ch = cw * L.card.h / L.card.w;
+            content.sizeDelta = new Vector2(gw, 0);
             int part = outfitTab - 1;
-            // single pieces only from the modular characters (the military outfits are worn whole)
-            int slot = 0, wornGroup = SoldierBody.Group(Profile.Skin);
+            int slot = 0;
             for (int i = 0; i < SoldierBody.OutfitFiles.Length; i++)
             {
-                // a piece tab: the pieces that fit the body worn (all modular ones while a military outfit is worn)
-                if (part >= 0 && (SoldierBody.Group(i) == 0 || (wornGroup > 0 && SoldierBody.Group(i) != wornGroup))) continue;
+                if (part >= 0 && SoldierBody.Group(i) == 0) continue; // (every modular piece, whatever is worn: one for the other body switches to that body with the piece on)
                 int skin = i, at = slot++;
                 int wearing = part < 0 ? Profile.Skin : (Profile.Part(part) >= 0 ? Profile.Part(part) : Profile.Skin);
                 bool on = part < 0 ? (i == Profile.Skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) : i == wearing;
-                var card = UiKit.Img(content, "card", UiKit.Get(on ? "Lobby/card_on" : "Lobby/card"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white, true);
-                card.rectTransform.anchoredPosition = new Vector2((at % cols) * (cw + gap), -top - (at / cols) * (ch + gap));
+                var (rname, rcol) = Rarity(i);
+                // the card: dark, lit from below in the rarity's colour, a strip of it along the bottom; gold rim when worn
+                var card = UiKit.Img(content, "card", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, on ? new Color(1f, .8f, .24f) : new Color(.16f, .17f, .21f), true);
+                card.rectTransform.anchoredPosition = new Vector2((at % cols) * (cw + gap), -(at / cols) * (ch + gap));
                 card.rectTransform.sizeDelta = new Vector2(cw, ch);
+                var inner = UiKit.Img(card.rectTransform, "inner", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(cw - 4 * s, ch - 4 * s), Color.Lerp(new Color(.07f, .07f, .1f), rcol, .16f));
+                inner.rectTransform.pivot = new Vector2(.5f, .5f);
+                var glow = UiKit.Img(card.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, 0), new Vector2(0, 14 * s), new Vector2(cw * 1.1f, ch * 0.55f), new Color(rcol.r, rcol.g, rcol.b, .22f));
+                glow.rectTransform.pivot = new Vector2(.5f, .5f);
                 Sprite sp = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i]);
-                if (part < 0)
+                Sprite pieceSp = part >= 0 ? Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i] + "_" + SoldierBody.PartNames[part]) : null;
+                Sprite show = part < 0 ? sp : pieceSp;
+                if (show != null)
                 {
-                    var pic = UiKit.Img(card.rectTransform, "pic", sp, new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
+                    var pic = UiKit.Img(card.rectTransform, "pic", show, new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
                     pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
-                    pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw, ch - 22 * s);
-                }
-                else if (Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i] + "_" + SoldierBody.PartNames[part]) is Sprite ps)
-                {
-                    // that piece alone, its own sharp picture (UI/Outfits/<outfit>_<piece>.png: only the hood / shirt /
-                    // trousers / boots, nothing of the rest of the outfit)
-                    var pic = UiKit.Img(card.rectTransform, "pic", ps, new Vector2(.5f, 1), Vector2.zero, Vector2.one, Color.white);
-                    pic.preserveAspect = true; pic.rectTransform.pivot = new Vector2(.5f, 1);
-                    pic.rectTransform.anchoredPosition = new Vector2(0, -2 * s); pic.rectTransform.sizeDelta = new Vector2(cw - 6 * s, ch - 24 * s);
+                    pic.rectTransform.anchoredPosition = new Vector2(0, -4 * s); pic.rectTransform.sizeDelta = new Vector2(cw - 10 * s, ch - 30 * s);
                 }
                 else if (sp != null)
                 {
-                    // only that piece of the outfit's picture, enlarged (head / chest / legs / boots band)
                     float[] y0 = { .78f, .53f, .16f, 0f }, y1 = { 1f, .84f, .5f, .17f };
                     var raw = new GameObject("pic", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
                     raw.transform.SetParent(card.rectTransform, false); raw.raycastTarget = false; raw.texture = sp.texture;
                     Rect tr = sp.textureRect; float tw = sp.texture.width, th = sp.texture.height;
-                    float bandH = (y1[part] - y0[part]) * tr.height, bandW = Mathf.Min(tr.width, bandH * cw / (ch - 22 * s));
+                    float bandH = (y1[part] - y0[part]) * tr.height, bandW = Mathf.Min(tr.width, bandH * cw / (ch - 30 * s));
                     raw.uvRect = new Rect((tr.x + (tr.width - bandW) / 2f) / tw, (tr.y + y0[part] * tr.height) / th, bandW / tw, bandH / th);
                     var rr = raw.rectTransform; rr.anchorMin = rr.anchorMax = rr.pivot = new Vector2(.5f, 1);
-                    rr.anchoredPosition = new Vector2(0, -2 * s); rr.sizeDelta = new Vector2(cw - 6 * s, ch - 24 * s);
+                    rr.anchoredPosition = new Vector2(0, -4 * s); rr.sizeDelta = new Vector2(cw - 10 * s, ch - 30 * s);
                 }
-                var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), Vector2.zero, Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, on ? new Color(27 / 255f, 20 / 255f, 4 / 255f) : Color.white);
+                var strip = UiKit.Img(card.rectTransform, "rarity", null, new Vector2(.5f, 0), new Vector2(0, 2 * s), new Vector2(cw - 4 * s, 3.5f * s), rcol);
+                strip.rectTransform.pivot = new Vector2(.5f, 0);
+                var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), new Vector2(0, 6 * s), Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, Color.white);
                 name.rectTransform.pivot = new Vector2(.5f, 0); name.rectTransform.sizeDelta = new Vector2(cw, 18 * s); name.text = SoldierBody.OutfitNames[i];
                 if (on) Check(card.rectTransform, cw);
-                // the card turns gold at once; the 3D soldier changes on the next frame
                 Clickable.Add(card.gameObject, () =>
                 {
                     if (part < 0) { if (Profile.Skin == skin && Profile.Part(0) < 0 && Profile.Part(1) < 0 && Profile.Part(2) < 0 && Profile.Part(3) < 0) return; Profile.Skin = skin; Profile.ClearParts(); }
                     else
                     {
-                        // a piece goes on a modular character: from a military outfit, start from this character whole
-                        // (a piece of another body: that outfit whole)
                         if (SoldierBody.Group(Profile.Skin) != SoldierBody.Group(skin)) { Profile.Skin = skin; Profile.ClearParts(); }
                         else Profile.SetPart(part, skin);
                     }
                     Open("outfit");
-                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = AvatarPicker.Current(); // (the portrait follows the outfit)
+                    if (nodes.TryGetValue("avatar", out RectTransform av)) av.GetComponent<Image>().sprite = AvatarPicker.Current();
                     StartCoroutine(SpawnNextFrame());
                 });
             }
-            content.sizeDelta = new Vector2(content.sizeDelta.x, top + Mathf.CeilToInt(slot / (float)cols) * (ch + gap));
+            content.sizeDelta = new Vector2(gw, Mathf.CeilToInt(slot / (float)cols) * (ch + gap));
+            // ---- over the soldier: the outfit's name and rarity, and how to turn him
+            var (wr, wc) = Rarity(Profile.Skin);
+            var info = new GameObject("worn", typeof(RectTransform)).GetComponent<RectTransform>();
+            info.SetParent(shade, false); info.anchorMin = info.anchorMax = new Vector2(.8f, 1); info.pivot = new Vector2(.5f, 1);
+            info.anchoredPosition = new Vector2(0, -24 * s); info.sizeDelta = new Vector2(360 * k, 90 * k);
+            var rl = UiKit.Img(info, "rar", UiKit.Round, new Vector2(.5f, 1), Vector2.zero, new Vector2(110 * k, 22 * k), new Color(wc.r, wc.g, wc.b, .9f));
+            rl.rectTransform.pivot = new Vector2(.5f, 1);
+            var rlt = UiKit.Txt(rl.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(110 * k, 22 * k), 10.5f * k, TextAnchor.MiddleCenter, new Color(.08f, .06f, .02f));
+            rlt.rectTransform.pivot = new Vector2(.5f, .5f); rlt.text = wr;
+            var nm = UiKit.Txt(info, new Vector2(.5f, 1), new Vector2(0, -26 * k), new Vector2(360 * k, 34 * k), 24 * k, TextAnchor.MiddleCenter, Color.white);
+            nm.rectTransform.pivot = new Vector2(.5f, 1); nm.text = SoldierBody.OutfitNames[Mathf.Clamp(Profile.Skin, 0, SoldierBody.OutfitNames.Length - 1)].ToUpper();
+            var hint = UiKit.Txt(shade, new Vector2(.8f, 0), new Vector2(0, 22 * s), new Vector2(300 * k, 18 * k), 10 * k, TextAnchor.MiddleCenter, new Color(1, 1, 1, .6f));
+            hint.rectTransform.pivot = new Vector2(.5f, 0); hint.text = "< DRAG TO TURN >";
         }
 
         static readonly string[] OutfitTabs = { "FULL OUTFIT", "HEAD", "TOP", "PANTS", "SHOES" };
@@ -760,7 +816,7 @@ namespace LastWar
             if (spinArc != null) spinArc.localEulerAngles = new Vector3(0, 0, -Time.unscaledTime * 300f);
             if (lobbyBody != null && soldier != null && lobbyBody.ShoulderGrip) lobbyBody.AimDir = soldier.transform.forward; // (the pistol points where he faces as he is turned)
             // (a sheet or the button editor is open: their drags belong to them, the soldier stays put)
-            if (sheet != null || soldier == null || !canvas.enabled) { dragFinger = -1; mouseDrag = false; return; }
+            if ((sheet != null && !wardrobe) || soldier == null || !canvas.enabled) { dragFinger = -1; mouseDrag = false; return; }
             // drag anywhere off the buttons to turn the soldier
             if (Input.touchCount > 0)
             {

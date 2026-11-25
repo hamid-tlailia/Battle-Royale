@@ -221,6 +221,7 @@ namespace LastWar
                 mat.SetFloat("_EnvironmentReflections", 0f); mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
             }
             else { mat = NewLit(new Color(0.11f, 0.38f, 0.52f)); mat.SetFloat("_Smoothness", 0.88f); mat.SetFloat("_Metallic", 0f); }
+            mat.renderQueue = 2990; // (before every other see-through thing: the area names' world canvases sank behind the sea far off)
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
             mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true;
             go.AddComponent<Sea>().mat = wbase != null ? mat : null;

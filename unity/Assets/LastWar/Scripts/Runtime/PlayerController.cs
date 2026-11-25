@@ -481,14 +481,16 @@ namespace LastWar
             if (!Physics.Raycast(p + Vector3.up * 0.55f, f, out RaycastHit wall, 1.1f, mask, QueryTriggerInteraction.Ignore)
                 && !Physics.Raycast(p + Vector3.up * 1.0f, f, out wall, 1.1f, mask, QueryTriggerInteraction.Ignore)) return false;
             if (wall.collider.GetComponentInParent<Fighter>() != null) return false;
-            // the lowest gap at least 0.55 m tall between 0.5 and 1.6 m: a window sill / the top of a fence
-            for (float h = 0.5f; h <= 1.6f; h += 0.1f)
+            // the lowest gap at least 0.4 m tall between 0.5 and 1.9 m: a window sill / the top of a fence (the Death Valley
+            // shanty's windows are 0.45 m tall, their sill 1.7 m above the ground outside: neither way through before)
+            for (float h = 0.5f; h <= 1.9f; h += 0.05f)
             {
                 Vector3 o = p + Vector3.up * h;
                 if (Physics.Raycast(o, f, wall.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
-                if (Physics.Raycast(o + Vector3.up * 0.5f, f, wall.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (Physics.Raycast(o + Vector3.up * 0.2f, f, wall.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (Physics.Raycast(o + Vector3.up * 0.38f, f, wall.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
                 // somewhere to land on the far side
-                Vector3 beyond = p + f * (wall.distance + 1.0f) + Vector3.up * (h + 0.3f);
+                Vector3 beyond = p + f * (wall.distance + 1.0f) + Vector3.up * (h + 0.2f);
                 if (!Physics.Raycast(beyond, Vector3.down, out RaycastHit floor, h + 3.5f, mask, QueryTriggerInteraction.Ignore)) continue;
                 Vector3 land = floor.point + Vector3.up * 0.05f;
                 if (Physics.CheckCapsule(land + Vector3.up * 0.45f, land + Vector3.up * 1.4f, 0.3f, mask, QueryTriggerInteraction.Ignore)) continue;
