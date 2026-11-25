@@ -438,7 +438,7 @@ namespace LastWar
             for (int t = 0; t < OutfitTabs.Length; t++)
             {
                 bool act = t == outfitTab; int tt = t;
-                var b = UiKit.Img(sheet, "cat" + t, UiKit.Round, new Vector2(0, 1), new Vector2(pad, -topY - t * 46 * k), new Vector2(catW, 40 * k),
+                var b = UiKit.Img(sheet, "cat" + t, UiKit.Round, new Vector2(0, 1), new Vector2(pad, -52 * k - t * 46 * k), new Vector2(catW, 40 * k),
                     act ? new Color(1f, .8f, .24f) : new Color(.1f, .11f, .14f, .95f), true);
                 if (act) { var bar = UiKit.Img(b.rectTransform, "bar", null, new Vector2(0, .5f), new Vector2(0, 0), new Vector2(4 * k, 40 * k), new Color(.55f, .32f, .02f)); bar.rectTransform.pivot = new Vector2(0, .5f); }
                 var tx = UiKit.Txt(b.rectTransform, new Vector2(0, .5f), new Vector2(14 * k, 0), new Vector2(catW - 18 * k, 40 * k), 12.5f * k, TextAnchor.MiddleLeft, act ? new Color(.12f, .08f, .01f) : new Color(.9f, .92f, .95f));
@@ -446,10 +446,10 @@ namespace LastWar
                 Clickable.Add(b.gameObject, () => { outfitTab = tt; Open("outfit"); });
             }
             // ---- the grid (scrolls)
-            float gx = pad * 2 + catW, gw = W - gx - pad;
+            float gx = (pad * 2 + catW) * UiKit.K, gw = W - gx - pad * UiKit.K; // (canvas units: pad / catW are the UiKit calls' css x k)
             var view = new GameObject("view", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect)).GetComponent<RectTransform>();
             view.SetParent(sheet, false); view.anchorMin = Vector2.zero; view.anchorMax = Vector2.one; view.pivot = new Vector2(0, 1);
-            view.offsetMin = new Vector2(gx, 12 * s); view.offsetMax = new Vector2(-pad, -topY);
+            view.offsetMin = new Vector2(gx, 12 * s); view.offsetMax = new Vector2(-pad * UiKit.K, -topY);
             view.GetComponent<Image>().color = new Color(1, 1, 1, 0f);
             var content = new GameObject("content", typeof(RectTransform)).GetComponent<RectTransform>();
             content.SetParent(view, false); content.anchorMin = content.anchorMax = content.pivot = new Vector2(0, 1);
@@ -470,9 +470,9 @@ namespace LastWar
                 var card = UiKit.Img(content, "card", UiKit.Round, new Vector2(0, 1), Vector2.zero, Vector2.one, on ? new Color(1f, .8f, .24f) : new Color(.16f, .17f, .21f), true);
                 card.rectTransform.anchoredPosition = new Vector2((at % cols) * (cw + gap), -(at / cols) * (ch + gap));
                 card.rectTransform.sizeDelta = new Vector2(cw, ch);
-                var inner = UiKit.Img(card.rectTransform, "inner", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(cw - 4 * s, ch - 4 * s), Color.Lerp(new Color(.07f, .07f, .1f), rcol, .16f));
+                var inner = UiKit.Img(card.rectTransform, "inner", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(cw - 4 * s, ch - 4 * s) / UiKit.K, Color.Lerp(new Color(.07f, .07f, .1f), rcol, .16f));
                 inner.rectTransform.pivot = new Vector2(.5f, .5f);
-                var glow = UiKit.Img(card.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, 0), new Vector2(0, 14 * s), new Vector2(cw * 1.1f, ch * 0.55f), new Color(rcol.r, rcol.g, rcol.b, .22f));
+                var glow = UiKit.Img(card.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, 0), new Vector2(0, 14 * s) / UiKit.K, new Vector2(cw * 1.1f, ch * 0.55f) / UiKit.K, new Color(rcol.r, rcol.g, rcol.b, .22f));
                 glow.rectTransform.pivot = new Vector2(.5f, .5f);
                 Sprite sp = Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i]);
                 Sprite pieceSp = part >= 0 ? Resources.Load<Sprite>("UI/Outfits/" + SoldierBody.OutfitFiles[i] + "_" + SoldierBody.PartNames[part]) : null;
@@ -494,9 +494,9 @@ namespace LastWar
                     var rr = raw.rectTransform; rr.anchorMin = rr.anchorMax = rr.pivot = new Vector2(.5f, 1);
                     rr.anchoredPosition = new Vector2(0, -4 * s); rr.sizeDelta = new Vector2(cw - 10 * s, ch - 30 * s);
                 }
-                var strip = UiKit.Img(card.rectTransform, "rarity", null, new Vector2(.5f, 0), new Vector2(0, 2 * s), new Vector2(cw - 4 * s, 3.5f * s), rcol);
+                var strip = UiKit.Img(card.rectTransform, "rarity", null, new Vector2(.5f, 0), new Vector2(0, 2 * s) / UiKit.K, new Vector2(cw - 4 * s, 3.5f * s) / UiKit.K, rcol);
                 strip.rectTransform.pivot = new Vector2(.5f, 0);
-                var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), new Vector2(0, 6 * s), Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, Color.white);
+                var name = UiKit.Txt(card.rectTransform, new Vector2(.5f, 0), new Vector2(0, 6 * s) / UiKit.K, Vector2.one, 10.5f * k, TextAnchor.MiddleCenter, Color.white);
                 name.rectTransform.pivot = new Vector2(.5f, 0); name.rectTransform.sizeDelta = new Vector2(cw, 18 * s); name.text = SoldierBody.OutfitNames[i];
                 if (on) Check(card.rectTransform, cw);
                 Clickable.Add(card.gameObject, () =>
@@ -524,7 +524,7 @@ namespace LastWar
             rlt.rectTransform.pivot = new Vector2(.5f, .5f); rlt.text = wr;
             var nm = UiKit.Txt(info, new Vector2(.5f, 1), new Vector2(0, -26 * k), new Vector2(360 * k, 34 * k), 24 * k, TextAnchor.MiddleCenter, Color.white);
             nm.rectTransform.pivot = new Vector2(.5f, 1); nm.text = SoldierBody.OutfitNames[Mathf.Clamp(Profile.Skin, 0, SoldierBody.OutfitNames.Length - 1)].ToUpper();
-            var hint = UiKit.Txt(shade, new Vector2(.8f, 0), new Vector2(0, 22 * s), new Vector2(300 * k, 18 * k), 10 * k, TextAnchor.MiddleCenter, new Color(1, 1, 1, .6f));
+            var hint = UiKit.Txt(shade, new Vector2(.8f, 0), new Vector2(0, 22 * s) / UiKit.K, new Vector2(300 * k, 18 * k), 10 * k, TextAnchor.MiddleCenter, new Color(1, 1, 1, .6f));
             hint.rectTransform.pivot = new Vector2(.5f, 0); hint.text = "< DRAG TO TURN >";
         }
 
