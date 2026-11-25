@@ -205,12 +205,12 @@ def undersuit(part):
     T = ['spine_01', 'spine_02', 'spine_03', 'clavicle_l', 'clavicle_r', 'upperarm_l', 'upperarm_r']
     L = ['pelvis', 'thigh_l', 'thigh_r', 'calf_l', 'calf_r']
     want = np.isin(dom, T if part == 'torso' else L)
-    tri = BI[want[BI].all(1)]
+    tri = BI[want[BI].any(1)] if part == 'torso' else BI[want[BI].all(1)]  # (the triangles across the waist line go to the torso: with "all" for both they went to neither - holes; with "any" for both, to both - they flickered against each other)
     fn = np.cross(BP[tri[:, 1]] - BP[tri[:, 0]], BP[tri[:, 2]] - BP[tri[:, 0]]); vn = np.zeros_like(BP)
     for c in range(3): np.add.at(vn, tri[:, c], fn)
     vn /= np.linalg.norm(vn, axis=1, keepdims=True) + 1e-12
-    P = BP - vn * np.where(np.isin(dom, ['spine_01', 'pelvis']), 0.04, 0.015)[:, None]  # (the waist band deeper: kept whole, see conform)
-    return [dict(P=P, N=vn, UV=np.zeros((len(P), 2)), I=tri.reshape(-1), J=BJ, W=BW, img=None, col=[0.035, 0.037, 0.04, 1], name='under', key=('under',))]
+    P = BP - vn * 0.015
+    return [dict(P=P, N=vn, UV=np.zeros((len(P), 2)), I=tri.reshape(-1), J=BJ, W=BW, img=None, col=[0.13, 0.135, 0.145, 1], name='under', key=('under',))]
 
 def conform(under, cloth, lat_max=0.035, depth=0.08, waist=True):
     """undersuit / bare-skin triangles with cloth right over them (or through them) are never seen: dropped. What is
@@ -223,9 +223,19 @@ def conform(under, cloth, lat_max=0.035, depth=0.08, waist=True):
         lat = np.linalg.norm(rel - along[..., None] * n[used][:, None, :], axis=2)
         hit = (along > -0.12) & (along < depth)
         cov = np.zeros(len(P), bool); cov[used] = ((lat < lat_max) & hit).any(1)
-        if waist and len(P) == len(dom):
-            # (the waist band - spine / pelvis - always kept, set 4 cm inside the body in undersuit(): a top's hem standing
-            # off a pair of trousers left the background showing between them; that deep it never shows through cloth)
-            cov &= ~np.isin(dom, ['spine_01', 'pelvis'])
-        tri = u['I'].reshape(-1, 3); u['I'] = tri[cov[tri].sum(1) < 2].reshape(-1)
+        # nothing dropped (a cut's ragged edge showed as jagged holes inside an open jacket / at a hem): what cloth lies over
+        # sinks 3 cm deeper into the body, eased over the mesh so no point spikes out; what shows stays a smooth undershirt
+        # how deep it must go: 2.5 cm below the deepest cloth right over it (cloth that dips into the body showed the
+        # undershirt through it), at least 3 cm; spread to the neighbours first (max), then eased (mean)
+        need = np.zeros(len(P))
+        ma = np.where((lat < lat_max) & hit, along, np.inf).min(1)
+        need[used] = np.where(cov[used], np.clip(0.025 - ma, 0.03, 0.16), 0.0)
+        tri = u['I'].reshape(-1, 3)
+        from scipy.sparse import coo_matrix
+        rows = np.concatenate([tri[:, 0], tri[:, 1], tri[:, 2], tri[:, 1], tri[:, 2], tri[:, 0]]); cols = np.concatenate([tri[:, 1], tri[:, 2], tri[:, 0], tri[:, 0], tri[:, 1], tri[:, 2]])
+        A = coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(len(P), len(P))).tocsr(); deg = np.maximum(np.asarray(A.sum(1)).ravel(), 1)
+        for _ in range(2):
+            nb = np.zeros(len(P)); np.maximum.at(nb, rows, need[cols]); need = np.maximum(need, nb * 0.85)
+        for _ in range(3): need = 0.5 * need + 0.5 * (A @ need) / deg
+        u['P'] = P - n * need[:, None]
     return under

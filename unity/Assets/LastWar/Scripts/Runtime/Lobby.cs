@@ -516,14 +516,15 @@ namespace LastWar
             // ---- over the soldier: the outfit's name and rarity, and how to turn him
             var (wr, wc) = Rarity(Profile.Skin);
             var info = new GameObject("worn", typeof(RectTransform)).GetComponent<RectTransform>();
-            info.SetParent(shade, false); info.anchorMin = info.anchorMax = new Vector2(.8f, 1); info.pivot = new Vector2(.5f, 1);
-            info.anchoredPosition = new Vector2(0, -24 * s); info.sizeDelta = new Vector2(360 * k, 90 * k);
-            var rl = UiKit.Img(info, "rar", UiKit.Round, new Vector2(.5f, 1), Vector2.zero, new Vector2(110 * k, 22 * k), new Color(wc.r, wc.g, wc.b, .9f));
-            rl.rectTransform.pivot = new Vector2(.5f, 1);
-            var rlt = UiKit.Txt(rl.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(110 * k, 22 * k), 10.5f * k, TextAnchor.MiddleCenter, new Color(.08f, .06f, .02f));
+            // (in the top right corner, small: over the soldier's head it hid him)
+            info.SetParent(shade, false); info.anchorMin = info.anchorMax = new Vector2(1, 1); info.pivot = new Vector2(1, 1);
+            info.anchoredPosition = new Vector2(-18 * s, -16 * s); info.sizeDelta = new Vector2(220 * k, 60 * k);
+            var rl = UiKit.Img(info, "rar", UiKit.Round, new Vector2(1, 1), Vector2.zero, new Vector2(84 * k, 18 * k), new Color(wc.r, wc.g, wc.b, .9f));
+            rl.rectTransform.pivot = new Vector2(1, 1);
+            var rlt = UiKit.Txt(rl.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(84 * k, 18 * k), 9 * k, TextAnchor.MiddleCenter, new Color(.08f, .06f, .02f));
             rlt.rectTransform.pivot = new Vector2(.5f, .5f); rlt.text = wr;
-            var nm = UiKit.Txt(info, new Vector2(.5f, 1), new Vector2(0, -26 * k), new Vector2(360 * k, 34 * k), 24 * k, TextAnchor.MiddleCenter, Color.white);
-            nm.rectTransform.pivot = new Vector2(.5f, 1); nm.text = SoldierBody.OutfitNames[Mathf.Clamp(Profile.Skin, 0, SoldierBody.OutfitNames.Length - 1)].ToUpper();
+            var nm = UiKit.Txt(info, new Vector2(1, 1), new Vector2(0, -21 * k), new Vector2(220 * k, 24 * k), 16 * k, TextAnchor.MiddleRight, Color.white);
+            nm.rectTransform.pivot = new Vector2(1, 1); nm.text = SoldierBody.OutfitNames[Mathf.Clamp(Profile.Skin, 0, SoldierBody.OutfitNames.Length - 1)].ToUpper();
             var hint = UiKit.Txt(shade, new Vector2(.8f, 0), new Vector2(0, 22 * s) / UiKit.K, new Vector2(300 * k, 18 * k), 10 * k, TextAnchor.MiddleCenter, new Color(1, 1, 1, .6f));
             hint.rectTransform.pivot = new Vector2(.5f, 0); hint.text = "< DRAG TO TURN >";
         }
