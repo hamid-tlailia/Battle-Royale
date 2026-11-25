@@ -19,7 +19,7 @@ namespace LastWar.EditorTools
             else if (p.Contains("_normal")) { ti.textureType = TextureImporterType.NormalMap; ti.wrapMode = UnityEngine.TextureWrapMode.Repeat; ti.maxTextureSize = 512; }
             else if (p.Contains("/beach_")) { ti.wrapMode = UnityEngine.TextureWrapMode.Repeat; ti.maxTextureSize = 512; }
             else ti.wrapMode = UnityEngine.TextureWrapMode.Clamp;
-                        TextureCompression.Apply(ti, TextureCompression.Kind.Terrain); // (photos and grain tiles: ASTC 4x4)
+            TextureCompression.Apply(ti, TextureCompression.Kind.Terrain, p.Contains("_albedo")); // (the map photos: their 2048 kept, ASTC 5x5; grain / beach tiles: 1024, ASTC 5x5)
         }
     }
 }
