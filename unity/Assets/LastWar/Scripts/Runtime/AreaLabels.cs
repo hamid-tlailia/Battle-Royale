@@ -7,7 +7,7 @@ namespace LastWar
     /// <summary>
     /// The map's areas named over the world: each area's name hangs above it on the screen - big, bold, in its kind's colour
     /// (village gold, farm green, factory orange, market pink, lodge / camp sky blue, city violet...) on a soft dark
-    /// rounded plate, the kind written small under it. Plain to read from the plane and from far off; it fades out as you
+    /// pill (the owner's pick of four styles: the name dark on the kind's colour, a white rim). Plain to read from the plane and from far off; it fades out as you
     /// come near (gone inside ~45 m of the area's middle, full from ~110 m), behind you it is not drawn, through the scope
     /// and on the big map it steps aside. Sits under the buttons (first in the controls' canvas).
     /// </summary>
@@ -61,20 +61,14 @@ namespace LastWar
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
             var g = go.GetComponent<CanvasGroup>(); g.blocksRaycasts = false; g.interactable = false; g.alpha = 0f;
             string title = a.name.ToUpperInvariant();
-            float w = Mathf.Max(120f, title.Length * 13.5f + 34f), h = string.IsNullOrEmpty(kind) ? 34f : 46f;
-            // the soft plate: dark, see-through, rounded; a thin line of the kind's colour under the name
-            var plate = UiKit.Img(rt, "plate", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(w, h), new Color(0.03f, 0.04f, 0.05f, 0.78f));
-            plate.rectTransform.pivot = new Vector2(.5f, .5f);
-            var line = UiKit.Img(rt, "line", UiKit.Round, new Vector2(.5f, .5f), new Vector2(0, string.IsNullOrEmpty(kind) ? -12f : -4f), new Vector2(w * 0.55f, 2.2f), new Color(col.r, col.g, col.b, 0.85f));
-            line.rectTransform.pivot = new Vector2(.5f, .5f);
-            var t = UiKit.Txt(rt, new Vector2(.5f, .5f), new Vector2(0, string.IsNullOrEmpty(kind) ? 2f : 8f), new Vector2(w, 26f), 19f, TextAnchor.MiddleCenter, col);
-            t.text = title;
-            var ol = t.gameObject.AddComponent<Outline>(); ol.effectColor = new Color(0, 0, 0, 0.9f); ol.effectDistance = new Vector2(1.6f, -1.6f);
-            if (!string.IsNullOrEmpty(kind))
-            {
-                var k = UiKit.Txt(rt, new Vector2(.5f, .5f), new Vector2(0, -14f), new Vector2(w, 14f), 9.5f, TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.82f));
-                k.text = kind.ToUpperInvariant();
-            }
+            // the project owner's choice (style 3 of 4): a pill in the kind's colour with a thin white rim, the name dark on it
+            float w = Mathf.Max(110f, title.Length * 13.5f + 30f), h = 30f;
+            var rim = UiKit.Img(rt, "rim", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(w + 3f, h + 3f), new Color(1f, 1f, 1f, 0.92f));
+            rim.rectTransform.pivot = new Vector2(.5f, .5f); rim.pixelsPerUnitMultiplier = 22f / ((h + 3f) * UiKit.K * 0.5f);
+            var plate = UiKit.Img(rt, "plate", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(w, h), new Color(col.r, col.g, col.b, 0.95f));
+            plate.rectTransform.pivot = new Vector2(.5f, .5f); plate.pixelsPerUnitMultiplier = 22f / (h * UiKit.K * 0.5f); // (round ends)
+            var t = UiKit.Txt(rt, new Vector2(.5f, .5f), new Vector2(0, 1f), new Vector2(w, 26f), 18f, TextAnchor.MiddleCenter, new Color(0.1f, 0.1f, 0.1f));
+            t.text = title; var sh = t.GetComponent<Shadow>(); if (sh != null) Destroy(sh);
             // hung ~22 m above the ground there (over the roofs)
             Vector3 world = Coords.ToUnity(a.x, map.HeightAt(a.x, a.z) + 22f, a.z);
             labels.Add(new Label { rt = rt, g = g, world = world, a = 0f, w = w, h = h });
