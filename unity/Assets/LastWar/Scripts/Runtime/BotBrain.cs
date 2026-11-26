@@ -44,6 +44,7 @@ namespace LastWar
                 parts = new int[4]; for (int i = 0; i < 4; i++) parts[i] = same[rnd.Next(same.Count)];
             }
             b.body = SoldierBody.Attach(go, skin, parts);
+            b.fighter.OnGesture = (c, s) => b.body.Gesture(c, s);
             return b;
         }
 

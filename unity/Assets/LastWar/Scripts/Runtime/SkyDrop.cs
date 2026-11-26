@@ -178,7 +178,7 @@ namespace LastWar
         /// soldier fell into the void and hung there). Kept within the play circle + 12 m; and anyone already below the
         /// ground (fallen through) is put back on top of it.</summary>
         /// <summary>how far below the water's surface a swimmer's feet hang</summary>
-        public const float SwimDepth = 1.3f;
+        public const float SwimDepth = 0.62f; // (the Mixamo swim lies along the surface: hips just under it)
         public static void KeepOnMap(Transform t, CharacterController cc)
         {
             MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;

@@ -433,7 +433,7 @@ namespace LastWar
             if (clipIndex.TryGetValue("mx_jog", out int jogI)) { clipIndex["jog"] = jogI; HasJog = UseJog; }
             // the web game's run_free: the run clip's legs with the walk clip's arms (swinging at the sides),
             // as a second layer that only moves the shoulders, arms and hands
-            layers = AnimationLayerMixerPlayable.Create(graph, 3);
+            layers = AnimationLayerMixerPlayable.Create(graph, 4);
             graph.Connect(mixer, 0, layers, 0); layers.SetInputWeight(0, 1f);
             if (clipIndex.TryGetValue("walk", out int wi))
             {
@@ -462,6 +462,7 @@ namespace LastWar
                 var um = new AvatarMask(); um.AddTransformPath(animator.transform, true);
                 for (int i = 0; i < um.transformCount; i++) um.SetTransformActive(i, um.GetTransformPath(i).Contains("Spine"));
                 layers.SetLayerMaskFromAvatarMask(2, um);
+                upperMask = um;
             }
             AnimationPlayableOutput.Create(graph, "out", animator).SetSourcePlayable(layers);
             // test switch ?animdelay=N: the body is built but its animation starts N frames later (a slow-loading device)
@@ -619,6 +620,35 @@ namespace LastWar
         /// pose as a masked layer, so the gun points at the target; set each frame by the controller</summary>
         public bool AirAim;
         AnimationClipPlayable aimUpper; float aimUpperW;
+        // ---- weapon handling on the upper body (Mixamo: grab the rifle from behind the shoulder, put it back, pull out)
+        AvatarMask upperMask; AnimationClipPlayable gesture; float gestureT = -1f, gestureLen, gestureW; string gestureClip;
+        /// <summary>a moment of weapon handling played over the upper body (the legs keep walking / running), the clip
+        /// stretched to `seconds`; the hands follow it (not the gun hold) while it plays</summary>
+        public void Gesture(string clip, float seconds)
+        {
+            if (!graph.IsValid() || upperMask == null || !clipIndex.TryGetValue(clip, out int gi)) return;
+            if (gesture.IsValid() && gestureClip != clip) { graph.Disconnect(layers, 3); gesture.Destroy(); }
+            if (!gesture.IsValid() || gestureClip != clip)
+            {
+                gesture = AnimationClipPlayable.Create(graph, clips[gi]); gestureClip = clip;
+                graph.Connect(gesture, 0, layers, 3); layers.SetLayerMaskFromAvatarMask(3, upperMask);
+            }
+            gestureLen = Mathf.Max(0.2f, seconds); gestureT = 0f;
+            gesture.SetTime(0); gesture.SetSpeed(clips[gi].length / gestureLen);
+        }
+        /// <summary>the gesture's share of the upper body now (0..1)</summary>
+        public float GestureWeight => gestureW;
+        /// <summary>how far through the gesture (0..1; -1: none)</summary>
+        public float GestureProgress => gestureT < 0f ? -1f : Mathf.Clamp01(gestureT / gestureLen);
+        void StepGesture(float dt)
+        {
+            if (gestureT < 0f) { gestureW = Mathf.MoveTowards(gestureW, 0f, dt * 8f); if (gesture.IsValid()) layers.SetInputWeight(3, gestureW); return; }
+            gestureT += dt;
+            float k = gestureT / gestureLen;
+            gestureW = k < 0.12f ? k / 0.12f : k > 0.85f ? Mathf.Clamp01((1f - k) / 0.15f) : 1f;
+            if (gesture.IsValid()) layers.SetInputWeight(3, gestureW);
+            if (k >= 1f) gestureT = -1f;
+        }
         /// <summary>weight of the upper-body aiming layer (0..1) - the weapon IK turns the chest toward the aim by it</summary>
         public float UpperAimWeight => aimUpperW;
         AnimationClip walkClip, carryClip; float carryLen; GameObject animRoot;
@@ -943,6 +973,7 @@ namespace LastWar
             // firing in the air with a long gun: the aiming pose fades in over the upper body (about 0.12 s), and out on landing
             aimUpperW = Mathf.MoveTowards(aimUpperW, AirAim && playing == "mx_jump" && Armed && gun != null && !dead0() ? 1f : 0f, Time.deltaTime * 8f);
             if (aimUpper.IsValid()) layers.SetInputWeight(2, aimUpperW);
+            StepGesture(Time.deltaTime);
             int target = clipIndex[playing ?? current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
             if (OneShot(playing ?? current))
@@ -1413,6 +1444,8 @@ namespace LastWar
             }
             else if (snowball != null) snowball.gameObject.SetActive(false);
             // gun: the right hand closes on the pistol grip, the left hand holds the handguard from below
+            if (gun != null) { bool showGun = !(gestureClip == "mx_grab" && GestureProgress >= 0f && GestureProgress < 0.45f); foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible && showGun; }
+            if (gestureW > 0.5f && gun != null && handR != null) { gun.position = handR.position; gun.rotation = handR.rotation * Quaternion.Euler(0, 90, 0); if (weaponIK != null) weaponIK.Release(); return; } // (in the hand as the clip moves it)
             if (gun == null || handR == null) return;
             Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
             Transform handL = PoseBone("LeftHand");
