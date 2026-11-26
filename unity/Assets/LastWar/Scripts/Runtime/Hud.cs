@@ -691,7 +691,7 @@ namespace LastWar
             // spectating bar
             specBar.gameObject.SetActive(spectating && player.SpectateTarget != null);
             if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#cfd6da>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
-            status.gameObject.SetActive((!scoped && f.air == 0) || input.Editing); // (shown while arranging the HUD, even in the plane)
+            status.gameObject.SetActive((!scoped && f.air == 0 && !input.Driving) || input.Editing); // (driving: the weapon panel steps aside) // (shown while arranging the HUD, even in the plane)
 
             // watching and the match ends (or nobody is left to watch): back to the result card with LOBBY
             if (spectating && (player.SpectateTarget == null || !player.SpectateTarget.Alive)) player.StartSpectate(null);

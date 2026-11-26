@@ -616,9 +616,10 @@ namespace LastWar
             if (Vehicle.Mine != null && fighter.Alive)
             {
                 // behind and above the jeep
-                Vector3 pv = Vehicle.Mine.transform.position + Vector3.up * 1.9f;
-                Quaternion lk = Quaternion.Euler(-pitch * Mathf.Rad2Deg + 6f, yaw, 0);
-                Vector3 bk = lk * new Vector3(0, 0.7f, -7.2f); float ln = bk.magnitude;
+                // (the jeep in the middle of the screen, a little low - it sat behind the weapon panel)
+                Vector3 pv = Vehicle.Mine.transform.position + Vector3.up * 1.3f;
+                Quaternion lk = Quaternion.Euler(-pitch * Mathf.Rad2Deg + 10f, yaw, 0);
+                Vector3 bk = lk * new Vector3(0, 0.9f, -8.2f); float ln = bk.magnitude;
                 foreach (var h in Physics.SphereCastAll(pv, 0.25f, bk / ln, ln, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore))
                     if (h.collider.GetComponentInParent<Vehicle>() != Vehicle.Mine && h.distance < ln) ln = Mathf.Max(1.5f, h.distance - 0.15f);
                 cam.transform.position = Vector3.Lerp(cam.transform.position, pv + bk / bk.magnitude * ln, 1f - Mathf.Exp(-Time.deltaTime * 12f));
