@@ -715,7 +715,7 @@ namespace LastWar
                 cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, ScopeFov, Time.deltaTime * 20f);
                 return;
             }
-            float targetDist = fighter.air != 0 ? 5.6f : 2.85f; // closer: the soldier fills more of the screen
+            float targetDist = fighter.air != 0 ? 5.6f : fighter.Swimming ? 4.2f : 2.85f; // (swimming: a little farther back, the whole swimmer in view) // closer: the soldier fills more of the screen
             camDist = Mathf.Lerp(camDist, targetDist, Time.deltaTime * 12f);
             Vector3 back = look * new Vector3(fighter.air != 0 ? 0.6f : 0.9f, 0.4f, -camDist);
             float len = back.magnitude;
