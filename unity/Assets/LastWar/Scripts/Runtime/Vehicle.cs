@@ -20,7 +20,7 @@ namespace LastWar
         public float Speed; public float Yaw;
         const float Length = 3.7f, MaxSpeed = 20f, MaxBack = 6f, Accel = 7f, Brake = 14f, SteerMax = 32f, Wheelbase = 2.1f, WheelR = 0.38f;
         Transform model; Transform[] wheels = new Transform[4]; Quaternion[] wheelRest = new Quaternion[4]; float spin, steer;
-        Vector3 seat; Collider[] own; AudioSource engine;
+        Vector3 seat; Collider[] own; AudioSource engine; float nextLog;
 
         void OnEnable() { All.Add(this); }
         void OnDisable() { All.Remove(this); }
@@ -48,7 +48,18 @@ namespace LastWar
             {
                 var gb = GameBoot.Instance; if (gb == null || gb.Player == null || gb.Player.fighter.air != 0) return;
                 Transform p = gb.Player.transform; Vector3 at = p.position + p.forward * 4f + p.right * 1.5f;
-                OpenGround(gb.Map, ref at, 0f); Make(at, p.eulerAngles.y + 90f); Destroy(gameObject);
+                OpenGround(gb.Map, ref at, 0f);
+                // facing the most open way (the longest clear run of 12 directions)
+                float bestYaw = p.eulerAngles.y, best = -1f;
+                for (int i = 0; i < 12; i++)
+                {
+                    float y = i * 30f; Vector3 dir = Quaternion.Euler(0, y, 0) * Vector3.forward;
+                    float d = Physics.SphereCast(at + Vector3.up * 1.2f, 0.9f, dir, out RaycastHit h, 60f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore) ? h.distance : 60f;
+                    if (d > best) { best = d; bestYaw = y; }
+                }
+                var v = Make(at, bestYaw);
+                if ((Application.absoluteURL ?? "").Contains("cartest=2")) gb.Player.EnterVehicle(v); // (straight into the seat)
+                Destroy(gameObject);
             }
         }
 
@@ -190,6 +201,7 @@ namespace LastWar
             spin += Speed / WheelR * Mathf.Rad2Deg * dt;
             for (int i = 0; i < 4; i++)
                 if (wheels[i] != null) wheels[i].localRotation = wheelRest[i] * Quaternion.Euler(0, i < 2 ? -steer : 0f, 0) * Quaternion.Euler(spin, 0, 0);
+            if (driver != null && (Application.absoluteURL ?? "").Contains("cartest=") && Time.time > nextLog) { nextLog = Time.time + 1f; Debug.Log($"[LastWar] jeep speed {Speed:0.0} m/s at {transform.position}"); }
             if (engine != null) { engine.volume = driver != null ? 0.25f + Mathf.Abs(Speed) / MaxSpeed * 0.3f : 0f; engine.pitch = 0.55f + Mathf.Abs(Speed) / MaxSpeed * 0.5f; }
         }
 
@@ -217,7 +229,7 @@ namespace LastWar
             {
                 var b = new GameObject("CarButton", typeof(RectTransform)).AddComponent<Button>(); b.player = p;
                 b.transform.SetParent(input.Root, false);
-                var rt = (RectTransform)b.transform; rt.anchorMin = rt.anchorMax = new Vector2(.6f, .62f); rt.sizeDelta = Vector2.zero; // (clear of the fire / scope buttons)
+                var rt = (RectTransform)b.transform; rt.anchorMin = rt.anchorMax = new Vector2(.63f, .4f); rt.sizeDelta = Vector2.zero; // (clear of the eye, scope, fire and reload buttons)
                 // a round button like the others: a steering wheel to get in, a door to get out
                 b.img = UiKit.Img(b.transform, "bg", UiKit.Get("btn"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(50, 50), Color.white, true);
                 b.icon = UiKit.Img(b.img.rectTransform, "icon", UiKit.Get("icon_drive"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(26, 26), Color.white);
