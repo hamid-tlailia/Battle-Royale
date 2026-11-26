@@ -16,6 +16,8 @@ namespace LastWar
         public static float FadeNear = 40f, FadeFar = 75f;
         /// <summary>the names' size on the screen (x the HUD's); 0.8 covered the map</summary>
         public static float Size = 0.6f;
+        /// <summary>?nolabels=1 (tests: screenshots of the map without names)</summary>
+        public static bool NoLabels;
 
         class Label { public RectTransform rt; public CanvasGroup g; public Vector3 world; public float a, w, h; }
         readonly List<Label> labels = new List<Label>();
@@ -85,7 +87,7 @@ namespace LastWar
             Vector3 me = pc != null ? pc.transform.position : cam.transform.position;
             // only in the air (the plane, the fall, the parachute): once on the ground they fade away - the minimap keeps
             // the places' names
-            bool hide = (pc != null && pc.Scoped) || Minimap.BigOpen || (pc != null && pc.fighter != null && pc.fighter.air == 0);
+            bool hide = NoLabels || (pc != null && pc.Scoped) || Minimap.BigOpen || (pc != null && pc.fighter != null && pc.fighter.air == 0);
             // world size of one screen pixel at 1 m, and the overlay's pixels per UI unit (the labels keep the HUD's size)
             float px1 = 2f * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
             float ui = overlay != null ? overlay.lossyScale.x : 1f;
@@ -101,10 +103,11 @@ namespace LastWar
                 float d = Vector3.Distance(me, l.world - Vector3.up * 22f);
                 float want = hide || sp.z <= 0f ? 0f : Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(FadeNear, FadeFar, d));
                 float s = Size * Mathf.Lerp(1f, 0.8f, Mathf.InverseLerp(150f, 700f, d));
-                var box = new Rect(sp.x - l.w * ui * s * 0.5f - 14f, sp.y - l.h * ui * s * 0.5f - 10f, l.w * ui * s + 28f, l.h * ui * s + 20f);
+                float bw = l.w * UiKit.K * ui * s, bh = l.h * UiKit.K * ui * s; // (the plate's size on the screen: UiKit sizes are x K - without it the boxes were too small and the names still overlapped)
+                var box = new Rect(sp.x - bw * 0.5f - 10f, sp.y - bh * 0.5f - 8f, bw + 20f, bh + 16f);
                 if (want > 0f) { foreach (Rect o in placed) if (o.Overlaps(box)) { want = 0f; break; } }
                 if (want > 0f) placed.Add(box);
-                l.a = Mathf.MoveTowards(l.a, want, dt * 3f); // (a gentle fade in / out, never a pop)
+                l.a = Mathf.MoveTowards(l.a, want, dt * (want < l.a ? 8f : 3f)); // (a gentle fade in / out, never a pop)
                 l.g.alpha = l.a;
                 bool on = l.a > 0.01f;
                 if (l.rt.gameObject.activeSelf != on) l.rt.gameObject.SetActive(on);

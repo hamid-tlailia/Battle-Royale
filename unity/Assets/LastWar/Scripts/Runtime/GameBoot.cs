@@ -43,6 +43,7 @@ namespace LastWar
             SoldierBody.GunDebug = (Application.absoluteURL ?? "").Contains("gundbg=1");
             { string u = Application.absoluteURL ?? ""; int si = u.IndexOf("seacol="); if (si >= 0) { string[] v = u.Substring(si + 7).Split('&')[0].Split(','); float[] c = { MapBuilder.SeaColour.r, MapBuilder.SeaColour.g, MapBuilder.SeaColour.b, MapBuilder.SeaColour.a }; for (int k = 0; k < 4 && k < v.Length; k++) float.TryParse(v[k], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out c[k]); MapBuilder.SeaColour = new Color(c[0], c[1], c[2], c[3]); }
               int wi2 = u.IndexOf("seawave="); if (wi2 >= 0 && float.TryParse(u.Substring(wi2 + 8).Split('&')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float sw)) MapBuilder.SeaWave = sw; }
+            AreaLabels.NoLabels = (Application.absoluteURL ?? "").Contains("nolabels=1");
             AimAssist.ReadUrl(Application.absoluteURL ?? ""); // (?aa_str= ?aa_range= ... ?aadbg=1: tests)
             if ((Application.absoluteURL ?? "").Contains("showbag=1")) SoldierBody.ShowBagInMatch = true; // (the backpack model on the back again)
             if ((Application.absoluteURL ?? "").Contains("trigfinger=0")) SoldierBody.UseTriggerFinger = false; // (the index round the grip, as before)
