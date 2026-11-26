@@ -177,23 +177,33 @@ namespace LastWar
         /// <summary>on foot: never past the map's edge (the ground ends a little beyond the play circle - walking off it the
         /// soldier fell into the void and hung there). Kept within the play circle + 12 m; and anyone already below the
         /// ground (fallen through) is put back on top of it.</summary>
+        /// <summary>how far below the water's surface a swimmer's feet hang</summary>
+        public const float SwimDepth = 1.3f;
         public static void KeepOnMap(Transform t, CharacterController cc)
         {
             MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;
             if (m == null || t == null) return;
             Vector3 p = t.position; bool moved = false;
-            float lim = Mathf.Min(m.playRadius + 12f, m.size / 2f - 8f);
+            // deep water: swimming - held at the surface (head and shoulders out); the open sea no farther than 100 m from
+            // the shore (the earlier rule pushed you back toward the middle at the water's edge: the jitter by the sea)
+            Fighter fi = t.GetComponent<Fighter>(); bool swim = false;
             Vector2 flat = new Vector2(p.x, p.z);
-            if (flat.magnitude > lim) { flat = flat.normalized * lim; p.x = flat.x; p.z = flat.y; moved = true; }
-            // the island's shore: no wading out deeper than the knees - back toward the middle until the ground is up
-            if (MapBuilder.SeaLevel > -999f && m.HeightAt(-p.x, p.z) < MapBuilder.SeaLevel - 0.45f && flat.magnitude > 1f)
+            if (MapBuilder.SeaLevel > -999f)
             {
-                Vector2 d = flat.normalized; float r = flat.magnitude;
-                while (r > 1f && m.HeightAt(-d.x * r, d.y * r) < MapBuilder.SeaLevel - 0.45f) r -= 0.5f;
-                if (Mathf.Abs(r - flat.magnitude) > 0.01f) { flat = d * r; p.x = flat.x; p.z = flat.y; moved = true; }
+                float under = m.HeightAt(-p.x, p.z), surface = MapBuilder.SeaLevel - SwimDepth;
+                bool past = flat.magnitude > m.size / 2f - 4f; // (past the ground's edge: open sea)
+                if ((under < MapBuilder.SeaLevel - SwimDepth + 0.1f || past) && p.y < MapBuilder.SeaLevel - 0.3f) { swim = true; if (Mathf.Abs(p.y - surface) > 0.01f) { p.y = surface; moved = true; } }
+                float shoreR = MapBuilder.ShoreRadius(p), far = shoreR + 100f;
+                if (flat.magnitude > far) { flat = flat.normalized * far; p.x = flat.x; p.z = flat.y; moved = true; }
             }
+            else
+            {
+                float lim = Mathf.Min(m.playRadius + 12f, m.size / 2f - 8f);
+                if (flat.magnitude > lim) { flat = flat.normalized * lim; p.x = flat.x; p.z = flat.y; moved = true; }
+            }
+            if (fi != null) fi.Swimming = swim;
             float g = m.HeightAt(-p.x, p.z);
-            if (p.y < g - 3f) { p.y = GroundBelowFrom(new Vector3(p.x, g + 60f, p.z)) + 0.1f; moved = true; }
+            if (!swim && p.y < g - 3f) { p.y = GroundBelowFrom(new Vector3(p.x, g + 60f, p.z)) + 0.1f; moved = true; }
             if (!moved) return;
             bool on = cc != null && cc.enabled; if (on) cc.enabled = false;
             t.position = p;

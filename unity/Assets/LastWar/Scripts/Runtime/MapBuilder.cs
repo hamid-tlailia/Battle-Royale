@@ -299,6 +299,14 @@ namespace LastWar
             fgo.AddComponent<Shore>().mat = fgo.GetComponent<MeshRenderer>().sharedMaterial;
         }
         static float[] shoreR;
+        /// <summary>the outer shore's distance from the middle in a world point's direction (1e4 without a sea)</summary>
+        public static float ShoreRadius(Vector3 w)
+        {
+            if (shoreR == null || SeaLevel < -999f) return 1e4f;
+            float x = -w.x, z = w.z, a = Mathf.Atan2(z, x); if (a < 0) a += Mathf.PI * 2f;
+            float f = a / (Mathf.PI * 2f) * shoreR.Length; int i = (int)f % shoreR.Length;
+            return Mathf.Lerp(shoreR[i], shoreR[(i + 1) % shoreR.Length], f - Mathf.Floor(f));
+        }
         /// <summary>metres from a world point to the beach line (inland or out at sea); large when there is no sea</summary>
         public static float ShoreDistance(Vector3 w)
         {

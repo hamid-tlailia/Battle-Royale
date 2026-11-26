@@ -966,7 +966,7 @@ namespace LastWar
                 }
             }
             float sum = 0, dt = Time.deltaTime;
-            for (int k = 0; k < weights.Length; k++) { weights[k] = Mathf.MoveTowards(weights[k], k == target ? 1f : 0f, dt * 6f); sum += weights[k]; }
+            for (int k = 0; k < weights.Length; k++) { weights[k] = Mathf.MoveTowards(weights[k], k == target ? 1f : 0f, dt * BlendRate); sum += weights[k]; }
             for (int k = 0; k < weights.Length; k++) mixer.SetInputWeight(k, sum > 0 ? weights[k] / sum : 0);
         }
 
@@ -977,6 +977,8 @@ namespace LastWar
         public float Turn;
         /// <summary>speed of the looping clip (1 = as recorded, negative = backwards)</summary>
         public float Rate = 1f;
+        /// <summary>how fast one clip blends into the next (per second; the lobby blends slowly into and out of the aim)</summary>
+        public float BlendRate = 6f;
         /// <summary>false = empty hands (guns put away)</summary>
         public bool Armed = true;
         float tiltNow; Vector3 outfitBase, modelBase; Quaternion outfitBaseRot, modelBaseRot; bool baseSet;

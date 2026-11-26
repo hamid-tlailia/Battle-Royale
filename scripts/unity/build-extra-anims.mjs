@@ -90,6 +90,9 @@ function carry(src) {
       sW.set(n, { r: wr }); r.set(n, qnorm(qmul(qinv(pw.r), wr)));
     }
     const d = uW.get(pelvis).p.map((x, i) => (x - uRest.get(pelvis).p[i]) * kLeg); if (!keepRoot) { d[0] = 0; d[2] = 0; } // (+root: the pelvis keeps its travel too - dances that step about)
+    // (+root: measured from where the dance starts - it jumped from the middle to the side the moment it began - and
+    // kept within ROOT_MAX of it, half the recorded steps, so the dancer stays on his spot: no legs in the rock / tree)
+    if (keepRoot) { if (f === 0) root0 = [d[0], d[2]]; let x = (d[0] - root0[0]) * 0.5, z = (d[2] - root0[1]) * 0.5; const m = Math.hypot(x, z); if (m > ROOT_MAX) { x *= ROOT_MAX / m; z *= ROOT_MAX / m; } d[0] = x; d[2] = z; }
     const hp = hips.listParents().find((p) => p.propertyType === 'Node'); const hw = bRest.get(hp) ?? { r: [0, 0, 0, 1], s: [1, 1, 1] };
     const dl = qrot(qinv(hw.r), d).map((x, i) => x / hw.s[i]);
     rot.push(r); hipsT.push(hips.getTranslation().map((x, i) => x + dl[i]));
@@ -203,7 +206,7 @@ function upperFrom(c, o) {
     return new Map(order.map((b) => [b, UPPER.test(key(b.getName())) ? o.rot[g].get(b) : loc.get(b)])); });
   return { ...c, rot };
 }
-let keepRoot = false;
+let keepRoot = false, root0 = [0, 0]; const ROOT_MAX = 0.45;
 const FINGER = /Hand(Index|Middle|Ring|Pinky|Thumb)/;
 function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.map((b) => [b, FINGER.test(b.getName()) ? ref.rot[0].get(b) : loc.get(b)]))) }; }
 const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);

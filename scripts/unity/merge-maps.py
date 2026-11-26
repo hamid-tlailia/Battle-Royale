@@ -56,13 +56,26 @@ h = hNorth * w + hSouth * (1 - w)
 # middle, and a river winding down through the south splitting it in two; sandy banks
 STRAIT, ISLE = 44.0, 30.0
 def rivx(z): return 22.0 * np.sin(z / 47.0) + 8.0 * np.sin(z / 19.0)
-dist_strait = np.abs(Z) - STRAIT                         # <0 inside the strait
-dist_isle = ISLE - np.hypot(X, Z)                         # >0 on the island
-dist_river = np.where(Z < -STRAIT + 6, np.abs(X - rivx(Z)) - 15.0, 99.0)   # <0 in the river
-water = np.minimum(np.where(dist_isle > 0, 99.0, dist_strait), dist_river)  # signed: <0 water, >0 land
-bank = smooth((water + 2.0) / 10.0)                       # 0 in the water .. 1 ten metres up the bank
-h = -1.6 * (1 - bank) + h * bank
-h = np.where(dist_isle > 0, np.maximum(h, LAND * smooth(dist_isle / 10.0) + -1.6 * (1 - smooth(dist_isle / 10.0))), h)
+# natural shores, not ruler-drawn: every edge wobbles (a few sines of different lengths)
+TH = np.arctan2(Z, X)
+edgeW = 6.0 * np.sin(X / 23.0 + 1.3) + 3.5 * np.sin(X / 9.0) + 2.0 * np.sin(X / 4.3 + 0.7)
+dist_strait = np.abs(Z) - (STRAIT + edgeW * np.sign(Z + 1e-6) * 0.0 + np.where(Z > 0, edgeW, 6.0 * np.sin(X / 19.0) + 3.0 * np.sin(X / 7.0 + 2.0)))
+isleR = ISLE + 4.0 * np.sin(TH * 3 + 0.5) + 2.5 * np.sin(TH * 7 + 1.1)
+dist_isle = isleR - np.hypot(X, Z)                        # >0 on the island
+riverW = 15.0 + 3.0 * np.sin(Z / 13.0) + 2.0 * np.sin(Z / 5.0)
+dist_river = np.where(Z < -STRAIT + 6, np.abs(X - rivx(Z)) - riverW, 99.0)
+# the outer coast: an uneven shoreline round the whole island (bays and points), not a circle
+coastR = 322.0 + 16.0 * np.sin(TH * 3 + 0.4) + 9.0 * np.sin(TH * 7 + 2.0) + 5.0 * np.sin(TH * 13 + 1.0)
+dist_coast = coastR - np.hypot(X, Z)                       # >0 inside
+water = np.minimum(np.minimum(np.where(dist_isle > 0, 99.0, dist_strait), dist_river), dist_coast)  # signed: <0 water, >0 land
+water = np.where(dist_isle > 0, np.minimum(dist_isle, 99.0), water)
+# the shore: 1.6 m deep water, a sandy beach just above it, a low rise (a dune / bank ~1.3 m) 8-18 m in, then the land
+deepW = np.where(dist_coast < 0, -1.6 - np.clip(-dist_coast / 6.0, 0, 5.0), -1.6)   # (the open sea deepens away from the coast)
+beach = 0.35 + 0.08 * np.clip(water, 0, 8)
+dune = 1.3 * np.exp(-((water - 13.0) / 5.0) ** 2)
+landW = smooth((water - 8.0) / 14.0)
+shore = beach * (1 - landW) + h * landW + dune
+h = np.where(water < 0, deepW * smooth(-water / 3.0) + 0.35 * (1 - smooth(-water / 3.0)), shore)
 SEA = 0.0
 def groundAt(arr, x, z):
     fx = np.clip((x + SIZE / 2) / cell, 0, CELLS - 1e-4); fz = np.clip((z + SIZE / 2) / cell, 0, CELLS - 1e-4)
@@ -119,6 +132,29 @@ for k in range(2600):
     p = dict(src[rngp.integers(len(src))]); p['x'] = round(x, 2); p['z'] = round(z, 2); p['y'] = round(hAt(x, z), 2); p['rot'] = int(rngp.integers(0, 360))
     extra.append(p)
     if len(extra) >= 700: break
+# forests in the green south: clumps of 25-45 pines / oaks; and small hamlets of houses (looked at from outside)
+pines = [p for p in natS if p['p'].startswith(('tpine', 'toak'))]
+houses = [p for p in S['props'] if p['p'].startswith('house')]
+for c in range(16):
+    cx, cz = rngp.uniform(-300, 300), rngp.uniform(-320, -60)
+    if math.hypot(cx, cz + OFF) < RIN - 20 or math.hypot(cx, cz) > 300 or hAt(cx, cz) < SEA + 1: continue
+    for k in range(int(rngp.integers(25, 45))):
+        x, z = cx + rngp.normal(0, 18), cz + rngp.normal(0, 18)
+        if hAt(x, z) < SEA + 1.2 or math.hypot(x, z) > 315: continue
+        p = dict(pines[rngp.integers(len(pines))]); p['x'] = round(x, 2); p['z'] = round(z, 2); p['y'] = round(hAt(x, z), 2); p['rot'] = int(rngp.integers(0, 360)); p['s'] = round(float(rngp.uniform(0.85, 1.25)), 2)
+        extra.append(p)
+made = 0
+for c in range(40):
+    if made >= 7 or not houses: break
+    cx, cz = rngp.uniform(-280, 280), rngp.uniform(-300, 300)
+    if math.hypot(cx, cz - OFF) < RIN + 8 or math.hypot(cx, cz + OFF) < RIN + 8 or math.hypot(cx, cz) > 290: continue
+    if min(hAt(cx + dx, cz + dz) for dx in (-15, 0, 15) for dz in (-15, 0, 15)) < SEA + 1.5: continue
+    made += 1
+    for k in range(int(rngp.integers(3, 6))):
+        a_ = k / 5 * math.tau + rngp.uniform(-0.3, 0.3); x, z = cx + math.cos(a_) * 16, cz + math.sin(a_) * 16
+        p = dict(houses[rngp.integers(len(houses))]); p['x'] = round(x, 2); p['z'] = round(z, 2); p['y'] = round(hAt(x, z), 2); p['rot'] = int(round(math.degrees(-a_) / 90.0) * 90) % 360
+        extra.append(p)
+print('hamlets', made)
 mask = [0] * (n * n)
 bridges = [{'x1': 0.0, 'z1': ISLE - 6, 'x2': 0.0, 'z2': STRAIT + 14, 'w': 7.0},
            {'x1': 0.0, 'z1': -(ISLE - 6), 'x2': 0.0, 'z2': -(STRAIT + 14), 'w': 7.0}]
@@ -126,7 +162,7 @@ for zb in (-150.0, -260.0):
     xc = float(rivx(zb)); bridges.append({'x1': xc - 26, 'z1': zb, 'x2': xc + 26, 'z2': zb, 'w': 6.0})
 # and two longer crossings of the strait out east and west
 for xb in (-210.0, 210.0): bridges.append({'x1': xb, 'z1': -(STRAIT + 12), 'x2': xb, 'z2': STRAIT + 12, 'w': 6.0})
-out = {'id': 'frontier', 'name': 'Frontier', 'size': SIZE, 'cells': CELLS, 'snowHeight': 999, 'playRadius': 340.0,
+out = {'id': 'frontier', 'name': 'Frontier', 'size': SIZE, 'cells': CELLS, 'snowHeight': 999, 'playRadius': 392.0,
        'heights': [round(float(v), 2) for v in h.ravel()], 'mask': mask, 'albedo': 'frontier_albedo',
        'props': a['props'] + b['props'] + extra, 'seaLevel': SEA, 'bridges': bridges, 'boxes': a['boxes'] + b['boxes'], 'spawns': spawns, 'areas': areas}
 json.dump(out, open(f'{M}/frontier.json', 'w'), separators=(',', ':'))

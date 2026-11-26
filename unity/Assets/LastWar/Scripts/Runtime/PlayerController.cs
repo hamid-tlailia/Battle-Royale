@@ -76,6 +76,8 @@ namespace LastWar
         }
 
         void Awake() { cc = GetComponent<CharacterController>(); }
+        /// <summary>swimming speed (m/s)</summary>
+        public static float SwimSpeed = 2.6f;
 
         /// <summary>?gunshow=1 (tests): every gun model laid on the ground in a row in front of you</summary>
         System.Collections.IEnumerator GunShow()
@@ -146,7 +148,8 @@ namespace LastWar
             if (input.HealPressed) fighter.Heal();
             if (input.BagPressed) BagPanel.Toggle(input, fighter);
             if (input.GearPressed) SettingsPanel.Open(input.Canvas, true);
-            bool armed = !fighter.holstered && fighter.Gun != null;
+            if (fighter.Swimming) { input.FireHeld = false; input.FirePressed = false; input.Scoped = false; input.FrostAim = false; input.FrostPressed = false; input.RollPressed = false; } // (in the water: no shots, no ice)
+            bool armed = !fighter.holstered && fighter.Gun != null && !fighter.Swimming;
 
             // posture: stand 1.8 m, crouch 1.2 m, prone 0.7 m (jump = stand up)
             if (input.JumpPressed && (input.Crouch || input.Prone)) { input.Crouch = input.Prone = false; input.JumpPressed = false; }
@@ -177,8 +180,9 @@ namespace LastWar
             if (grounded && velocity.y < 0) velocity.y = -2f;
             // JUMP in front of a window, low wall or fence: climb through / over it (web vault)
             if (input.JumpPressed && (grounded || NearGround()) && TryVault()) { input.JumpPressed = false; return; }
+            if (fighter.Swimming) { input.JumpPressed = false; velocity.y = 0f; float sk = SwimSpeed / Mathf.Max(SwimSpeed, new Vector2(velocity.x, velocity.z).magnitude); velocity.x *= sk; velocity.z *= sk; }
             if (input.JumpPressed && (grounded || NearGround())) velocity.y = JumpVelocity;
-            velocity.y += Gravity * dt;
+            if (!fighter.Swimming) velocity.y += Gravity * dt;
             cc.Move(velocity * dt);
             AirMove.KeepOnMap(transform, cc); // (never off the map's edge)
 
@@ -301,6 +305,13 @@ namespace LastWar
             else if (hs > 0.4f) clip = "walk_fire";
             else clip = firing ? "fire" : "idle_rifle";
             body.Speed = proneFire ? 0f : hs; // (before Play: lying down, it picks the still prone pose or the crawl by it)
+            // swimming: no gun, no fire, no ice; the swim clip (or, until it is there, the empty-handed jog)
+            if (fighter.Swimming)
+            {
+                input.FireHeld = false; input.Scoped = false; input.FrostAim = false; input.Crouch = input.Prone = false;
+                clip = body.HasClip("mx_swim") ? (hs > 0.3f ? "mx_swim" : (body.HasClip("mx_tread") ? "mx_tread" : "mx_swim")) : "jog";
+                armed = false;
+            }
             body.Play(clip);
             body.Armed = armed;
             body.AirAim = clip == "jump" && armed && firing; // firing in the air: the upper body aims (the legs keep the jump)

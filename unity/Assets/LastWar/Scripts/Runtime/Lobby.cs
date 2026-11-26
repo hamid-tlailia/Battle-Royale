@@ -941,8 +941,10 @@ namespace LastWar
             if (danceEnd > 0f) { if (Time.time >= danceEnd) DanceOver(); else return; } // (dancing: nothing else)
             if (lobbyBody != null && !lobbyBody.ShoulderGrip && forcedPose == null && lobbyAimAt > 0f)
             {
-                if (lobbyAimEnd < 0f && Time.time >= lobbyAimAt) { lobbyBody.Play(lobbyBody.HasClip("mx_aim") ? "mx_aim" : "fire"); lobbyBody.StandTall = false; lobbyAimEnd = Time.time + 2.6f; }
-                else if (lobbyAimEnd > 0f && Time.time >= lobbyAimEnd) { lobbyBody.Play("idle_rifle"); lobbyBody.StandTall = true; lobbyAimEnd = -1f; lobbyAimAt = Time.time + UnityEngine.Random.Range(5f, 8f); }
+                // (slowly up to the shoulder, held a while, slowly down again - it snapped up and down)
+                lobbyBody.BlendRate = 1.6f;
+                if (lobbyAimEnd < 0f && Time.time >= lobbyAimAt) { lobbyBody.Play(lobbyBody.HasClip("mx_aim") ? "mx_aim" : "fire"); lobbyBody.StandTall = false; lobbyAimEnd = Time.time + 4f; }
+                else if (lobbyAimEnd > 0f && Time.time >= lobbyAimEnd) { lobbyBody.Play("idle_rifle"); lobbyBody.StandTall = true; lobbyAimEnd = -1f; lobbyAimAt = Time.time + UnityEngine.Random.Range(7f, 11f); }
             }
             if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }

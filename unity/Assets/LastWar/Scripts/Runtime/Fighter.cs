@@ -302,7 +302,7 @@ namespace LastWar
         /// <summary>Fire one shot from `eye` toward `aimDir` (pellets for the shotgun). Returns false if it couldn't.</summary>
         public bool Fire(Vector3 eye, Vector3 aimDir, bool scoped, bool moving, bool crouch = false, bool grounded = true)
         {
-            if (!CanFire) return false;
+            if (!CanFire || Swimming) return false; // (no shots from the water)
             healEnd = 0; // shooting cancels a medkit
             GunState g = Gun;
             if (g.mag <= 0) { BurstPending = false; Reload(); return false; }
@@ -365,6 +365,8 @@ namespace LastWar
         public bool God;
         /// <summary>knocked flat (hit by a jeep) until this time: falls, lies a moment, gets up again</summary>
         public float KnockedUntil = -1f;
+        /// <summary>in deep water (set each frame): no shooting, no ice, slow</summary>
+        public bool Swimming;
 
         public void TakeDamage(float dmg, Fighter attacker, string weapon, bool head, Vector3 point)
         {
