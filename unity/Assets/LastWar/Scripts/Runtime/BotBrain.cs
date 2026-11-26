@@ -75,7 +75,8 @@ namespace LastWar
                 float frac = k < 0.8f ? k / 0.8f : k < 1.6f ? 1f : 1f - (k - 1.6f) / 1f;
                 body.SetGun(null); body.Pose = null; body.Tilt = 0; body.Play("death"); body.Hold(Mathf.Clamp(frac, 0f, 0.98f) * 0.85f);
                 return;
-            } (you may be watching): bots stop only when one is left
+            }
+            // the match goes on after you are out (you may be watching): bots stop only when one is left
             if (GameBoot.Instance == null || GameBoot.Instance.AliveCount <= 1) { if (Celebrate.Dancer == fighter) body.VictoryDance(); else body.Play("idle_rifle"); return; }
             if (fighter.air != 0) { AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
