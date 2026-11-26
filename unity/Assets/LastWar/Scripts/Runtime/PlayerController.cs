@@ -97,7 +97,7 @@ namespace LastWar
             input.SniperAiming = false; // (set again below while a sniper shot is held)
             if (vaultT >= 0f) { VaultStep(dt); return; }
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
-            if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
+            if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { if (Celebrate.Dancer == fighter) body.Dance(); else body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;
@@ -536,6 +536,22 @@ namespace LastWar
         {
             if (cam == null) return;
             freeLooking = false; // (set again below on foot)
+            if (Celebrate.Dancer != null && Celebrate.Dancer.Alive)
+            {
+                // the victory dance: the camera comes round to the winner's front, a little to the side, and watches
+                Transform t = Celebrate.Dancer.transform;
+                Vector3 look = t.position + Vector3.up * 1.0f, fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
+                Vector3 dir = (Quaternion.Euler(0, 22f, 0) * fwd * 3.9f + Vector3.up * 0.55f);
+                float len = dir.magnitude; dir /= len;
+                foreach (var h in Physics.RaycastAll(look, dir, len, ~0, QueryTriggerInteraction.Ignore))
+                    if (h.collider.GetComponentInParent<Fighter>() == null && h.distance < len) len = Mathf.Max(1.2f, h.distance - 0.25f);
+                Vector3 want = look + dir * len;
+                float k = 1f - Mathf.Exp(-Time.deltaTime * 2.5f);
+                cam.transform.position = Vector3.Lerp(cam.transform.position, want, k);
+                cam.transform.rotation = Quaternion.Slerp(cam.transform.rotation, Quaternion.LookRotation(look - cam.transform.position), k * 1.6f);
+                cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 52f, k);
+                return;
+            }
             if (!fighter.Alive && SpectateTarget != null)
             {
                 if (!SpectateTarget.Alive) SpectateTarget = NextAlive();

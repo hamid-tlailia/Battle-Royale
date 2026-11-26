@@ -83,7 +83,7 @@ namespace LastWar
 
         public static Hud Create(TouchControls input, PlayerController player)
         {
-            Celebrating = false; var h = new GameObject("Hud").AddComponent<Hud>();
+            Celebrating = false; Celebrate.Dancer = null; var h = new GameObject("Hud").AddComponent<Hud>();
             h.input = input; h.player = player; h.Build();
             Fighter.OnHit += h.Hit; Fighter.OnKill += h.Kill;
             foreach (int z in new[] { 2, 4, 8 }) WebLens(z); // (read behind the loading screen: no hitch when you first scope)
@@ -698,14 +698,14 @@ namespace LastWar
             // victory: the web's celebration (confetti, music, countdown back to the lobby) instead of the result card
             // (after a moment: the last enemy falls and the kill banner's skull shows first - it came up over his death)
             if (gb.Result > 0 && winAt < 0f) winAt = Time.unscaledTime + WinDelay;
-            if (gb.Result > 0 && !celebrating && Time.unscaledTime >= winAt) { celebrating = true; Celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
+            if (gb.Result > 0 && !celebrating && Time.unscaledTime >= winAt) { celebrating = true; Celebrating = true; input.Scoped = false; input.FireHeld = false; Celebrate.Dancer = f; Celebrate.Show(full, input.Root, f.kills, gb.Fighters.Count); }
             // you are out and the match is over: the celebration for whoever won (a bot), same music, back to the lobby
             if (gb.Result < 0 && !celebrating && gb.AliveCount <= 1)
             {
                 Fighter win = null; foreach (Fighter q in gb.Fighters) if (q.Alive) win = q;
                 if (win != null)
                 {
-                    celebrating = true; spectating = false; endPanel.gameObject.SetActive(false);
+                    celebrating = true; spectating = false; endPanel.gameObject.SetActive(false); Celebrate.Dancer = win;
                     Celebrate.Show(full, input.Root, win.kills, gb.Fighters.Count, win.displayName, gb.Rank);
                 }
             }

@@ -153,6 +153,8 @@ namespace LastWar
                 if (Result != 0) Profile.AddMatch(Player.fighter.kills, Result > 0, Rank);
             };
 
+            // test: ?wintest=1 every bot falls after a moment (you win and dance); ?wintest=2 you and all bots but one fall (a bot wins)
+            if (url.Contains("wintest=")) StartCoroutine(WinTest(url.Contains("wintest=2")));
             if (url.Contains("icetest=1")) { PlayerController.AimAssistOn = false; StartCoroutine(IceWall.Test(Player.transform)); } // (test: an ice wall in front of you, weakened in steps; the view held on it)
             // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30
             if (bench)
@@ -186,6 +188,22 @@ namespace LastWar
         }
 
         /// <summary>end of a match: back to the lobby behind a loading card</summary>
+        System.Collections.IEnumerator WinTest(bool botWins)
+        {
+            yield return new WaitForSeconds(4f);
+            while (Player.fighter.air != 0) yield return null;
+            yield return new WaitForSeconds(1.5f);
+            Player.fighter.God = false;
+            Fighter keep = null;
+            foreach (Fighter f in Fighters.ToArray())
+            {
+                if (f == Player.fighter) continue;
+                if (botWins && keep == null) { keep = f; continue; }
+                f.TakeDamage(99999f, Player.fighter, "akm", false, f.transform.position);
+            }
+            if (botWins) Player.fighter.TakeDamage(99999f, keep, "akm", false, Player.transform.position);
+        }
+
         public void Restart()
         {
             Fighter.ClearEvents();

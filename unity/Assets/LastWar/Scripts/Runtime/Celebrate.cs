@@ -10,7 +10,9 @@ namespace LastWar
     /// </summary>
     public class Celebrate : MonoBehaviour
     {
-        const float Seconds = 8f;
+        const float Seconds = 11f; // (the Entry dance runs 10.3 s)
+        /// <summary>the winner, dancing under the card (the camera watches them from the front)</summary>
+        public static Fighter Dancer;
         static readonly Color[] Colors = { new Color(1f, .83f, .3f), new Color(1f, .42f, .42f), new Color(.44f, .81f, .44f), new Color(.34f, .66f, .96f), Color.white, new Color(.77f, .55f, 1f) };
         RectTransform box; Text count; AudioSource music; float t;
         struct Bit { public RectTransform rt; public float speed, spin, sway, phase; }
@@ -19,11 +21,11 @@ namespace LastWar
         public static void Show(Transform full, Transform hudRoot, int kills, int players, string winner = null, int myRank = 0)
         {
             const float K = UiKit.K;
-            var shade = UiKit.Img(full, "Victory", null, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, new Color(0, 0, 0, .55f), true);
+            var shade = UiKit.Img(full, "Victory", null, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, new Color(0, 0, 0, .18f), true);
             UiKit.Fill(shade.rectTransform); shade.rectTransform.SetAsLastSibling();
             var c = shade.gameObject.AddComponent<Celebrate>();
             // the gold glow in the middle
-            var glow = UiKit.Img(shade.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(900, 600), new Color(1f, .83f, .3f, .35f));
+            var glow = UiKit.Img(shade.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(900, 600), new Color(1f, .83f, .3f, .12f));
             glow.rectTransform.pivot = new Vector2(.5f, .5f);
             // confetti
             var rnd = new System.Random();
@@ -37,7 +39,7 @@ namespace LastWar
             }
             // the card
             c.box = new GameObject("box", typeof(RectTransform)).GetComponent<RectTransform>();
-            c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, .55f);
+            c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, .97f); // (high: the dance shows below)
             c.box.sizeDelta = new Vector2(700, 300) * K;
             var h1 = UiKit.Txt(c.box, new Vector2(.5f, 1), Vector2.zero, new Vector2(700, 120), 96, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
             h1.rectTransform.pivot = new Vector2(.5f, 1); h1.text = winner == null ? "VICTORY" : "WINNER";
@@ -82,7 +84,7 @@ namespace LastWar
             t += Time.unscaledDeltaTime;
             // pop in (overshoot like the web's cubic-bezier(.2,1.6,.4,1))
             float p = Mathf.Clamp01(t / 0.7f), e = 1f + 2.2f * Mathf.Pow(p - 1f, 3) + 1.2f * Mathf.Pow(p - 1f, 2);
-            box.localScale = Vector3.one * Mathf.LerpUnclamped(0.3f, 1f, p >= 1f ? 1f : e);
+            box.localScale = Vector3.one * Mathf.LerpUnclamped(0.25f, 0.78f, p >= 1f ? 1f : e);
             var h = ((RectTransform)transform).rect.height;
             for (int i = 0; i < bits.Length; i++)
             {
@@ -96,6 +98,6 @@ namespace LastWar
             if (t >= Seconds) Leave();
         }
 
-        void OnDestroy() { AudioListener.pause = false; }
+        void OnDestroy() { AudioListener.pause = false; Dancer = null; }
     }
 }

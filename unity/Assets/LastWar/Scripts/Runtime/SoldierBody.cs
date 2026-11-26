@@ -404,7 +404,7 @@ namespace LastWar
                 else if (!UseOldBase)
                 {
                     // (and lw_extra.glb: further Mixamo clips on the same skeleton, on trial - e.g. mx_rifle_run, mx_running)
-                    foreach (string extra in new[] { "lw_lobby", "lw_extra", "lw_pistol" }) // (lw_pistol.glb: Mixamo's Pistol Handgun Locomotion clips, Step E)
+                    foreach (string extra in new[] { "lw_lobby", "lw_extra", "lw_pistol", "lw_dance" }) // (lw_pistol.glb: Mixamo's Pistol Handgun Locomotion clips, Step E)
                     {
                         var more = Resources.LoadAll<AnimationClip>("Models/" + extra);
                         if (more.Length > 0) { var all = new AnimationClip[clips.Length + more.Length]; clips.CopyTo(all, 0); more.CopyTo(all, clips.Length); clips = all; }
@@ -514,6 +514,13 @@ namespace LastWar
         string playing; // the clip the mixer plays for `current` (a rifle clip when one stands in)
         bool RifleClip => playing != null && playing.StartsWith("mx_");
         bool PistolClip => playing != null && playing.StartsWith("p_");
+
+        /// <summary>the winner's victory dance ("Entry", lw_dance.glb mx_dance): guns put away on the back, standing up</summary>
+        public void Dance()
+        {
+            Armed = false; Pose = null; Tilt = 0; AirAim = false; StandTall = false; Speed = 0f; SetChute(false);
+            Play(HasClip("mx_dance") ? "mx_dance" : "idle");
+        }
 
         public void Play(string clip)
         {
