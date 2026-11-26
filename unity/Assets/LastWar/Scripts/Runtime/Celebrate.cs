@@ -39,7 +39,7 @@ namespace LastWar
             }
             // the card
             c.box = new GameObject("box", typeof(RectTransform)).GetComponent<RectTransform>();
-            c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, 1f); c.box.anchoredPosition = new Vector2(0, -4f * K); // (at the top: the dance shows below)
+            c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, 1f); c.box.anchoredPosition = new Vector2(0, -22f * K); // (lower: VICTORY was cut by the screen top) // (at the top: the dance shows below)
             c.box.sizeDelta = new Vector2(700, 300) * K;
             var h1 = UiKit.Txt(c.box, new Vector2(.5f, 1), Vector2.zero, new Vector2(700, 120), 96, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
             h1.rectTransform.pivot = new Vector2(.5f, 1); h1.text = winner == null ? "VICTORY" : "WINNER";
@@ -52,9 +52,9 @@ namespace LastWar
             sub.rectTransform.pivot = new Vector2(.5f, 1);
             sub.text = $"Last one standing · {kills} kill{(kills == 1 ? "" : "s")}" + (winner != null && myRank > 0 ? $"   ·   you placed #{myRank} / {players}" : "");
             // the countdown and LOBBY at the bottom of the screen, clear of the dancer
-            c.count = UiKit.Txt(shade.rectTransform, new Vector2(.5f, 0), new Vector2(0, 52), new Vector2(700, 20), 12, TextAnchor.MiddleCenter, new Color(1, 1, 1, .85f));
+            c.count = UiKit.Txt(shade.rectTransform, new Vector2(.5f, 0), new Vector2(0, 78), new Vector2(700, 20), 12, TextAnchor.MiddleCenter, new Color(1, 1, 1, .85f));
             c.count.rectTransform.pivot = new Vector2(.5f, 0);
-            var lobby = UiKit.Img(shade.rectTransform, "lobby", UiKit.GoldPlate, new Vector2(.5f, 0), new Vector2(0, 12), new Vector2(150, 36), Color.white, true);
+            var lobby = UiKit.Img(shade.rectTransform, "lobby", UiKit.GoldPlate, new Vector2(.5f, 0), new Vector2(0, 34), new Vector2(150, 36), Color.white, true);
             lobby.rectTransform.pivot = new Vector2(.5f, 0);
             var li = UiKit.Img(lobby.rectTransform, "icon", UiKit.Get("icon_home"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(24, 24), new Color(27 / 255f, 20 / 255f, 4 / 255f)); li.rectTransform.pivot = new Vector2(.5f, .5f); li.preserveAspect = true; // (back to the lobby: the house)
             Clickable.Add(lobby.gameObject, c.Leave);
