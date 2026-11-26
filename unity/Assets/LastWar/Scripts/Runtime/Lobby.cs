@@ -294,29 +294,52 @@ namespace LastWar
             DanceButton();
         }
 
-        float danceEnd = -1f; Text danceLabel;
-        /// <summary>an emote button beside the soldier: he puts the gun on his back and dances (Entry), then takes it up again</summary>
+        float danceEnd = -1f; RectTransform dancePicker; readonly List<Image> danceRings = new List<Image>();
+        /// <summary>tap the soldier: three dance buttons (a music note and its number) appear beside him; tap one and he
+        /// puts the gun away and dances it (the victory dance stays Entry). Tap the soldier again to hide them.</summary>
         void DanceButton()
         {
-            var b = UiKit.Img(root, "dance", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, new Color(.1f, .12f, .14f, .78f), true);
-            b.rectTransform.anchorMin = b.rectTransform.anchorMax = new Vector2(.5f, 0f); b.rectTransform.pivot = new Vector2(.5f, 0f);
-            b.rectTransform.anchoredPosition = new Vector2(150f * s, 150f * s); b.rectTransform.sizeDelta = new Vector2(96f, 30f) * s;
-            b.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f, .8f);
-            var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, 12f * s / UiKit.K, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
-            t.rectTransform.pivot = new Vector2(.5f, .5f); t.rectTransform.sizeDelta = new Vector2(96f, 30f) * s; t.text = "DANCE";
-            Clickable.Add(b.gameObject, () =>
+            dancePicker = new GameObject("dances", typeof(RectTransform)).GetComponent<RectTransform>();
+            dancePicker.SetParent(root, false); dancePicker.anchorMin = dancePicker.anchorMax = new Vector2(.5f, 0f); dancePicker.sizeDelta = Vector2.zero;
+            dancePicker.anchoredPosition = new Vector2(150f * s, 150f * s);
+            float k = s / UiKit.K;
+            for (int d = 0; d < 3; d++)
             {
-                if (lobbyBody == null || !lobbyBody.HasClip("mx_dance")) return;
-                // tap: your dance; tap while dancing: the next one (the last one you saw is your victory dance)
-                if (danceEnd > 0f) Profile.Dance = (Profile.Dance + 1) % 3;
-                lobbyBody.SetGun(null); lobbyBody.DanceChoice = -1; lobbyBody.Dance(); // (empty hands to dance) danceEnd = Time.time + SoldierBody.DanceLength[Profile.Dance]; lobbyAimEnd = -1f;
-                danceLabel.text = SoldierBody.DanceNames[Profile.Dance];
-            });
-            danceLabel = t;
+                int dd = d;
+                var b = UiKit.Img(dancePicker, "dance" + d, UiKit.Get("btn"), new Vector2(.5f, .5f), new Vector2(0, (2 - d) * 50f) * k, new Vector2(44, 44) * k, Color.white, true);
+                var ic = UiKit.Img(b.rectTransform, "icon", UiKit.Get("icon_dance"), new Vector2(.5f, .5f), new Vector2(-3, 2) * k, new Vector2(22, 22) * k, Color.white); ic.preserveAspect = true;
+                var n = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), new Vector2(11, -10) * k, new Vector2(16, 16) * k, 11 * k, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f)); n.rectTransform.pivot = new Vector2(.5f, .5f); n.text = (d + 1).ToString();
+                var ring = UiKit.Img(b.rectTransform, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(48, 48) * k, new Color(1f, .83f, .3f, 0f)); ring.raycastTarget = false;
+                danceRings.Add(ring);
+                Clickable.Add(b.gameObject, () =>
+                {
+                    if (lobbyBody == null || !lobbyBody.HasClip(SoldierBody.DanceClip(dd))) return;
+                    Profile.Dance = dd;
+                    lobbyBody.SetGun(null); lobbyBody.Dance(dd); danceEnd = Time.time + SoldierBody.DanceLength[dd]; lobbyAimEnd = -1f; // (empty hands to dance)
+                    for (int q = 0; q < danceRings.Count; q++) danceRings[q].color = new Color(1f, .83f, .3f, q == dd ? 1f : 0f);
+                });
+            }
+            dancePicker.gameObject.SetActive(false);
         }
+        /// <summary>a tap (not a drag) on the screen: on the soldier, the dance buttons show / hide</summary>
+        void LobbyTap(Vector2 screen)
+        {
+            if (soldier == null || cam == null || dancePicker == null || wardrobe) return;
+            bool any = false; Bounds bb = default;
+            foreach (Renderer r in soldier.GetComponentsInChildren<Renderer>()) { if (!r.enabled) continue; if (!any) { bb = r.bounds; any = true; } else bb.Encapsulate(r.bounds); }
+            if (!any) return;
+            Vector2 mn = new Vector2(1e9f, 1e9f), mx = -mn;
+            for (int c = 0; c < 8; c++)
+            {
+                Vector3 w = bb.center + Vector3.Scale(bb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1));
+                Vector3 sp = cam.WorldToScreenPoint(w); mn = Vector2.Min(mn, sp); mx = Vector2.Max(mx, sp);
+            }
+            if (screen.x >= mn.x && screen.x <= mx.x && screen.y >= mn.y && screen.y <= mx.y) dancePicker.gameObject.SetActive(!dancePicker.gameObject.activeSelf);
+        }
+        Vector2 pressAt; bool pressMoved;
         void DanceOver()
         {
-            danceEnd = -1f; if (danceLabel != null) danceLabel.text = "DANCE"; if (lobbyBody == null) return;
+            danceEnd = -1f; foreach (var rg in danceRings) rg.color = new Color(1f, .83f, .3f, 0f); if (lobbyBody == null) return;
             LobbyGunPose(Armory.LobbyGun); // (the gun back in his hands, standing as before)
         }
 
@@ -860,17 +883,20 @@ namespace LastWar
             {
                 foreach (Touch t in Input.touches)
                 {
-                    if (t.phase == TouchPhase.Began && dragFinger < 0 && !OverUi(t.fingerId)) { dragFinger = t.fingerId; dragLast = t.position; }
+                    if (t.phase == TouchPhase.Began && dragFinger < 0 && !OverUi(t.fingerId)) { dragFinger = t.fingerId; dragLast = t.position; pressAt = t.position; pressMoved = false; }
                     if (t.fingerId != dragFinger) continue;
                     soldierYaw -= (t.position.x - dragLast.x) * 0.4f; dragLast = t.position;
+                    if ((t.position - pressAt).magnitude > 18f) pressMoved = true;
+                    if (t.phase == TouchPhase.Ended && !pressMoved) LobbyTap(t.position);
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) dragFinger = -1;
                 }
             }
             else
             {
                 dragFinger = -1;
-                if (Input.GetMouseButtonDown(0) && !OverUi(-1)) { mouseDrag = true; dragLast = Input.mousePosition; }
-                if (Input.GetMouseButtonUp(0)) mouseDrag = false;
+                if (Input.GetMouseButtonDown(0) && !OverUi(-1)) { mouseDrag = true; dragLast = Input.mousePosition; pressAt = Input.mousePosition; pressMoved = false; }
+                if (mouseDrag && ((Vector2)Input.mousePosition - pressAt).magnitude > 18f) pressMoved = true;
+                if (Input.GetMouseButtonUp(0)) { if (mouseDrag && !pressMoved) LobbyTap(Input.mousePosition); mouseDrag = false; }
                 if (mouseDrag) { soldierYaw -= (Input.mousePosition.x - dragLast.x) * 0.4f; dragLast = Input.mousePosition; }
             }
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);

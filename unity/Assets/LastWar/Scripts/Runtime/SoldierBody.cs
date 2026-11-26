@@ -516,10 +516,13 @@ namespace LastWar
         bool PistolClip => playing != null && playing.StartsWith("p_");
 
         /// <summary>the winner's victory dance ("Entry", lw_dance.glb mx_dance): guns put away on the back, standing up</summary>
-        public void Dance()
+        public void Dance() => Dance(DanceChoice < 0 ? Profile.Dance : DanceChoice);
+        /// <summary>the victory dance: always Entry</summary>
+        public void VictoryDance() => Dance(0);
+        public void Dance(int which)
         {
             Armed = false; Pose = null; Tilt = 0; AirAim = false; StandTall = false; Speed = 0f; SetChute(false);
-            string d = DanceClip(DanceChoice < 0 ? Profile.Dance : DanceChoice);
+            string d = DanceClip(which);
             Play(HasClip(d) ? d : HasClip("mx_dance") ? "mx_dance" : "idle");
         }
         /// <summary>which dance this soldier does (-1: the player's chosen one)</summary>

@@ -56,8 +56,7 @@ namespace LastWar
             c.count.rectTransform.pivot = new Vector2(.5f, 0);
             var lobby = UiKit.Img(shade.rectTransform, "lobby", UiKit.GoldPlate, new Vector2(.5f, 0), new Vector2(0, 12), new Vector2(150, 36), Color.white, true);
             lobby.rectTransform.pivot = new Vector2(.5f, 0);
-            var lt = UiKit.Txt(lobby.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(150, 36), 13, TextAnchor.MiddleCenter, new Color(27 / 255f, 20 / 255f, 4 / 255f));
-            lt.rectTransform.pivot = new Vector2(.5f, .5f); lt.text = "LOBBY"; Destroy(lt.GetComponent<Shadow>());
+            var li = UiKit.Img(lobby.rectTransform, "icon", UiKit.Get("icon_home"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(24, 24), new Color(27 / 255f, 20 / 255f, 4 / 255f)); li.rectTransform.pivot = new Vector2(.5f, .5f); li.preserveAspect = true; // (back to the lobby: the house)
             Clickable.Add(lobby.gameObject, c.Leave);
             c.box.localScale = Vector3.one * 0.3f;
             // only the celebration on screen, only the victory music

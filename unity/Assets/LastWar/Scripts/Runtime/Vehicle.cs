@@ -212,16 +212,16 @@ namespace LastWar
         // ---------------------------------------------------------------- the DRIVE / EXIT button (on the HUD)
         public class Button : MonoBehaviour
         {
-            PlayerController player; Image img; Text txt;
+            PlayerController player; Image img, icon;
             public static void Create(TouchControls input, PlayerController p)
             {
                 var b = new GameObject("CarButton", typeof(RectTransform)).AddComponent<Button>(); b.player = p;
                 b.transform.SetParent(input.Root, false);
-                b.img = UiKit.Img(b.transform, "bg", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(84, 30), new Color(.1f, .12f, .14f, .8f), true);
-                var rt = (RectTransform)b.transform; rt.anchorMin = rt.anchorMax = new Vector2(.6f, .62f); // (clear of the fire / scope buttons) rt.sizeDelta = Vector2.zero;
-                b.img.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f, .8f);
-                b.txt = UiKit.Txt(b.img.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(84, 30), 12, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
-                b.txt.rectTransform.pivot = new Vector2(.5f, .5f);
+                var rt = (RectTransform)b.transform; rt.anchorMin = rt.anchorMax = new Vector2(.6f, .62f); rt.sizeDelta = Vector2.zero; // (clear of the fire / scope buttons)
+                // a round button like the others: a steering wheel to get in, a door to get out
+                b.img = UiKit.Img(b.transform, "bg", UiKit.Get("btn"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(50, 50), Color.white, true);
+                b.icon = UiKit.Img(b.img.rectTransform, "icon", UiKit.Get("icon_drive"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(26, 26), Color.white);
+                b.icon.preserveAspect = true;
                 Clickable.Add(b.img.gameObject, b.Tap);
             }
             void Tap()
@@ -234,7 +234,7 @@ namespace LastWar
                 bool show = player != null && player.fighter.Alive && player.fighter.air == 0 && (Mine != null || Near(player.transform.position) != null) && !Hud.Celebrating;
                 img.gameObject.SetActive(show);
                 if (show && Input.GetKeyDown(KeyCode.F)) Tap(); // (keyboard: F)
-                if (show) txt.text = Mine != null ? "EXIT" : "DRIVE";
+                if (show) icon.sprite = UiKit.Get(Mine != null ? "icon_exit" : "icon_drive");
             }
         }
     }

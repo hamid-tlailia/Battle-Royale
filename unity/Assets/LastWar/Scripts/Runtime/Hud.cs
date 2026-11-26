@@ -235,12 +235,11 @@ namespace LastWar
             // eliminated: watch the one who got you (web SPECTATE)
             spectateBtn = UiKit.Img(card.rectTransform, "Spectate", UiKit.Round, C, new Vector2(70, -45), new Vector2(120, 34), new Color(.23f, .26f, .28f), true);
             spectateBtn.rectTransform.pivot = C;
-            var sbt = UiKit.Txt(spectateBtn.rectTransform, C, Vector2.zero, new Vector2(120, 34), 14, TextAnchor.MiddleCenter, Color.white); sbt.rectTransform.pivot = C; sbt.text = "SPECTATE";
+            var sbi = UiKit.Img(spectateBtn.rectTransform, "icon", UiKit.Get("icon_eye"), C, Vector2.zero, new Vector2(26, 26), Color.white); sbi.rectTransform.pivot = C; sbi.preserveAspect = true; // (watch: the eye)
             spectateBtn.gameObject.AddComponent<Button>().onClick.AddListener(() => { endPanel.gameObject.SetActive(false); spectating = true; player.StartSpectate(lastKiller); });
             var again = UiKit.Img(card.rectTransform, "Again", UiKit.Round, C, new Vector2(0, -45), new Vector2(150, 34), new Color(1f, 0.78f, 0.25f), true);
             again.rectTransform.pivot = C;
-            var at = UiKit.Txt(again.rectTransform, C, Vector2.zero, new Vector2(150, 34), 14, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); at.rectTransform.pivot = C;
-            at.text = "LOBBY"; Destroy(at.GetComponent<Shadow>());
+            var ai = UiKit.Img(again.rectTransform, "icon", UiKit.Get("icon_home"), C, Vector2.zero, new Vector2(26, 26), new Color(0.1f, 0.08f, 0.02f)); ai.rectTransform.pivot = C; ai.preserveAspect = true; // (lobby: the house)
             again.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             endPanel.gameObject.SetActive(false);
 
@@ -251,7 +250,7 @@ namespace LastWar
             specText.rectTransform.pivot = new Vector2(.5f, 1);
             var sl = UiKit.Img(specBar, "lobby", UiKit.Get("Lobby/mode_on"), new Vector2(.5f, 0), new Vector2(0, 6), new Vector2(110, 22), Color.white, true);
             sl.rectTransform.pivot = new Vector2(.5f, 0);
-            var slt = UiKit.Txt(sl.rectTransform, C, Vector2.zero, new Vector2(110, 22), 11, TextAnchor.MiddleCenter, new Color(0.1f, 0.08f, 0.02f)); slt.rectTransform.pivot = C; slt.text = "LOBBY"; Destroy(slt.GetComponent<Shadow>());
+            var sli = UiKit.Img(sl.rectTransform, "icon", UiKit.Get("icon_home"), C, Vector2.zero, new Vector2(16, 16), new Color(0.1f, 0.08f, 0.02f)); sli.rectTransform.pivot = C; sli.preserveAspect = true;
             sl.gameObject.AddComponent<Button>().onClick.AddListener(() => GameBoot.Instance.Restart());
             input.RegisterBlocker(specBar);
             specBar.gameObject.SetActive(false);
@@ -283,7 +282,7 @@ namespace LastWar
                 var tx = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(52, 0), new Vector2(76, 26), 11, TextAnchor.MiddleLeft, Color.white);
                 var tk = UiKit.Img(bg.rectTransform, "take", UiKit.Round, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(38, 18), new Color(.45f, .78f, .25f), true);
                 tk.rectTransform.pivot = new Vector2(1, .5f);
-                var tt = UiKit.Txt(tk.rectTransform, C, Vector2.zero, new Vector2(38, 18), 10, TextAnchor.MiddleCenter, new Color(.06f, .13f, .03f)); tt.rectTransform.pivot = C; tt.text = "TAKE"; Destroy(tt.GetComponent<Shadow>());
+                var ti = UiKit.Img(tk.rectTransform, "icon", UiKit.Get("icon_take"), C, Vector2.zero, new Vector2(13, 13), new Color(.06f, .13f, .03f)); ti.rectTransform.pivot = C; ti.preserveAspect = true; // (take: into the bag; grey = full)
                 var trg = bg.gameObject.AddComponent<EventTrigger>(); var en = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
                 en.callback.AddListener(_ => { if (row < lootRows.Count && lootRows[row].item != null) player.Take(lootRows[row].item); });
                 trg.triggers.Add(en);
@@ -683,7 +682,6 @@ namespace LastWar
                     if (take != null)
                     {
                         take.GetComponent<Image>().color = full ? new Color(.45f, .48f, .5f, .8f) : new Color(.45f, .78f, .25f);
-                        var tt = take.GetComponentInChildren<Text>(); if (tt != null) tt.text = full ? "FULL" : "TAKE";
                     }
                     rowFull[i] = full;
                 }

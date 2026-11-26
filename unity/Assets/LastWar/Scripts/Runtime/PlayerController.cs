@@ -98,7 +98,7 @@ namespace LastWar
             if (vaultT >= 0f) { VaultStep(dt); return; }
             if (Vehicle.Mine != null && (!fighter.Alive || (GameBoot.Instance != null && GameBoot.Instance.Result != 0))) ExitVehicle();
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
-            if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { if (Celebrate.Dancer == fighter) body.Dance(); else body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
+            if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { if (Celebrate.Dancer == fighter) body.VictoryDance(); else body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
             if (Vehicle.Mine != null) { DriveStep(dt); return; }
             if (rollT >= 0f) { RollStep(dt); return; }
             if (input.RollPressed) { input.RollPressed = false; if (cc.enabled && cc.isGrounded && fighter.air == 0 && body.HasClip("mx_roll")) { StartRoll(); return; } }
