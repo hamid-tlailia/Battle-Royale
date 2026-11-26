@@ -238,12 +238,18 @@ namespace LastWar
             if (baseMat == null) return;
             const int seg = 256;
             float[] rs = new float[seg];
+            // the skirt (the land past the terrain, sloping into the sea) has no collider: a temporary one to find the shore
+            Transform skirt = parent.Find("Skirt"); MeshCollider tmp = null;
+            if (skirt != null && skirt.GetComponent<MeshFilter>() != null) { tmp = skirt.gameObject.AddComponent<MeshCollider>(); tmp.sharedMesh = skirt.GetComponent<MeshFilter>().sharedMesh; }
             for (int i = 0; i < seg; i++)
             {
-                float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a), r = Mathf.Max(20f, coastR - 40f);
-                while (r < coastR + 260f && map.HeightAt(cx * r, sz * r) >= SeaLevel) r += 1f;
+                float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a), r = Mathf.Max(20f, coastR * 0.6f);
+                // where the ground actually built (terrain, then the skirt sloping into the sea) goes under the water
+                float H(float rr) { Vector3 w = Coords.ToUnity(cx * rr, 0, sz * rr); return Physics.Raycast(new Vector3(w.x, 3000f, w.z), Vector3.down, out RaycastHit hh, 6000f, ~0, QueryTriggerInteraction.Ignore) ? hh.point.y : -1e4f; }
+                while (r < coastR + 260f && H(r) >= SeaLevel) r += 1f;
                 rs[i] = r;
             }
+            if (tmp != null) UnityEngine.Object.Destroy(tmp);
             for (int i = 0; i < seg; i++) rs[i] = (rs[(i + seg - 1) % seg] + 2f * rs[i] + rs[(i + 1) % seg]) / 4f; // (smoothed)
             shoreR = rs;
             Mesh Ring(float[] offs, Color[] cols, float y, float vScale)

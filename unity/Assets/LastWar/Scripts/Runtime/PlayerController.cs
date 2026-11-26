@@ -617,8 +617,8 @@ namespace LastWar
             {
                 // the victory dance: the camera comes round to the winner's front, a little to the side, and watches
                 Transform t = Celebrate.Dancer.transform;
-                Vector3 dLook = t.position + Vector3.up * 1.0f, fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
-                Vector3 dir = (Quaternion.Euler(0, 22f, 0) * fwd * 3.9f + Vector3.up * 0.55f);
+                Vector3 dLook = t.position + Vector3.up * 1.55f, fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
+                Vector3 dir = (Quaternion.Euler(0, 20f, 0) * fwd * 4.3f + Vector3.up * 0.05f); // (the soldier framed low, under the card)
                 float dLen = dir.magnitude; dir /= dLen;
                 foreach (var h in Physics.RaycastAll(dLook, dir, dLen, ~0, QueryTriggerInteraction.Ignore))
                     if (h.collider.GetComponentInParent<Fighter>() == null && h.distance < dLen) dLen = Mathf.Max(1.2f, h.distance - 0.25f);

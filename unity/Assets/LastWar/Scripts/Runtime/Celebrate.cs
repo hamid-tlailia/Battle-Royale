@@ -39,7 +39,7 @@ namespace LastWar
             }
             // the card
             c.box = new GameObject("box", typeof(RectTransform)).GetComponent<RectTransform>();
-            c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, .97f); // (high: the dance shows below)
+            c.box.SetParent(shade.rectTransform, false); c.box.anchorMin = c.box.anchorMax = c.box.pivot = new Vector2(.5f, 1f); c.box.anchoredPosition = new Vector2(0, -4f * K); // (at the top: the dance shows below)
             c.box.sizeDelta = new Vector2(700, 300) * K;
             var h1 = UiKit.Txt(c.box, new Vector2(.5f, 1), Vector2.zero, new Vector2(700, 120), 96, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
             h1.rectTransform.pivot = new Vector2(.5f, 1); h1.text = winner == null ? "VICTORY" : "WINNER";
@@ -51,10 +51,11 @@ namespace LastWar
             var sub = UiKit.Txt(c.box, new Vector2(.5f, 1), new Vector2(0, -182), new Vector2(700, 26), 18, TextAnchor.MiddleCenter, Color.white);
             sub.rectTransform.pivot = new Vector2(.5f, 1);
             sub.text = $"Last one standing · {kills} kill{(kills == 1 ? "" : "s")}" + (winner != null && myRank > 0 ? $"   ·   you placed #{myRank} / {players}" : "");
-            c.count = UiKit.Txt(c.box, new Vector2(.5f, 1), new Vector2(0, -222), new Vector2(700, 20), 12, TextAnchor.MiddleCenter, new Color(1, 1, 1, .75f));
-            c.count.rectTransform.pivot = new Vector2(.5f, 1);
-            var lobby = UiKit.Img(c.box, "lobby", UiKit.GoldPlate, new Vector2(.5f, 1), new Vector2(0, -250), new Vector2(150, 36), Color.white, true);
-            lobby.rectTransform.pivot = new Vector2(.5f, 1);
+            // the countdown and LOBBY at the bottom of the screen, clear of the dancer
+            c.count = UiKit.Txt(shade.rectTransform, new Vector2(.5f, 0), new Vector2(0, 52), new Vector2(700, 20), 12, TextAnchor.MiddleCenter, new Color(1, 1, 1, .85f));
+            c.count.rectTransform.pivot = new Vector2(.5f, 0);
+            var lobby = UiKit.Img(shade.rectTransform, "lobby", UiKit.GoldPlate, new Vector2(.5f, 0), new Vector2(0, 12), new Vector2(150, 36), Color.white, true);
+            lobby.rectTransform.pivot = new Vector2(.5f, 0);
             var lt = UiKit.Txt(lobby.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(150, 36), 13, TextAnchor.MiddleCenter, new Color(27 / 255f, 20 / 255f, 4 / 255f));
             lt.rectTransform.pivot = new Vector2(.5f, .5f); lt.text = "LOBBY"; Destroy(lt.GetComponent<Shadow>());
             Clickable.Add(lobby.gameObject, c.Leave);
@@ -84,7 +85,7 @@ namespace LastWar
             t += Time.unscaledDeltaTime;
             // pop in (overshoot like the web's cubic-bezier(.2,1.6,.4,1))
             float p = Mathf.Clamp01(t / 0.7f), e = 1f + 2.2f * Mathf.Pow(p - 1f, 3) + 1.2f * Mathf.Pow(p - 1f, 2);
-            box.localScale = Vector3.one * Mathf.LerpUnclamped(0.25f, 0.78f, p >= 1f ? 1f : e);
+            box.localScale = Vector3.one * Mathf.LerpUnclamped(0.2f, 0.62f, p >= 1f ? 1f : e);
             var h = ((RectTransform)transform).rect.height;
             for (int i = 0; i < bits.Length; i++)
             {

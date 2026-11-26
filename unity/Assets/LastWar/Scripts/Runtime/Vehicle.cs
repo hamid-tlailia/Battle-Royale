@@ -47,7 +47,7 @@ namespace LastWar
             void Update()
             {
                 var gb = GameBoot.Instance; if (gb == null || gb.Player == null || gb.Player.fighter.air != 0) return;
-                Transform p = gb.Player.transform; Vector3 at = p.position + p.forward * 6f;
+                Transform p = gb.Player.transform; Vector3 at = p.position + p.forward * 4f + p.right * 1.5f;
                 OpenGround(gb.Map, ref at, 0f); Make(at, p.eulerAngles.y + 90f); Destroy(gameObject);
             }
         }
@@ -196,7 +196,7 @@ namespace LastWar
         /// <summary>the jeep near enough to get in (null if none)</summary>
         public static Vehicle Near(Vector3 p)
         {
-            Vehicle best = null; float bd = 3.6f * 3.6f;
+            Vehicle best = null; float bd = 4.6f * 4.6f;
             foreach (Vehicle v in All) { if (v.driver != null) continue; float d = (v.transform.position - p).sqrMagnitude; if (d < bd) { bd = d; best = v; } }
             return best;
         }
@@ -218,7 +218,7 @@ namespace LastWar
                 var b = new GameObject("CarButton", typeof(RectTransform)).AddComponent<Button>(); b.player = p;
                 b.transform.SetParent(input.Root, false);
                 b.img = UiKit.Img(b.transform, "bg", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, new Vector2(84, 30), new Color(.1f, .12f, .14f, .8f), true);
-                var rt = (RectTransform)b.transform; rt.anchorMin = rt.anchorMax = new Vector2(.72f, .42f); rt.sizeDelta = Vector2.zero;
+                var rt = (RectTransform)b.transform; rt.anchorMin = rt.anchorMax = new Vector2(.6f, .62f); // (clear of the fire / scope buttons) rt.sizeDelta = Vector2.zero;
                 b.img.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f, .8f);
                 b.txt = UiKit.Txt(b.img.rectTransform, new Vector2(.5f, .5f), Vector2.zero, new Vector2(84, 30), 12, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
                 b.txt.rectTransform.pivot = new Vector2(.5f, .5f);
@@ -233,6 +233,7 @@ namespace LastWar
             {
                 bool show = player != null && player.fighter.Alive && player.fighter.air == 0 && (Mine != null || Near(player.transform.position) != null) && !Hud.Celebrating;
                 img.gameObject.SetActive(show);
+                if (show && Input.GetKeyDown(KeyCode.F)) Tap(); // (keyboard: F)
                 if (show) txt.text = Mine != null ? "EXIT" : "DRIVE";
             }
         }

@@ -309,7 +309,7 @@ namespace LastWar
                 if (lobbyBody == null || !lobbyBody.HasClip("mx_dance")) return;
                 // tap: your dance; tap while dancing: the next one (the last one you saw is your victory dance)
                 if (danceEnd > 0f) Profile.Dance = (Profile.Dance + 1) % 3;
-                lobbyBody.DanceChoice = -1; lobbyBody.Dance(); danceEnd = Time.time + SoldierBody.DanceLength[Profile.Dance]; lobbyAimEnd = -1f;
+                lobbyBody.SetGun(null); lobbyBody.DanceChoice = -1; lobbyBody.Dance(); // (empty hands to dance) danceEnd = Time.time + SoldierBody.DanceLength[Profile.Dance]; lobbyAimEnd = -1f;
                 danceLabel.text = SoldierBody.DanceNames[Profile.Dance];
             });
             danceLabel = t;
@@ -317,7 +317,7 @@ namespace LastWar
         void DanceOver()
         {
             danceEnd = -1f; if (danceLabel != null) danceLabel.text = "DANCE"; if (lobbyBody == null) return;
-            lobbyBody.Armed = true; lobbyBody.Play("idle_rifle"); lobbyBody.StandTall = true; lobbyAimAt = Time.time + 4f;
+            LobbyGunPose(Armory.LobbyGun); // (the gun back in his hands, standing as before)
         }
 
         void Place(RectTransform rt, LobbyNode n)
