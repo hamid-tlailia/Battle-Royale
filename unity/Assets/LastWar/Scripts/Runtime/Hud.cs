@@ -588,7 +588,7 @@ namespace LastWar
 
             bool onEnemy = player.OnEnemy != null;
             dot.color = onEnemy ? new Color(1f, 0.23f, 0.19f) : Color.white;
-            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens && !spectating && !player.FreeLooking); // (free look: the centre is not the aim)
+            dot.transform.parent.gameObject.SetActive(f.Alive && !sniperLens && !spectating && !player.FreeLooking && !(lootPanel != null && lootPanel.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(lootPanel, new Vector2(Screen.width * .5f, Screen.height * .5f), null))); // (free look: the centre is not the aim; never drawn over the loot card)
             // the dot is green, red on an enemy's body (every optic)
             lensDot.color = onEnemy ? new Color(1f, .12f, .12f) : new Color(.22f, 1f, .42f);
             lensMark.color = lensDot.color;

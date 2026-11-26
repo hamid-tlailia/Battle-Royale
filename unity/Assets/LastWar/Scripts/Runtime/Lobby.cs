@@ -117,6 +117,7 @@ namespace LastWar
             { cam.fieldOfView = lf; cam.transform.LookAt(p + Vector3.up * 1.05f); lcamTest = true; }
         }
         bool lcamTest;
+        float lobbyAimAt = -1f, lobbyAimEnd = -1f;
 
         void SpawnSoldier()
         {
@@ -125,6 +126,7 @@ namespace LastWar
             soldier.transform.SetParent(stage, false); soldier.transform.localPosition = Vector3.up * 0.2f;
             soldier.transform.localRotation = Quaternion.Euler(0, soldierYaw, 0);
             lobbyBody = SoldierBody.Attach(soldier, Profile.Skin, Profile.Parts);
+            StartCoroutine(ShowWhenPlanted(lobbyBody)); // (unseen until its feet are measured on the stage: it showed high for a moment, then dropped)
             lobbyBody.Plant = true;
             lobbyBody.GripOffset = LobbyGrip; // (the armory version you carry)
             LobbyGunPose(Armory.LobbyGun);
@@ -147,7 +149,7 @@ namespace LastWar
             lobbyBody.GripOffset = Vector3.zero; // (the rifle held as in a match - the lobby's own low carry left the left hand bent off the handguard)
             lobbyBody.LiveBack = true;
             if (pistol) { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle"); }
-            else { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle_rifle"); } // standing as in a match: the rifle across the body, both hands on it
+            else { lobbyBody.AimDir = soldier.transform.forward; lobbyBody.Play("idle_rifle"); lobbyAimAt = Time.time + 4f; } // standing as in a match: the rifle across the body, both hands on it; now and then up to the shoulder (Update)
         }
 
         // ------------------------------------------------------------------ UI from the captured web layout
@@ -531,13 +533,21 @@ namespace LastWar
 
         static readonly string[] OutfitTabs = { "FULL OUTFIT", "HEAD", "TOP", "PANTS", "SHOES" };
         int outfitTab;
+        System.Collections.IEnumerator ShowWhenPlanted(SoldierBody b)
+        {
+            var rs = b.GetComponentsInChildren<Renderer>(true); foreach (var r in rs) r.forceRenderingOff = true;
+            for (int i = 0; i < 40 && b != null && !b.Planted; i++) yield return null;
+            yield return null; yield return null; // (two more frames: the plant applied)
+            if (b == null) yield break;
+            foreach (var r in b.GetComponentsInChildren<Renderer>(true)) if (r != null) r.forceRenderingOff = false;
+        }
         System.Collections.IEnumerator SpawnNextFrame() { yield return null; SpawnSoldier(); }
 
         /// <summary>a dark tick on the chosen card's gold corner badge</summary>
         void Check(RectTransform card, float cw)
         {
             float u = cw / 96f; // card picture units (the card is 96 css px wide)
-            Vector2 c = new Vector2(-9f * u, -9f * u);
+            Vector2 c = new Vector2(-13f * u, -13f * u); // (inside the card: at -9 its top / right were cut off by the grid's mask)
             // its own gold disc under the tick, over the picture: the card's printed badge hid behind a piece's picture
             // (the tick looked different from card to card, some half covered)
             var disc = UiKit.Img(card, "badge", UiKit.Disc, new Vector2(1, 1), c, new Vector2(10f * u, 10f * u), new Color(1f, .83f, .3f)); // (was 17: it covered the card)
@@ -841,6 +851,12 @@ namespace LastWar
             // (a long gun only: the pistol is aimed straight ahead above - this ran after that and turned the pistol 55 degrees
             // left and 38 up, the arms folded over the face, the pistol by / behind the head)
             if (lobbyBody != null && !lobbyBody.ShoulderGrip) lobbyBody.AimDir = soldier.transform.forward; // (the rifle points where he faces, as in a match)
+            // the rifle raised to the shoulder now and then (aiming at a target), as the lobby did, then down again
+            if (lobbyBody != null && !lobbyBody.ShoulderGrip && forcedPose == null && lobbyAimAt > 0f)
+            {
+                if (lobbyAimEnd < 0f && Time.time >= lobbyAimAt) { lobbyBody.Play(lobbyBody.HasClip("mx_aim") ? "mx_aim" : "fire"); lobbyBody.StandTall = false; lobbyAimEnd = Time.time + 2.6f; }
+                else if (lobbyAimEnd > 0f && Time.time >= lobbyAimEnd) { lobbyBody.Play("idle_rifle"); lobbyBody.StandTall = true; lobbyAimEnd = -1f; lobbyAimAt = Time.time + UnityEngine.Random.Range(5f, 8f); }
+            }
             if (forcedPose != null && lobbyBody != null) { lobbyBody.Pose = forcedPose; lobbyBody.Speed = 1.1f; lobbyBody.Armed = forcedPose != "runfree"; }
         }
 

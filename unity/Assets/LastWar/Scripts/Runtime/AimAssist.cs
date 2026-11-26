@@ -90,18 +90,29 @@ namespace LastWar
 
         /// <summary>where the torso is as seen from the camera: the angle from the aim line to its nearest point, the catch
         /// circle, the body's half width (deg) and the angles of that point and of the torso's middle</summary>
+        /// <summary>the whole body as one line, feet to the top of the head: the torso line carried on 0.95 m down its own
+        /// line (the legs - standing, crouched or lying, it follows the body) and 0.32 m up (the head). Near, the legs and
+        /// the head count as "on him" too (a close enemy's legs filled the crosshair and nothing held; raising the scope
+        /// to his head left the body at once)</summary>
+        static void Body(Fighter q, out Vector3 lo, out Vector3 hi)
+        {
+            Torso(q, out lo, out hi);
+            Vector3 d = hi - lo; if (d.sqrMagnitude < 1e-6f) d = Vector3.up; d.Normalize();
+            lo -= d * 0.95f; hi += d * 0.32f;
+        }
+
         static Seen Look(Fighter q, Vector3 c, Vector3 fw, bool scoped)
         {
-            Torso(q, out Vector3 lo, out Vector3 hi);
+            Body(q, out Vector3 lo, out Vector3 hi);
             Vector3 best = lo; float bm = float.MaxValue;
-            for (int i = 0; i <= 10; i++)
+            for (int i = 0; i <= 20; i++)
             {
-                Vector3 p = Vector3.Lerp(lo, hi, i / 10f), v = p - c; float along = Vector3.Dot(v, fw);
+                Vector3 p = Vector3.Lerp(lo, hi, i / 20f), v = p - c; float along = Vector3.Dot(v, fw);
                 float m = along > 0f ? (v - fw * along).magnitude / along : float.MaxValue;
                 if (m < bm) { bm = m; best = p; }
             }
             var s = new Seen();
-            Vector3 mid = (lo + hi) * 0.5f;
+            Torso(q, out Vector3 tlo, out Vector3 thi); Vector3 mid = (tlo + thi) * 0.5f;
             s.dist = Vector3.Distance(c, mid);
             s.err = Vector3.Angle(fw, best - c);
             s.allowed = Mathf.Clamp(Mathf.Atan2(ConeRadius, s.dist) * Mathf.Rad2Deg, ConeMin, ConeMax) * (scoped ? ScopeConeMul : 1f);

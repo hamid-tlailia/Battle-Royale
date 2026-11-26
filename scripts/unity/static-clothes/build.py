@@ -31,6 +31,7 @@ def piece_prims(i):
         if img is not None and tuple(col[:3]) != (1, 1, 1): img = Image.fromarray((np.asarray(img, np.float32) * np.array(col[:3])).clip(0, 255).astype(np.uint8))
         out.append(dict(P=P, N=N, UV=UV, I=I, img=img, col=col, name=mat.get('name', 'm'), key=(i, p.get('material'))))
     return out
+HemTo = 0.93        # shirts' hem height in the rest pose (m): the Villager's
 SleeveOver = 0.02   # a long sleeve's cuff past the wrist (m) (3.5 cm: the hand's skin, wider there, showed jagged through it)
 WeightSmooth = 0    # passes of weight smoothing over the mesh (0: off - split seam vertices took different weights and the seams opened)
 def rig_piece(i, kind, mirror=False, k=6):
@@ -72,6 +73,21 @@ def rig_piece(i, kind, mirror=False, k=6):
                 acc[has] = acc[has] * 0.5 + m[has] * 0.5
         top = np.argsort(-acc, 1)[:, :4]; tw = np.take_along_axis(acc, top, 1); tw /= tw.sum(1, keepdims=True)
         R, Nr = unpose(Q, N, top, tw, S)
+        if kind == 'top' and HemTo:
+            # every shirt as long as the Villager's (its hem at 0.92 m in the rig's rest; these ended 1.0-1.1 m up, short
+            # over the trousers): the body part below the chest stretched down, the hem moved, the chest unchanged
+            body = np.abs(R[:, 0]) < 0.32
+            if body.any():
+                ymin = np.percentile(R[body, 1], 2); yb = 1.28  # (the hem, not a dangling string or zip pull below it)
+                if ymin > HemTo + 0.01:
+                    sel = body & (R[:, 1] < yb); lo = R[:, 1] < ymin  # (bits already below the hem move down as much)
+                    R[sel & ~lo, 1] = yb - (yb - R[sel & ~lo, 1]) * (yb - HemTo) / (yb - ymin); R[sel & lo, 1] -= ymin - HemTo
+                    # and a little wider toward the hem, so it hangs over the trousers (they sat outside it and hid the
+                    # added length)
+                    band = body & (R[:, 1] < 1.14)
+                    if band.any():
+                        zc = R[band, 2].mean(); f = 1 + 0.11 * np.clip((1.14 - R[band, 1]) / (1.14 - HemTo), 0, 1)
+                        R[band, 0] *= f; R[band, 2] = zc + (R[band, 2] - zc) * f
         if kind in ('top', 'chest', 'suit'):
             # the forearm of a sleeve along the forearm: the models' sleeves were made with the elbows bent, the forearm
             # turned forward - fitted on a straight arm they stood 4-20 cm in front of it at the wrist (hidden from the

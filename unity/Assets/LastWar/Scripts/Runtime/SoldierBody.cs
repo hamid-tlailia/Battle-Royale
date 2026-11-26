@@ -713,6 +713,8 @@ namespace LastWar
             for (int i = 0; i < 2; i++) { TwoBone(up[i], lo[i], ft[i], fp[i]); ft[i].rotation = fr[i]; }
         }
         float restSole = float.NaN;
+        /// <summary>the lobby stage: its feet measured (PlantFeet holds it on the floor from now on)</summary>
+        public bool Planted => !Plant || !float.IsNaN(restSole);
         static readonly string[] Soles = { "LeftToeBase", "RightToeBase", "LeftFoot", "RightFoot" };
         float SoleY()
         {
