@@ -43,6 +43,7 @@ namespace LastWar
             LoadShapes();
             var props = new GameObject("Props").transform; props.SetParent(root.transform);
             foreach (PropData p in map.props) PlaceProp(p, props);
+            BuildBridges(map, root.transform);
             var boxes = new GameObject("Boxes").transform; boxes.SetParent(root.transform);
             foreach (BoxData b in map.boxes) PlaceBox(b, boxes);
             Physics.IgnoreLayerCollision(PlayerLayer, CoverLayer, true);
@@ -87,7 +88,7 @@ namespace LastWar
                 float x = -half + ix * cell, z = -half + iz * cell;
                 if (x * x + z * z <= coastR * coastR) low = Mathf.Min(low, landHeights[iz * n + ix]);
             }
-            SeaLevel = low - 1.2f; seaFloor = SeaLevel - 7f;
+            SeaLevel = map.seaLevel > -9000f ? map.seaLevel : low - 1.2f; seaFloor = SeaLevel - 7f;
             for (int iz = 0; iz < n; iz++) for (int ix = 0; ix < n; ix++)
             {
                 float x = -half + ix * cell, z = -half + iz * cell, r = Mathf.Sqrt(x * x + z * z);
@@ -339,6 +340,45 @@ namespace LastWar
             foamTex = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, name = "foam" };
             foamTex.SetPixels32(px); foamTex.Apply(true);
             return foamTex;
+        }
+
+        /// <summary>bridges over the straits and the river: a plank deck on stone piers, low rails; you walk and drive on them</summary>
+        static void BuildBridges(MapData map, Transform parent)
+        {
+            if (map.bridges == null || map.bridges.Length == 0) return;
+            var root = new GameObject("Bridges").transform; root.SetParent(parent, false);
+            Material deck = NewLit(new Color(.45f, .33f, .22f)), stone = NewLit(new Color(.55f, .55f, .52f)), rail = NewLit(new Color(.3f, .22f, .15f));
+            GameObject Box(string name, Vector3 c, Vector3 size, Quaternion rot, Material m, bool collide)
+            {
+                var g = GameObject.CreatePrimitive(PrimitiveType.Cube); g.name = name; g.transform.SetParent(root, false);
+                g.transform.SetPositionAndRotation(c, rot); g.transform.localScale = size; g.GetComponent<Renderer>().sharedMaterial = m;
+                if (!collide) UnityEngine.Object.Destroy(g.GetComponent<Collider>());
+                return g;
+            }
+            foreach (BridgeData b in map.bridges)
+            {
+                Vector3 a = Coords.ToUnity(b.x1, 0, b.z1), e = Coords.ToUnity(b.x2, 0, b.z2);
+                a.y = Mathf.Max(SeaLevel + 1.2f, map.HeightAt(b.x1, b.z1)) + 0.15f; e.y = Mathf.Max(SeaLevel + 1.2f, map.HeightAt(b.x2, b.z2)) + 0.15f;
+                // (a gentle arch: the middle 0.8 m higher than the ends)
+                const int segs = 6; Vector3 prev = a; Vector3 flatDir = e - a; flatDir.y = 0; float len = flatDir.magnitude; flatDir /= Mathf.Max(0.01f, len);
+                Vector3 side = Vector3.Cross(Vector3.up, flatDir);
+                for (int i = 1; i <= segs; i++)
+                {
+                    float t = i / (float)segs; Vector3 p = Vector3.Lerp(a, e, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 0.8f);
+                    Vector3 mid = (prev + p) * 0.5f, d = p - prev; Quaternion rot = Quaternion.LookRotation(d.normalized, Vector3.up);
+                    Box("deck", mid - Vector3.up * 0.2f, new Vector3(b.w, 0.4f, d.magnitude + 0.05f), rot, deck, true);
+                    foreach (float sd in new[] { -1f, 1f })
+                        Box("rail", mid + side * sd * (b.w * 0.5f - 0.1f) + Vector3.up * 0.5f, new Vector3(0.15f, 0.9f, d.magnitude), rot, rail, true);
+                    prev = p;
+                }
+                // stone piers down into the water every ~12 m
+                int piers = Mathf.Max(1, Mathf.RoundToInt(len / 12f));
+                for (int k = 1; k < piers; k++)
+                {
+                    float t = k / (float)piers; Vector3 p = Vector3.Lerp(a, e, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * 0.8f - 0.4f);
+                    float bottom = SeaLevel - 3f; Box("pier", new Vector3(p.x, (p.y + bottom) * 0.5f, p.z), new Vector3(b.w * 0.8f, p.y - bottom, 1.6f), Quaternion.LookRotation(flatDir), stone, true);
+                }
+            }
         }
 
         // ------------------------------------------------------------------ terrain

@@ -5,6 +5,9 @@ namespace LastWar
 {
     /// <summary>One map exactly as the web game generates it (exported by scripts/unity/export-maps.ts).</summary>
     [Serializable]
+    public class BridgeData { public float x1, z1, x2, z2, w; }
+
+    [Serializable]
     public class MapData
     {
         public string id;
@@ -20,6 +23,10 @@ namespace LastWar
         public BoxData[] boxes;
         public Vec2[] spawns;
         public AreaData[] areas;
+        /// <summary>the sea's height when the map sets it (Frontier: its straits and river); else from the lowest land</summary>
+        public float seaLevel = -9999f;
+        /// <summary>bridges over the water: from (x1, z1) to (x2, z2), w wide (web coordinates)</summary>
+        public BridgeData[] bridges;
 
         public static MapData Load(string id)
         {

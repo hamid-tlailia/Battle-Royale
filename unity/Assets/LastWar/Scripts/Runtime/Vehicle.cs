@@ -187,7 +187,13 @@ namespace LastWar
                 }
                 Vector3 next = transform.position + step;
                 // not into the sea
-                if (MapBuilder.SeaLevel > -999f && GameBoot.Instance != null && GameBoot.Instance.Map.HeightAt(-next.x, next.z) < MapBuilder.SeaLevel + 0.3f) { Speed = 0f; step = Vector3.zero; }
+                if (MapBuilder.SeaLevel > -999f)
+                {
+                    float gy = float.NegativeInfinity;
+                    foreach (var hh in Physics.RaycastAll(next + Vector3.up * 3f, Vector3.down, 8f, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore))
+                        if (System.Array.IndexOf(own, hh.collider) < 0 && hh.collider.GetComponentInParent<Fighter>() == null && hh.point.y < transform.position.y + 1.5f) gy = Mathf.Max(gy, hh.point.y);
+                    if (gy < MapBuilder.SeaLevel + 0.3f) { Speed = 0f; step = Vector3.zero; } // (not into the water; bridges are fine)
+                }
                 transform.position += step;
             }
             if (!Settle(dt)) { transform.position -= step; Speed = 0f; if ((Application.absoluteURL ?? "").Contains("cartest=")) Debug.Log("[LastWar] jeep: no ground under the wheels"); }
