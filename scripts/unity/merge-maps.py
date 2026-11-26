@@ -164,6 +164,9 @@ HH = np.asarray(Image.fromarray(h.astype(np.float32), 'F').resize((R, R), Image.
 sand = np.array([196, 178, 136], np.float32) * (0.92 + 0.12 * grain)
 sandw = smooth((SEA + 1.4 - HH) / 1.2)[..., None]
 col = col * (1 - sandw) + sand * sandw
+# under the water: the water's own blue (the small map shows the straits and the river as water, not sand)
+deep = smooth((SEA - 0.2 - HH) / 0.8)[..., None]
+col = col * (1 - deep) + np.array([38, 112, 150], np.float32) * deep
 Image.fromarray(np.clip(col, 0, 255).astype(np.uint8)).save(f'{M}/frontier_albedo.jpg', quality=88)
 print('frontier_albedo.jpg', R)
 
