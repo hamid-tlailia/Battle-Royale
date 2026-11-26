@@ -100,6 +100,8 @@ namespace LastWar
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { if (Celebrate.Dancer == fighter) body.Dance(); else body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
             if (Vehicle.Mine != null) { DriveStep(dt); return; }
+            if (rollT >= 0f) { RollStep(dt); return; }
+            if (input.RollPressed) { input.RollPressed = false; if (cc.enabled && cc.isGrounded && fighter.air == 0 && body.HasClip("mx_roll")) { StartRoll(); return; } }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;
@@ -534,6 +536,30 @@ namespace LastWar
             return best;
         }
 
+        // ---------------------------------------------------------------- the dive roll (crouch while sprinting)
+        float rollT = -1f; Vector3 rollDir;
+        const float RollTime = 2.03f, RollDist = 4.6f;
+        void StartRoll()
+        {
+            Vector3 m = new Vector3(input.Move.x, 0, input.Move.y);
+            rollDir = Quaternion.Euler(0, yaw, 0) * (m.sqrMagnitude > 0.01f ? m.normalized : Vector3.forward);
+            rollT = 0f; input.Scoped = false; input.FireHeld = false;
+            transform.rotation = Quaternion.LookRotation(rollDir);
+            body.Armed = false; body.Pose = null; body.Tilt = 0; body.Speed = 0f; body.Play("mx_roll");
+            Sfx.Play2D("land", 0.35f, 0.8f);
+        }
+        void RollStep(float dt)
+        {
+            float t0 = rollT / RollTime; rollT += dt; float t1 = Mathf.Min(1f, rollT / RollTime);
+            // the distance as the clip covers it: quick off the ground, slower as he comes up again
+            float Ease(float t) => 1f - (1f - t) * (1f - t);
+            Vector3 step = rollDir * RollDist * (Ease(t1) - Ease(t0)) + Vector3.down * 4f * dt;
+            if (cc.enabled) cc.Move(step);
+            transform.rotation = Quaternion.LookRotation(rollDir);
+            body.Armed = false; body.Play("mx_roll");
+            if (t1 >= 1f || !fighter.Alive) { rollT = -1f; body.Armed = !fighter.holstered; }
+        }
+
         // ---------------------------------------------------------------- driving a jeep
         CapsuleCollider seatCol; bool plantWas;
         public void EnterVehicle(Vehicle v)
@@ -566,7 +592,7 @@ namespace LastWar
             if (input.LookDelta.sqrMagnitude < 0.01f && Mathf.Abs(v.Speed) > 2f) yaw = Mathf.LerpAngle(yaw, v.Yaw, dt * 1.8f);
             v.Drive(input.Move, dt);
             transform.position = v.SeatWorld; transform.rotation = v.transform.rotation;
-            body.Armed = false; body.Speed = 0f; body.Pose = null; body.Play("crouch_idle"); // (seated: the crouch pose, hips on the seat)
+            body.Armed = false; body.Speed = 0f; body.Pose = null; body.Play(body.HasClip("mx_drive") ? "mx_drive" : "crouch_idle"); // (seated, hands on the wheel: Mixamo Driving)
         }
 
         void LateUpdate()

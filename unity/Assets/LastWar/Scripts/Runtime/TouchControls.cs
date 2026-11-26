@@ -56,6 +56,8 @@ namespace LastWar
         public RectTransform Root => root;
         RectTransform root;
         public bool Crouch, Prone;      // posture toggles
+        /// <summary>crouch pressed while sprinting: a dive roll forward (one frame)</summary>
+        public bool RollPressed;
         public bool HealPressed, FrostPressed, BagPressed, GearPressed; // one frame each
         Btn crouchBtn, proneBtn, healBtn, frostBtn, jumpBtn;
         int airMode = -1;
@@ -120,7 +122,7 @@ namespace LastWar
             Button("reload", "btn", 50, BR, new Vector2(-153, 125), () => ReloadPressed = true);
             scopeBtn = Button("scope", "btn", 52, BR, new Vector2(-148, 190), () => { Scoped = !Scoped; FrostAim = false; }); // the scope puts the snowball away
             runBtn = Button("sprint", "btn", 52, BL, new Vector2(194, 202), () => { Sprint = !Sprint; if (Sprint) Crouch = Prone = false; });
-            crouchBtn = Button("crouch", "btn", 54, BR, new Vector2(-131, 49), () => { Crouch = !Crouch; if (Crouch) { Prone = false; Sprint = false; } });
+            crouchBtn = Button("crouch", "btn", 54, BR, new Vector2(-131, 49), () => { if (Sprint && Move.sqrMagnitude > 0.25f) { RollPressed = true; return; } /* (running: a dive roll instead) */ Crouch = !Crouch; if (Crouch) { Prone = false; Sprint = false; } });
             proneBtn = Button("prone", "btn", 50, BR, new Vector2(-201, 45), () => { Prone = !Prone; if (Prone) { Crouch = false; Sprint = false; } });
             healBtn = Button("heal", "btn", 50, BL, new Vector2(215, 95), () => HealPressed = true);
             frostBtn = Button("frost", "btn", 48, BR, new Vector2(-220, 188), () => { FrostPressed = true; Scoped = false; }); // (the ice closes the scope)
@@ -342,7 +344,7 @@ namespace LastWar
             bool onFire = Over(fireBtn, mp) || Over(fireLeft, mp);
             bool onUi = OverBlocker(mp) && !onFire;
             if (Input.GetMouseButtonDown(0) && !onUi) { FirePressed = true; if (!InAir) Sprint = false; }
-            if (Input.GetKeyDown(KeyCode.C)) { Crouch = !Crouch; Prone = false; }
+            if (Input.GetKeyDown(KeyCode.C)) { if (Sprint && Move.sqrMagnitude > 0.25f) RollPressed = true; else { Crouch = !Crouch; Prone = false; } }
             if (Input.GetKeyDown(KeyCode.Z)) { Prone = !Prone; Crouch = false; }
             if (Input.GetKeyDown(KeyCode.H)) HealPressed = true;
             if (Input.GetKeyDown(KeyCode.Tab)) BagPressed = true;

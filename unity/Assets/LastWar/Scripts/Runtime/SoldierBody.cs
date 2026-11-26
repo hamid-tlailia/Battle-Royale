@@ -519,8 +519,14 @@ namespace LastWar
         public void Dance()
         {
             Armed = false; Pose = null; Tilt = 0; AirAim = false; StandTall = false; Speed = 0f; SetChute(false);
-            Play(HasClip("mx_dance") ? "mx_dance" : "idle");
+            string d = DanceClip(DanceChoice < 0 ? Profile.Dance : DanceChoice);
+            Play(HasClip(d) ? d : HasClip("mx_dance") ? "mx_dance" : "idle");
         }
+        /// <summary>which dance this soldier does (-1: the player's chosen one)</summary>
+        public int DanceChoice = -1;
+        public static readonly string[] DanceNames = { "ENTRY", "HIP HOP", "SOUL SPIN" };
+        public static readonly float[] DanceLength = { 10.33f, 17.3f, 8.83f };
+        public static string DanceClip(int i) => i <= 0 ? "mx_dance" : "mx_dance" + (i + 1);
 
         public void Play(string clip)
         {

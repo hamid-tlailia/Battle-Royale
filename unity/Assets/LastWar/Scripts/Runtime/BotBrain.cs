@@ -69,7 +69,7 @@ namespace LastWar
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; body.HideAfter(1.6f); enabled = false; return; }
             float dt = Time.deltaTime;
             // the match goes on after you are out (you may be watching): bots stop only when one is left
-            if (GameBoot.Instance == null || GameBoot.Instance.AliveCount <= 1) { if (Celebrate.Dancer == fighter) body.Dance(); else body.Play("idle_rifle"); return; }
+            if (GameBoot.Instance == null || GameBoot.Instance.AliveCount <= 1) { if (Celebrate.Dancer == fighter) { if (body.DanceChoice < 0) body.DanceChoice = Random.Range(0, 3); body.Dance(); } else body.Play("idle_rifle"); return; }
             if (fighter.air != 0) { AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);
             groundTime += dt;

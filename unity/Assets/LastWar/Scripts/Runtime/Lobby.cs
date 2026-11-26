@@ -294,7 +294,7 @@ namespace LastWar
             DanceButton();
         }
 
-        float danceEnd = -1f;
+        float danceEnd = -1f; Text danceLabel;
         /// <summary>an emote button beside the soldier: he puts the gun on his back and dances (Entry), then takes it up again</summary>
         void DanceButton()
         {
@@ -307,13 +307,16 @@ namespace LastWar
             Clickable.Add(b.gameObject, () =>
             {
                 if (lobbyBody == null || !lobbyBody.HasClip("mx_dance")) return;
-                if (danceEnd > 0f) { DanceOver(); return; } // (tap again: stop)
-                lobbyBody.Dance(); danceEnd = Time.time + 10.3f; lobbyAimEnd = -1f;
+                // tap: your dance; tap while dancing: the next one (the last one you saw is your victory dance)
+                if (danceEnd > 0f) Profile.Dance = (Profile.Dance + 1) % 3;
+                lobbyBody.DanceChoice = -1; lobbyBody.Dance(); danceEnd = Time.time + SoldierBody.DanceLength[Profile.Dance]; lobbyAimEnd = -1f;
+                danceLabel.text = SoldierBody.DanceNames[Profile.Dance];
             });
+            danceLabel = t;
         }
         void DanceOver()
         {
-            danceEnd = -1f; if (lobbyBody == null) return;
+            danceEnd = -1f; if (danceLabel != null) danceLabel.text = "DANCE"; if (lobbyBody == null) return;
             lobbyBody.Armed = true; lobbyBody.Play("idle_rifle"); lobbyBody.StandTall = true; lobbyAimAt = Time.time + 4f;
         }
 
