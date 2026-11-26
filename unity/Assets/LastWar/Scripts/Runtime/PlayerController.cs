@@ -313,6 +313,7 @@ namespace LastWar
                 clip = body.HasClip("mx_swim") ? (hs > 0.3f ? "mx_swim" : (body.HasClip("mx_tread") ? "mx_tread" : "mx_swim")) : "jog";
                 armed = false;
             }
+            body.Floating = fighter.Swimming;
             body.Play(clip);
             body.Armed = armed;
             body.AirAim = clip == "jump" && armed && firing; // firing in the air: the upper body aims (the legs keep the jump)

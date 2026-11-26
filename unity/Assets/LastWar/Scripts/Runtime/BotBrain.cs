@@ -195,6 +195,8 @@ namespace LastWar
             float hs = new Vector3(cc.velocity.x, 0, cc.velocity.z).magnitude;
             string clip = !cc.isGrounded ? "jump" : hs > 5.2f ? "run" : hs > 0.4f ? "walk_fire" : enemy != null ? "fire" : "idle_rifle";
             if (!fighter.HasGun) clip = clip == "run" ? "run" : hs > 0.4f ? "walk" : "idle";
+            body.Floating = fighter.Swimming;
+            if (fighter.Swimming) { clip = body.HasClip("mx_swim") ? "mx_swim" : clip; body.SetGun(null); }
             body.Play(clip);
             body.AirAim = clip == "jump" && fighter.HasGun && Time.time - fighter.lastShotAt < 0.35f; // firing in the air: the upper body aims
             body.Pose = !fighter.HasGun && clip == "run" ? "runfree" : null;

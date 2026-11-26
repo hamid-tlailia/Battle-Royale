@@ -533,7 +533,7 @@ namespace LastWar
             if (lens.gameObject.activeSelf != sniperLens) lens.gameObject.SetActive(sniperLens);
             if (scoped && player.ScopeZoom != lensZoom) SetLens(player.ScopeZoom);
             if (!scoped) lensZoom = 0;
-            box.gameObject.SetActive((f.air == 0 && !spectating && !input.Driving) || input.Editing); // (stays while scoped, like the web; not while driving)
+            box.gameObject.SetActive((f.air == 0 && !spectating && !input.Driving && !f.Swimming) || input.Editing); // (stays while scoped, like the web; not while driving)
             bool iceOn = input.FrostAim && !spectating && !input.Editing;
             if (iceCover.gameObject.activeSelf != iceOn) iceCover.gameObject.SetActive(iceOn);
             if (iceOn)

@@ -531,6 +531,8 @@ namespace LastWar
         /// <summary>dancing: the clip as recorded, nothing laid over it (no foot planting - the head spin sank into the
         /// ground; no arm / hand corrections - the hands went into the body); the gun in the hands goes onto the back</summary>
         public bool Dancing { get; private set; }
+        /// <summary>swimming: the clip as recorded, nothing planted on the ground under the water</summary>
+        public bool Floating;
         public void Dance(int which)
         {
             HolsterForDance();
@@ -1411,7 +1413,7 @@ namespace LastWar
         void LateUpdateBody()
         {
             if (model != null) ApplyRoot();
-            if (Dancing) { Retarget(); SyncExtras(); return; } // (the dance as recorded)
+            if (Dancing || Floating) { Retarget(); SyncExtras(); return; } // (the dance / the swim as recorded: no feet planted on the ground - in the water that pulled him down to the bottom)
             FreeArms();
             long tr = Bench.Now();
             Retarget();
