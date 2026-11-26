@@ -533,7 +533,7 @@ namespace LastWar
             if (lens.gameObject.activeSelf != sniperLens) lens.gameObject.SetActive(sniperLens);
             if (scoped && player.ScopeZoom != lensZoom) SetLens(player.ScopeZoom);
             if (!scoped) lensZoom = 0;
-            box.gameObject.SetActive((f.air == 0 && !spectating) || input.Editing); // (stays while scoped, like the web)
+            box.gameObject.SetActive((f.air == 0 && !spectating && !input.Driving) || input.Editing); // (stays while scoped, like the web; not while driving)
             bool iceOn = input.FrostAim && !spectating && !input.Editing;
             if (iceCover.gameObject.activeSelf != iceOn) iceCover.gameObject.SetActive(iceOn);
             if (iceOn)
@@ -691,7 +691,7 @@ namespace LastWar
             // spectating bar
             specBar.gameObject.SetActive(spectating && player.SpectateTarget != null);
             if (spectating && player.SpectateTarget != null) specText.text = $"<size={Mathf.RoundToInt(9 * K)}><color=#cfd6da>SPECTATING</color></size>  {player.SpectateTarget.displayName}";
-            status.gameObject.SetActive((!scoped && f.air == 0 && !input.Driving) || input.Editing); // (driving: the weapon panel steps aside) // (shown while arranging the HUD, even in the plane)
+            status.gameObject.SetActive((!scoped && f.air == 0) || input.Editing); // (shown while arranging the HUD, even in the plane)
 
             // watching and the match ends (or nobody is left to watch): back to the result card with LOBBY
             if (spectating && (player.SpectateTarget == null || !player.SpectateTarget.Alive)) player.StartSpectate(null);
