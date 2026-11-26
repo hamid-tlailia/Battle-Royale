@@ -113,7 +113,7 @@ namespace LastWar
             if (!InMatch) { Lobby.Create(Map, cam); Loader.Progress(1f); Loader.HideSoon(); Music.PlayLobby(); yield break; }
             Loader.Progress(0.85f); yield return null;
             Loot.SpawnMap(Map, Map.id.GetHashCode());
-            Vehicle.SpawnMap(Map, Map.id.GetHashCode(), (Application.absoluteURL ?? "").Contains("cartest=1"));
+            Vehicle.SpawnMap(Map, Map.id.GetHashCode(), (Application.absoluteURL ?? "").Contains("cartest="));
 
             var controls = TouchControls.Create();
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
