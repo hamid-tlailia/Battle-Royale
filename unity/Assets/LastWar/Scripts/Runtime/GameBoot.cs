@@ -158,7 +158,7 @@ namespace LastWar
             AirDrop.Sender.Begin(url.Contains("droptest=1"));
             Ambience.Begin(Player);
             // test: ?swimtest=1 you start in the strait (Frontier), 100 m east of the middle island
-            if (url.Contains("swimtest=1")) { var cc0 = Player.GetComponent<CharacterController>(); cc0.enabled = false; Player.transform.position = Coords.ToUnity(100f, MapBuilder.SeaLevel - SkyDrop.SwimDepth, 0f); cc0.enabled = true; }
+            if (url.Contains("swimtest=1")) { var cc0 = Player.GetComponent<CharacterController>(); cc0.enabled = false; Player.transform.position = Coords.ToUnity(100f, MapBuilder.SeaLevel - AirMove.SwimDepth, 0f); cc0.enabled = true; }
             if (url.Contains("wintest=")) StartCoroutine(WinTest(url.Contains("wintest=2")));
             if (url.Contains("icetest=1")) { PlayerController.AimAssistOn = false; StartCoroutine(IceWall.Test(Player.transform)); } // (test: an ice wall in front of you, weakened in steps; the view held on it)
             // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30
