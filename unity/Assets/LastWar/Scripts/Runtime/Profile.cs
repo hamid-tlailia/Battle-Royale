@@ -20,7 +20,7 @@ namespace LastWar
         public static int[] Parts => new[] { Part(0), Part(1), Part(2), Part(3) };
         public static void ClearParts() { for (int i = 0; i < 4; i++) PlayerPrefs.DeleteKey("lw.piece" + i); PlayerPrefs.Save(); }
         /// <summary>(Red Canyon, "desert", was replaced by Oakwood, "forest")</summary>
-        public static string Map { get { string m = PlayerPrefs.GetString("lw.map", "green"); return m == "desert" ? "forest" : m; } set { PlayerPrefs.SetString("lw.map", value); PlayerPrefs.Save(); } }
+        public static string Map { get { string m = PlayerPrefs.GetString("lw.map", "frontier"); return m == "desert" ? "forest" : m == "green" || m == "classic" ? "frontier" : m; } set { PlayerPrefs.SetString("lw.map", value); PlayerPrefs.Save(); } }
         /// <summary>a new map after every match (rotation); false = the chosen one stays</summary>
         public static bool MapAuto { get => PlayerPrefs.GetInt("lw.mapAuto", 1) == 1; set { PlayerPrefs.SetInt("lw.mapAuto", value ? 1 : 0); PlayerPrefs.Save(); } }
         public static bool AutoPickup { get => PlayerPrefs.GetInt("lw.autoPick", 1) == 1; set { PlayerPrefs.SetInt("lw.autoPick", value ? 1 : 0); PlayerPrefs.Save(); } }

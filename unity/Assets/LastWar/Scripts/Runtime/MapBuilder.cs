@@ -505,7 +505,7 @@ namespace LastWar
                 foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
                 {
                     var mats = r.sharedMaterials;
-                    for (int k = 0; k < mats.Length; k++) mats[k] = LookMat(LitFrom(mats[k]), p.p);
+                    for (int k = 0; k < mats.Length; k++) mats[k] = LookMat(LitFrom(mats[k]), p.p, PropLook(p));
                     r.sharedMaterials = mats;
                 }
             }
@@ -531,6 +531,10 @@ namespace LastWar
         /// green - only in a match (the lobby stands on Highlands as it was). The ground and the trees / bushes take the
         /// look's own textures (Resources/Looks/&lt;look&gt;/; scripts/unity/map-looks.py); ?look=none|snow|autumn to try</summary>
         public static string Look = "";
+        /// <summary>a prop's season: Frontier's north half (the old Highlands) under snow, its south green</summary>
+        static string PropLook(PropData p) => currentMap != null && currentMap.id == "frontier" ? (p.z > 0f ? "snow" : "") : Look;
+        /// <summary>snow on the ground where a world point is (Frontier: its north half)</summary>
+        public static bool SnowAt(Vector3 w) => Look == "snow" || (currentMap != null && currentMap.id == "frontier" && w.z > 0f);
         public static string LookOf(MapData map)
         {
             string u = Application.absoluteURL ?? ""; int li = u.IndexOf("look=");
@@ -540,7 +544,8 @@ namespace LastWar
         }
         static readonly Dictionary<(Material, string), Material> lookMats = new Dictionary<(Material, string), Material>();
         /// <summary>a prop's material in the map's look: its colour texture swapped for Looks/&lt;look&gt;/&lt;model&gt;_&lt;texture&gt;</summary>
-        static Material LookMat(Material m, string model)
+        static Material LookMat(Material m, string model) => LookMat(m, model, Look);
+        static Material LookMat(Material m, string model, string Look)
         {
             if (string.IsNullOrEmpty(Look) || m == null || !m.HasProperty("_BaseMap")) return m;
             Texture t = m.GetTexture("_BaseMap"); if (t == null) return m;

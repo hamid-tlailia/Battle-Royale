@@ -33,7 +33,7 @@ namespace LastWar
             float shore = MapBuilder.ShoreDistance(p);
             float up = Mathf.Max(0f, p.y - MapBuilder.SeaLevel);
             Set(waves, onFoot ? Mathf.Clamp01(1f - shore / 70f) * 0.55f : 0f, k);
-            bool snow = MapBuilder.Look == "snow";
+            bool snow = MapBuilder.SnowAt(p);
             Set(birds, onFoot && !snow ? 0.16f * Mathf.Clamp01(1f - (shore < 25f ? (25f - shore) / 40f : 0f)) : 0f, k);
             Set(wind, onFoot ? (snow ? 0.075f : 0.03f) + Mathf.Clamp01(up / 60f) * 0.04f : 0f, k);
         }
