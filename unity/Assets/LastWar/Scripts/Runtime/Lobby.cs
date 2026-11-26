@@ -291,6 +291,30 @@ namespace LastWar
             Tap("gear", () => Open("settings")); Tap("mapcard", () => Open("map")); Tap("mode1", () => Open("friends"));
             Tap("play", Play);
             Tap("tab0", Close);
+            DanceButton();
+        }
+
+        float danceEnd = -1f;
+        /// <summary>an emote button beside the soldier: he puts the gun on his back and dances (Entry), then takes it up again</summary>
+        void DanceButton()
+        {
+            var b = UiKit.Img(root, "dance", UiKit.Round, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, new Color(.1f, .12f, .14f, .78f), true);
+            b.rectTransform.anchorMin = b.rectTransform.anchorMax = new Vector2(.5f, 0f); b.rectTransform.pivot = new Vector2(.5f, 0f);
+            b.rectTransform.anchoredPosition = new Vector2(150f * s, 150f * s); b.rectTransform.sizeDelta = new Vector2(96f, 30f) * s;
+            b.gameObject.AddComponent<Outline>().effectColor = new Color(1f, .83f, .3f, .8f);
+            var t = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), Vector2.zero, Vector2.one, 12f * s / UiKit.K, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f));
+            t.rectTransform.pivot = new Vector2(.5f, .5f); t.rectTransform.sizeDelta = new Vector2(96f, 30f) * s; t.text = "DANCE";
+            Clickable.Add(b.gameObject, () =>
+            {
+                if (lobbyBody == null || !lobbyBody.HasClip("mx_dance")) return;
+                if (danceEnd > 0f) { DanceOver(); return; } // (tap again: stop)
+                lobbyBody.Dance(); danceEnd = Time.time + 10.3f; lobbyAimEnd = -1f;
+            });
+        }
+        void DanceOver()
+        {
+            danceEnd = -1f; if (lobbyBody == null) return;
+            lobbyBody.Armed = true; lobbyBody.Play("idle_rifle"); lobbyBody.StandTall = true; lobbyAimAt = Time.time + 4f;
         }
 
         void Place(RectTransform rt, LobbyNode n)
@@ -852,6 +876,7 @@ namespace LastWar
             // left and 38 up, the arms folded over the face, the pistol by / behind the head)
             if (lobbyBody != null && !lobbyBody.ShoulderGrip) lobbyBody.AimDir = soldier.transform.forward; // (the rifle points where he faces, as in a match)
             // the rifle raised to the shoulder now and then (aiming at a target), as the lobby did, then down again
+            if (danceEnd > 0f) { if (Time.time >= danceEnd) DanceOver(); else return; } // (dancing: nothing else)
             if (lobbyBody != null && !lobbyBody.ShoulderGrip && forcedPose == null && lobbyAimAt > 0f)
             {
                 if (lobbyAimEnd < 0f && Time.time >= lobbyAimAt) { lobbyBody.Play(lobbyBody.HasClip("mx_aim") ? "mx_aim" : "fire"); lobbyBody.StandTall = false; lobbyAimEnd = Time.time + 2.6f; }

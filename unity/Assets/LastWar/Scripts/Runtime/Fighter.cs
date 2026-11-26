@@ -331,7 +331,10 @@ namespace LastWar
                 }
                 OnShot?.Invoke(this, eye, end);
             }
-            Sfx.Play(g.def.id == "smg" ? "pistol" : g.def.id, eye, isPlayer ? 0.9f : 0.6f, g.def.id == "smg" ? 1.18f : 1f);
+            // far away: the shot's dull crack and its echo off the hills, not the close bang
+            string snd = g.def.id == "smg" ? "pistol" : g.def.id; Camera lc = Camera.main;
+            if (!isPlayer && lc != null && (lc.transform.position - eye).sqrMagnitude > 75f * 75f) Sfx.Play(snd + "_far", eye, 1f, g.def.id == "smg" ? 1.18f : 1f, 600f);
+            else Sfx.Play(snd, eye, isPlayer ? 0.9f : 0.6f, g.def.id == "smg" ? 1.18f : 1f);
             if (g.mag == 0) { BurstPending = false; Reload(); }
             return true;
         }

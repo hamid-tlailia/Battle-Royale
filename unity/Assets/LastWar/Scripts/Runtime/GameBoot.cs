@@ -155,6 +155,7 @@ namespace LastWar
 
             // test: ?wintest=1 every bot falls after a moment (you win and dance); ?wintest=2 you and all bots but one fall (a bot wins)
             AirDrop.Sender.Begin(url.Contains("droptest=1"));
+            Ambience.Begin(Player);
             if (url.Contains("wintest=")) StartCoroutine(WinTest(url.Contains("wintest=2")));
             if (url.Contains("icetest=1")) { PlayerController.AimAssistOn = false; StartCoroutine(IceWall.Test(Player.transform)); } // (test: an ice wall in front of you, weakened in steps; the view held on it)
             // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30

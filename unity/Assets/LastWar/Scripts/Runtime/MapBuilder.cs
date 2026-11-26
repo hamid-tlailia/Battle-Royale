@@ -245,6 +245,7 @@ namespace LastWar
                 rs[i] = r;
             }
             for (int i = 0; i < seg; i++) rs[i] = (rs[(i + seg - 1) % seg] + 2f * rs[i] + rs[(i + 1) % seg]) / 4f; // (smoothed)
+            shoreR = rs;
             Mesh Ring(float[] offs, Color[] cols, float y, float vScale)
             {
                 var v = new List<Vector3>(); var c = new List<Color>(); var uv = new List<Vector2>(); var t = new List<int>();
@@ -289,6 +290,16 @@ namespace LastWar
             var foam = Ring(new[] { -3f, 0f, 3f, 8f, 14f }, new[] { new Color(1, 1, 1, 0f), new Color(1, 1, 1, .95f), new Color(1, 1, 1, .8f), new Color(1, 1, 1, .35f), new Color(1, 1, 1, 0f) }, 0.08f, 12f);
             var fgo = Make("Foam", foam, FoamTexture(), 2992);
             fgo.AddComponent<Shore>().mat = fgo.GetComponent<MeshRenderer>().sharedMaterial;
+        }
+        static float[] shoreR;
+        /// <summary>metres from a world point to the beach line (inland or out at sea); large when there is no sea</summary>
+        public static float ShoreDistance(Vector3 w)
+        {
+            if (shoreR == null || SeaLevel < -999f) return 1e4f;
+            float x = -w.x, z = w.z, a = Mathf.Atan2(z, x); if (a < 0) a += Mathf.PI * 2f;
+            float f = a / (Mathf.PI * 2f) * shoreR.Length; int i = (int)f % shoreR.Length;
+            float r = Mathf.Lerp(shoreR[i], shoreR[(i + 1) % shoreR.Length], f - Mathf.Floor(f));
+            return Mathf.Abs(Mathf.Sqrt(x * x + z * z) - r);
         }
         /// <summary>the shallows' colour near the beach (?shallow=r,g,b)</summary>
         public static Color ShallowColour = new Color(0.32f, 0.82f, 0.84f);
