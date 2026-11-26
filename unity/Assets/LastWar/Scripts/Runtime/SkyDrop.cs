@@ -179,6 +179,7 @@ namespace LastWar
         /// ground (fallen through) is put back on top of it.</summary>
         /// <summary>how far below the water's surface a swimmer's feet hang</summary>
         public const float SwimDepth = 0.38f; // (the Mixamo swim lies along the surface: hips just under it)
+        public static bool SwimLog; static float nextSwimLog;
         public static void KeepOnMap(Transform t, CharacterController cc)
         {
             MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;
@@ -202,6 +203,7 @@ namespace LastWar
                 if (flat.magnitude > lim) { flat = flat.normalized * lim; p.x = flat.x; p.z = flat.y; moved = true; }
             }
             if (fi != null) fi.Swimming = swim;
+            if (fi != null && fi.isPlayer && SwimLog && Time.time > nextSwimLog) { nextSwimLog = Time.time + 1f; Debug.Log($"[LastWar] swim {swim} y {p.y:0.00} ground {m.HeightAt(-p.x, p.z):0.00} sea {MapBuilder.SeaLevel:0.00} at {-p.x:0},{p.z:0}"); }
             float g = m.HeightAt(-p.x, p.z);
             if (!swim && p.y < g - 3f) { p.y = GroundBelowFrom(new Vector3(p.x, g + 60f, p.z)) + 0.1f; moved = true; }
             if (!moved) return;
