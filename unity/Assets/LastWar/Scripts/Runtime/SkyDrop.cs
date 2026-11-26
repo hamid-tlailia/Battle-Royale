@@ -178,7 +178,7 @@ namespace LastWar
         /// soldier fell into the void and hung there). Kept within the play circle + 12 m; and anyone already below the
         /// ground (fallen through) is put back on top of it.</summary>
         /// <summary>how far below the water's surface a swimmer's feet hang</summary>
-        public const float SwimDepth = 0.62f; // (the Mixamo swim lies along the surface: hips just under it)
+        public const float SwimDepth = 0.38f; // (the Mixamo swim lies along the surface: hips just under it)
         public static void KeepOnMap(Transform t, CharacterController cc)
         {
             MapData m = GameBoot.Instance != null ? GameBoot.Instance.Map : null;
@@ -192,7 +192,7 @@ namespace LastWar
             {
                 float under = m.HeightAt(-p.x, p.z), surface = MapBuilder.SeaLevel - SwimDepth;
                 bool past = flat.magnitude > m.size / 2f - 4f; // (past the ground's edge: open sea)
-                if ((under < MapBuilder.SeaLevel - SwimDepth + 0.1f || past) && p.y < MapBuilder.SeaLevel - 0.3f) { swim = true; if (Mathf.Abs(p.y - surface) > 0.01f) { p.y = surface; moved = true; } }
+                if ((under < MapBuilder.SeaLevel - 0.95f || past) && p.y < MapBuilder.SeaLevel - 0.1f) // (deeper than the waist: swim; shallower: wade) { swim = true; if (Mathf.Abs(p.y - surface) > 0.01f) { p.y = surface; moved = true; } }
                 float shoreR = MapBuilder.ShoreRadius(p), far = shoreR + 100f;
                 if (flat.magnitude > far) { flat = flat.normalized * far; p.x = flat.x; p.z = flat.y; moved = true; }
             }

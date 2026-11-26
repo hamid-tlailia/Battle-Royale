@@ -174,7 +174,7 @@ namespace LastWar
             float speed = (sprinting ? SprintSpeed : WalkSpeed) * (input.Prone ? (proneFire ? 0f : 0.2f * (body.Pose == "crawl" ? body.CrawlPull : 1f)) : input.Crouch ? 0.55f : 1f);
             Quaternion heading = Quaternion.Euler(0, yaw, 0);
             Vector3 want = heading * new Vector3(mv.x, 0, mv.y) * speed;
-            bool grounded = cc.isGrounded;
+            bool grounded = cc.isGrounded || fighter.Swimming; // (in the water: the strokes push as on the ground)
             Vector3 flat = new Vector3(velocity.x, 0, velocity.z);
             flat = Vector3.MoveTowards(flat, want, (grounded ? GroundAccel : AirAccel) * dt);
             velocity.x = flat.x; velocity.z = flat.z;
@@ -680,7 +680,7 @@ namespace LastWar
                 cam.fieldOfView = 70f;
                 return;
             }
-            Vector3 pivot = transform.position + Vector3.up * Mathf.Max(1.0f, cc.height - 0.3f); // (prone: the camera stays above the body, not in the ground)
+            Vector3 pivot = transform.position + Vector3.up * (fighter.Swimming ? 1.9f : Mathf.Max(1.0f, cc.height - 0.3f)); // (prone: the camera stays above the body, not in the ground; swimming: well above the water)
             // smooth the camera over bumps and steps (web camY); big jumps / falls snap
             if (float.IsNaN(camY) || Mathf.Abs(pivot.y - camY) > 1.5f || fighter.air != 0) camY = pivot.y;
             else camY = Mathf.Lerp(camY, pivot.y, Mathf.Min(1f, Time.deltaTime * 14f));
