@@ -96,8 +96,10 @@ namespace LastWar
             float dt = Time.deltaTime;
             input.SniperAiming = false; // (set again below while a sniper shot is held)
             if (vaultT >= 0f) { VaultStep(dt); return; }
+            if (Vehicle.Mine != null && (!fighter.Alive || (GameBoot.Instance != null && GameBoot.Instance.Result != 0))) ExitVehicle();
             if (!fighter.Alive) { if (frostGhost != null) frostGhost.gameObject.SetActive(false); body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); if (cc.enabled) cc.enabled = false; return; }
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { if (Celebrate.Dancer == fighter) body.Dance(); else body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
+            if (Vehicle.Mine != null) { DriveStep(dt); return; }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;
@@ -532,10 +534,59 @@ namespace LastWar
             return best;
         }
 
+        // ---------------------------------------------------------------- driving a jeep
+        CapsuleCollider seatCol; bool plantWas;
+        public void EnterVehicle(Vehicle v)
+        {
+            if (v == null || v.driver != null) return;
+            Vehicle.Mine = v; v.driver = fighter;
+            cc.enabled = false; input.Crouch = input.Prone = false; input.Scoped = false; input.FireHeld = false;
+            if (seatCol == null) { seatCol = gameObject.AddComponent<CapsuleCollider>(); seatCol.center = new Vector3(0, 0.75f, 0); seatCol.height = 1.2f; seatCol.radius = 0.32f; }
+            seatCol.enabled = true; // (the driver can still be shot)
+            plantWas = body.Plant; body.Plant = false; body.Armed = false; body.Pose = null; body.Tilt = 0;
+            yaw = v.Yaw; pitch = -0.12f;
+            Sfx.Play2D("clip", 0.6f, 0.8f);
+        }
+        public void ExitVehicle()
+        {
+            var v = Vehicle.Mine; if (v == null) return;
+            Vehicle.Mine = null; v.driver = null;
+            transform.position = v.ExitPoint(); transform.rotation = Quaternion.Euler(0, v.Yaw, 0);
+            if (seatCol != null) seatCol.enabled = false;
+            if (fighter.Alive) cc.enabled = true;
+            body.Plant = plantWas; body.Armed = !fighter.holstered;
+            Sfx.Play2D("clip", 0.6f, 0.8f);
+        }
+        void DriveStep(float dt)
+        {
+            var v = Vehicle.Mine;
+            float sens = lookSensitivity * Profile.Sensitivity;
+            yaw += input.LookDelta.x * sens; pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -0.6f, 0.5f);
+            // the view swings back behind the jeep while it drives and nobody turns it
+            if (input.LookDelta.sqrMagnitude < 0.01f && Mathf.Abs(v.Speed) > 2f) yaw = Mathf.LerpAngle(yaw, v.Yaw, dt * 1.8f);
+            v.Drive(input.Move, dt);
+            transform.position = v.SeatWorld; transform.rotation = v.transform.rotation;
+            body.Armed = false; body.Speed = 0f; body.Pose = null; body.Play("crouch_idle"); // (seated: the crouch pose, hips on the seat)
+        }
+
         void LateUpdate()
         {
             if (cam == null) return;
             freeLooking = false; // (set again below on foot)
+            if (Vehicle.Mine != null && fighter.Alive)
+            {
+                // behind and above the jeep
+                Vector3 pv = Vehicle.Mine.transform.position + Vector3.up * 1.9f;
+                Quaternion lk = Quaternion.Euler(-pitch * Mathf.Rad2Deg + 6f, yaw, 0);
+                Vector3 bk = lk * new Vector3(0, 0.7f, -7.2f); float ln = bk.magnitude;
+                foreach (var h in Physics.SphereCastAll(pv, 0.25f, bk / ln, ln, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore))
+                    if (h.collider.GetComponentInParent<Vehicle>() != Vehicle.Mine && h.distance < ln) ln = Mathf.Max(1.5f, h.distance - 0.15f);
+                cam.transform.position = Vector3.Lerp(cam.transform.position, pv + bk / bk.magnitude * ln, 1f - Mathf.Exp(-Time.deltaTime * 12f));
+                cam.transform.rotation = lk;
+                cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 72f + Mathf.Abs(Vehicle.Mine.Speed) * 0.4f, Time.deltaTime * 4f);
+                body.SetVisible(true);
+                return;
+            }
             if (Celebrate.Dancer != null && Celebrate.Dancer.Alive)
             {
                 // the victory dance: the camera comes round to the winner's front, a little to the side, and watches

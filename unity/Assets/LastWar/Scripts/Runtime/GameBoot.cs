@@ -113,6 +113,7 @@ namespace LastWar
             if (!InMatch) { Lobby.Create(Map, cam); Loader.Progress(1f); Loader.HideSoon(); Music.PlayLobby(); yield break; }
             Loader.Progress(0.85f); yield return null;
             Loot.SpawnMap(Map, Map.id.GetHashCode());
+            Vehicle.SpawnMap(Map, Map.id.GetHashCode(), (Application.absoluteURL ?? "").Contains("cartest=1"));
 
             var controls = TouchControls.Create();
             Vec2 sp = Map.spawns != null && Map.spawns.Length > 0 ? Map.spawns[0] : new Vec2();
@@ -177,6 +178,7 @@ namespace LastWar
             Tracers.Create();
             Hud.Create(controls, Player);
             Minimap.Create(controls, Player, Map);
+            Vehicle.Button.Create(controls, Player);
             AreaLabels.Create(controls.Root, Map, Player); // (the areas' names over the world, fading as you come near)
             if (url.Contains("aatest=")) StartCoroutine(AimAssistTest.Run(this, url.Contains("aatest=2") ? 2 : 1)); // (aim assist tests: AimAssistTest.cs)
 
