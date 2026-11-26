@@ -39,6 +39,7 @@ namespace LastWar
             BuildTerrain(map, root.transform);
             BuildSkirt(map, root.transform);
             BuildSea(map, root.transform);
+            BuildShore(map, root.transform);
             LoadShapes();
             var props = new GameObject("Props").transform; props.SetParent(root.transform);
             foreach (PropData p in map.props) PlaceProp(p, props);
@@ -178,7 +179,7 @@ namespace LastWar
         /// <summary>the sea: one flat sheet of water at SeaLevel out past the haze, a little see-through near the shore
         /// (the sand shows under it), glossy so the sun glints on it; gently moving (Sea component)</summary>
         /// <summary>the sea's colour (alpha: how little of the sand shows through) and its wave size (m); ?seacol=r,g,b,a ?seawave=</summary>
-        public static Color SeaColour = new Color(0.07f, 0.36f, 0.5f, 0.93f); public static float SeaWave = 22f;
+        public static Color SeaColour = new Color(0.05f, 0.42f, 0.58f, 0.93f); /* (the teal of a clear sea) */ public static float SeaWave = 22f;
         static void BuildSea(MapData map, Transform parent)
         {
             if (!UseIsland || SeaLevel < -999f) return;
@@ -225,6 +226,102 @@ namespace LastWar
             var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat;
             mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true;
             go.AddComponent<Sea>().mat = wbase != null ? mat : null;
+        }
+
+        /// <summary>the sea at the island's edge, as a real coast looks: light turquoise shallow water along the beach
+        /// fading into the deep blue, and a band of white foam where the waves break on the sand, rolling in and out
+        /// (two see-through rings that follow the real shore line, found by walking out from the land at 256 angles)</summary>
+        static void BuildShore(MapData map, Transform parent)
+        {
+            if (!UseIsland || SeaLevel < -999f) return;
+            var baseMat = Resources.Load<Material>("Materials/IceFade"); // (URP Particles/Lit: see-through, vertex colours)
+            if (baseMat == null) return;
+            const int seg = 256;
+            float[] rs = new float[seg];
+            for (int i = 0; i < seg; i++)
+            {
+                float a = i / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a), r = Mathf.Max(20f, coastR - 40f);
+                while (r < coastR + 260f && map.HeightAt(cx * r, sz * r) >= SeaLevel) r += 1f;
+                rs[i] = r;
+            }
+            for (int i = 0; i < seg; i++) rs[i] = (rs[(i + seg - 1) % seg] + 2f * rs[i] + rs[(i + 1) % seg]) / 4f; // (smoothed)
+            Mesh Ring(float[] offs, Color[] cols, float y, float vScale)
+            {
+                var v = new List<Vector3>(); var c = new List<Color>(); var uv = new List<Vector2>(); var t = new List<int>();
+                int k = offs.Length;
+                for (int i = 0; i <= seg; i++)
+                {
+                    int ii = i % seg; float a = ii / (float)seg * Mathf.PI * 2f, cx = Mathf.Cos(a), sz = Mathf.Sin(a);
+                    for (int j = 0; j < k; j++)
+                    {
+                        float r = rs[ii] + offs[j];
+                        v.Add(Coords.ToUnity(cx * r, SeaLevel + y, sz * r)); c.Add(cols[j]);
+                        uv.Add(new Vector2(i / (float)seg * rs[ii] * 2f * Mathf.PI / 14f, offs[j] / vScale));
+                    }
+                }
+                for (int i = 0; i < seg; i++)
+                    for (int j = 0; j < k - 1; j++)
+                    {
+                        int a0 = i * k + j, a1 = a0 + 1, b0 = a0 + k, b1 = b0 + 1;
+                        t.AddRange(new[] { a0, b0, a1, a1, b0, b1 });
+                    }
+                var mesh = new Mesh { name = "shore", indexFormat = IndexFormat.UInt32 };
+                mesh.SetVertices(v); mesh.SetColors(c); mesh.SetUVs(0, uv); mesh.SetTriangles(t, 0); mesh.RecalculateNormals(); mesh.RecalculateBounds();
+                return mesh;
+            }
+            GameObject Make(string name, Mesh mesh, Texture2D tex, int queue)
+            {
+                var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+                go.transform.SetParent(parent, false); go.GetComponent<MeshFilter>().sharedMesh = mesh;
+                var mat = new Material(baseMat) { name = name };
+                mat.DisableKeyword("_EMISSION"); if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", Color.black);
+                mat.SetColor("_BaseColor", Color.white); if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.6f);
+                if (tex != null) mat.SetTexture("_BaseMap", tex);
+                mat.renderQueue = queue;
+                var mr = go.GetComponent<MeshRenderer>(); mr.sharedMaterial = mat; mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = false;
+                return go;
+            }
+            // the shallows: turquoise over the sand, fading out into the deep water
+            Color tq = ShallowColour;
+            var shallow = Ring(new[] { -6f, 0f, 14f, 40f, 85f }, new[] { new Color(tq.r, tq.g, tq.b, 0f), new Color(tq.r, tq.g, tq.b, .75f), new Color(tq.r, tq.g, tq.b, .55f), new Color(tq.r, tq.g, tq.b, .22f), new Color(tq.r, tq.g, tq.b, 0f) }, 0.04f, 40f);
+            Make("Shallows", shallow, null, 2991);
+            // the foam: white, broken, on the shore line and a little out
+            var foam = Ring(new[] { -3f, 0f, 3f, 8f, 14f }, new[] { new Color(1, 1, 1, 0f), new Color(1, 1, 1, .95f), new Color(1, 1, 1, .8f), new Color(1, 1, 1, .35f), new Color(1, 1, 1, 0f) }, 0.08f, 12f);
+            var fgo = Make("Foam", foam, FoamTexture(), 2992);
+            fgo.AddComponent<Shore>().mat = fgo.GetComponent<MeshRenderer>().sharedMaterial;
+        }
+        /// <summary>the shallows' colour near the beach (?shallow=r,g,b)</summary>
+        public static Color ShallowColour = new Color(0.32f, 0.82f, 0.84f);
+
+        static Texture2D foamTex;
+        /// <summary>broken white foam: soft blobs and streaks, see-through between them (tiles both ways)</summary>
+        static Texture2D FoamTexture()
+        {
+            if (foamTex != null) return foamTex;
+            const int n = 256; var px = new Color32[n * n]; var rnd = new System.Random(7);
+            float[] f = new float[n * n];
+            for (int o = 0; o < 4; o++)
+            {
+                int g = 4 << o; float amp = 1f / (1 << o); var grid = new float[(g + 1) * (g + 1)];
+                for (int i = 0; i < grid.Length; i++) grid[i] = (float)rnd.NextDouble();
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        float gx = x / (float)n * g, gy = y / (float)n * g; int x0 = (int)gx, y0 = (int)gy; float tx = gx - x0, ty = gy - y0;
+                        tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+                        int x1 = (x0 + 1) % g, y1 = (y0 + 1) % g; x0 %= g; y0 %= g;
+                        float v = Mathf.Lerp(Mathf.Lerp(grid[y0 * (g + 1) + x0], grid[y0 * (g + 1) + x1], tx), Mathf.Lerp(grid[y1 * (g + 1) + x0], grid[y1 * (g + 1) + x1], tx), ty);
+                        f[y * n + x] += v * amp;
+                    }
+            }
+            for (int i = 0; i < f.Length; i++)
+            {
+                float v = Mathf.Clamp01((f[i] / 1.875f - 0.42f) * 3.2f);
+                px[i] = new Color32(255, 255, 255, (byte)(v * 255));
+            }
+            foamTex = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, name = "foam" };
+            foamTex.SetPixels32(px); foamTex.Apply(true);
+            return foamTex;
         }
 
         // ------------------------------------------------------------------ terrain
@@ -517,6 +614,19 @@ namespace LastWar
     }
 
     /// <summary>the sea sheet rises and falls a few centimetres, slowly (a still sheet looked like glass)</summary>
+    /// <summary>the foam rolling up the beach and back, breaking and re-forming</summary>
+    public class Shore : MonoBehaviour
+    {
+        public Material mat;
+        void Update()
+        {
+            if (mat == null) return;
+            float t = Time.time;
+            mat.SetTextureOffset("_BaseMap", new Vector2(t * 0.012f, Mathf.Sin(t * 0.55f) * 0.22f));
+            var c = mat.GetColor("_BaseColor"); c.a = 0.75f + 0.25f * Mathf.Sin(t * 0.55f + 1.2f); mat.SetColor("_BaseColor", c);
+        }
+    }
+
     public class Sea : MonoBehaviour
     {
         public Material mat;
