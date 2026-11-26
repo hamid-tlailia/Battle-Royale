@@ -39,6 +39,17 @@ namespace LastWar
                 if (near) continue;
                 Make(at, (float)rnd.NextDouble() * 360f); made++;
             }
+            // rough maps (desert, snow hills): looser - a gentler slope and a smaller clearing will do
+            for (int k = 0; k < 600 && made < want; k++)
+            {
+                float a = (float)rnd.NextDouble() * Mathf.PI * 2f, r = Mathf.Sqrt((float)rnd.NextDouble()) * map.playRadius * 0.9f;
+                Vector3 at = new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
+                if (!OpenGround(map, ref at, 2.2f, 0.85f)) continue;
+                bool near = false; foreach (Vehicle v in All) if ((v.transform.position - at).sqrMagnitude < 60f * 60f) near = true;
+                if (near) continue;
+                Make(at, (float)rnd.NextDouble() * 360f); made++;
+            }
+            Debug.Log($"[LastWar] jeeps placed: {made} of {want}");
             if (test) new GameObject("CarTest").AddComponent<Test>();
         }
 
@@ -64,12 +75,12 @@ namespace LastWar
         }
 
         /// <summary>flat open ground (no house, rock or tree within r), above the water</summary>
-        static bool OpenGround(MapData map, ref Vector3 at, float r)
+        static bool OpenGround(MapData map, ref Vector3 at, float r, float flat = 0.94f)
         {
             int mask = ~(1 << MapBuilder.PlayerLayer);
             if (!Physics.Raycast(new Vector3(at.x, 400f, at.z), Vector3.down, out RaycastHit h, 800f, mask, QueryTriggerInteraction.Ignore)) return false;
             float terrain = map.HeightAt(-h.point.x, h.point.z);
-            if (r > 0f && (Mathf.Abs(h.point.y - terrain) > 0.35f || h.normal.y < 0.94f)) return false; // (a roof, a rock, a slope)
+            if (r > 0f && (Mathf.Abs(h.point.y - terrain) > 0.6f || h.normal.y < flat)) return false; // (a roof, a rock, a slope)
             if (MapBuilder.SeaLevel > -999f && h.point.y < MapBuilder.SeaLevel + 1f) return false;
             // something standing there besides the ground itself (a house, a tree, a rock, another jeep)
             if (r > 0f)
@@ -110,8 +121,8 @@ namespace LastWar
             seat = new Vector3(-b.size.x * 0.2f, 0.2f, -0.15f);
             Transform sw = null; foreach (Transform t in model.GetComponentsInChildren<Transform>()) if (t.name == "steer wheel") sw = t;
             if (sw != null) { Vector3 l = transform.InverseTransformPoint(sw.position); seat = new Vector3(l.x, 0.2f, l.z - 0.55f); }
-            var clip = Resources.Load<AudioClip>("Audio/plane");
-            if (clip != null) { engine = gameObject.AddComponent<AudioSource>(); engine.clip = clip; engine.loop = true; engine.spatialBlend = 0.9f; engine.maxDistance = 120f; engine.volume = 0f; engine.pitch = 0.6f; engine.Play(); }
+            var clip = Resources.Load<AudioClip>("Audio/engine");
+            if (clip != null) { engine = gameObject.AddComponent<AudioSource>(); engine.clip = clip; engine.loop = true; engine.spatialBlend = 0.6f; engine.minDistance = 10f; engine.maxDistance = 150f; engine.volume = 0f; engine.pitch = 0.8f; engine.Play(); }
         }
 
         static Bounds Box(Transform t)
@@ -171,6 +182,7 @@ namespace LastWar
                     if (System.Array.IndexOf(own, h.collider) >= 0 || h.collider.GetComponentInParent<Fighter>() != null || h.collider == MapBuilder.Ground || h.distance <= 0f) continue;
                     if (h.normal.y > 0.7f) continue; // (a gentle ramp: driven over)
                     if (Mathf.Abs(Speed) > 9f) Sfx.Play("land", h.point, 1f, 0.6f);
+                    if ((Application.absoluteURL ?? "").Contains("cartest=") && Time.time > nextLog - 0.5f) Debug.Log($"[LastWar] jeep blocked by {h.collider.name} ({h.collider.GetType().Name}) d {h.distance:0.00} n {h.normal}");
                     Speed = -Speed * 0.15f; step = Vector3.zero; break;
                 }
                 Vector3 next = transform.position + step;
@@ -178,7 +190,7 @@ namespace LastWar
                 if (MapBuilder.SeaLevel > -999f && GameBoot.Instance != null && GameBoot.Instance.Map.HeightAt(-next.x, next.z) < MapBuilder.SeaLevel + 0.3f) { Speed = 0f; step = Vector3.zero; }
                 transform.position += step;
             }
-            if (!Settle(dt)) { transform.position -= step; Speed = 0f; }
+            if (!Settle(dt)) { transform.position -= step; Speed = 0f; if ((Application.absoluteURL ?? "").Contains("cartest=")) Debug.Log("[LastWar] jeep: no ground under the wheels"); }
             // people in the way are knocked aside (and hurt when hit fast)
             if (Mathf.Abs(Speed) > 3f && GameBoot.Instance != null)
                 foreach (Fighter f in GameBoot.Instance.Fighters)
@@ -190,6 +202,7 @@ namespace LastWar
                         var cc = f.GetComponent<CharacterController>(); Vector3 side = Vector3.Cross(Vector3.up, fwd) * Mathf.Sign(Vector3.Dot(d, Vector3.Cross(Vector3.up, fwd)) + 0.001f);
                         if (cc != null && cc.enabled) cc.Move(side * 1.6f + fwd * Mathf.Sign(Speed) * 0.6f);
                         if (Mathf.Abs(Speed) > 8f) f.TakeDamage(Mathf.Abs(Speed) * 4f, driver, "rifle", false, f.transform.position + Vector3.up);
+                        if (Mathf.Abs(Speed) > 5f && f.Alive) f.KnockedUntil = Time.time + 2.6f; // (knocked flat, then up again)
                     }
                 }
         }
@@ -202,7 +215,7 @@ namespace LastWar
             for (int i = 0; i < 4; i++)
                 if (wheels[i] != null) wheels[i].localRotation = wheelRest[i] * Quaternion.Euler(0, i < 2 ? -steer : 0f, 0) * Quaternion.Euler(spin, 0, 0);
             if (driver != null && (Application.absoluteURL ?? "").Contains("cartest=") && Time.time > nextLog) { nextLog = Time.time + 1f; Debug.Log($"[LastWar] jeep speed {Speed:0.0} m/s at {transform.position}"); }
-            if (engine != null) { engine.volume = driver != null ? 0.25f + Mathf.Abs(Speed) / MaxSpeed * 0.3f : 0f; engine.pitch = 0.55f + Mathf.Abs(Speed) / MaxSpeed * 0.5f; }
+            if (engine != null) { engine.volume = driver != null ? 0.55f + Mathf.Abs(Speed) / MaxSpeed * 0.35f : 0f; engine.pitch = 0.8f + Mathf.Abs(Speed) / MaxSpeed * 0.9f; }
         }
 
         /// <summary>the jeep near enough to get in (null if none)</summary>
@@ -224,7 +237,9 @@ namespace LastWar
         // ---------------------------------------------------------------- the DRIVE / EXIT button (on the HUD)
         public class Button : MonoBehaviour
         {
-            PlayerController player; Image img, icon;
+            PlayerController player; Image img, icon; RectTransform steer;
+            /// <summary>the steering buttons held: -1 left, 1 right, 0 none</summary>
+            public static int Steer; static bool left, right;
             public static void Create(TouchControls input, PlayerController p)
             {
                 var b = new GameObject("CarButton", typeof(RectTransform)).AddComponent<Button>(); b.player = p;
@@ -235,6 +250,24 @@ namespace LastWar
                 b.icon = UiKit.Img(b.img.rectTransform, "icon", UiKit.Get("icon_drive"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(26, 26), Color.white);
                 b.icon.preserveAspect = true;
                 Clickable.Add(b.img.gameObject, b.Tap);
+                // driving: two big buttons under the right thumb turn the wheel left / right (the joystick: gas, reverse, brake)
+                b.steer = new GameObject("Steer", typeof(RectTransform)).GetComponent<RectTransform>(); b.steer.SetParent(input.Root, false);
+                b.steer.anchorMin = b.steer.anchorMax = new Vector2(1f, 0f); b.steer.sizeDelta = Vector2.zero;
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    int dir = s;
+                    var bt = UiKit.Img(b.steer, dir < 0 ? "left" : "right", UiKit.Get("btn"), new Vector2(.5f, .5f), new Vector2(dir < 0 ? -175f : -70f, 85f), new Vector2(78, 78), Color.white, true);
+                    var ar = UiKit.Img(bt.rectTransform, "icon", UiKit.Get("icon_steer"), new Vector2(.5f, .5f), Vector2.zero, new Vector2(34, 34), Color.white); ar.preserveAspect = true;
+                    if (dir < 0) ar.rectTransform.localScale = new Vector3(-1, 1, 1);
+                    var trg = bt.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+                    var down = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown };
+                    down.callback.AddListener(_ => { if (dir < 0) left = true; else right = true; });
+                    var up = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
+                    up.callback.AddListener(_ => { if (dir < 0) left = false; else right = false; });
+                    trg.triggers.Add(down); trg.triggers.Add(up);
+                    input.RegisterBlocker(bt.rectTransform);
+                }
+                b.steer.gameObject.SetActive(false);
             }
             void Tap()
             {
@@ -247,6 +280,11 @@ namespace LastWar
                 img.gameObject.SetActive(show);
                 if (show && Input.GetKeyDown(KeyCode.F)) Tap(); // (keyboard: F)
                 if (show) icon.sprite = UiKit.Get(Mine != null ? "icon_exit" : "icon_drive");
+                bool driving = Mine != null && show;
+                if (steer.gameObject.activeSelf != driving) steer.gameObject.SetActive(driving);
+                if (!driving) left = right = false;
+                Steer = (right ? 1 : 0) - (left ? 1 : 0);
+                if (Input.GetKey(KeyCode.A)) Steer = -1; else if (Input.GetKey(KeyCode.D)) Steer = 1; // (keyboard)
             }
         }
     }

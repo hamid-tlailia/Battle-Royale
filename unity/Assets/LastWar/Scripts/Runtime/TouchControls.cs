@@ -58,6 +58,8 @@ namespace LastWar
         public bool Crouch, Prone;      // posture toggles
         /// <summary>crouch pressed while sprinting: a dive roll forward (one frame)</summary>
         public bool RollPressed;
+        /// <summary>in the jeep: the fighting buttons step aside for the steering ones</summary>
+        public bool Driving;
         public bool HealPressed, FrostPressed, BagPressed, GearPressed; // one frame each
         Btn crouchBtn, proneBtn, healBtn, frostBtn, jumpBtn;
         int airMode = -1;
@@ -189,6 +191,7 @@ namespace LastWar
         {
             if (Editing || Preview) return true;
             if (Spectating) return false;
+            if (Driving) return b == eyeBtn; // (driving: only the wheel's own buttons - steer, get out - and the eye)
             if (airMode == 1) return b == jumpBtn && JumpReady; // in the plane JUMP appears only once you can drop
             if (airMode > 0) return b == jumpBtn;
             if (b == frostBtn && frostCount <= 0 && !FrostAim) return false;

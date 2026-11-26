@@ -518,9 +518,22 @@ namespace LastWar
         /// <summary>the winner's victory dance ("Entry", lw_dance.glb mx_dance): guns put away on the back, standing up</summary>
         public void Dance() => Dance(DanceChoice < 0 ? Profile.Dance : DanceChoice);
         /// <summary>the victory dance: always Entry</summary>
-        public void VictoryDance() => Dance(0);
+        /// <summary>(first the gun goes onto the back and he stands a moment as the camera comes round - a real change into
+        /// the dance, not a cut that looked like a fall)</summary>
+        public void VictoryDance()
+        {
+            if (victoryAt < 0f) { victoryAt = Time.time; HolsterForDance(); Pose = null; Tilt = 0; Speed = 0f; }
+            if (Time.time - victoryAt < 1.1f) { Play("idle"); return; }
+            Dance(0);
+        }
+        float victoryAt = -1f;
+        /// <summary>dancing: the clip as recorded, nothing laid over it (no foot planting - the head spin sank into the
+        /// ground; no arm / hand corrections - the hands went into the body); the gun in the hands goes onto the back</summary>
+        public bool Dancing { get; private set; }
         public void Dance(int which)
         {
+            HolsterForDance();
+            Dancing = true;
             Armed = false; Pose = null; Tilt = 0; AirAim = false; StandTall = false; Speed = 0f; SetChute(false);
             string d = DanceClip(which);
             Play(HasClip(d) ? d : HasClip("mx_dance") ? "mx_dance" : "idle");
@@ -531,8 +544,19 @@ namespace LastWar
         public static readonly float[] DanceLength = { 10.33f, 17.3f, 8.83f };
         public static string DanceClip(int i) => i <= 0 ? "mx_dance" : "mx_dance" + (i + 1);
 
+        /// <summary>the gun in the hands onto the back (a long gun) or away (a pistol), so the hands are free</summary>
+        public void HolsterForDance()
+        {
+            if (string.IsNullOrEmpty(gunId)) return;
+            string g = gunId; SetGun(null);
+            if (g.StartsWith("pistol")) return;
+            var ids = string.IsNullOrEmpty(backKey) ? new List<string>() : new List<string>(backKey.Split(','));
+            if (!ids.Contains(g) && ids.Count < 2) { ids.Add(g); SetBack(ids); }
+        }
+
         public void Play(string clip)
         {
+            if (Dancing && !clip.StartsWith("mx_dance")) Dancing = false;
             if (!clipIndex.ContainsKey(clip)) return;
             string key = clip;
             if (UseRifleClips && Armed && gun != null && !gunId.StartsWith("pistol") && RifleClips.TryGetValue(clip, out string mx) && clipIndex.ContainsKey(mx)) key = mx;
@@ -1354,6 +1378,7 @@ namespace LastWar
         void LateUpdateBody()
         {
             if (model != null) ApplyRoot();
+            if (Dancing) { Retarget(); SyncExtras(); return; } // (the dance as recorded)
             FreeArms();
             long tr = Bench.Now();
             Retarget();

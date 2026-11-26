@@ -10,6 +10,7 @@
 //                   a cycle later (world rotation changes from the rest, mirrored across the body's middle plane)
 //   name=file+air=a-b : only the frames from a to b seconds, the pelvis at its standing height (a jump's time in the air)
 //   name=file+upper=other : legs / hips / lower back from file, chest, head, arms, hands from `other` (stretched to its cycle)
+//   name=file+root : the pelvis keeps its travel across the ground (dances that step about; no sliding feet)
 //   --frames : with --check / --report, the hips and toe heights frame by frame
 //   --out=lw_pistol : write that file instead of lw_extra.glb
 //   --report: also print the carried pose of each clip (as --check)
@@ -88,7 +89,7 @@ function carry(src) {
       else wr = qmul(pw.r, n.getRotation());
       sW.set(n, { r: wr }); r.set(n, qnorm(qmul(qinv(pw.r), wr)));
     }
-    const d = uW.get(pelvis).p.map((x, i) => (x - uRest.get(pelvis).p[i]) * kLeg); d[0] = 0; d[2] = 0;
+    const d = uW.get(pelvis).p.map((x, i) => (x - uRest.get(pelvis).p[i]) * kLeg); if (!keepRoot) { d[0] = 0; d[2] = 0; } // (+root: the pelvis keeps its travel too - dances that step about)
     const hp = hips.listParents().find((p) => p.propertyType === 'Node'); const hw = bRest.get(hp) ?? { r: [0, 0, 0, 1], s: [1, 1, 1] };
     const dl = qrot(qinv(hw.r), d).map((x, i) => x / hw.s[i]);
     rot.push(r); hipsT.push(hips.getTranslation().map((x, i) => x + dl[i]));
@@ -202,6 +203,7 @@ function upperFrom(c, o) {
     return new Map(order.map((b) => [b, UPPER.test(key(b.getName())) ? o.rot[g].get(b) : loc.get(b)])); });
   return { ...c, rot };
 }
+let keepRoot = false;
 const FINGER = /Hand(Index|Middle|Ring|Pinky|Thumb)/;
 function relaxed(c, ref) { return { ...c, rot: c.rot.map((loc) => new Map(order.map((b) => [b, FINGER.test(b.getName()) ? ref.rot[0].get(b) : loc.get(b)]))) }; }
 const atOf = (c) => (t) => { const len_ = c.len; t = ((t % len_) + len_) % len_; const x = t * FPS, i = Math.floor(x), u = x - i, j = Math.min(i + 1, c.frames - 1);
@@ -210,7 +212,8 @@ const done = new Map();
 for (const arg of process.argv.slice(3).filter((a) => a.includes('=') && !a.startsWith('--'))) {
   const [name, spec] = arg.split(/=(.*)/s);
   const [file, ...opts] = spec.split('+');
-  let c = done.get(file) ?? carry(await io.read(`${dir}/${file}.glb`)); done.set(file, c);
+  keepRoot = opts.includes('root'); const ck = file + (keepRoot ? '+root' : '');
+  let c = done.get(ck) ?? carry(await io.read(`${dir}/${file}.glb`)); done.set(ck, c);
   for (const o of opts) {
     if (o === 'sym') c = symmetric(c);
     else if (o === 'legsR') c = legsFromRight(c);

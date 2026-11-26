@@ -299,27 +299,59 @@ namespace LastWar
         /// puts the gun away and dances it (the victory dance stays Entry). Tap the soldier again to hide them.</summary>
         void DanceButton()
         {
+            // a dance wheel beside the soldier (the project owner's design): three dark sectors with a gold rim round a
+            // centre button, a gold dancer in each; the one dancing lights up
             dancePicker = new GameObject("dances", typeof(RectTransform)).GetComponent<RectTransform>();
             dancePicker.SetParent(root, false); dancePicker.anchorMin = dancePicker.anchorMax = new Vector2(.5f, 0f); dancePicker.sizeDelta = Vector2.zero;
-            dancePicker.anchoredPosition = new Vector2(150f * s, 150f * s);
-            float k = s / UiKit.K;
+            dancePicker.anchoredPosition = new Vector2(185f * s, 205f * s);
+            float R = 92f * s; Color gold = new Color(1f, .8f, .3f);
+            Sprite sector = Sector(120f, 0.34f), sectorRim = Sector(120f, 0.31f);
             for (int d = 0; d < 3; d++)
             {
-                int dd = d;
-                var b = UiKit.Img(dancePicker, "dance" + d, UiKit.Get("btn"), new Vector2(.5f, .5f), new Vector2(0, (2 - d) * 50f) * k, new Vector2(44, 44) * k, Color.white, true);
-                var ic = UiKit.Img(b.rectTransform, "icon", UiKit.Get("icon_dance"), new Vector2(.5f, .5f), new Vector2(-3, 2) * k, new Vector2(22, 22) * k, Color.white); ic.preserveAspect = true;
-                var n = UiKit.Txt(b.rectTransform, new Vector2(.5f, .5f), new Vector2(11, -10) * k, new Vector2(16, 16) * k, 11 * k, TextAnchor.MiddleCenter, new Color(1f, .83f, .3f)); n.rectTransform.pivot = new Vector2(.5f, .5f); n.text = (d + 1).ToString();
-                var ring = UiKit.Img(b.rectTransform, "ring", UiKit.Ring, new Vector2(.5f, .5f), Vector2.zero, new Vector2(48, 48) * k, new Color(1f, .83f, .3f, 0f)); ring.raycastTarget = false;
-                danceRings.Add(ring);
+                int dd = d; float ang = 90f + (d - 1) * -120f; // (the first top-left, then top-right, then bottom)
+                ang = d == 0 ? 150f : d == 1 ? 30f : 270f;
+                var rim = new GameObject("rim" + d, typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+                rim.transform.SetParent(dancePicker, false); rim.sprite = sectorRim; rim.color = gold; rim.raycastTarget = false;
+                rim.rectTransform.sizeDelta = Vector2.one * (R * 2f + 6f * s); rim.rectTransform.localEulerAngles = new Vector3(0, 0, ang - 90f);
+                var b = new GameObject("dance" + d, typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+                b.transform.SetParent(dancePicker, false); b.sprite = sector; b.color = new Color(.09f, .1f, .12f, .92f); b.alphaHitTestMinimumThreshold = 0.5f; // (only the sector itself takes the tap)
+                b.rectTransform.sizeDelta = Vector2.one * R * 2f; b.rectTransform.localEulerAngles = new Vector3(0, 0, ang - 90f);
+                var ic = new GameObject("icon", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+                ic.transform.SetParent(dancePicker, false); ic.sprite = UiKit.Get("dance_" + (d + 1)); ic.color = gold; ic.preserveAspect = true; ic.raycastTarget = false;
+                float a = ang * Mathf.Deg2Rad; ic.rectTransform.anchoredPosition = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * R * 0.66f; ic.rectTransform.sizeDelta = Vector2.one * 40f * s;
+                danceRings.Add(b);
                 Clickable.Add(b.gameObject, () =>
                 {
                     if (lobbyBody == null || !lobbyBody.HasClip(SoldierBody.DanceClip(dd))) return;
                     Profile.Dance = dd;
-                    lobbyBody.SetGun(null); lobbyBody.Dance(dd); danceEnd = Time.time + SoldierBody.DanceLength[dd]; lobbyAimEnd = -1f; // (empty hands to dance)
-                    for (int q = 0; q < danceRings.Count; q++) danceRings[q].color = new Color(1f, .83f, .3f, q == dd ? 1f : 0f);
+                    lobbyBody.Dance(dd); danceEnd = Time.time + SoldierBody.DanceLength[dd]; lobbyAimEnd = -1f; // (the gun onto his back, then the dance)
+                    for (int q = 0; q < danceRings.Count; q++) danceRings[q].color = q == dd ? new Color(.42f, .3f, .06f, .95f) : new Color(.09f, .1f, .12f, .92f);
                 });
             }
+            // the centre: a round button with a note - closes the wheel
+            var crim = UiKit.Img(dancePicker, "crim", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, Vector2.one * (R * 0.62f + 6f * s) / UiKit.K, gold);
+            crim.rectTransform.pivot = new Vector2(.5f, .5f);
+            var c0 = UiKit.Img(dancePicker, "close", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, Vector2.one * R * 0.62f / UiKit.K, new Color(.14f, .15f, .17f, 1f), true);
+            c0.rectTransform.pivot = new Vector2(.5f, .5f);
+            var ci = UiKit.Img(c0.rectTransform, "icon", UiKit.Get("icon_dance"), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * R * 0.3f / UiKit.K, gold); ci.preserveAspect = true; ci.rectTransform.pivot = new Vector2(.5f, .5f);
+            Clickable.Add(c0.gameObject, () => dancePicker.gameObject.SetActive(false));
             dancePicker.gameObject.SetActive(false);
+        }
+        /// <summary>a ring sector (span degrees, centred on the top), inner radius as a share of the outer, white</summary>
+        static Sprite Sector(float span, float inner)
+        {
+            const int n = 256; var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[n * n]; float half = span * 0.5f - 1.5f;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = (x + .5f) / n * 2f - 1f, dy = (y + .5f) / n * 2f - 1f, r = Mathf.Sqrt(dx * dx + dy * dy);
+                    float ang = Mathf.Abs(Mathf.DeltaAngle(90f, Mathf.Atan2(dy, dx) * Mathf.Rad2Deg));
+                    float aEdge = Mathf.Clamp01((half - ang) * 1.2f), rOut = Mathf.Clamp01((1f - r) * n * 0.5f), rIn = Mathf.Clamp01((r - inner) * n * 0.5f);
+                    px[y * n + x] = new Color32(255, 255, 255, (byte)(255 * Mathf.Min(aEdge, Mathf.Min(rOut, rIn))));
+                }
+            tex.SetPixels32(px); tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(.5f, .5f), 100f);
         }
         /// <summary>a tap (not a drag) on the screen: on the soldier, the dance buttons show / hide</summary>
         void LobbyTap(Vector2 screen)
@@ -339,7 +371,8 @@ namespace LastWar
         Vector2 pressAt; bool pressMoved;
         void DanceOver()
         {
-            danceEnd = -1f; foreach (var rg in danceRings) rg.color = new Color(1f, .83f, .3f, 0f); if (lobbyBody == null) return;
+            danceEnd = -1f; foreach (var rg in danceRings) rg.color = new Color(.09f, .1f, .12f, .92f); if (lobbyBody == null) return;
+            lobbyBody.SetBack(null); // (the gun back from his back into his hands)
             LobbyGunPose(Armory.LobbyGun); // (the gun back in his hands, standing as before)
         }
 

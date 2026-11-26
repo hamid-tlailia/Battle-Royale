@@ -68,7 +68,14 @@ namespace LastWar
         {
             if (!fighter.Alive) { body.Play("death"); body.SetGun(null); body.Tilt = 0; body.Pose = null; body.SetChute(false); cc.enabled = false; body.HideAfter(1.6f); enabled = false; return; }
             float dt = Time.deltaTime;
-            // the match goes on after you are out (you may be watching): bots stop only when one is left
+            // knocked down by a jeep: the fall played forward, a moment lying there, then the fall backwards (getting up)
+            if (Time.time < fighter.KnockedUntil)
+            {
+                float k = 2.6f - (fighter.KnockedUntil - Time.time);
+                float frac = k < 0.8f ? k / 0.8f : k < 1.6f ? 1f : 1f - (k - 1.6f) / 1f;
+                body.SetGun(null); body.Pose = null; body.Tilt = 0; body.Play("death"); body.Hold(Mathf.Clamp(frac, 0f, 0.98f) * 0.85f);
+                return;
+            } (you may be watching): bots stop only when one is left
             if (GameBoot.Instance == null || GameBoot.Instance.AliveCount <= 1) { if (Celebrate.Dancer == fighter) body.VictoryDance(); else body.Play("idle_rifle"); return; }
             if (fighter.air != 0) { AirUpdate(dt); return; }
             body.Tilt = 0; body.Pose = null; body.SetChute(false);

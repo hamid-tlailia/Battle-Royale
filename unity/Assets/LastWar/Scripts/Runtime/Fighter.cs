@@ -363,6 +363,8 @@ namespace LastWar
 
         /// <summary>test switch (?god=1 in the WebGL URL): takes no damage</summary>
         public bool God;
+        /// <summary>knocked flat (hit by a jeep) until this time: falls, lies a moment, gets up again</summary>
+        public float KnockedUntil = -1f;
 
         public void TakeDamage(float dmg, Fighter attacker, string weapon, bool head, Vector3 point)
         {

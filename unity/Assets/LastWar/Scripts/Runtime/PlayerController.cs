@@ -101,7 +101,18 @@ namespace LastWar
             if (GameBoot.Instance != null && GameBoot.Instance.Result != 0 && (GameBoot.Instance.Result < 0 || Hud.Celebrating)) { if (Celebrate.Dancer == fighter) body.VictoryDance(); else body.Play("idle_rifle"); return; } // (won: still moving until the victory screen)
             if (Vehicle.Mine != null) { DriveStep(dt); return; }
             if (rollT >= 0f) { RollStep(dt); return; }
-            if (input.RollPressed) { input.RollPressed = false; if (cc.enabled && cc.isGrounded && fighter.air == 0 && body.HasClip("mx_roll")) { StartRoll(); return; } }
+            if (input.RollPressed)
+            {
+                input.RollPressed = false;
+                // the dive roll only with open ground ahead - by a wall or a window he crouches instead (it rolled into
+                // windows when you meant to get through them)
+                Vector3 m0 = new Vector3(input.Move.x, 0, input.Move.y); Vector3 rd = Quaternion.Euler(0, yaw, 0) * (m0.sqrMagnitude > 0.01f ? m0.normalized : Vector3.forward);
+                int mk = ~(1 << MapBuilder.PlayerLayer);
+                bool open = !Physics.Raycast(transform.position + Vector3.up * 0.5f, rd, 5f, mk, QueryTriggerInteraction.Ignore)
+                         && !Physics.Raycast(transform.position + Vector3.up * 1.3f, rd, 5f, mk, QueryTriggerInteraction.Ignore);
+                if (open && cc.enabled && cc.isGrounded && fighter.air == 0 && body.HasClip("mx_roll")) { StartRoll(); return; }
+                input.Crouch = true; input.Prone = false; input.Sprint = false;
+            }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
             float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;
@@ -561,7 +572,7 @@ namespace LastWar
         }
 
         // ---------------------------------------------------------------- driving a jeep
-        CapsuleCollider seatCol; bool plantWas;
+        CapsuleCollider seatCol; bool plantWas; float lastCarLook = -9f;
         public void EnterVehicle(Vehicle v)
         {
             if (v == null || v.driver != null) return;
@@ -570,13 +581,13 @@ namespace LastWar
             if (seatCol == null) { seatCol = gameObject.AddComponent<CapsuleCollider>(); seatCol.center = new Vector3(0, 0.75f, 0); seatCol.height = 1.2f; seatCol.radius = 0.32f; }
             seatCol.enabled = true; // (the driver can still be shot)
             plantWas = body.Plant; body.Plant = false; body.Armed = false; body.Pose = null; body.Tilt = 0;
-            yaw = v.Yaw; pitch = -0.12f;
+            yaw = v.Yaw; pitch = -0.12f; input.Driving = true;
             Sfx.Play2D("clip", 0.6f, 0.8f);
         }
         public void ExitVehicle()
         {
             var v = Vehicle.Mine; if (v == null) return;
-            Vehicle.Mine = null; v.driver = null;
+            Vehicle.Mine = null; v.driver = null; input.Driving = false;
             transform.position = v.ExitPoint(); transform.rotation = Quaternion.Euler(0, v.Yaw, 0);
             if (seatCol != null) seatCol.enabled = false;
             if (fighter.Alive) cc.enabled = true;
@@ -589,8 +600,11 @@ namespace LastWar
             float sens = lookSensitivity * Profile.Sensitivity;
             yaw += input.LookDelta.x * sens; pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad, -0.6f, 0.5f);
             // the view swings back behind the jeep while it drives and nobody turns it
-            if (input.LookDelta.sqrMagnitude < 0.01f && Mathf.Abs(v.Speed) > 2f) yaw = Mathf.LerpAngle(yaw, v.Yaw, dt * 1.8f);
-            v.Drive(input.Move, dt);
+            // (the camera turns all the way round with the finger; left alone for 2 s while driving, it comes back behind)
+            if (input.LookDelta.sqrMagnitude > 0.01f) lastCarLook = Time.time;
+            if (Time.time - lastCarLook > 2f && Mathf.Abs(v.Speed) > 2f) yaw = Mathf.LerpAngle(yaw, v.Yaw, dt * 1.5f);
+            // the joystick: forward = gas, back = brake then reverse; the steering buttons on the right turn the wheel
+            v.Drive(new Vector2(Vehicle.Button.Steer, input.Move.y), dt);
             transform.position = v.SeatWorld; transform.rotation = v.transform.rotation;
             body.Armed = false; body.Speed = 0f; body.Pose = null; body.Play(body.HasClip("mx_drive") ? "mx_drive" : "crouch_idle"); // (seated, hands on the wheel: Mixamo Driving)
         }

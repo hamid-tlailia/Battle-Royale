@@ -151,6 +151,7 @@ namespace LastWar
         /// <param name="engage">this frame the scope opened or FIRE went down: an enemy inside the catch circle is caught at once</param>
         /// <param name="origin">where the view is seen from this frame (the eye through the scope - the camera was still behind
         /// the shoulder the frame the scope opened, and the catch missed by degrees)</param>
+        float firingFor;
         public void Step(Fighter me, Camera cam, Vector3 origin, ref float yaw, ref float pitch, Vector2 look, bool scoped, bool firing, float dt, bool engage = false)
         {
             if (!PlayerController.AimAssistOn || Strength <= 0f || cam == null || me == null || me.holstered || me.Gun == null || GameBoot.Instance == null || dt <= 0f)
@@ -242,11 +243,15 @@ namespace LastWar
             yaw += trackYaw; pitchDeg += trackPitch;
 
             // pull: through the scope or while firing, onto the body (not once on it)
+            firingFor = firing ? firingFor + dt : 0f;
+            // the first moments of a burst: settled well onto the body (into it, not just its edge) - the first shots of a
+            // burst slid off the edge before the hold took over
+            bool opening = firing && !sniper && firingFor < 0.4f && s.err <= s.allowed * 1.3f;
             float pull = 0f;
-            if ((scoped || firing) && s.err > s.halfW * 0.6f)
+            if ((scoped || firing) && s.err > s.halfW * (opening ? 0.2f : 0.6f))
             {
-                float rate = (locked ? 16f : PullRate * st) * (sniper ? SniperPull : 1f); // (caught: onto him within a few frames)
-                pull = Mathf.Min((s.err - s.halfW * 0.5f) * (1f - Mathf.Exp(-rate * dt)), (locked ? 240f : PullMax * st) * dt); // (to the body's edge, not past its middle)
+                float rate = (opening ? 22f : locked ? 16f : PullRate * st) * (sniper ? SniperPull : 1f); // (caught: onto him within a few frames)
+                pull = Mathf.Min((s.err - s.halfW * (opening ? 0.15f : 0.5f)) * (1f - Mathf.Exp(-rate * dt)), (locked || opening ? 240f : PullMax * st) * dt); // (to the body's edge, not past its middle)
                 if (pull < 0f) pull = 0f;
                 Vector2 e = new Vector2(Mathf.DeltaAngle(yaw, s.pYaw), s.pPitch - pitchDeg);
                 if (e.sqrMagnitude > 1e-8f)
