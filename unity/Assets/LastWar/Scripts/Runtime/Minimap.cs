@@ -163,6 +163,7 @@ namespace LastWar
             tr.triggers.Add(e);
         }
 
+        readonly System.Collections.Generic.List<RectTransform> drops = new System.Collections.Generic.List<RectTransform>();
         public static bool BigOpen;
         static Minimap current;
         public static void CloseBig() { if (current != null) current.SetBig(false); }
@@ -279,6 +280,15 @@ namespace LastWar
                 Draw(zoneLine, ToMap(mw), ToMap(safe.Value), 5f, u);
             }
             else zoneLine.gameObject.SetActive(false);
+            // supply drops: a red crate mark where each falls / lies
+            while (drops.Count < AirDrop.All.Count) { var di = UiKit.Img(content, "drop", UiKit.Disc, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(1f, .2f, .15f)); di.rectTransform.pivot = new Vector2(.5f, .5f); di.gameObject.AddComponent<Outline>().effectColor = Color.white; drops.Add(di.rectTransform); }
+            for (int i = 0; i < drops.Count; i++)
+            {
+                bool on = i < AirDrop.All.Count; drops[i].gameObject.SetActive(on); if (!on) continue;
+                Vector3 dp = AirDrop.All[i].Target;
+                drops[i].anchoredPosition = ToMap(new Vector2(-dp.x, dp.z)) * u; drops[i].sizeDelta = Vector2.one * (big ? 16 : 20) * (AirDrop.All[i].Landed ? 1f : 0.8f + 0.25f * Mathf.Sin(Time.time * 6f)) * u;
+                drops[i].SetAsLastSibling();
+            }
             route.SetAsLastSibling(); zoneLine.SetAsLastSibling(); pin.SetAsLastSibling();
             me.SetAsLastSibling();
 

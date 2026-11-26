@@ -17,6 +17,9 @@ namespace LastWar
         public static float WinDelay = 2.6f; float winAt = -1f;
         /// <summary>the victory screen is up (the player stops then, not the moment the last enemy falls)</summary>
         public static bool Celebrating;
+        static string notice = ""; static float noticeAt = -99f;
+        /// <summary>a short message in the middle of the screen for a few seconds (AIRDROP INCOMING ...)</summary>
+        public static void Notice(string text) { notice = text; noticeAt = Time.time; }
         class Slot { public RectTransform rt; public Image bg, gun, line; public Text ammo; }
         TouchControls input; PlayerController player;
         RectTransform iceCover;
@@ -581,7 +584,7 @@ namespace LastWar
             }
             zoneBox.color = outside ? new Color(200 / 255f, 30 / 255f, 30 / 255f, .5f + .25f * Mathf.PingPong(Time.time * 2f, 1f)) : new Color(20 / 255f, 60 / 255f, 140 / 255f, .5f);
             zoneBox.rectTransform.sizeDelta = new Vector2(zoneText.preferredWidth + 20 * K, 18 * K);
-            centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : hintText != "" && Time.time - hintAt < 2.5f ? hintText : "";
+            centerText.text = outside ? "YOU ARE OUTSIDE THE SAFE ZONE" : Time.time - noticeAt < 3.5f ? notice : hintText != "" && Time.time - hintAt < 2.5f ? hintText : "";
             centerText.color = outside ? new Color(1f, 0.42f, 0.36f) : Color.white;
             centerBox.gameObject.SetActive(centerText.text != "");
             if (centerText.text != "") centerBox.rectTransform.sizeDelta = new Vector2(260 * K, centerText.preferredHeight + 16 * K);

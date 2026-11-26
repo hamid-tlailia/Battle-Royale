@@ -52,7 +52,8 @@ namespace LastWar
         public static float AimStrength { get => PlayerPrefs.GetFloat("lw.assistStr", 0.7f); set { PlayerPrefs.SetFloat("lw.assistStr", value); PlayerPrefs.Save(); LastWar.AimAssist.Strength = value; } }
         public static float AimRange { get => PlayerPrefs.GetFloat("lw.assistRange", 70f); set { PlayerPrefs.SetFloat("lw.assistRange", value); PlayerPrefs.Save(); LastWar.AimAssist.Range = value; } }
         /// <summary>0 low, 1 medium, 2 high</summary>
-        public static int Quality { get => PlayerPrefs.GetInt("lw.quality", 2); set { PlayerPrefs.SetInt("lw.quality", value); PlayerPrefs.Save(); ApplyQuality(); } }
+        /// <summary>graphics: 2 HIGH, 1 MEDIUM, 0 LOW; unset: picked by the phone's memory (under 4 GB LOW, under 6 GB MEDIUM)</summary>
+        public static int Quality { get => PlayerPrefs.GetInt("lw.quality", SystemInfo.systemMemorySize > 0 && SystemInfo.systemMemorySize < 3800 ? 0 : SystemInfo.systemMemorySize > 0 && SystemInfo.systemMemorySize < 5800 ? 1 : 2); set { PlayerPrefs.SetInt("lw.quality", value); PlayerPrefs.Save(); ApplyQuality(); } }
 
         /// <summary>frames per second: 60 (default), 90 or 120 - a 90 / 120 Hz screen shows a smoother picture and aim at the
         /// cost of battery and heat</summary>
@@ -62,15 +63,21 @@ namespace LastWar
         /// "lw.fps2": the earlier default of 60 was saved for everyone</summary>
         public static int Fps { get => PlayerPrefs.GetInt("lw.fps2", 120); set { PlayerPrefs.SetInt("lw.fps2", value); PlayerPrefs.Save(); Application.targetFrameRate = value; } }
 
+        /// <summary>how far the camera draws (the haze hides the edge): LOW and MEDIUM draw less of the far map</summary>
+        public static float ViewFar => Quality == 0 ? 520f : Quality == 1 ? 850f : 1700f;
+
         public static void ApplyQuality()
         {
+            int q0 = Quality;
             if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
             {
                 int q = Quality;
                 urp.renderScale = q == 0 ? 0.7f : q == 1 ? 0.85f : 1f;
                 urp.msaaSampleCount = q == 0 ? 1 : q == 1 ? 2 : 4;
-                urp.shadowDistance = q == 0 ? 40f : q == 1 ? 70f : 90f;
+                urp.shadowDistance = q == 0 ? 35f : q == 1 ? 60f : 90f;
+                urp.shadowCascadeCount = q == 2 ? 2 : 1;
             }
+            QualitySettings.lodBias = q0 == 0 ? 0.6f : q0 == 1 ? 0.85f : 1.2f;
             PlayerController.AimAssistOn = AimAssist; LastWar.AimAssist.Strength = AimStrength; LastWar.AimAssist.Range = AimRange;
             AudioListener.volume = SoundOn ? 1f : 0f;
         }

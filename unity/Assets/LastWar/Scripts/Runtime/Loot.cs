@@ -89,20 +89,20 @@ namespace LastWar
         }
 
         /// <summary>a dead fighter's crate: everything they carried goes in it (web death box)</summary>
-        public static int NewCrate(Vector3 at)
+        public static int NewCrate(Vector3 at, bool look = true)
         {
             int id = nextBox++;
             int mask = ~(1 << MapBuilder.PlayerLayer);
             if (Physics.Raycast(at + Vector3.up * 1.2f, Vector3.down, out RaycastHit h, 6f, mask, QueryTriggerInteraction.Ignore)) at = h.point;
             var go = new GameObject("DeathBox"); go.transform.position = at; go.transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
             go.AddComponent<Crate>().box = id;
-            GameObject src = MapBuilder.Model("item_ammo");
+            GameObject src = look ? MapBuilder.Model("item_ammo") : null;
             if (src != null)
             {
-                Transform look = Instantiate(src, go.transform, false).transform; look.localScale = new Vector3(0.4f, 0.42f, 0.42f); // a small crate (was too big next to the soldier)
-                foreach (Renderer r in look.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
+                Transform lk = Instantiate(src, go.transform, false).transform; lk.localScale = new Vector3(0.4f, 0.42f, 0.42f); // a small crate (was too big next to the soldier)
+                foreach (Renderer r in lk.GetComponentsInChildren<Renderer>(true)) { var mats = r.sharedMaterials; for (int k = 0; k < mats.Length; k++) mats[k] = MapBuilder.LitFrom(mats[k]); r.sharedMaterials = mats; }
             }
-            Ring(go.transform, new Color(1f, .83f, .3f, .7f), 0.55f);
+            Ring(go.transform, new Color(1f, .83f, .3f, .7f), look ? 0.55f : 1.4f);
             return id;
         }
         public static Vector3 CratePos(int box) { foreach (Crate c in Object.FindObjectsByType<Crate>(FindObjectsSortMode.None)) if (c.box == box) return c.transform.position; return Vector3.zero; }

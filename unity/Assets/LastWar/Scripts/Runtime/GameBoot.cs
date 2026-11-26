@@ -154,6 +154,7 @@ namespace LastWar
             };
 
             // test: ?wintest=1 every bot falls after a moment (you win and dance); ?wintest=2 you and all bots but one fall (a bot wins)
+            AirDrop.Sender.Begin(url.Contains("droptest=1"));
             if (url.Contains("wintest=")) StartCoroutine(WinTest(url.Contains("wintest=2")));
             if (url.Contains("icetest=1")) { PlayerController.AimAssistOn = false; StartCoroutine(IceWall.Test(Player.transform)); } // (test: an ice wall in front of you, weakened in steps; the view held on it)
             // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30
@@ -257,6 +258,10 @@ namespace LastWar
             Vector3 p = cam.transform.position;
             float up = Mathf.Max(0f, p.y - Map.HeightAt(-p.x, p.z));
             RenderSettings.fogStartDistance = 110f + up * 1.4f; RenderSettings.fogEndDistance = 340f + up * 2.6f;
+            // graphics LOW / MEDIUM: nothing drawn past the haze (it hid it anyway); the sky dome drawn inside that distance
+            float far = Mathf.Min(1700f, Mathf.Max(Profile.ViewFar, RenderSettings.fogEndDistance + 60f));
+            if (cam.farClipPlane > 100f) cam.farClipPlane = far;
+            if (sky != null) sky.localScale = Vector3.one * Mathf.Min(1f, far * 0.92f / 1500f);
         }
 
         /// <summary>round trip to the game server; the offline match runs on this phone, so it is 0</summary>
