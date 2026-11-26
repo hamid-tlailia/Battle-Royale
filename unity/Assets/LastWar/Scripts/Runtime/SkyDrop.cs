@@ -192,7 +192,7 @@ namespace LastWar
             {
                 float under = m.HeightAt(-p.x, p.z), surface = MapBuilder.SeaLevel - SwimDepth;
                 bool past = flat.magnitude > m.size / 2f - 4f; // (past the ground's edge: open sea)
-                if ((under < MapBuilder.SeaLevel - 0.95f || past) && p.y < MapBuilder.SeaLevel - 0.1f) // (deeper than the waist: swim; shallower: wade) { swim = true; if (Mathf.Abs(p.y - surface) > 0.01f) { p.y = surface; moved = true; } }
+                if ((under < MapBuilder.SeaLevel - 0.95f || past) && p.y < MapBuilder.SeaLevel - 0.1f) /* (deeper than the waist: swim; shallower: wade) */ { swim = true; if (Mathf.Abs(p.y - surface) > 0.01f) { p.y = surface; moved = true; } }
                 float shoreR = MapBuilder.ShoreRadius(p), far = shoreR + 100f;
                 if (flat.magnitude > far) { flat = flat.normalized * far; p.x = flat.x; p.z = flat.y; moved = true; }
             }
