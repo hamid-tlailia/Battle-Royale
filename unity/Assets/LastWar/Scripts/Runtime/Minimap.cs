@@ -164,6 +164,8 @@ namespace LastWar
         }
 
         readonly System.Collections.Generic.List<RectTransform> drops = new System.Collections.Generic.List<RectTransform>();
+        /// <summary>how close the small map looks (it follows the player)</summary>
+        public static float SmallZoom = 2.4f;
         public static bool BigOpen;
         static Minimap current;
         public static void CloseBig() { if (current != null) current.SetBig(false); }
@@ -281,16 +283,27 @@ namespace LastWar
             }
             else zoneLine.gameObject.SetActive(false);
             // supply drops: a red crate mark where each falls / lies
-            while (drops.Count < AirDrop.All.Count) { var di = UiKit.Img(content, "drop", UiKit.Disc, new Vector2(0, 1), Vector2.zero, Vector2.one, new Color(1f, .2f, .15f)); di.rectTransform.pivot = new Vector2(.5f, .5f); di.gameObject.AddComponent<Outline>().effectColor = Color.white; drops.Add(di.rectTransform); }
+            while (drops.Count < AirDrop.All.Count) { var di = UiKit.Img(content, "drop", UiKit.Get("icon_airdrop"), new Vector2(0, 1), Vector2.zero, Vector2.one, Color.white); di.preserveAspect = true; di.rectTransform.pivot = new Vector2(.5f, .5f); di.gameObject.AddComponent<Outline>().effectColor = new Color(0, 0, 0, .7f); /* (a parachute and crate in the airdrop's blue - enemy shots are red dots) */ drops.Add(di.rectTransform); }
             for (int i = 0; i < drops.Count; i++)
             {
                 bool on = i < AirDrop.All.Count; drops[i].gameObject.SetActive(on); if (!on) continue;
                 Vector3 dp = AirDrop.All[i].Target;
-                drops[i].anchoredPosition = ToMap(new Vector2(-dp.x, dp.z)) * u; drops[i].sizeDelta = Vector2.one * (big ? 16 : 20) * (AirDrop.All[i].Landed ? 1f : 0.8f + 0.25f * Mathf.Sin(Time.time * 6f)) * u;
+                drops[i].anchoredPosition = ToMap(new Vector2(-dp.x, dp.z)) * u; drops[i].sizeDelta = Vector2.one * (big ? 26 : 34) * (AirDrop.All[i].Landed ? 1f : 0.8f + 0.25f * Mathf.Sin(Time.time * 6f)) * u;
                 drops[i].SetAsLastSibling();
             }
             route.SetAsLastSibling(); zoneLine.SetAsLastSibling(); pin.SetAsLastSibling();
             me.SetAsLastSibling();
+            // the small map follows you: zoomed in, you in the middle, the map moving under your arrow (the whole map on the
+            // big one); the marks keep their size
+            float zm = big ? 1f : SmallZoom, inv = 1f / zm;
+            content.localScale = Vector3.one * zm;
+            if (big) content.anchoredPosition = Vector2.zero;
+            else { Rect cr = content.rect; content.anchoredPosition = new Vector2(cr.width * 0.5f, -cr.height * 0.5f) - me.anchoredPosition * zm; }
+            me.localScale = pin.localScale = Vector3.one * inv;
+            foreach (var d in drops) d.localScale = Vector3.one * inv;
+            foreach (var n in names) n.t.rectTransform.localScale = Vector3.one * inv;
+            foreach (Mark m in shots) m.rt.localScale = Vector3.one * inv;
+            foreach (Mark m in hits) m.rt.localScale = Vector3.one * inv;
 
             // the guide at the top of the screen: back into the zone first, else toward the marker
             Vector2? goal = safe ?? markWeb;

@@ -17,7 +17,7 @@ namespace LastWar
         public Vector3 Target;
         public bool Landed;
         const float Start = 130f, Speed = 5.5f;
-        Transform chute, box; int crate; float t, smokeEnd = -1f; ParticleSystem smoke;
+        Transform chute, box; int crate; float t, smokeEnd = -1f, landedTime; ParticleSystem smoke;
 
         void OnEnable() { All.Add(this); }
         void OnDisable() { All.Remove(this); }
@@ -25,7 +25,7 @@ namespace LastWar
         /// <summary>watches the zone and sends the drops</summary>
         public class Sender : MonoBehaviour
         {
-            int sent; bool test;
+            int sent; bool test; float landedAt = -1f;
             public static void Begin(bool test) { var s = new GameObject("AirDrops").AddComponent<Sender>(); s.test = test; }
             void Update()
             {
@@ -36,14 +36,17 @@ namespace LastWar
                     Transform p = gb.Player.transform; sent++;
                     Drop(p.position + p.forward * 25f, 70f); return;
                 }
-                if (z == null || !z.Active) return;
-                int want = z.Phase >= 3 ? 2 : z.Phase >= 1 ? 1 : 0;
-                if (sent >= want) return;
+                if (z == null) return;
+                // mid-match, not at the end: the first ~70 s after you land, the second ~100 s later, while many still fight
+                if (landedAt < 0f) { if (gb.Player.fighter.air == 0) landedAt = Time.time; return; }
+                float since = Time.time - landedAt;
+                int want = since > 170f ? 2 : since > 70f ? 1 : 0;
+                if (sent >= want || gb.AliveCount <= 2) return;
                 sent++;
                 // somewhere inside the next circle, on dry ground, not in the sea
                 for (int k = 0; k < 40; k++)
                 {
-                    Vector2 r = Random.insideUnitCircle * z.NextRadius * 0.7f, c = z.NextCentre + r;
+                    Vector2 r = Random.insideUnitCircle * (z.Active ? z.NextRadius : z.Radius * 0.5f) * 0.7f, c = (z.Active ? z.NextCentre : z.Centre) + r;
                     Vector3 at = new Vector3(c.x, 0, c.y);
                     if (!Ground(ref at)) continue;
                     if (MapBuilder.SeaLevel > -999f && at.y < MapBuilder.SeaLevel + 0.8f) continue;
@@ -144,13 +147,14 @@ namespace LastWar
                 if (chute.localScale.x < 0.05f) { foreach (Transform c in transform) if (c != box) Destroy(c.gameObject); chute = null; }
             }
             bool empty = true; foreach (Loot l in Loot.All) if (l.box == crate) { empty = false; break; }
-            if (empty && smokeEnd < 0f) { smokeEnd = Time.time + 4f; if (smoke != null) smoke.Stop(); }
-            if (smokeEnd > 0f && Time.time > smokeEnd) Destroy(gameObject);
+            float lying = Time.time - landedTime;
+            if (smokeEnd < 0f && ((empty && lying > 25f) || lying > 180f)) { smokeEnd = Time.time + 6f; if (smoke != null) smoke.Stop(); }
+            if (smokeEnd > 0f && Time.time > smokeEnd && empty) Destroy(gameObject);
         }
 
         void Land()
         {
-            Landed = true; transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0); transform.position = Target;
+            Landed = true; landedTime = Time.time; transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0); transform.position = Target;
             Sfx.Play("land", Target, 0.9f);
             // what's inside
             crate = Loot.NewCrate(Target + Vector3.up * 0.2f, false);
