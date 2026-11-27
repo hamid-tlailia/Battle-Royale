@@ -666,7 +666,7 @@ namespace LastWar
                 foreach (Transform t in animRoot.GetComponentsInChildren<Transform>(true))
                 {
                     if (!t.name.Contains("mixamorig")) continue;
-                    for (Transform u = t; u != null && u != animRoot.transform; u = u.parent) if (BoneKey(u.name).StartsWith("Spine")) { upperBones.Add(t); break; }
+                    for (Transform u = t; u != null && u != animRoot.transform; u = u.parent) if (BoneKey(u.name).Contains("Spine")) { upperBones.Add(t); break; }
                 }
             }
             List<Transform> all = gestureArmsOnly ? armBones : upperBones;
