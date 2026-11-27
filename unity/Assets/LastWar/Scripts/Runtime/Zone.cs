@@ -61,7 +61,7 @@ namespace LastWar
                 tick = 0f;
                 if (GameBoot.Instance != null)
                     foreach (Fighter f in GameBoot.Instance.Fighters)
-                        if (f.Alive && Outside(f.transform.position)) f.TakeDamage(Dps, null, "zone", false, f.transform.position);
+                        if (f.Alive && Outside(f.transform.position) && (GameBoot.Instance == null || GameBoot.Instance.Result == 0)) f.TakeDamage(Dps, null, "zone", false, f.transform.position); // (the match won: no more harm)
             }
         }
 

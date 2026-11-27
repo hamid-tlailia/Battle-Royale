@@ -288,7 +288,7 @@ namespace LastWar
                     }
                     else if (OverBlocker(t.position)) continue;
                     // in the plane the whole screen turns the view; falling, only the bottom-left corner steers
-                    else if (joyFinger < 0 && (airMode <= 0 ? t.position.x < Screen.width * 0.42f : airMode > 1 && t.position.x < Screen.width * 0.25f && t.position.y < Screen.height * 0.5f)) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
+                    else if (joyFinger < 0 && !Minimap.BigOpen && (airMode <= 0 ? t.position.x < Screen.width * 0.42f : airMode > 1 && t.position.x < Screen.width * 0.25f && t.position.y < Screen.height * 0.5f)) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
                     else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
                 }
                 if (t.fingerId == eyeFinger)

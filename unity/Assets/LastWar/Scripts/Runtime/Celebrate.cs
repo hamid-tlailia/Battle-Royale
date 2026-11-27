@@ -25,7 +25,7 @@ namespace LastWar
             UiKit.Fill(shade.rectTransform); shade.rectTransform.SetAsLastSibling();
             var c = shade.gameObject.AddComponent<Celebrate>();
             // the gold glow in the middle
-            var glow = UiKit.Img(shade.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(900, 600), new Color(1f, .83f, .3f, .12f));
+            var glow = UiKit.Img(shade.rectTransform, "glow", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, new Vector2(900, 600), new Color(1f, .83f, .3f, .03f)); // (a faint warmth only: the yellow cast was too strong)
             glow.rectTransform.pivot = new Vector2(.5f, .5f);
             // confetti
             var rnd = new System.Random();

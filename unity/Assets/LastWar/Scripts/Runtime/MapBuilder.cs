@@ -553,7 +553,7 @@ namespace LastWar
                 foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
                 {
                     var mats = r.sharedMaterials;
-                    for (int k = 0; k < mats.Length; k++) mats[k] = LookMat(LitFrom(mats[k]), p.p, PropLook(p));
+                    for (int k = 0; k < mats.Length; k++) mats[k] = LookMat(LitFrom(mats[k]), p.p, PropLook(p)); if (TwoSidedProps.Contains(p.p)) mats[k] = TwoSided(mats[k]);
                     r.sharedMaterials = mats;
                 }
             }
@@ -592,6 +592,19 @@ namespace LastWar
         }
         static readonly Dictionary<(Material, string), Material> lookMats = new Dictionary<(Material, string), Material>();
         /// <summary>a prop's material in the map's look: its colour texture swapped for Looks/&lt;look&gt;/&lt;model&gt;_&lt;texture&gt;</summary>
+        /// <summary>props built of single faces (the windmill's yard wall): drawn from both sides, or from the edge / the
+        /// far side they showed hollow</summary>
+        static readonly HashSet<string> TwoSidedProps = new HashSet<string> { "yardwall", "windmill", "well", "fence" };
+        static readonly Dictionary<Material, Material> twoSided = new Dictionary<Material, Material>();
+        static Material TwoSided(Material m)
+        {
+            if (m == null) return m;
+            if (twoSided.TryGetValue(m, out Material t)) return t;
+            t = new Material(m) { name = m.name + " 2s" };
+            if (t.HasProperty("_Cull")) t.SetFloat("_Cull", 0f);
+            t.doubleSidedGI = true;
+            twoSided[m] = t; return t;
+        }
         static Material LookMat(Material m, string model) => LookMat(m, model, Look);
         static Material LookMat(Material m, string model, string Look)
         {

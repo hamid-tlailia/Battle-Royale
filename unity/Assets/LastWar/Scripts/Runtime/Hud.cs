@@ -423,6 +423,7 @@ namespace LastWar
 
         void Hit(Fighter victim, Fighter attacker, float dmg, bool head, Vector3 point)
         {
+            if (Celebrating) return; // (no damage numbers over the victory)
             if (attacker != null && attacker == player.fighter && victim != attacker)
             {
                 hitT = 0.3f; hitKill = !victim.Alive || head;

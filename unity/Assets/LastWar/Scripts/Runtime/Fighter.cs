@@ -258,7 +258,7 @@ namespace LastWar
             bool fromBack = holstered;
             slot = s; holstered = false; reloadEnd = 0; BurstPending = false; nextShot = Mathf.Max(nextShot, Time.time + (fromBack ? 0.75f : 0.45f));
             // the hands: a long gun taken from behind the shoulder, a switch a quick pull out
-            OnGesture?.Invoke(fromBack && !guns[s].def.id.StartsWith("pistol") ? "mx_grab" : "mx_pullout", fromBack ? 0.95f : 0.6f);
+            OnGesture?.Invoke(fromBack && !guns[s].def.id.StartsWith("pistol") ? "mx_grab" : "mx_pullout", fromBack ? 1.15f : 0.8f);
             if (isPlayer) Sfx.Play2D("clip", 1f, 1.25f); // drawing / switching a weapon (web sfx.equip)
         }
 
@@ -267,7 +267,7 @@ namespace LastWar
         {
             if (holstered) { SelectSlot(slot); return; }
             holstered = true; reloadEnd = 0; BurstPending = false;
-            OnGesture?.Invoke("mx_putback", 0.85f); // (the gun back behind the shoulder)
+            OnGesture?.Invoke(Gun != null && Gun.def.id.StartsWith("pistol") ? "mx_putaway" : "mx_putback", 1.05f); // (a long gun back behind the shoulder, the pistol put away)
             if (isPlayer) Sfx.Play2D("clip", 0.7f, 0.9f);
         }
 

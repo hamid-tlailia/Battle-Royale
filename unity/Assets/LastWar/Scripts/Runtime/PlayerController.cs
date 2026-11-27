@@ -27,7 +27,7 @@ namespace LastWar
         /// <summary>the web game's optics: red dot on the rifle (52 deg), x8 on the sniper (10 deg)</summary>
         /// <summary>zoom of the optic on the gun in your hands: the scope you attached, else the rifle's x2 / the sniper's x8</summary>
         /// <summary>1 = the rifle's own red-dot sight (no scope attached); 2 / 4 / 8 = a scope; the sniper's own is x8</summary>
-        public int ScopeZoom => fighter.scope > 0 ? fighter.scope : fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 8 : 1;
+        public int ScopeZoom => fighter.Gun != null && fighter.Gun.def.id == "sniper" ? 8 : fighter.scope > 0 ? fighter.scope : 1; // (the sniper always looks through its own x8 - it showed the x2 you had picked)
         float ScopeFov => ScopeZoom >= 8 ? 10f : ScopeZoom >= 4 ? 18f : ScopeZoom >= 2 ? 34f : 52f; // web SCOPE_FOV
         bool sniperHold, sniperAuto, wasScoped, wasGrounded = true; float unscopeAt, stepAcc, airTime, turn;
         /// <summary>the crosshair is on a living enemy (no wall in between)</summary>
@@ -78,7 +78,7 @@ namespace LastWar
 
         void Awake() { cc = GetComponent<CharacterController>(); }
         /// <summary>swimming speed (m/s)</summary>
-        public static float SwimSpeed = 2.6f;
+        public static float SwimSpeed = 3.7f;
 
         /// <summary>?gunshow=1 (tests): every gun model laid on the ground in a row in front of you</summary>
         System.Collections.IEnumerator GunShow()
@@ -586,6 +586,7 @@ namespace LastWar
 
         // ---------------------------------------------------------------- driving a jeep
         CapsuleCollider seatCol; bool plantWas; float lastCarLook = -9f;
+        float celebAng = -9999f, celebDist, celebH;
         public void EnterVehicle(Vehicle v)
         {
             if (v == null || v.driver != null) return;
@@ -643,17 +644,23 @@ namespace LastWar
             }
             if (Celebrate.Dancer != null && Celebrate.Dancer.Alive)
             {
-                // the victory dance: the camera comes round to the winner's front, a little to the side, and watches
+                // the victory dance: the camera comes round to the winner's front - circling him at a set distance (a
+                // straight move from behind to the front went through him: he vanished from the view for a moment)
                 Transform t = Celebrate.Dancer.transform;
+                Celebrate.Dancer.GetComponent<SoldierBody>()?.SetVisible(true); // (scoped when the last one fell: hidden)
                 Vector3 dLook = t.position + Vector3.up * 1.55f, fwd = Vector3.ProjectOnPlane(t.forward, Vector3.up).normalized;
-                Vector3 dir = (Quaternion.Euler(0, 20f, 0) * fwd * 4.3f + Vector3.up * 0.05f); // (the soldier framed low, under the card)
-                float dLen = dir.magnitude; dir /= dLen;
+                Vector3 rel = cam.transform.position - dLook; rel.y = 0;
+                if (celebAng < -999f) { celebAng = Mathf.Atan2(rel.x, rel.z) * Mathf.Rad2Deg; celebDist = Mathf.Max(2.5f, rel.magnitude); celebH = cam.transform.position.y - dLook.y; }
+                float want = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg + 20f;
+                float k = 1f - Mathf.Exp(-Time.deltaTime * 2.2f);
+                celebAng = Mathf.MoveTowardsAngle(celebAng, want, Mathf.Max(20f, Mathf.Abs(Mathf.DeltaAngle(celebAng, want)) * 1.8f) * Time.deltaTime);
+                celebDist = Mathf.Lerp(celebDist, 4.3f, k); celebH = Mathf.Lerp(celebH, 0.05f, k);
+                Vector3 dir = Quaternion.Euler(0, celebAng, 0) * Vector3.forward;
+                float dLen = celebDist;
                 foreach (var h in Physics.RaycastAll(dLook, dir, dLen, ~0, QueryTriggerInteraction.Ignore))
                     if (h.collider.GetComponentInParent<Fighter>() == null && h.distance < dLen) dLen = Mathf.Max(1.2f, h.distance - 0.25f);
-                Vector3 want = dLook + dir * dLen;
-                float k = 1f - Mathf.Exp(-Time.deltaTime * 2.5f);
-                cam.transform.position = Vector3.Lerp(cam.transform.position, want, k);
-                cam.transform.rotation = Quaternion.Slerp(cam.transform.rotation, Quaternion.LookRotation(dLook - cam.transform.position), k * 1.6f);
+                cam.transform.position = dLook + dir * dLen + Vector3.up * celebH;
+                cam.transform.rotation = Quaternion.LookRotation(dLook - cam.transform.position);
                 cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, 52f, k);
                 return;
             }
@@ -721,6 +728,8 @@ namespace LastWar
             float len = back.magnitude;
             if (Physics.SphereCast(pivot, 0.2f, back / len, out RaycastHit hit, len, ~(1 << MapBuilder.PlayerLayer), QueryTriggerInteraction.Ignore)) len = Mathf.Max(0.4f, hit.distance - 0.1f);
             cam.transform.position = pivot + back.normalized * len;
+            // swimming: the camera never dips under the water (looking up it went below the surface - empty under him)
+            if (fighter.Swimming && MapBuilder.SeaLevel > -999f && cam.transform.position.y < MapBuilder.SeaLevel + 0.4f) cam.transform.position = new Vector3(cam.transform.position.x, MapBuilder.SeaLevel + 0.4f, cam.transform.position.z);
             // under the canopy: keep the camera below it so turning never hides the soldier
             if (fighter.air == 3 && cam.transform.position.y > pivot.y + 1.6f) cam.transform.position = new Vector3(cam.transform.position.x, pivot.y + 1.6f, cam.transform.position.z);
             cam.transform.rotation = look;

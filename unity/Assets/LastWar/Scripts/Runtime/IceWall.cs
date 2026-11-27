@@ -54,20 +54,20 @@ namespace LastWar
                 centre += fwd * push;
             }
             float baseYaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg, step = Arc / (Blocks - 1), w = BlockW;
+            // one base for the whole wall (where its middle stands): it keeps its shape whatever it is put on - per block
+            // ground, and blocks left out inside a rock / house, broke it into odd cubes of different heights
+            if (!Physics.Raycast(centre + Vector3.up * 1.5f, Vector3.down, out RaycastHit hc, 9.5f, mask, QueryTriggerInteraction.Ignore)) hc.point = centre;
+            float baseY = hc.point.y;
             for (int i = 0; i < Blocks; i++)
             {
                 float a = baseYaw - Arc / 2f + i * step;
                 Vector3 dir = Quaternion.Euler(0, a, 0) * Vector3.forward;
-                Vector3 p = centre + dir * Radius + Vector3.up * 1.5f;
-                if (!Physics.Raycast(p, Vector3.down, out RaycastHit h, 9.5f, mask, QueryTriggerInteraction.Ignore)) continue;
-                if (h.collider.GetComponentInParent<IceWall>() != null) continue;
-                Vector3 c = h.point + Vector3.up * (Height / 2f - 0.15f);
-                Quaternion rot = Quaternion.LookRotation(dir);
-                // a block that would stand inside a house wall / rock is left out (the rest still stands)
-                // (the ground itself does not count: on a slope the block's uphill edge goes into it, and the wall stood
-                // only where the ground was flat)
-                if (Blocked(c + Vector3.up * 0.15f, new Vector3(w / 2f - 0.15f, Height / 2f - 0.3f, Thick / 2f - 0.08f), rot, mask)) continue;
-                spot.Add(new Block { pos = c, rot = rot, w = w, ground = h.point.y });
+                Vector3 p = centre + dir * Radius;
+                // (on a slope the low side reaches down to the ground below it, so no gap shows under the wall)
+                float g = baseY;
+                if (Physics.Raycast(new Vector3(p.x, baseY + 1.5f, p.z), Vector3.down, out RaycastHit h, 3f, mask, QueryTriggerInteraction.Ignore) && h.collider.GetComponentInParent<IceWall>() == null) g = Mathf.Min(baseY, h.point.y);
+                Vector3 c = new Vector3(p.x, baseY + Height / 2f - 0.15f, p.z);
+                spot.Add(new Block { pos = c, rot = Quaternion.LookRotation(dir), w = w, ground = g });
             }
             return spot;
         }

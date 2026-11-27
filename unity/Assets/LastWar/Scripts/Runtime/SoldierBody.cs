@@ -1414,7 +1414,7 @@ namespace LastWar
         {
             if (model != null) ApplyRoot();
             if (Dancing || Floating) { Retarget(); SyncExtras(); return; } // (the dance / the swim as recorded: no feet planted on the ground - in the water that pulled him down to the bottom)
-            FreeArms();
+            if (gestureW < 0.3f) FreeArms(); // (not while the hands handle a gun)
             long tr = Bench.Now();
             Retarget();
             Bench.Add(ref Bench.TransferTicks, tr);
@@ -1424,7 +1424,7 @@ namespace LastWar
             if (Pose == "kneel" || (current != null && current.StartsWith("crouch"))) FixFeet(true); // (crouching on a slope)
             if (Pose == "kneel" || (current != null && current.StartsWith("crouch"))) KneelPlant(); // (a foot left in the air down the slope)
             RunLife();
-            RelaxEmptyHands();
+            if (gestureW < 0.3f) RelaxEmptyHands();
             PlantFeet();
             LevelSoles();
             StandTallPose();
@@ -1446,8 +1446,10 @@ namespace LastWar
             }
             else if (snowball != null) snowball.gameObject.SetActive(false);
             // gun: the right hand closes on the pistol grip, the left hand holds the handguard from below
-            if (gun != null) { bool showGun = !(gestureClip == "mx_grab" && GestureProgress >= 0f && GestureProgress < 0.45f); foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible && showGun; }
-            if (gestureW > 0.5f && gun != null && handR != null) { gun.position = handR.position; gun.rotation = handR.rotation * Quaternion.Euler(0, 90, 0); if (weaponIK != null) weaponIK.Release(); return; } // (in the hand as the clip moves it)
+            // weapon handling: the hands follow the clip; the gun shows in the hands only once it is there (held on the
+            // hand's own turn it showed upside down for a moment)
+            if (gun != null) { bool showGun = gestureW < 0.35f; foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible && showGun; }
+            if (gestureW >= 0.35f) { if (weaponIK != null) weaponIK.Release(); return; }
             if (gun == null || handR == null) return;
             Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
             Transform handL = PoseBone("LeftHand");
