@@ -1188,7 +1188,7 @@ namespace LastWar
         }
 
         /// <summary>lean (free fall) and turn (walking sideways) of the whole model around the hips, on top of its own root turn</summary>
-        float sinkNow; public static float SwimSink = 0.5f;
+        float sinkNow; public static float SwimSink = 0.26f;
         void ApplyRoot()
         {
             tiltNow = Mathf.MoveTowards(tiltNow, Tilt, Time.deltaTime * 240f);

@@ -347,37 +347,53 @@ namespace LastWar
         System.Collections.IEnumerator DanceIcons()
         {
             const int Layer = 30, Px = 256; float[] at = { 0.42f, 0.35f, 0.55f }; // (share of each dance: a clear, open pose)
-            for (int d = 0; d < 3 && d < danceIcons.Count; d++)
+            int n = Mathf.Min(3, danceIcons.Count);
+            var gos = new GameObject[n]; var until = new float[n]; var done = new bool[n];
+            if (cam != null) cam.cullingMask &= ~(1 << Layer);
+            for (int d = 0; d < n; d++)
             {
-                var go = new GameObject("danceIcon" + d); go.transform.position = new Vector3(d * 20f, -400f, 0f);
+                // all three at once, far apart below the map; animated though no camera sees them (an unseen Animator
+                // stood still in its first frame)
+                var go = new GameObject("danceIcon" + d); go.transform.position = new Vector3(d * 30f, -400f, 0f);
                 var body = SoldierBody.Attach(go, Profile.Skin, Profile.Parts);
-                if (body == null || !body.HasClip(SoldierBody.DanceClip(d))) { Destroy(go); continue; }
-                body.Dance(d);
-                float until = Time.time + SoldierBody.DanceLength[d] * at[d];
-                var camGo = new GameObject("danceIconCam"); var c = camGo.AddComponent<Camera>(); c.enabled = false;
-                c.clearFlags = CameraClearFlags.SolidColor; c.backgroundColor = new Color(0, 0, 0, 0); c.cullingMask = 1 << Layer; c.fieldOfView = 30f; c.nearClipPlane = 0.1f; c.farClipPlane = 40f;
-                if (cam != null) cam.cullingMask &= ~(1 << Layer);
-                while (Time.time < until) { yield return null; SetLayer(go, Layer); }
-                yield return new WaitForEndOfFrame();
-                SetLayer(go, Layer);
-                Bounds bb = default; bool any = false;
-                foreach (Renderer r in go.GetComponentsInChildren<Renderer>()) { if (!r.enabled) continue; if (!any) { bb = r.bounds; any = true; } else bb.Encapsulate(r.bounds); }
-                if (any)
-                {
-                    float size = Mathf.Max(bb.size.y, Mathf.Max(bb.size.x, bb.size.z)) * 0.5f + 0.1f;
-                    float dist = size / Mathf.Tan(c.fieldOfView * 0.5f * Mathf.Deg2Rad);
-                    Vector3 view = (go.transform.forward + go.transform.right * 0.35f + Vector3.up * 0.15f).normalized;
-                    c.transform.position = bb.center + view * dist; c.transform.LookAt(bb.center);
-                    var rt = RenderTexture.GetTemporary(Px, Px, 24, RenderTextureFormat.ARGB32); rt.antiAliasing = 1;
-                    c.targetTexture = rt; c.Render();
-                    var prev = RenderTexture.active; RenderTexture.active = rt;
-                    var tex = new Texture2D(Px, Px, TextureFormat.RGBA32, false); tex.ReadPixels(new Rect(0, 0, Px, Px), 0, 0); tex.Apply();
-                    RenderTexture.active = prev; c.targetTexture = null; RenderTexture.ReleaseTemporary(rt);
-                    var ic = danceIcons[d]; ic.sprite = Sprite.Create(tex, new Rect(0, 0, Px, Px), new Vector2(.5f, .5f), 100f); ic.color = Color.white;
-                    ic.rectTransform.sizeDelta = ic.rectTransform.sizeDelta * 1.6f;
-                }
-                Destroy(camGo); Destroy(go);
+                if (body == null || !body.HasClip(SoldierBody.DanceClip(d))) { Destroy(go); done[d] = true; continue; }
+                foreach (Animator an in go.GetComponentsInChildren<Animator>(true)) an.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                foreach (SkinnedMeshRenderer sm in go.GetComponentsInChildren<SkinnedMeshRenderer>(true)) sm.updateWhenOffscreen = true;
+                body.Dance(d); gos[d] = go; until[d] = Time.time + SoldierBody.DanceLength[d] * at[d];
             }
+            var camGo = new GameObject("danceIconCam"); var c = camGo.AddComponent<Camera>(); c.enabled = false;
+            c.clearFlags = CameraClearFlags.SolidColor; c.backgroundColor = new Color(0, 0, 0, 0); c.cullingMask = 1 << Layer; c.fieldOfView = 26f; c.nearClipPlane = 0.1f; c.farClipPlane = 40f;
+            while (true)
+            {
+                bool all = true;
+                for (int d = 0; d < n; d++) if (!done[d]) { all = false; if (gos[d] != null) SetLayer(gos[d], Layer); }
+                if (all) break;
+                yield return new WaitForEndOfFrame();
+                for (int d = 0; d < n; d++)
+                {
+                    if (done[d] || Time.time < until[d]) continue;
+                    done[d] = true; var go = gos[d]; if (go == null) continue;
+                    SetLayer(go, Layer);
+                    Bounds bb = default; bool any = false;
+                    foreach (Renderer r in go.GetComponentsInChildren<Renderer>()) { if (!r.enabled) continue; if (!any) { bb = r.bounds; any = true; } else bb.Encapsulate(r.bounds); }
+                    if (any)
+                    {
+                        float size = Mathf.Max(bb.size.y, Mathf.Max(bb.size.x, bb.size.z)) * 0.5f + 0.05f;
+                        float dist = size / Mathf.Tan(c.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                        Vector3 view = (go.transform.forward + go.transform.right * 0.35f + Vector3.up * 0.15f).normalized;
+                        c.transform.position = bb.center + view * dist; c.transform.LookAt(bb.center);
+                        var rt = RenderTexture.GetTemporary(Px, Px, 24, RenderTextureFormat.ARGB32);
+                        c.targetTexture = rt; c.Render();
+                        var prev = RenderTexture.active; RenderTexture.active = rt;
+                        var tex = new Texture2D(Px, Px, TextureFormat.RGBA32, false); tex.ReadPixels(new Rect(0, 0, Px, Px), 0, 0); tex.Apply();
+                        RenderTexture.active = prev; c.targetTexture = null; RenderTexture.ReleaseTemporary(rt);
+                        var ic = danceIcons[d]; ic.sprite = Sprite.Create(tex, new Rect(0, 0, Px, Px), new Vector2(.5f, .5f), 100f); ic.color = Color.white;
+                        ic.rectTransform.sizeDelta = ic.rectTransform.sizeDelta * 1.9f;
+                    }
+                    Destroy(go);
+                }
+            }
+            Destroy(camGo);
         }
         static void SetLayer(GameObject g, int layer) { foreach (Transform t in g.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer; }
         /// <summary>a ring sector (span degrees, centred on the top), inner radius as a share of the outer, white</summary>
