@@ -32,7 +32,7 @@ namespace LastWar
         /// <summary>tests: FIRE goes down this frame (FirePressed)</summary>
         public static bool ForcePress;
         /// <summary>how much faster the finger on FIRE turns the view than a plain drag</summary>
-        public static float FireDragBoost = 1.6f;
+        public static float FireDragBoost = 2f; bool jumpLook;
         Vector2 fireLast;
         public bool FirePressed;    // true for the frame FIRE went down
         public bool FireReleased;   // true for the frame FIRE went up
@@ -286,10 +286,12 @@ namespace LastWar
                         fireFinger = t.fingerId; FirePressed = true; if (!InAir) Sprint = false; // a shot ends the run - except from a jump
                         fireLast = t.position; // (the FIRE finger always turns the view too - below)
                     }
+                    // the JUMP finger turns the view too (turning round in the air without a second finger)
+                    else if (lookFinger < 0 && airMode <= 0 && Over(jumpBtn, t.position)) { lookFinger = t.fingerId; lookLast = t.position; jumpLook = true; }
                     else if (OverBlocker(t.position)) continue;
                     // in the plane the whole screen turns the view; falling, only the bottom-left corner steers
                     else if (joyFinger < 0 && !Minimap.BigOpen && (airMode <= 0 ? t.position.x < Screen.width * 0.42f : airMode > 1 && t.position.x < Screen.width * 0.25f && t.position.y < Screen.height * 0.5f)) { joyFinger = t.fingerId; joyOrigin = t.position; Sprint = false; }
-                    else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; }
+                    else if (lookFinger < 0) { lookFinger = t.fingerId; lookLast = t.position; jumpLook = false; }
                 }
                 if (t.fingerId == eyeFinger)
                 {
@@ -324,10 +326,10 @@ namespace LastWar
                     if (FreeLookLatched && fireFinger != t.fingerId) FreeLookDelta += t.position - lookLast; // (latched free look: the drag circles the camera)
                     // standing still: a drag on the screen circles the camera round the soldier (see him and all around
                     // from every side) - he does not turn; once he moves, shoots or aims he turns to where the camera looks
-                    else if (Standing && !ScopedUi && !Spectating && !Minimap.BigOpen) { FreeLookDelta += t.position - lookLast; FreeLook = true; StandOrbit = true; }
+                    else if (Standing && !jumpLook && !ScopedUi && !Spectating && !Minimap.BigOpen) { FreeLookDelta += t.position - lookLast; FreeLook = true; StandOrbit = true; }
                     else if (!Minimap.BigOpen) LookDelta += t.position - lookLast;
                     lookLast = t.position;
-                    if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) lookFinger = -1;
+                    if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) { lookFinger = -1; jumpLook = false; }
                 }
             }
             // the minimap opened while running: he keeps going the way he went (the thumb left the stick to tap the map)

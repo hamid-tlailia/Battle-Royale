@@ -160,6 +160,8 @@ namespace LastWar
             // test: ?swimtest=1 you start in the strait (Frontier), 100 m east of the middle island
             if (url.Contains("swimtest=1")) { var cc0 = Player.GetComponent<CharacterController>(); cc0.enabled = false; Player.transform.position = Coords.ToUnity(-120f, MapBuilder.SeaLevel - AirMove.SwimDepth, 2f); cc0.enabled = true; }
             if (url.Contains("wintest=")) StartCoroutine(WinTest(url.Contains("wintest=2")));
+            // test: ?gtest=mx_drink (any gesture clip) you play it every 6 s, for 4 s; logs each start
+            { int gi = url.IndexOf("gtest="); if (gi >= 0) { string g = url.Substring(gi + 6); int amp = g.IndexOf('&'); if (amp >= 0) g = g.Substring(0, amp); SoldierBody.GestureLog = true; StartCoroutine(GestureTest(g)); } }
             if (url.Contains("icetest=1")) { PlayerController.AimAssistOn = false; StartCoroutine(IceWall.Test(Player.transform)); } // (test: an ice wall in front of you, weakened in steps; the view held on it)
             // benchmark (Settings > Benchmark, or ?bench=1): on the ground, you cannot be hurt, bots measured 10 / 20 / 30
             if (bench)
@@ -194,6 +196,16 @@ namespace LastWar
         }
 
         /// <summary>end of a match: back to the lobby behind a loading card</summary>
+        System.Collections.IEnumerator GestureTest(string clip)
+        {
+            yield return new WaitForSeconds(3f);
+            while (true)
+            {
+                var pc = Player;
+                if (pc != null && pc.body != null) pc.body.Gesture(clip, 4f);
+                yield return new WaitForSeconds(6f);
+            }
+        }
         System.Collections.IEnumerator WinTest(bool botWins)
         {
             yield return new WaitForSeconds(4f);

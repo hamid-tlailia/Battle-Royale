@@ -566,11 +566,64 @@ namespace LastWar
                     break;
                 case "trimesh":
                 case "hull":
+                    // the windmill's yard wall: two faces with open ends - you walked in between them at a gap and stayed
+                    // stuck there; solid boxes between the faces instead
+                    if (p.p == "yardwall" && SolidWall(root, shape)) break;
                     var mc = root.AddComponent<MeshCollider>();
                     mc.sharedMesh = ColliderMesh(shape);
                     mc.convex = shape.type == "hull";
                     break;
             }
+        }
+
+        static readonly Dictionary<ShapeData, List<(Vector3 c, Vector3 size, float yaw)>> wallBoxes = new Dictionary<ShapeData, List<(Vector3, Vector3, float)>>();
+        /// <summary>a wall built of single upright faces as solid boxes: each face paired with the face facing it
+        /// across the wall's thickness (up to 1.2 m), the box filling the space between them</summary>
+        static bool SolidWall(GameObject root, ShapeData shape)
+        {
+            if (!wallBoxes.TryGetValue(shape, out var boxes))
+            {
+                boxes = new List<(Vector3, Vector3, float)>(); wallBoxes[shape] = boxes;
+                float[] v = shape.v; int[] ix = shape.i; if (v == null || ix == null) return false;
+                float top = 0f; for (int k = 1; k < v.Length; k += 3) top = Mathf.Max(top, v[k]);
+                var segs = new List<(Vector2 a, Vector2 b)>(); var seen = new HashSet<(int, int, int, int)>();
+                for (int t = 0; t + 2 < ix.Length; t += 3)
+                {
+                    Vector3 p0 = new Vector3(v[ix[t] * 3], v[ix[t] * 3 + 1], v[ix[t] * 3 + 2]), p1 = new Vector3(v[ix[t + 1] * 3], v[ix[t + 1] * 3 + 1], v[ix[t + 1] * 3 + 2]), p2 = new Vector3(v[ix[t + 2] * 3], v[ix[t + 2] * 3 + 1], v[ix[t + 2] * 3 + 2]);
+                    Vector3 n = Vector3.Cross(p1 - p0, p2 - p0); if (n.sqrMagnitude < 1e-8f || Mathf.Abs(n.normalized.y) > 0.1f) continue; // (upright faces only)
+                    if (Mathf.Min(p0.y, Mathf.Min(p1.y, p2.y)) > 0.3f) continue; // (the wall body, from the ground: not the roof's thatch)
+                    Vector2 a = new Vector2(p0.x, p0.z), b = a;
+                    foreach (Vector3 q in new[] { p1, p2 }) { Vector2 w = new Vector2(q.x, q.z); if ((w - a).sqrMagnitude > (b - a).sqrMagnitude) b = w; }
+                    if ((b - a).sqrMagnitude < 0.0025f) continue;
+                    var key = (Mathf.RoundToInt(Mathf.Min(a.x, b.x) * 50), Mathf.RoundToInt(Mathf.Min(a.y, b.y) * 50), Mathf.RoundToInt(Mathf.Max(a.x, b.x) * 50), Mathf.RoundToInt(Mathf.Max(a.y, b.y) * 50));
+                    if (seen.Add(key)) segs.Add((a, b));
+                }
+                foreach (var sg in segs)
+                {
+                    Vector2 d = sg.b - sg.a; float len = d.magnitude; d /= len; Vector2 n = new Vector2(-d.y, d.x), mid = (sg.a + sg.b) * 0.5f;
+                    float best = float.MaxValue;
+                    foreach (var o in segs)
+                    {
+                        if (o.a == sg.a && o.b == sg.b) continue;
+                        // ray mid + n t against the other face
+                        Vector2 e = o.b - o.a; float den = n.x * e.y - n.y * e.x; if (Mathf.Abs(den) < 1e-5f) continue;
+                        Vector2 f = o.a - mid; float tt = (f.x * e.y - f.y * e.x) / den, u = (f.x * n.y - f.y * n.x) / den;
+                        if (u < -0.02f || u > 1.02f || Mathf.Abs(tt) < 0.08f || Mathf.Abs(tt) > 1.2f) continue;
+                        if (Mathf.Abs(tt) < Mathf.Abs(best)) best = tt;
+                    }
+                    if (best == float.MaxValue) continue;
+                    Vector2 c = mid + n * (best * 0.5f);
+                    boxes.Add((new Vector3(c.x, top * 0.5f, c.y), new Vector3(len + 0.06f, top, Mathf.Abs(best)), Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg));
+                }
+            }
+            if (boxes.Count < 4) return false;
+            foreach (var bx in boxes)
+            {
+                var go = new GameObject("wallbox"); go.layer = root.layer;
+                go.transform.SetParent(root.transform, false); go.transform.localPosition = bx.c; go.transform.localRotation = Quaternion.Euler(0, bx.yaw, 0);
+                go.AddComponent<BoxCollider>().size = new Vector3(bx.size.z, bx.size.y, bx.size.x);
+            }
+            return true;
         }
 
         static readonly Dictionary<Material, Material> litCache = new Dictionary<Material, Material>();

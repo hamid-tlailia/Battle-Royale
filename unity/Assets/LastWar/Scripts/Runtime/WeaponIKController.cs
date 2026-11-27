@@ -138,7 +138,7 @@ namespace LastWar
                 gun.position = handR.position + handR.rotation * c.gunAtHand;
 
                 // 4-5. the left hand onto the LeftHandGrip
-                bool want = b.playing != "mx_reload" && !b.current.StartsWith("death");
+                bool want = b.playing != "mx_reload" && !b.GestureHoldsGun && !b.current.StartsWith("death");
                 leftW = Mathf.MoveTowards(leftW, want ? 1f : 0f, Mathf.Min(Time.deltaTime / FadeSeconds, 1f / FadeFrames)); // at least 8 frames AND 0.15 s
                 float w = leftW * leftW * (3f - 2f * leftW); // smoothstep: eases in and out
                 Transform la = b.PoseBone("LeftArm"), lf = b.PoseBone("LeftForeArm"), hl = b.PoseBone("LeftHand");

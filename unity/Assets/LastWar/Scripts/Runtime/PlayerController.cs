@@ -118,7 +118,9 @@ namespace LastWar
             }
             // (web: radians per pixel x sensitivity x zoom x scope sensitivity x 0.8 while the dot is red)
             // (x the aim assist's friction: the view turns slower over / near the enemy it holds)
-            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Assist.SensFactor;
+            // (a quick swipe - turning round in a jump or a fight - is not held back by the aim assist's friction)
+            float flick = Mathf.InverseLerp(250f, 700f, input.LookDelta.magnitude / Mathf.Max(dt, 1e-3f));
+            float sens = lookSensitivity * Profile.Sensitivity * (Scoped ? cam.fieldOfView / 70f * Profile.ScopeSensitivity : 1f) * Mathf.Lerp(Assist.SensFactor, 1f, flick);
             yaw += input.LookDelta.x * sens + TestLook.x * dt * Assist.SensFactor;
             pitch = Mathf.Clamp(pitch + input.LookDelta.y * sens * Mathf.Deg2Rad + TestLook.y * dt * Assist.SensFactor * Mathf.Deg2Rad, -1.2f, 1.2f); // Unity screen Y points up: drag down = look down
             lookThisFrame = input.LookDelta * sens + TestLook * dt;

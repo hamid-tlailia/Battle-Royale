@@ -174,6 +174,22 @@ namespace LastWar
             body.SetBag(fighter.bagLv);
 
             float speed = sprint ? PlayerController.SprintSpeed : PlayerController.WalkSpeed;
+            // never on top of another soldier (in the water they piled up, one swimming over the other): steer apart
+            if (GameBoot.Instance != null)
+            {
+                Vector3 away = Vector3.zero;
+                foreach (Fighter o in GameBoot.Instance.Fighters)
+                {
+                    if (o == null || o == fighter || !o.Alive) continue;
+                    Vector3 d = transform.position - o.transform.position; d.y = 0; float m = d.magnitude;
+                    if (m < 1.6f) away += (m > 0.01f ? d / m : transform.right) * (1.6f - m) / 1.6f;
+                }
+                if (away.sqrMagnitude > 1e-4f)
+                {
+                    move = (move + away * 2.5f); if (move.sqrMagnitude > 1f) move.Normalize();
+                    if (fighter.Swimming) { Vector3 push = away * 2f * dt; cc.Move(new Vector3(push.x, 0, push.z)); }
+                }
+            }
             Vector3 flat = Vector3.MoveTowards(new Vector3(velocity.x, 0, velocity.z), move * speed, PlayerController.GroundAccel * dt);
             velocity.x = flat.x; velocity.z = flat.z;
             if (cc.isGrounded && velocity.y < 0) velocity.y = -2f;

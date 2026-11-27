@@ -623,33 +623,67 @@ namespace LastWar
         public bool AirAim;
         AnimationClipPlayable aimUpper; float aimUpperW;
         // ---- weapon handling on the upper body (Mixamo: grab the rifle from behind the shoulder, put it back, pull out)
-        AvatarMask upperMask; AnimationClipPlayable gesture; float gestureT = -1f, gestureLen, gestureW; string gestureClip;
+        AvatarMask upperMask; float gestureT = -1f, gestureLen, gestureW; string gestureClip; AnimationClip gestureAnim;
+        /// <summary>the gesture keeps the gun in the right hand (a reload); armsOnly: only the arms follow it (lying down)</summary>
+        bool gestureKeepGun, gestureArmsOnly;
+        /// <summary>true while a gun-keeping gesture (a reload over a crouch / prone pose) moves the hands</summary>
+        public bool GestureHoldsGun => gestureKeepGun && gestureW > 0.01f;
         /// <summary>a moment of weapon handling played over the upper body (the legs keep walking / running), the clip
-        /// stretched to `seconds`; the hands follow it (not the gun hold) while it plays</summary>
-        public void Gesture(string clip, float seconds)
+        /// stretched to `seconds`; the hands follow it (not the gun hold) while it plays. Sampled onto the skeleton in
+        /// LateUpdate and blended bone by bone (as the free-arm run does) - a masked playable layer had no effect.</summary>
+        public void Gesture(string clip, float seconds) => Gesture(clip, seconds, false, false);
+        public void Gesture(string clip, float seconds, bool keepGun, bool armsOnly)
         {
-            if (!graph.IsValid() || upperMask == null || !clipIndex.TryGetValue(clip, out int gi)) return;
-            if (gesture.IsValid() && gestureClip != clip) { graph.Disconnect(layers, 3); gesture.Destroy(); }
-            if (!gesture.IsValid() || gestureClip != clip)
-            {
-                gesture = AnimationClipPlayable.Create(graph, clips[gi]); gestureClip = clip;
-                graph.Connect(gesture, 0, layers, 3); layers.SetLayerMaskFromAvatarMask(3, upperMask);
-            }
+            if (!clipIndex.TryGetValue(clip, out int gi) || animRoot == null) { if (GestureLog) Debug.Log($"[LastWar] gesture {clip}: not available"); return; }
+            gestureAnim = clips[gi]; gestureClip = clip; gestureKeepGun = keepGun; gestureArmsOnly = armsOnly;
             gestureLen = Mathf.Max(0.2f, seconds); gestureT = 0f;
-            gesture.SetTime(0); gesture.SetSpeed(clips[gi].length / gestureLen);
+            if (GestureLog) Debug.Log($"[LastWar] gesture {clip} {seconds:0.00}s keepGun {keepGun} armsOnly {armsOnly}");
         }
+        public static bool GestureLog; int reloadFrames; bool reloadGest;
+        /// <summary>stop a gesture now (it fades out)</summary>
+        public void EndGesture(string clip) { if (gestureClip == clip && gestureT >= 0f) gestureT = -1f; }
         /// <summary>the gesture's share of the upper body now (0..1)</summary>
         public float GestureWeight => gestureW;
         /// <summary>how far through the gesture (0..1; -1: none)</summary>
         public float GestureProgress => gestureT < 0f ? -1f : Mathf.Clamp01(gestureT / gestureLen);
+        float gestureShown; // (the clip time last sampled, so the fade-out holds the last pose)
         void StepGesture(float dt)
         {
-            if (gestureT < 0f) { gestureW = Mathf.MoveTowards(gestureW, 0f, dt * 8f); if (gesture.IsValid()) layers.SetInputWeight(3, gestureW); return; }
+            if (gestureT < 0f) { gestureW = Mathf.MoveTowards(gestureW, 0f, dt * 8f); return; }
             gestureT += dt;
             float k = gestureT / gestureLen;
             gestureW = k < 0.12f ? k / 0.12f : k > 0.85f ? Mathf.Clamp01((1f - k) / 0.15f) : 1f;
-            if (gesture.IsValid()) layers.SetInputWeight(3, gestureW);
             if (k >= 1f) gestureT = -1f;
+        }
+        List<Transform> upperBones; Vector3[] gPos; Quaternion[] gRot; Vector3 gRootPos; Quaternion gRootRot;
+        /// <summary>the gesture clip laid over the animated pose: upper body (spine and up) or the arms only, by its weight</summary>
+        void ApplyGesture()
+        {
+            if (gestureW <= 0.001f || gestureAnim == null || animRoot == null) return;
+            if (upperBones == null)
+            {
+                upperBones = new List<Transform>();
+                foreach (Transform t in animRoot.GetComponentsInChildren<Transform>(true))
+                {
+                    if (!t.name.Contains("mixamorig")) continue;
+                    for (Transform u = t; u != null && u != animRoot.transform; u = u.parent) if (BoneKey(u.name).StartsWith("Spine")) { upperBones.Add(t); break; }
+                }
+            }
+            List<Transform> all = gestureArmsOnly ? armBones : upperBones;
+            int na = armBones.Count + bodyBones.Count;
+            if (gPos == null || gPos.Length < na) { gPos = new Vector3[na]; gRot = new Quaternion[na]; }
+            for (int i = 0; i < bodyBones.Count; i++) { gPos[i] = bodyBones[i].localPosition; gRot[i] = bodyBones[i].localRotation; }
+            for (int i = 0; i < armBones.Count; i++) { gPos[bodyBones.Count + i] = armBones[i].localPosition; gRot[bodyBones.Count + i] = armBones[i].localRotation; }
+            gRootPos = animRoot.transform.localPosition; gRootRot = animRoot.transform.localRotation;
+            if (gestureT >= 0f) gestureShown = Mathf.Clamp01(gestureT / gestureLen) * gestureAnim.length;
+            gestureAnim.SampleAnimation(animRoot, gestureShown);
+            animRoot.transform.localPosition = gRootPos; animRoot.transform.localRotation = gRootRot;
+            float w = gestureW * gestureW * (3f - 2f * gestureW);
+            var sampled = new Dictionary<Transform, Quaternion>(all.Count);
+            foreach (Transform t in all) sampled[t] = t.localRotation;
+            for (int i = 0; i < bodyBones.Count; i++) { bodyBones[i].localPosition = gPos[i]; bodyBones[i].localRotation = gRot[i]; }
+            for (int i = 0; i < armBones.Count; i++) { armBones[i].localPosition = gPos[bodyBones.Count + i]; armBones[i].localRotation = gRot[bodyBones.Count + i]; }
+            foreach (var kv in sampled) kv.Key.localRotation = Quaternion.Slerp(kv.Key.localRotation, kv.Value, w);
         }
         /// <summary>weight of the upper-body aiming layer (0..1) - the weapon IK turns the chest toward the aim by it</summary>
         public float UpperAimWeight => aimUpperW;
@@ -975,6 +1009,14 @@ namespace LastWar
             // firing in the air with a long gun: the aiming pose fades in over the upper body (about 0.12 s), and out on landing
             aimUpperW = Mathf.MoveTowards(aimUpperW, AirAim && playing == "mx_jump" && Armed && gun != null && !dead0() ? 1f : 0f, Time.deltaTime * 8f);
             if (aimUpper.IsValid()) layers.SetInputWeight(2, aimUpperW);
+            // reloading crouched / lying / on the move (the full-body reload clip is for standing only): the reload
+            // over the upper body (lying: the arms), the gun kept in the right hand
+            if (Reloading) reloadFrames++; else { if (reloadGest) EndGesture("mx_reload"); reloadGest = false; reloadFrames = 0; }
+            if (reloadFrames == 2 && !reloadGest && playing != "mx_reload" && gun != null && !(gunId ?? "").StartsWith("pistol") && !(current ?? "").StartsWith("death"))
+            {
+                bool lying = Pose == "crawl" || current == "prone" || (playing ?? "").Contains("prone") || (playing ?? "").Contains("crawl");
+                Gesture("mx_reload", Mathf.Max(0.5f, ReloadTime - Time.deltaTime), true, lying); reloadGest = true;
+            }
             StepGesture(Time.deltaTime);
             int target = clipIndex[playing ?? current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
@@ -1415,6 +1457,7 @@ namespace LastWar
             if (model != null) ApplyRoot();
             if (Dancing || Floating) { Retarget(); SyncExtras(); return; } // (the dance / the swim as recorded: no feet planted on the ground - in the water that pulled him down to the bottom)
             if (gestureW < 0.3f) FreeArms(); // (not while the hands handle a gun)
+            ApplyGesture();
             long tr = Bench.Now();
             Retarget();
             Bench.Add(ref Bench.TransferTicks, tr);
@@ -1448,8 +1491,8 @@ namespace LastWar
             // gun: the right hand closes on the pistol grip, the left hand holds the handguard from below
             // weapon handling: the hands follow the clip; the gun shows in the hands only once it is there (held on the
             // hand's own turn it showed upside down for a moment)
-            if (gun != null) { bool showGun = gestureW < 0.35f; foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible && showGun; }
-            if (gestureW >= 0.35f) { if (weaponIK != null) weaponIK.Release(); return; }
+            if (gun != null) { bool showGun = gestureW < 0.35f || gestureKeepGun; foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible && showGun; }
+            if (gestureW >= 0.35f && !gestureKeepGun) { if (weaponIK != null) weaponIK.Release(); return; }
             if (gun == null || handR == null) return;
             Vector3 dir = AimDir.sqrMagnitude > 1e-6f ? AimDir.normalized : transform.forward;
             Transform handL = PoseBone("LeftHand");
