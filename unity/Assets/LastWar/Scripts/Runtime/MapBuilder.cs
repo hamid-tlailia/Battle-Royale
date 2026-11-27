@@ -553,7 +553,7 @@ namespace LastWar
                 foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
                 {
                     var mats = r.sharedMaterials;
-                    for (int k = 0; k < mats.Length; k++) mats[k] = LookMat(LitFrom(mats[k]), p.p, PropLook(p)); if (TwoSidedProps.Contains(p.p)) mats[k] = TwoSided(mats[k]);
+                    for (int k = 0; k < mats.Length; k++) { mats[k] = LookMat(LitFrom(mats[k]), p.p, PropLook(p)); if (TwoSidedProps.Contains(p.p)) mats[k] = TwoSided(mats[k]); }
                     r.sharedMaterials = mats;
                 }
             }
