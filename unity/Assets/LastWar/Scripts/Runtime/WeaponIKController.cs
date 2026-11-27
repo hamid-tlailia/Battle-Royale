@@ -42,6 +42,13 @@ namespace LastWar
                 foreach (Renderer r in b.gun.GetComponentsInChildren<Renderer>(true)) r.enabled = on && b.visible;
             }
             public void Release() { leftW = 0f; }
+            /// <summary>where the gun sits held in the right hand alone (its calibrated grip)</summary>
+            public void GunAtHand(out Vector3 pos, out Quaternion rot)
+            {
+                string look = b.gunId; var p = WeaponGrips.Get(look);
+                if (!cal.TryGetValue(look, out Cal c)) c = Calibrate(look, p);
+                rot = b.handR.rotation * c.gunInHand; pos = b.handR.position + b.handR.rotation * c.gunAtHand;
+            }
             /// <summary>the hanging rifle: how far the left wrist may bend off the forearm (deg)</summary>
             public static bool UseHangGrip = false;
             public static float HangWristMax = 18f;

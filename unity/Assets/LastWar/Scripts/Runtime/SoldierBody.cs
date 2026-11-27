@@ -606,6 +606,12 @@ namespace LastWar
 
         public void SetGun(string id)
         {
+            // weapon handling: the gun in the hands changes when the hand gets there (at the back / the pocket)
+            if (InTransit) { hasPendGun = id != gunId; pendGun = id; return; }
+            ApplyGun(id);
+        }
+        void ApplyGun(string id)
+        {
             if (id == gunId) return;
             gunId = id;
             if (gun != null) Destroy(gun.gameObject);
@@ -635,11 +641,65 @@ namespace LastWar
         public void Gesture(string clip, float seconds, bool keepGun, bool armsOnly)
         {
             if (!clipIndex.TryGetValue(clip, out int gi) || animRoot == null) { if (GestureLog) Debug.Log($"[LastWar] gesture {clip}: not available"); return; }
+            if (transit) FinishTransit(); // (a handling still under way: its gun where it was going)
+            transit = TransitSwap.TryGetValue(clip, out transitSwap); swapped = false; hasPendGun = hasPendBack = false;
+            transitDraw = clip == "mx_grab" || clip == "mx_pullout";
             gestureAnim = clips[gi]; gestureClip = clip; gestureKeepGun = keepGun; gestureArmsOnly = armsOnly;
             gestureLen = Mathf.Max(0.2f, seconds); gestureT = 0f;
             if (GestureLog) Debug.Log($"[LastWar] gesture {clip} {seconds:0.00}s keepGun {keepGun} armsOnly {armsOnly}");
         }
         public static bool GestureLog; int reloadFrames; bool reloadGest;
+        // ---- the gun goes with the hand: drawing, it stays on the back (in the pocket) until the hand is there, then
+        //      the hand brings it round; putting away, it stays in the hand until the hand is at the back. Share of each
+        //      clip where the hand is at the back / the pocket (measured on the clips' right hand path)
+        static readonly Dictionary<string, float> TransitSwap = new Dictionary<string, float> { { "mx_grab", 0.38f }, { "mx_putback", 0.52f }, { "mx_pullout", 0.36f }, { "mx_putaway", 0.45f } };
+        bool transit, transitDraw, swapped, hasPendGun, hasPendBack; float transitSwap; string pendGun; List<string> pendBack; int transitSlot;
+        bool InTransit => transit && !swapped && gestureT >= 0f;
+        void FinishTransit()
+        {
+            swapped = true;
+            if (hasPendBack) { hasPendBack = false; ApplyBack(pendBack); }
+            if (hasPendGun) { hasPendGun = false; ApplyGun(pendGun); }
+        }
+        void StepTransit()
+        {
+            if (!transit) return;
+            if (!swapped && (gestureT < 0f || GestureProgress >= transitSwap))
+            {
+                // the back slot the gun leaves / goes into (to carry it from / to there)
+                string id = transitDraw ? pendGun : gunId;
+                transitSlot = 0;
+                List<string> list = transitDraw ? backIds : pendBack;
+                if (list != null && id != null) { int ix = list.IndexOf(id); if (ix >= 0) transitSlot = ix; }
+                FinishTransit();
+            }
+            if (gestureT < 0f) transit = false;
+        }
+        /// <summary>the gun in the hand during weapon handling, carried between the hand and the back; true when placed</summary>
+        bool CarryGun()
+        {
+            if (!transit || gestureT < 0f || gun == null || handR == null) return false;
+            if (weaponIK == null) weaponIK = new WeaponIKController(this);
+            weaponIK.GunAtHand(out Vector3 hp, out Quaternion hr);
+            float k = GestureProgress, toBack = 0f;
+            bool longGun = !(gunId ?? "").StartsWith("pistol");
+            if (longGun)
+            {
+                int slot = transitSlot;
+                if (!swapped) { var l = pendBack ?? backIds; int ix = l != null && gunId != null ? l.IndexOf(gunId) : -1; slot = ix >= 0 ? ix : 0; }
+                if (BackSlot(slot, out Vector3 bp, out Quaternion br))
+                {
+                    // leaving the hands: carried toward its place on the back; just taken: brought from there
+                    float u = !swapped ? Mathf.Clamp01(k / Mathf.Max(0.05f, transitSwap)) : 1f - Mathf.Clamp01((k - transitSwap) / 0.3f);
+                    toBack = u * u * (3f - 2f * u) * (swapped ? 1f : 0.85f);
+                    hp = Vector3.Lerp(hp, bp, toBack); hr = Quaternion.Slerp(hr, br, toBack);
+                }
+            }
+            gun.position = hp; gun.rotation = hr;
+            foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible;
+            weaponIK.Release();
+            return true;
+        }
         /// <summary>stop a gesture now (it fades out)</summary>
         public void EndGesture(string clip) { if (gestureClip == clip && gestureT >= 0f) gestureT = -1f; }
         /// <summary>the gesture's share of the upper body now (0..1)</summary>
@@ -1018,6 +1078,7 @@ namespace LastWar
                 Gesture("mx_reload", Mathf.Max(0.5f, ReloadTime - Time.deltaTime), true, lying); reloadGest = true;
             }
             StepGesture(Time.deltaTime);
+            StepTransit();
             int target = clipIndex[playing ?? current];
             // one-shot clips (jump, death) stop on their last frame instead of looping
             if (OneShot(playing ?? current))
@@ -1127,6 +1188,7 @@ namespace LastWar
         }
 
         /// <summary>lean (free fall) and turn (walking sideways) of the whole model around the hips, on top of its own root turn</summary>
+        float sinkNow; public static float SwimSink = 0.5f;
         void ApplyRoot()
         {
             tiltNow = Mathf.MoveTowards(tiltNow, Tilt, Time.deltaTime * 240f);
@@ -1139,8 +1201,12 @@ namespace LastWar
                 baseSet = true;
             }
             Quaternion q = Quaternion.Euler(tiltNow, 0, 0), ry = Quaternion.Euler(0, Turn, 0);
-            model.localRotation = ry * q * modelBaseRot; model.localPosition = ry * (pivot - q * (pivot - modelBase));
-            if (outfitRoot != null) { outfitRoot.localRotation = ry * q * outfitBaseRot; outfitRoot.localPosition = ry * (pivot - q * (pivot - outfitBase)); }
+            // swimming: the body lies in the water, back and legs under the surface, head and shoulders out (it lay on
+            // top of the water as on the ground)
+            sinkNow = Mathf.MoveTowards(sinkNow, Floating ? SwimSink : 0f, Time.deltaTime * 1.5f);
+            Vector3 down = Vector3.down * sinkNow;
+            model.localRotation = ry * q * modelBaseRot; model.localPosition = ry * (pivot - q * (pivot - modelBase)) + down;
+            if (outfitRoot != null) { outfitRoot.localRotation = ry * q * outfitBaseRot; outfitRoot.localPosition = ry * (pivot - q * (pivot - outfitBase)) + down; }
         }
 
         // ---- procedural poses on top of the animation (the web game's applyPose)
@@ -1270,11 +1336,17 @@ namespace LastWar
         readonly List<Transform> backGuns = new List<Transform>(); string backKey = "";
         public void SetBack(List<string> ids)
         {
+            if (InTransit) { pendBack = ids == null ? null : new List<string>(ids); hasPendBack = (ids == null ? "" : string.Join(",", ids)) != backKey; return; }
+            ApplyBack(ids);
+        }
+        List<string> backIds = new List<string>();
+        void ApplyBack(List<string> ids)
+        {
             string key = ids == null ? "" : string.Join(",", ids);
             if (key == backKey) return;
             backKey = key;
             foreach (Transform g in backGuns) if (g != null) Destroy(g.gameObject);
-            backGuns.Clear();
+            backGuns.Clear(); backIds = ids == null ? new List<string>() : new List<string>(ids);
             if (ids == null) return;
             for (int i = 0; i < ids.Count && i < 2; i++)
             {
@@ -1408,18 +1480,23 @@ namespace LastWar
             if (backGuns.Count == 0) return;
             Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
             if (spine == null) return;
+            for (int i = 0; i < backGuns.Count; i++) if (BackSlot(i, out Vector3 bp, out Quaternion br)) { backGuns[i].position = bp; backGuns[i].rotation = br; }
+        }
+        /// <summary>where a gun hangs in back slot i (diagonal across the back, the two crossed, flat against the body;
+        /// against the back's measured depth - or just behind the backpack when there is one)</summary>
+        bool BackSlot(int i, out Vector3 pos, out Quaternion rot)
+        {
+            pos = Vector3.zero; rot = Quaternion.identity;
+            Transform spine = PoseBone("Spine2") ?? PoseBone("Spine1") ?? PoseBone("Spine");
+            if (spine == null) return false;
             Quaternion bodyRot = ChestRot(spine);
-            for (int i = 0; i < backGuns.Count; i++)
-            {
-                float side = i == 0 ? 1f : -1f;
-                // diagonal across the back, the two crossed, flat against the body
-                // against the back (its measured depth) - or just behind the backpack when there is one
-                float rb = LiveBack && liveBackSet ? liveBack : restBack;
-                float behind = restBackSet ? (bagLook != null ? rb + 0.01f + bagDepth + 0.03f : rb + 0.04f) : 0.17f + (bagLook != null ? 0.17f : 0f);
-                backGuns[i].position = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(behind + i * 0.05f));
-                Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
-                backGuns[i].rotation = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
-            }
+            float side = i == 0 ? 1f : -1f;
+            float rb = LiveBack && liveBackSet ? liveBack : restBack;
+            float behind = restBackSet ? (bagLook != null ? rb + 0.01f + bagDepth + 0.03f : rb + 0.04f) : 0.17f + (bagLook != null ? 0.17f : 0f);
+            pos = spine.position + bodyRot * new Vector3(-side * 0.04f, -0.05f, -(behind + i * 0.05f));
+            Vector3 barrel = bodyRot * new Vector3(side * 0.62f, 0.78f, 0f);
+            rot = Quaternion.LookRotation(-barrel, bodyRot * Vector3.back);
+            return true;
         }
 
         // ---- support hand on the gun (two-bone IK on the left arm)
@@ -1491,6 +1568,7 @@ namespace LastWar
             // gun: the right hand closes on the pistol grip, the left hand holds the handguard from below
             // weapon handling: the hands follow the clip; the gun shows in the hands only once it is there (held on the
             // hand's own turn it showed upside down for a moment)
+            if (CarryGun()) return;
             if (gun != null) { bool showGun = gestureW < 0.35f || gestureKeepGun; foreach (Renderer r in gun.GetComponentsInChildren<Renderer>()) r.enabled = visible && showGun; }
             if (gestureW >= 0.35f && !gestureKeepGun) { if (weaponIK != null) weaponIK.Release(); return; }
             if (gun == null || handR == null) return;

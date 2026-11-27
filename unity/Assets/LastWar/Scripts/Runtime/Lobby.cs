@@ -326,17 +326,60 @@ namespace LastWar
                     Profile.Dance = dd;
                     lobbyBody.Dance(dd); danceEnd = Time.time + SoldierBody.DanceLength[dd]; lobbyAimEnd = -1f; // (the gun onto his back, then the dance)
                     for (int q = 0; q < danceRings.Count; q++) danceRings[q].color = q == dd ? new Color(.42f, .3f, .06f, .95f) : new Color(.09f, .1f, .12f, .92f);
+                    dancePicker.gameObject.SetActive(false); // (the wheel goes: the dance is seen whole)
                 });
+                danceIcons.Add(ic);
             }
             // the centre: a round button with a note - closes the wheel
             var crim = UiKit.Img(dancePicker, "crim", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, Vector2.one * (R * 0.62f + 6f * s) / UiKit.K, gold);
             crim.rectTransform.pivot = new Vector2(.5f, .5f);
             var c0 = UiKit.Img(dancePicker, "close", UiKit.Disc, new Vector2(.5f, .5f), Vector2.zero, Vector2.one * R * 0.62f / UiKit.K, new Color(.14f, .15f, .17f, 1f), true);
             c0.rectTransform.pivot = new Vector2(.5f, .5f);
-            var ci = UiKit.Img(c0.rectTransform, "icon", UiKit.Get("icon_dance"), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * R * 0.3f / UiKit.K, gold); ci.preserveAspect = true; ci.rectTransform.pivot = new Vector2(.5f, .5f);
-            Clickable.Add(c0.gameObject, () => dancePicker.gameObject.SetActive(false));
+            // the centre: the game's emblem, no button
+            var ci = UiKit.Img(c0.rectTransform, "icon", UiKit.Get("emblem"), new Vector2(.5f, .5f), Vector2.zero, Vector2.one * R * 0.5f / UiKit.K, Color.white); ci.preserveAspect = true; ci.rectTransform.pivot = new Vector2(.5f, .5f); ci.raycastTarget = false;
+            c0.raycastTarget = false;
             dancePicker.gameObject.SetActive(false);
+            StartCoroutine(DanceIcons()); // (each dance's own picture: the soldier himself in a moment of it)
         }
+        readonly List<Image> danceIcons = new List<Image>();
+        /// <summary>the dance wheel's pictures, rendered: a copy of your soldier (your outfit) set far below the stage, in
+        /// each dance at its most telling moment, filmed on its own against a clear background</summary>
+        System.Collections.IEnumerator DanceIcons()
+        {
+            const int Layer = 30, Px = 256; float[] at = { 0.42f, 0.35f, 0.55f }; // (share of each dance: a clear, open pose)
+            for (int d = 0; d < 3 && d < danceIcons.Count; d++)
+            {
+                var go = new GameObject("danceIcon" + d); go.transform.position = new Vector3(d * 20f, -400f, 0f);
+                var body = SoldierBody.Attach(go, Profile.Skin, Profile.Parts);
+                if (body == null || !body.HasClip(SoldierBody.DanceClip(d))) { Destroy(go); continue; }
+                body.Dance(d);
+                float until = Time.time + SoldierBody.DanceLength[d] * at[d];
+                var camGo = new GameObject("danceIconCam"); var c = camGo.AddComponent<Camera>(); c.enabled = false;
+                c.clearFlags = CameraClearFlags.SolidColor; c.backgroundColor = new Color(0, 0, 0, 0); c.cullingMask = 1 << Layer; c.fieldOfView = 30f; c.nearClipPlane = 0.1f; c.farClipPlane = 40f;
+                if (cam != null) cam.cullingMask &= ~(1 << Layer);
+                while (Time.time < until) { yield return null; SetLayer(go, Layer); }
+                yield return new WaitForEndOfFrame();
+                SetLayer(go, Layer);
+                Bounds bb = default; bool any = false;
+                foreach (Renderer r in go.GetComponentsInChildren<Renderer>()) { if (!r.enabled) continue; if (!any) { bb = r.bounds; any = true; } else bb.Encapsulate(r.bounds); }
+                if (any)
+                {
+                    float size = Mathf.Max(bb.size.y, Mathf.Max(bb.size.x, bb.size.z)) * 0.5f + 0.1f;
+                    float dist = size / Mathf.Tan(c.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                    Vector3 view = (go.transform.forward + go.transform.right * 0.35f + Vector3.up * 0.15f).normalized;
+                    c.transform.position = bb.center + view * dist; c.transform.LookAt(bb.center);
+                    var rt = RenderTexture.GetTemporary(Px, Px, 24, RenderTextureFormat.ARGB32); rt.antiAliasing = 1;
+                    c.targetTexture = rt; c.Render();
+                    var prev = RenderTexture.active; RenderTexture.active = rt;
+                    var tex = new Texture2D(Px, Px, TextureFormat.RGBA32, false); tex.ReadPixels(new Rect(0, 0, Px, Px), 0, 0); tex.Apply();
+                    RenderTexture.active = prev; c.targetTexture = null; RenderTexture.ReleaseTemporary(rt);
+                    var ic = danceIcons[d]; ic.sprite = Sprite.Create(tex, new Rect(0, 0, Px, Px), new Vector2(.5f, .5f), 100f); ic.color = Color.white;
+                    ic.rectTransform.sizeDelta = ic.rectTransform.sizeDelta * 1.6f;
+                }
+                Destroy(camGo); Destroy(go);
+            }
+        }
+        static void SetLayer(GameObject g, int layer) { foreach (Transform t in g.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer; }
         /// <summary>a ring sector (span degrees, centred on the top), inner radius as a share of the outer, white</summary>
         static Sprite Sector(float span, float inner)
         {

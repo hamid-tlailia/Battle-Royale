@@ -279,7 +279,8 @@ namespace LastWar
                 bg.rectTransform.pivot = new Vector2(.5f, 1);
                 var line = UiKit.Img(bg.rectTransform, "line", null, new Vector2(.5f, 0), Vector2.zero, new Vector2(164, 1), new Color(1, 1, 1, .06f)); line.rectTransform.pivot = new Vector2(.5f, 0);
                 var ic = UiKit.Img(bg.rectTransform, "icon", null, new Vector2(0, .5f), new Vector2(4, 0), new Vector2(42, 16), Color.white); ic.preserveAspect = true; ic.rectTransform.pivot = new Vector2(0, .5f);
-                var tx = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(52, 0), new Vector2(76, 26), 11, TextAnchor.MiddleLeft, Color.white);
+                var tx = UiKit.Txt(bg.rectTransform, new Vector2(0, .5f), new Vector2(50, 0), new Vector2(69, 26), 11, TextAnchor.MiddleLeft, Color.white);
+                tx.horizontalOverflow = HorizontalWrapMode.Wrap; tx.verticalOverflow = VerticalWrapMode.Truncate; // (inside its row, clear of TAKE)
                 var tk = UiKit.Img(bg.rectTransform, "take", UiKit.Round, new Vector2(1, .5f), new Vector2(-3, 0), new Vector2(38, 18), new Color(.45f, .78f, .25f), true);
                 tk.rectTransform.pivot = new Vector2(1, .5f);
                 var ti = UiKit.Img(tk.rectTransform, "icon", UiKit.Get("icon_take"), C, Vector2.zero, new Vector2(13, 13), new Color(.06f, .13f, .03f)); ti.rectTransform.pivot = C; ti.preserveAspect = true; // (take: into the bag; grey = full)
@@ -677,7 +678,7 @@ namespace LastWar
                 if (it != null && (it != r.item || full != rowFull[i]))
                 {
                     r.icon.sprite = it.Icon; r.icon.enabled = r.icon.sprite != null;
-                    string sub = full ? (f.HeldOf(it).Length > 0 ? "full " + f.HeldOf(it) + (f.bagLv < 3 ? " · a bigger bag holds more" : "") : "full") : it.Sub;
+                    string sub = full ? (f.HeldOf(it).Length > 0 ? "full " + f.HeldOf(it) : "full") : it.Sub;
                     r.text.text = $"{it.Label}\n<size={Mathf.RoundToInt(9 * K)}><color=#ffffffb0>{sub}</color></size>";
                     var take = r.bg.transform.Find("take");
                     if (take != null)

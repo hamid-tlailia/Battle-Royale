@@ -76,6 +76,7 @@ namespace LastWar
             return pc;
         }
 
+        AudioSource swimSrc;
         void Awake() { cc = GetComponent<CharacterController>(); }
         /// <summary>swimming speed (m/s)</summary>
         public static float SwimSpeed = 3.7f;
@@ -316,6 +317,14 @@ namespace LastWar
                 armed = false;
             }
             body.Floating = fighter.Swimming;
+            // the strokes in the water (scripts: Audio/swim.wav, made for the game), louder while swimming along
+            if (swimSrc == null && fighter.Swimming) { var sc = Resources.Load<AudioClip>("Audio/swim"); if (sc != null) { swimSrc = gameObject.AddComponent<AudioSource>(); swimSrc.clip = sc; swimSrc.loop = true; swimSrc.spatialBlend = 0f; swimSrc.volume = 0f; swimSrc.Play(); } }
+            if (swimSrc != null)
+            {
+                float sp = new Vector2(velocity.x, velocity.z).magnitude;
+                swimSrc.volume = Mathf.MoveTowards(swimSrc.volume, fighter.Swimming && fighter.Alive ? 0.12f + 0.4f * Mathf.Clamp01(sp / SwimSpeed) : 0f, Time.deltaTime * 2f);
+                swimSrc.pitch = 0.9f + 0.25f * Mathf.Clamp01(sp / SwimSpeed);
+            }
             body.Play(clip);
             body.Armed = armed;
             body.AirAim = clip == "jump" && armed && firing; // firing in the air: the upper body aims (the legs keep the jump)
@@ -690,7 +699,7 @@ namespace LastWar
                 cam.fieldOfView = 70f;
                 return;
             }
-            Vector3 pivot = transform.position + Vector3.up * (fighter.Swimming ? 1.9f : Mathf.Max(1.0f, cc.height - 0.3f)); // (prone: the camera stays above the body, not in the ground; swimming: well above the water)
+            Vector3 pivot = transform.position + Vector3.up * (fighter.Swimming ? 1.6f : Mathf.Max(1.0f, cc.height - 0.3f)); // (prone: the camera stays above the body, not in the ground; swimming: well above the water)
             // smooth the camera over bumps and steps (web camY); big jumps / falls snap
             if (float.IsNaN(camY) || Mathf.Abs(pivot.y - camY) > 1.5f || fighter.air != 0) camY = pivot.y;
             else camY = Mathf.Lerp(camY, pivot.y, Mathf.Min(1f, Time.deltaTime * 14f));

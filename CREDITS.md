@@ -37,6 +37,7 @@ they were converted (rescaled, re-textured at lower resolution, compressed, spli
 | Gun reload | StarNinjas | CC0 | https://opengameart.org/content/2-gun-reloads |
 | Clip load (pickup) | Raassh | CC0 | https://opengameart.org/content/gun-reload-sound-effects |
 | Propeller plane engine loop ("Airplane Prop Loop") | Jordan Irwin (AntumDeluge) | [CC-BY 3.0](http://creativecommons.org/licenses/by/3.0/) | https://opengameart.org/content/airplane-prop-loop |
+| Swimming strokes loop (`Audio/swim.wav`) | made for this game (synthesised) | CC0 | - |
 | Victory jingle ("And the winner is…") + "Dreaming of Victory" (first seconds) | OpenGameArt contributors | CC0 | https://opengameart.org/content/and-the-winner-is · https://opengameart.org/content/dreaming-of-victory |
 | Wind ambience ("Breeze") | Anderson dos Santos | [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) | https://opengameart.org/content/breeze |
 
