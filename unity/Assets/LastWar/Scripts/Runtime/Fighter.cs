@@ -285,6 +285,7 @@ namespace LastWar
         {
             if (meds <= 0 || hp >= MaxHp || healEnd > 0 || !Alive) return;
             healEnd = Time.time + 3f;
+            OnGesture?.Invoke("mx_drink", 3f); // (drinking the medkit: Mixamo Drinking, from the project owner)
         }
 
         void Update()

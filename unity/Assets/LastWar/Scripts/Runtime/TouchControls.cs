@@ -330,9 +330,14 @@ namespace LastWar
                     if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) lookFinger = -1;
                 }
             }
+            // the minimap opened while running: he keeps going the way he went (the thumb left the stick to tap the map)
+            if (move.sqrMagnitude > 0.04f) { lastMove = move; lastMoveAt = Time.unscaledTime; }
+            if (Minimap.BigOpen && joyFinger < 0) { if (!mapRun) { mapRun = true; mapMove = Time.unscaledTime - lastMoveAt < 0.6f ? lastMove : Vector2.zero; } move = mapMove; }
+            else if (!Minimap.BigOpen) mapRun = false;
             Move = move;
             FireHeld = fireFinger >= 0 || ForceFire;
         }
+        Vector2 lastMove, mapMove; float lastMoveAt = -9f; bool mapRun;
 
         void Desktop()
         {
